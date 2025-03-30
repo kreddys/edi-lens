@@ -6,7 +6,9 @@ EDI Lens is a web-based developer tool designed to help view, parse, and underst
 
 ## Live Demo
 
-🚀 **Try EDI Lens live:** ![https://edi-lens.kreddys.com/](https://edi-lens.kreddys.com/) 
+🚀 **Try EDI Lens live:**  
+<a href="https://edi-lens.kreddys.com/" target="_blank" rel="noopener noreferrer">https://edi-lens.kreddys.com/</a>
+
 
 ## Features
 
