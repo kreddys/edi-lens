@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Define brand colors as CSS Variables */
+/* Example using a dark theme based on slate/amber */
+:root {
+  --color-brand-bg: #0f172a;
+  /* slate-900 */
+  --color-brand-surface: #1e293b;
+  /* slate-800 */
+  --color-brand-surface-alt: #334155;
+  /* slate-700 */
+  --color-brand-border: #475569;
+  /* slate-600 */
+  --color-brand-border-subtle: #334155;
+  /* slate-700 */
+  --color-brand-text-primary: #e2e8f0;
+  /* slate-200 */
+  --color-brand-text-secondary: #94a3b8;
+  /* slate-400 */
+  --color-brand-text-muted: #64748b;
+  /* slate-500 */
+  --color-brand-accent: #f59e0b;
+  /* amber-500 */
+  --color-brand-accent-transparent: rgba(245, 158, 11, 0.35);
+  /* amber-500 with alpha */
+  --color-brand-code-bg: #334155;
+  /* slate-700 */
+  --color-brand-usage-r: #f87171;
+  /* red-400 */
+  --color-brand-usage-s: #fbbf24;
+  /* amber-400 */
+  --color-brand-usage-n: #64748b;
+  /* slate-500 */
+  --color-brand-error: #f87171;
+  /* red-400 */
+  --color-brand-error-bg: #ef4444;
+  /* red-500 */
+  --color-brand-warning: #facc15;
+  /* yellow-400 */
+  --color-brand-warning-bg: #eab308;
+  /* yellow-500 */
+  --color-brand-segment-id: #60a5fa;
+  /* blue-400 */
+}
+
+/* Your custom base styles or overrides below */
+
+/* --- Custom Scrollbar Styling (Webkit) --- */
+/* Works on Chrome, Edge, Safari, Opera */
+
+/* The entire scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  /* Width of vertical scrollbar */
+  height: 8px;
+  /* Height of horizontal scrollbar */
+}
+
+/* The scrollbar track (background) */
+::-webkit-scrollbar-track {
+  background: var(--color-brand-surface);
+  /* Use surface color for track */
+  border-radius: 4px;
+}
+
+/* The draggable scrolling handle */
+::-webkit-scrollbar-thumb {
+  background: var(--color-brand-border);
+  /* Use border color for the thumb */
+  border-radius: 4px;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-brand-text-secondary);
+  /* Make slightly lighter/more visible on hover */
+}
+
+/* Ace editor style overrides using CSS variables */
+.ace_editor {
+  line-height: 1.5 !important;
+  background-color: var(--color-brand-surface) !important;
+  color: var(--color-brand-text-primary) !important;
+  border: 1px solid var(--color-brand-border) !important;
+  border-radius: 0.375rem !important;
+  font-size: 12px !important;
+}
+
+.ace_gutter {
+  background: var(--color-brand-surface) !important;
+  color: var(--color-brand-text-secondary) !important;
+  border-right: 1px solid var(--color-brand-border-subtle) !important;
+}
+
+.ace_marker-layer .ace_active-line {
+  background-color: var(--color-brand-surface-alt) !important;
+}
+
+.ace_selection {
+  background-color: var(--color-brand-accent-transparent) !important;
+}
+
+.ace_gutter-cell {
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+  color: var(--color-brand-text-secondary) !important;
+}
+
+.ace_cursor {
+  color: var(--color-brand-accent) !important;
+}

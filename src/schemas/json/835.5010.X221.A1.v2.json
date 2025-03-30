@@ -1,0 +1,5925 @@
+{
+  "transactionName": "HIPAA Health Care Claim Payment/Advice 005010X221A1 835W1",
+  "segmentDefinitions": {
+    "ISA": {
+      "name": "Interchange Control Header",
+      "usage": "R",
+      "pos": "100",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "ISA01",
+          "data_ele": "I01",
+          "name": "Authorization Information Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "00",
+              "03"
+            ]
+          }
+        },
+        {
+          "xid": "ISA02",
+          "data_ele": "I02",
+          "name": "Authorization Information",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "ISA03",
+          "data_ele": "I03",
+          "name": "Security Information Qualifier",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "00",
+              "01"
+            ]
+          }
+        },
+        {
+          "xid": "ISA04",
+          "data_ele": "I04",
+          "name": "Security Information",
+          "usage": "R",
+          "seq": "04"
+        },
+        {
+          "xid": "ISA05",
+          "data_ele": "I05",
+          "name": "Interchange ID Qualifier",
+          "usage": "R",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "01",
+              "14",
+              "20",
+              "27",
+              "28",
+              "29",
+              "30",
+              "33",
+              "ZZ"
+            ]
+          }
+        },
+        {
+          "xid": "ISA06",
+          "data_ele": "I06",
+          "name": "Interchange Sender ID",
+          "usage": "R",
+          "seq": "06"
+        },
+        {
+          "xid": "ISA07",
+          "data_ele": "I05",
+          "name": "Interchange ID Qualifier",
+          "usage": "R",
+          "seq": "07",
+          "valid_codes": {
+            "code": [
+              "01",
+              "14",
+              "20",
+              "27",
+              "28",
+              "29",
+              "30",
+              "33",
+              "ZZ"
+            ]
+          }
+        },
+        {
+          "xid": "ISA08",
+          "data_ele": "I07",
+          "name": "Interchange Receiver ID",
+          "usage": "R",
+          "seq": "08"
+        },
+        {
+          "xid": "ISA09",
+          "data_ele": "I08",
+          "name": "Interchange Date",
+          "usage": "R",
+          "seq": "09"
+        },
+        {
+          "xid": "ISA10",
+          "data_ele": "I09",
+          "name": "Interchange Time",
+          "usage": "R",
+          "seq": "10"
+        },
+        {
+          "xid": "ISA11",
+          "data_ele": "I10",
+          "name": "Interchange Control Standards Identifier",
+          "usage": "R",
+          "seq": "11",
+          "valid_codes": {
+            "code": [
+              "U"
+            ]
+          }
+        },
+        {
+          "xid": "ISA12",
+          "data_ele": "I11",
+          "name": "Interchange Control Version Number",
+          "usage": "R",
+          "seq": "12",
+          "valid_codes": {
+            "code": [
+              "00501"
+            ]
+          }
+        },
+        {
+          "xid": "ISA13",
+          "data_ele": "I12",
+          "name": "Interchange Control Number",
+          "usage": "R",
+          "seq": "13"
+        },
+        {
+          "xid": "ISA14",
+          "data_ele": "I13",
+          "name": "Acknowledgment Requested",
+          "usage": "R",
+          "seq": "14",
+          "valid_codes": {
+            "code": [
+              "0",
+              "1"
+            ]
+          }
+        },
+        {
+          "xid": "ISA15",
+          "data_ele": "I14",
+          "name": "Usage Indicator",
+          "usage": "R",
+          "seq": "15",
+          "valid_codes": {
+            "code": [
+              "P",
+              "T"
+            ]
+          }
+        },
+        {
+          "xid": "ISA16",
+          "data_ele": "I15",
+          "name": "Component Element Separator",
+          "usage": "R",
+          "seq": "16"
+        }
+      ],
+      "elementsByXid": {
+        "ISA01": {
+          "xid": "ISA01",
+          "data_ele": "I01",
+          "name": "Authorization Information Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "00",
+              "03"
+            ]
+          }
+        },
+        "ISA02": {
+          "xid": "ISA02",
+          "data_ele": "I02",
+          "name": "Authorization Information",
+          "usage": "R",
+          "seq": "02"
+        },
+        "ISA03": {
+          "xid": "ISA03",
+          "data_ele": "I03",
+          "name": "Security Information Qualifier",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "00",
+              "01"
+            ]
+          }
+        },
+        "ISA04": {
+          "xid": "ISA04",
+          "data_ele": "I04",
+          "name": "Security Information",
+          "usage": "R",
+          "seq": "04"
+        },
+        "ISA05": {
+          "xid": "ISA05",
+          "data_ele": "I05",
+          "name": "Interchange ID Qualifier",
+          "usage": "R",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "01",
+              "14",
+              "20",
+              "27",
+              "28",
+              "29",
+              "30",
+              "33",
+              "ZZ"
+            ]
+          }
+        },
+        "ISA06": {
+          "xid": "ISA06",
+          "data_ele": "I06",
+          "name": "Interchange Sender ID",
+          "usage": "R",
+          "seq": "06"
+        },
+        "ISA07": {
+          "xid": "ISA07",
+          "data_ele": "I05",
+          "name": "Interchange ID Qualifier",
+          "usage": "R",
+          "seq": "07",
+          "valid_codes": {
+            "code": [
+              "01",
+              "14",
+              "20",
+              "27",
+              "28",
+              "29",
+              "30",
+              "33",
+              "ZZ"
+            ]
+          }
+        },
+        "ISA08": {
+          "xid": "ISA08",
+          "data_ele": "I07",
+          "name": "Interchange Receiver ID",
+          "usage": "R",
+          "seq": "08"
+        },
+        "ISA09": {
+          "xid": "ISA09",
+          "data_ele": "I08",
+          "name": "Interchange Date",
+          "usage": "R",
+          "seq": "09"
+        },
+        "ISA10": {
+          "xid": "ISA10",
+          "data_ele": "I09",
+          "name": "Interchange Time",
+          "usage": "R",
+          "seq": "10"
+        },
+        "ISA11": {
+          "xid": "ISA11",
+          "data_ele": "I10",
+          "name": "Interchange Control Standards Identifier",
+          "usage": "R",
+          "seq": "11",
+          "valid_codes": {
+            "code": [
+              "U"
+            ]
+          }
+        },
+        "ISA12": {
+          "xid": "ISA12",
+          "data_ele": "I11",
+          "name": "Interchange Control Version Number",
+          "usage": "R",
+          "seq": "12",
+          "valid_codes": {
+            "code": [
+              "00501"
+            ]
+          }
+        },
+        "ISA13": {
+          "xid": "ISA13",
+          "data_ele": "I12",
+          "name": "Interchange Control Number",
+          "usage": "R",
+          "seq": "13"
+        },
+        "ISA14": {
+          "xid": "ISA14",
+          "data_ele": "I13",
+          "name": "Acknowledgment Requested",
+          "usage": "R",
+          "seq": "14",
+          "valid_codes": {
+            "code": [
+              "0",
+              "1"
+            ]
+          }
+        },
+        "ISA15": {
+          "xid": "ISA15",
+          "data_ele": "I14",
+          "name": "Usage Indicator",
+          "usage": "R",
+          "seq": "15",
+          "valid_codes": {
+            "code": [
+              "P",
+              "T"
+            ]
+          }
+        },
+        "ISA16": {
+          "xid": "ISA16",
+          "data_ele": "I15",
+          "name": "Component Element Separator",
+          "usage": "R",
+          "seq": "16"
+        }
+      }
+    },
+    "IEA": {
+      "name": "Interchange Control Trailer",
+      "usage": "R",
+      "pos": "300",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "IEA01",
+          "data_ele": "I16",
+          "name": "Number of Included Functional Groups",
+          "usage": "R",
+          "seq": "01"
+        },
+        {
+          "xid": "IEA02",
+          "data_ele": "I12",
+          "name": "Interchange Control Number",
+          "usage": "R",
+          "seq": "02"
+        }
+      ],
+      "elementsByXid": {
+        "IEA01": {
+          "xid": "IEA01",
+          "data_ele": "I16",
+          "name": "Number of Included Functional Groups",
+          "usage": "R",
+          "seq": "01"
+        },
+        "IEA02": {
+          "xid": "IEA02",
+          "data_ele": "I12",
+          "name": "Interchange Control Number",
+          "usage": "R",
+          "seq": "02"
+        }
+      }
+    },
+    "GS": {
+      "name": "Functional Group Header",
+      "usage": "R",
+      "pos": "100",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "GS01",
+          "data_ele": 479,
+          "name": "Functional Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "HP"
+            ]
+          }
+        },
+        {
+          "xid": "GS02",
+          "data_ele": 142,
+          "name": "Application Sender's Code",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "GS03",
+          "data_ele": 124,
+          "name": "Application Receiver's Code",
+          "usage": "R",
+          "seq": "03"
+        },
+        {
+          "xid": "GS04",
+          "data_ele": 373,
+          "name": "Date",
+          "usage": "R",
+          "seq": "04"
+        },
+        {
+          "xid": "GS05",
+          "data_ele": 337,
+          "name": "Time",
+          "usage": "R",
+          "seq": "05"
+        },
+        {
+          "xid": "GS06",
+          "data_ele": 28,
+          "name": "Group Control Number",
+          "usage": "R",
+          "seq": "06"
+        },
+        {
+          "xid": "GS07",
+          "data_ele": 455,
+          "name": "Responsible Agency Code",
+          "usage": "R",
+          "seq": "07",
+          "valid_codes": {
+            "code": [
+              "X"
+            ]
+          }
+        },
+        {
+          "xid": "GS08",
+          "data_ele": 480,
+          "name": "Version / Release / Industry Identifier Code",
+          "usage": "R",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              "005010X221A1"
+            ]
+          }
+        }
+      ],
+      "elementsByXid": {
+        "GS01": {
+          "xid": "GS01",
+          "data_ele": 479,
+          "name": "Functional Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "HP"
+            ]
+          }
+        },
+        "GS02": {
+          "xid": "GS02",
+          "data_ele": 142,
+          "name": "Application Sender's Code",
+          "usage": "R",
+          "seq": "02"
+        },
+        "GS03": {
+          "xid": "GS03",
+          "data_ele": 124,
+          "name": "Application Receiver's Code",
+          "usage": "R",
+          "seq": "03"
+        },
+        "GS04": {
+          "xid": "GS04",
+          "data_ele": 373,
+          "name": "Date",
+          "usage": "R",
+          "seq": "04"
+        },
+        "GS05": {
+          "xid": "GS05",
+          "data_ele": 337,
+          "name": "Time",
+          "usage": "R",
+          "seq": "05"
+        },
+        "GS06": {
+          "xid": "GS06",
+          "data_ele": 28,
+          "name": "Group Control Number",
+          "usage": "R",
+          "seq": "06"
+        },
+        "GS07": {
+          "xid": "GS07",
+          "data_ele": 455,
+          "name": "Responsible Agency Code",
+          "usage": "R",
+          "seq": "07",
+          "valid_codes": {
+            "code": [
+              "X"
+            ]
+          }
+        },
+        "GS08": {
+          "xid": "GS08",
+          "data_ele": 480,
+          "name": "Version / Release / Industry Identifier Code",
+          "usage": "R",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              "005010X221A1"
+            ]
+          }
+        }
+      }
+    },
+    "GE": {
+      "name": "Functional Group Trailer",
+      "usage": "R",
+      "pos": "300",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "GE01",
+          "data_ele": 97,
+          "name": "Number of Transaction Sets Included",
+          "usage": "R",
+          "seq": "01"
+        },
+        {
+          "xid": "GE02",
+          "data_ele": 28,
+          "name": "Group Control Number",
+          "usage": "R",
+          "seq": "02"
+        }
+      ],
+      "elementsByXid": {
+        "GE01": {
+          "xid": "GE01",
+          "data_ele": 97,
+          "name": "Number of Transaction Sets Included",
+          "usage": "R",
+          "seq": "01"
+        },
+        "GE02": {
+          "xid": "GE02",
+          "data_ele": 28,
+          "name": "Group Control Number",
+          "usage": "R",
+          "seq": "02"
+        }
+      }
+    },
+    "ST": {
+      "name": "Transaction Set Header",
+      "usage": "R",
+      "pos": "0050",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "ST01",
+          "data_ele": "143",
+          "name": "Transaction Set Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "835"
+            ]
+          }
+        },
+        {
+          "xid": "ST02",
+          "data_ele": "329",
+          "name": "Transaction Set Control Number",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "ST03",
+          "data_ele": "1705",
+          "name": "Implementation Convention Reference",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "005010X221A1"
+            ]
+          }
+        }
+      ],
+      "elementsByXid": {
+        "ST01": {
+          "xid": "ST01",
+          "data_ele": "143",
+          "name": "Transaction Set Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "835"
+            ]
+          }
+        },
+        "ST02": {
+          "xid": "ST02",
+          "data_ele": "329",
+          "name": "Transaction Set Control Number",
+          "usage": "R",
+          "seq": "02"
+        },
+        "ST03": {
+          "xid": "ST03",
+          "data_ele": "1705",
+          "name": "Implementation Convention Reference",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "005010X221A1"
+            ]
+          }
+        }
+      }
+    },
+    "SE": {
+      "name": "Transaction Set Trailer",
+      "usage": "R",
+      "pos": "0400",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "SE01",
+          "data_ele": "96",
+          "name": "Transaction Segment Count",
+          "usage": "R",
+          "seq": "01"
+        },
+        {
+          "xid": "SE02",
+          "data_ele": "329",
+          "name": "Transaction Set Control Number",
+          "usage": "R",
+          "seq": "02"
+        }
+      ],
+      "elementsByXid": {
+        "SE01": {
+          "xid": "SE01",
+          "data_ele": "96",
+          "name": "Transaction Segment Count",
+          "usage": "R",
+          "seq": "01"
+        },
+        "SE02": {
+          "xid": "SE02",
+          "data_ele": "329",
+          "name": "Transaction Set Control Number",
+          "usage": "R",
+          "seq": "02"
+        }
+      }
+    },
+    "BPR": {
+      "name": "Financial Information",
+      "usage": "R",
+      "pos": "0100",
+      "max_use": 1,
+      "syntax": [
+        "P0607",
+        "C0809",
+        "P1213",
+        "C1415",
+        "P1819",
+        "C2021"
+      ],
+      "elements": [
+        {
+          "xid": "BPR01",
+          "data_ele": "305",
+          "name": "Transaction Handling Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "C",
+              "D",
+              "H",
+              "I",
+              "P",
+              "U",
+              "X"
+            ]
+          }
+        },
+        {
+          "xid": "BPR02",
+          "data_ele": "782",
+          "name": "Total Actual Provider Payment Amount",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "BPR03",
+          "data_ele": "478",
+          "name": "Credit/Debit Flag Code",
+          "usage": "S",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "C",
+              "D"
+            ]
+          }
+        },
+        {
+          "xid": "BPR04",
+          "data_ele": "591",
+          "name": "Payment Method Code",
+          "usage": "R",
+          "seq": "04",
+          "valid_codes": {
+            "code": [
+              "ACH",
+              "BOP",
+              "CHK",
+              "FWT",
+              "NON"
+            ]
+          }
+        },
+        {
+          "xid": "BPR05",
+          "data_ele": "813",
+          "name": "Payment Format Code",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "CCP",
+              "CTX"
+            ]
+          }
+        },
+        {
+          "xid": "BPR06",
+          "data_ele": "506",
+          "name": "DFI Identification Number Qualifier",
+          "usage": "S",
+          "seq": "06",
+          "valid_codes": {
+            "code": [
+              "01",
+              "04"
+            ]
+          }
+        },
+        {
+          "xid": "BPR07",
+          "data_ele": "507",
+          "name": "DFI Identification Number",
+          "usage": "S",
+          "seq": "07"
+        },
+        {
+          "xid": "BPR08",
+          "data_ele": "569",
+          "name": "Account Number Qualifier",
+          "usage": "S",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              "DA"
+            ]
+          }
+        },
+        {
+          "xid": "BPR09",
+          "data_ele": "508",
+          "name": "Account Number",
+          "usage": "S",
+          "seq": "09"
+        },
+        {
+          "xid": "BPR10",
+          "data_ele": "509",
+          "name": "Originating Company Identifier",
+          "usage": "S",
+          "seq": "10"
+        },
+        {
+          "xid": "BPR11",
+          "data_ele": "510",
+          "name": "Originating Company Supplemental Code",
+          "usage": "S",
+          "seq": "11"
+        },
+        {
+          "xid": "BPR12",
+          "data_ele": "506",
+          "name": "DFI Identification Number Qualifier",
+          "usage": "S",
+          "seq": "12",
+          "valid_codes": {
+            "code": [
+              "01",
+              "04"
+            ]
+          }
+        },
+        {
+          "xid": "BPR13",
+          "data_ele": "507",
+          "name": "DFI Identification Number",
+          "usage": "S",
+          "seq": "13"
+        },
+        {
+          "xid": "BPR14",
+          "data_ele": "569",
+          "name": "Account Number Qualifier",
+          "usage": "S",
+          "seq": "14",
+          "valid_codes": {
+            "code": [
+              "DA",
+              "SG"
+            ]
+          }
+        },
+        {
+          "xid": "BPR15",
+          "data_ele": "508",
+          "name": "Account Number",
+          "usage": "S",
+          "seq": "15"
+        },
+        {
+          "xid": "BPR16",
+          "data_ele": "373",
+          "name": "Payment Effective Date",
+          "usage": "R",
+          "seq": "16"
+        },
+        {
+          "xid": "BPR17",
+          "data_ele": "1048",
+          "name": "Business Function Code",
+          "usage": "N",
+          "seq": "17"
+        },
+        {
+          "xid": "BPR18",
+          "data_ele": "506",
+          "name": "DFI Identification Number Qualifier",
+          "usage": "N",
+          "seq": "18"
+        },
+        {
+          "xid": "BPR19",
+          "data_ele": "507",
+          "name": "DFI Identification Number",
+          "usage": "N",
+          "seq": "19"
+        },
+        {
+          "xid": "BPR20",
+          "data_ele": "569",
+          "name": "Account Number Qualifier",
+          "usage": "N",
+          "seq": "20"
+        },
+        {
+          "xid": "BPR21",
+          "data_ele": "508",
+          "name": "Account Number",
+          "usage": "N",
+          "seq": "21"
+        }
+      ],
+      "elementsByXid": {
+        "BPR01": {
+          "xid": "BPR01",
+          "data_ele": "305",
+          "name": "Transaction Handling Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "C",
+              "D",
+              "H",
+              "I",
+              "P",
+              "U",
+              "X"
+            ]
+          }
+        },
+        "BPR02": {
+          "xid": "BPR02",
+          "data_ele": "782",
+          "name": "Total Actual Provider Payment Amount",
+          "usage": "R",
+          "seq": "02"
+        },
+        "BPR03": {
+          "xid": "BPR03",
+          "data_ele": "478",
+          "name": "Credit/Debit Flag Code",
+          "usage": "S",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "C",
+              "D"
+            ]
+          }
+        },
+        "BPR04": {
+          "xid": "BPR04",
+          "data_ele": "591",
+          "name": "Payment Method Code",
+          "usage": "R",
+          "seq": "04",
+          "valid_codes": {
+            "code": [
+              "ACH",
+              "BOP",
+              "CHK",
+              "FWT",
+              "NON"
+            ]
+          }
+        },
+        "BPR05": {
+          "xid": "BPR05",
+          "data_ele": "813",
+          "name": "Payment Format Code",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "CCP",
+              "CTX"
+            ]
+          }
+        },
+        "BPR06": {
+          "xid": "BPR06",
+          "data_ele": "506",
+          "name": "DFI Identification Number Qualifier",
+          "usage": "S",
+          "seq": "06",
+          "valid_codes": {
+            "code": [
+              "01",
+              "04"
+            ]
+          }
+        },
+        "BPR07": {
+          "xid": "BPR07",
+          "data_ele": "507",
+          "name": "DFI Identification Number",
+          "usage": "S",
+          "seq": "07"
+        },
+        "BPR08": {
+          "xid": "BPR08",
+          "data_ele": "569",
+          "name": "Account Number Qualifier",
+          "usage": "S",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              "DA"
+            ]
+          }
+        },
+        "BPR09": {
+          "xid": "BPR09",
+          "data_ele": "508",
+          "name": "Account Number",
+          "usage": "S",
+          "seq": "09"
+        },
+        "BPR10": {
+          "xid": "BPR10",
+          "data_ele": "509",
+          "name": "Originating Company Identifier",
+          "usage": "S",
+          "seq": "10"
+        },
+        "BPR11": {
+          "xid": "BPR11",
+          "data_ele": "510",
+          "name": "Originating Company Supplemental Code",
+          "usage": "S",
+          "seq": "11"
+        },
+        "BPR12": {
+          "xid": "BPR12",
+          "data_ele": "506",
+          "name": "DFI Identification Number Qualifier",
+          "usage": "S",
+          "seq": "12",
+          "valid_codes": {
+            "code": [
+              "01",
+              "04"
+            ]
+          }
+        },
+        "BPR13": {
+          "xid": "BPR13",
+          "data_ele": "507",
+          "name": "DFI Identification Number",
+          "usage": "S",
+          "seq": "13"
+        },
+        "BPR14": {
+          "xid": "BPR14",
+          "data_ele": "569",
+          "name": "Account Number Qualifier",
+          "usage": "S",
+          "seq": "14",
+          "valid_codes": {
+            "code": [
+              "DA",
+              "SG"
+            ]
+          }
+        },
+        "BPR15": {
+          "xid": "BPR15",
+          "data_ele": "508",
+          "name": "Account Number",
+          "usage": "S",
+          "seq": "15"
+        },
+        "BPR16": {
+          "xid": "BPR16",
+          "data_ele": "373",
+          "name": "Payment Effective Date",
+          "usage": "R",
+          "seq": "16"
+        },
+        "BPR17": {
+          "xid": "BPR17",
+          "data_ele": "1048",
+          "name": "Business Function Code",
+          "usage": "N",
+          "seq": "17"
+        },
+        "BPR18": {
+          "xid": "BPR18",
+          "data_ele": "506",
+          "name": "DFI Identification Number Qualifier",
+          "usage": "N",
+          "seq": "18"
+        },
+        "BPR19": {
+          "xid": "BPR19",
+          "data_ele": "507",
+          "name": "DFI Identification Number",
+          "usage": "N",
+          "seq": "19"
+        },
+        "BPR20": {
+          "xid": "BPR20",
+          "data_ele": "569",
+          "name": "Account Number Qualifier",
+          "usage": "N",
+          "seq": "20"
+        },
+        "BPR21": {
+          "xid": "BPR21",
+          "data_ele": "508",
+          "name": "Account Number",
+          "usage": "N",
+          "seq": "21"
+        }
+      }
+    },
+    "TRN": {
+      "name": "Reassociation Trace Number",
+      "usage": "R",
+      "pos": "0200",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "TRN01",
+          "data_ele": "481",
+          "name": "Trace Type Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "1"
+            ]
+          }
+        },
+        {
+          "xid": "TRN02",
+          "data_ele": "127",
+          "name": "Check or EFT Trace Number",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "TRN03",
+          "data_ele": "509",
+          "name": "Originating Company Identifier",
+          "usage": "S",
+          "seq": "03"
+        },
+        {
+          "xid": "TRN04",
+          "data_ele": "127",
+          "name": "Originating Company Supplemental Code",
+          "usage": "N",
+          "seq": "04"
+        }
+      ],
+      "elementsByXid": {
+        "TRN01": {
+          "xid": "TRN01",
+          "data_ele": "481",
+          "name": "Trace Type Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "1"
+            ]
+          }
+        },
+        "TRN02": {
+          "xid": "TRN02",
+          "data_ele": "127",
+          "name": "Check or EFT Trace Number",
+          "usage": "R",
+          "seq": "02"
+        },
+        "TRN03": {
+          "xid": "TRN03",
+          "data_ele": "509",
+          "name": "Originating Company Identifier",
+          "usage": "S",
+          "seq": "03"
+        },
+        "TRN04": {
+          "xid": "TRN04",
+          "data_ele": "127",
+          "name": "Originating Company Supplemental Code",
+          "usage": "N",
+          "seq": "04"
+        }
+      }
+    },
+    "CUR": {
+      "name": "Foreign Currency Information",
+      "usage": "S",
+      "pos": "0300",
+      "max_use": 1,
+      "syntax": [
+        "C0807",
+        "C0907",
+        "L101112",
+        "C1110",
+        "C1210",
+        "L131415",
+        "C1413",
+        "C1513",
+        "L161718",
+        "C1716",
+        "C1816",
+        "L192021",
+        "C2019",
+        "C2119"
+      ],
+      "elements": [
+        {
+          "xid": "CUR01",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "PR"
+            ]
+          }
+        },
+        {
+          "xid": "CUR02",
+          "data_ele": "100",
+          "name": "Currency Code",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "CUR03",
+          "data_ele": "280",
+          "name": "Exchange Rate",
+          "usage": "N",
+          "seq": "03"
+        },
+        {
+          "xid": "CUR04",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "N",
+          "seq": "04"
+        },
+        {
+          "xid": "CUR05",
+          "data_ele": "100",
+          "name": "Currency Code",
+          "usage": "N",
+          "seq": "05"
+        },
+        {
+          "xid": "CUR06",
+          "data_ele": "669",
+          "name": "Currency Market/Exchange Code",
+          "usage": "N",
+          "seq": "06"
+        },
+        {
+          "xid": "CUR07",
+          "data_ele": "374",
+          "name": "Date/Time Qualifier",
+          "usage": "N",
+          "seq": "07"
+        },
+        {
+          "xid": "CUR08",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "N",
+          "seq": "08"
+        },
+        {
+          "xid": "CUR09",
+          "data_ele": "337",
+          "name": "Time",
+          "usage": "N",
+          "seq": "09"
+        },
+        {
+          "xid": "CUR10",
+          "data_ele": "374",
+          "name": "Date/Time Qualifier",
+          "usage": "N",
+          "seq": "10"
+        },
+        {
+          "xid": "CUR11",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "N",
+          "seq": "11"
+        },
+        {
+          "xid": "CUR12",
+          "data_ele": "337",
+          "name": "Time",
+          "usage": "N",
+          "seq": "12"
+        },
+        {
+          "xid": "CUR13",
+          "data_ele": "374",
+          "name": "Date/Time Qualifier",
+          "usage": "N",
+          "seq": "13"
+        },
+        {
+          "xid": "CUR14",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "N",
+          "seq": "14"
+        },
+        {
+          "xid": "CUR15",
+          "data_ele": "337",
+          "name": "Time",
+          "usage": "N",
+          "seq": "15"
+        },
+        {
+          "xid": "CUR16",
+          "data_ele": "374",
+          "name": "Date/Time Qualifier",
+          "usage": "N",
+          "seq": "16"
+        },
+        {
+          "xid": "CUR17",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "N",
+          "seq": "17"
+        },
+        {
+          "xid": "CUR18",
+          "data_ele": "337",
+          "name": "Time",
+          "usage": "N",
+          "seq": "18"
+        },
+        {
+          "xid": "CUR19",
+          "data_ele": "374",
+          "name": "Date/Time Qualifier",
+          "usage": "N",
+          "seq": "19"
+        },
+        {
+          "xid": "CUR20",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "N",
+          "seq": "20"
+        },
+        {
+          "xid": "CUR21",
+          "data_ele": "337",
+          "name": "Time",
+          "usage": "N",
+          "seq": "21"
+        }
+      ],
+      "elementsByXid": {
+        "CUR01": {
+          "xid": "CUR01",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "PR"
+            ]
+          }
+        },
+        "CUR02": {
+          "xid": "CUR02",
+          "data_ele": "100",
+          "name": "Currency Code",
+          "usage": "R",
+          "seq": "02"
+        },
+        "CUR03": {
+          "xid": "CUR03",
+          "data_ele": "280",
+          "name": "Exchange Rate",
+          "usage": "N",
+          "seq": "03"
+        },
+        "CUR04": {
+          "xid": "CUR04",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "N",
+          "seq": "04"
+        },
+        "CUR05": {
+          "xid": "CUR05",
+          "data_ele": "100",
+          "name": "Currency Code",
+          "usage": "N",
+          "seq": "05"
+        },
+        "CUR06": {
+          "xid": "CUR06",
+          "data_ele": "669",
+          "name": "Currency Market/Exchange Code",
+          "usage": "N",
+          "seq": "06"
+        },
+        "CUR07": {
+          "xid": "CUR07",
+          "data_ele": "374",
+          "name": "Date/Time Qualifier",
+          "usage": "N",
+          "seq": "07"
+        },
+        "CUR08": {
+          "xid": "CUR08",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "N",
+          "seq": "08"
+        },
+        "CUR09": {
+          "xid": "CUR09",
+          "data_ele": "337",
+          "name": "Time",
+          "usage": "N",
+          "seq": "09"
+        },
+        "CUR10": {
+          "xid": "CUR10",
+          "data_ele": "374",
+          "name": "Date/Time Qualifier",
+          "usage": "N",
+          "seq": "10"
+        },
+        "CUR11": {
+          "xid": "CUR11",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "N",
+          "seq": "11"
+        },
+        "CUR12": {
+          "xid": "CUR12",
+          "data_ele": "337",
+          "name": "Time",
+          "usage": "N",
+          "seq": "12"
+        },
+        "CUR13": {
+          "xid": "CUR13",
+          "data_ele": "374",
+          "name": "Date/Time Qualifier",
+          "usage": "N",
+          "seq": "13"
+        },
+        "CUR14": {
+          "xid": "CUR14",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "N",
+          "seq": "14"
+        },
+        "CUR15": {
+          "xid": "CUR15",
+          "data_ele": "337",
+          "name": "Time",
+          "usage": "N",
+          "seq": "15"
+        },
+        "CUR16": {
+          "xid": "CUR16",
+          "data_ele": "374",
+          "name": "Date/Time Qualifier",
+          "usage": "N",
+          "seq": "16"
+        },
+        "CUR17": {
+          "xid": "CUR17",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "N",
+          "seq": "17"
+        },
+        "CUR18": {
+          "xid": "CUR18",
+          "data_ele": "337",
+          "name": "Time",
+          "usage": "N",
+          "seq": "18"
+        },
+        "CUR19": {
+          "xid": "CUR19",
+          "data_ele": "374",
+          "name": "Date/Time Qualifier",
+          "usage": "N",
+          "seq": "19"
+        },
+        "CUR20": {
+          "xid": "CUR20",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "N",
+          "seq": "20"
+        },
+        "CUR21": {
+          "xid": "CUR21",
+          "data_ele": "337",
+          "name": "Time",
+          "usage": "N",
+          "seq": "21"
+        }
+      }
+    },
+    "REF": {
+      "name": "Reference Identification",
+      "usage": "S",
+      "pos": "0400",
+      "max_use": "1",
+      "syntax": [
+        "R0203"
+      ],
+      "elements": [
+        {
+          "xid": "REF01",
+          "data_ele": "128",
+          "name": "Reference Identification Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "EV",
+              "F2",
+              "NF",
+              "TN"
+            ]
+          }
+        },
+        {
+          "xid": "REF02",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "REF03",
+          "data_ele": "352",
+          "name": "Description",
+          "usage": "N",
+          "seq": "03"
+        },
+        {
+          "xid": "REF04",
+          "data_ele": "C040",
+          "name": "Reference Identifier",
+          "usage": "N",
+          "seq": "04",
+          "elements": []
+        }
+      ],
+      "elementsByXid": {
+        "REF01": {
+          "xid": "REF01",
+          "data_ele": "128",
+          "name": "Reference Identification Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "EV",
+              "F2",
+              "NF",
+              "TN"
+            ]
+          }
+        },
+        "REF02": {
+          "xid": "REF02",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "R",
+          "seq": "02"
+        },
+        "REF03": {
+          "xid": "REF03",
+          "data_ele": "352",
+          "name": "Description",
+          "usage": "N",
+          "seq": "03"
+        },
+        "REF04": {
+          "xid": "REF04",
+          "data_ele": "C040",
+          "name": "Reference Identifier",
+          "usage": "N",
+          "seq": "04",
+          "elements": []
+        }
+      }
+    },
+    "DTM": {
+      "name": "Date/Time/Period",
+      "usage": "S",
+      "pos": "0500",
+      "max_use": 1,
+      "syntax": [
+        "R020305",
+        "C0403",
+        "P0506"
+      ],
+      "elements": [
+        {
+          "xid": "DTM01",
+          "data_ele": "374",
+          "name": "Date/Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "405"
+            ]
+          }
+        },
+        {
+          "xid": "DTM02",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "DTM03",
+          "data_ele": "337",
+          "name": "Time",
+          "usage": "N",
+          "seq": "03"
+        },
+        {
+          "xid": "DTM04",
+          "data_ele": "623",
+          "name": "Time Code",
+          "usage": "N",
+          "seq": "04"
+        },
+        {
+          "xid": "DTM05",
+          "data_ele": "1250",
+          "name": "Date Time Period Format Qualifier",
+          "usage": "N",
+          "seq": "05"
+        },
+        {
+          "xid": "DTM06",
+          "data_ele": "1251",
+          "name": "Date Time Period",
+          "usage": "N",
+          "seq": "06"
+        }
+      ],
+      "elementsByXid": {
+        "DTM01": {
+          "xid": "DTM01",
+          "data_ele": "374",
+          "name": "Date/Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "405"
+            ]
+          }
+        },
+        "DTM02": {
+          "xid": "DTM02",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "R",
+          "seq": "02"
+        },
+        "DTM03": {
+          "xid": "DTM03",
+          "data_ele": "337",
+          "name": "Time",
+          "usage": "N",
+          "seq": "03"
+        },
+        "DTM04": {
+          "xid": "DTM04",
+          "data_ele": "623",
+          "name": "Time Code",
+          "usage": "N",
+          "seq": "04"
+        },
+        "DTM05": {
+          "xid": "DTM05",
+          "data_ele": "1250",
+          "name": "Date Time Period Format Qualifier",
+          "usage": "N",
+          "seq": "05"
+        },
+        "DTM06": {
+          "xid": "DTM06",
+          "data_ele": "1251",
+          "name": "Date Time Period",
+          "usage": "N",
+          "seq": "06"
+        }
+      }
+    },
+    "N1": {
+      "name": "Party Identification",
+      "usage": "R",
+      "pos": "0100",
+      "max_use": 1,
+      "syntax": [
+        "R0203",
+        "P0304"
+      ],
+      "elements": [
+        {
+          "xid": "N101",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "PE",
+              "PR"
+            ]
+          }
+        },
+        {
+          "xid": "N102",
+          "data_ele": "93",
+          "name": "Name",
+          "usage": "S",
+          "seq": "02"
+        },
+        {
+          "xid": "N103",
+          "data_ele": "66",
+          "name": "Identification Code Qualifier",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "FI",
+              "XX"
+            ]
+          }
+        },
+        {
+          "xid": "N104",
+          "data_ele": "67",
+          "name": "Identification Code",
+          "usage": "R",
+          "seq": "04"
+        },
+        {
+          "xid": "N105",
+          "data_ele": "706",
+          "name": "Entity Relationship Code",
+          "usage": "N",
+          "seq": "05"
+        },
+        {
+          "xid": "N106",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "N",
+          "seq": "06"
+        }
+      ],
+      "elementsByXid": {
+        "N101": {
+          "xid": "N101",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "PE",
+              "PR"
+            ]
+          }
+        },
+        "N102": {
+          "xid": "N102",
+          "data_ele": "93",
+          "name": "Name",
+          "usage": "S",
+          "seq": "02"
+        },
+        "N103": {
+          "xid": "N103",
+          "data_ele": "66",
+          "name": "Identification Code Qualifier",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "FI",
+              "XX"
+            ]
+          }
+        },
+        "N104": {
+          "xid": "N104",
+          "data_ele": "67",
+          "name": "Identification Code",
+          "usage": "R",
+          "seq": "04"
+        },
+        "N105": {
+          "xid": "N105",
+          "data_ele": "706",
+          "name": "Entity Relationship Code",
+          "usage": "N",
+          "seq": "05"
+        },
+        "N106": {
+          "xid": "N106",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "N",
+          "seq": "06"
+        }
+      }
+    },
+    "N3": {
+      "name": "Address Information",
+      "usage": "R",
+      "pos": "0200",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "N301",
+          "data_ele": "166",
+          "name": "Address Information",
+          "usage": "R",
+          "seq": "01"
+        },
+        {
+          "xid": "N302",
+          "data_ele": "166",
+          "name": "Address Information",
+          "usage": "S",
+          "seq": "02"
+        }
+      ],
+      "elementsByXid": {
+        "N301": {
+          "xid": "N301",
+          "data_ele": "166",
+          "name": "Address Information",
+          "usage": "R",
+          "seq": "01"
+        },
+        "N302": {
+          "xid": "N302",
+          "data_ele": "166",
+          "name": "Address Information",
+          "usage": "S",
+          "seq": "02"
+        }
+      }
+    },
+    "N4": {
+      "name": "Geographic Location",
+      "usage": "R",
+      "pos": "0250",
+      "max_use": 1,
+      "syntax": [
+        "E0207",
+        "C0605",
+        "C0704"
+      ],
+      "elements": [
+        {
+          "xid": "N401",
+          "data_ele": "19",
+          "name": "City Name",
+          "usage": "R",
+          "seq": "01"
+        },
+        {
+          "xid": "N402",
+          "data_ele": "156",
+          "name": "State or Province Code",
+          "usage": "S",
+          "seq": "02"
+        },
+        {
+          "xid": "N403",
+          "data_ele": "116",
+          "name": "Postal Code",
+          "usage": "S",
+          "seq": "03"
+        },
+        {
+          "xid": "N404",
+          "data_ele": "26",
+          "name": "Country Code",
+          "usage": "S",
+          "seq": "04"
+        },
+        {
+          "xid": "N405",
+          "data_ele": "309",
+          "name": "Location Qualifier",
+          "usage": "N",
+          "seq": "05"
+        },
+        {
+          "xid": "N406",
+          "data_ele": "310",
+          "name": "Location Identifier",
+          "usage": "N",
+          "seq": "06"
+        },
+        {
+          "xid": "N407",
+          "data_ele": "1715",
+          "name": "Country Subdivision Code",
+          "usage": "S",
+          "seq": "07"
+        }
+      ],
+      "elementsByXid": {
+        "N401": {
+          "xid": "N401",
+          "data_ele": "19",
+          "name": "City Name",
+          "usage": "R",
+          "seq": "01"
+        },
+        "N402": {
+          "xid": "N402",
+          "data_ele": "156",
+          "name": "State or Province Code",
+          "usage": "S",
+          "seq": "02"
+        },
+        "N403": {
+          "xid": "N403",
+          "data_ele": "116",
+          "name": "Postal Code",
+          "usage": "S",
+          "seq": "03"
+        },
+        "N404": {
+          "xid": "N404",
+          "data_ele": "26",
+          "name": "Country Code",
+          "usage": "S",
+          "seq": "04"
+        },
+        "N405": {
+          "xid": "N405",
+          "data_ele": "309",
+          "name": "Location Qualifier",
+          "usage": "N",
+          "seq": "05"
+        },
+        "N406": {
+          "xid": "N406",
+          "data_ele": "310",
+          "name": "Location Identifier",
+          "usage": "N",
+          "seq": "06"
+        },
+        "N407": {
+          "xid": "N407",
+          "data_ele": "1715",
+          "name": "Country Subdivision Code",
+          "usage": "S",
+          "seq": "07"
+        }
+      }
+    },
+    "PER": {
+      "name": "Administrative Communications Contact",
+      "usage": "S",
+      "pos": "0400",
+      "max_use": 1,
+      "syntax": [
+        "P0304",
+        "P0506",
+        "P0708"
+      ],
+      "elements": [
+        {
+          "xid": "PER01",
+          "data_ele": "366",
+          "name": "Contact Function Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "CX"
+            ]
+          }
+        },
+        {
+          "xid": "PER02",
+          "data_ele": "93",
+          "name": "Name",
+          "usage": "S",
+          "seq": "02"
+        },
+        {
+          "xid": "PER03",
+          "data_ele": "365",
+          "name": "Communication Number Qualifier",
+          "usage": "S",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "EM",
+              "FX",
+              "TE"
+            ]
+          }
+        },
+        {
+          "xid": "PER04",
+          "data_ele": "364",
+          "name": "Communication Number",
+          "usage": "S",
+          "seq": "04"
+        },
+        {
+          "xid": "PER05",
+          "data_ele": "365",
+          "name": "Communication Number Qualifier",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "EM",
+              "EX",
+              "FX",
+              "TE"
+            ]
+          }
+        },
+        {
+          "xid": "PER06",
+          "data_ele": "364",
+          "name": "Communication Number",
+          "usage": "S",
+          "seq": "06"
+        },
+        {
+          "xid": "PER07",
+          "data_ele": "365",
+          "name": "Communication Number Qualifier",
+          "usage": "S",
+          "seq": "07",
+          "valid_codes": {
+            "code": [
+              "EX"
+            ]
+          }
+        },
+        {
+          "xid": "PER08",
+          "data_ele": "364",
+          "name": "Communication Number",
+          "usage": "S",
+          "seq": "08"
+        },
+        {
+          "xid": "PER09",
+          "data_ele": "443",
+          "name": "Contact Inquiry Reference",
+          "usage": "N",
+          "seq": "09"
+        }
+      ],
+      "elementsByXid": {
+        "PER01": {
+          "xid": "PER01",
+          "data_ele": "366",
+          "name": "Contact Function Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "CX"
+            ]
+          }
+        },
+        "PER02": {
+          "xid": "PER02",
+          "data_ele": "93",
+          "name": "Name",
+          "usage": "S",
+          "seq": "02"
+        },
+        "PER03": {
+          "xid": "PER03",
+          "data_ele": "365",
+          "name": "Communication Number Qualifier",
+          "usage": "S",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "EM",
+              "FX",
+              "TE"
+            ]
+          }
+        },
+        "PER04": {
+          "xid": "PER04",
+          "data_ele": "364",
+          "name": "Communication Number",
+          "usage": "S",
+          "seq": "04"
+        },
+        "PER05": {
+          "xid": "PER05",
+          "data_ele": "365",
+          "name": "Communication Number Qualifier",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "EM",
+              "EX",
+              "FX",
+              "TE"
+            ]
+          }
+        },
+        "PER06": {
+          "xid": "PER06",
+          "data_ele": "364",
+          "name": "Communication Number",
+          "usage": "S",
+          "seq": "06"
+        },
+        "PER07": {
+          "xid": "PER07",
+          "data_ele": "365",
+          "name": "Communication Number Qualifier",
+          "usage": "S",
+          "seq": "07",
+          "valid_codes": {
+            "code": [
+              "EX"
+            ]
+          }
+        },
+        "PER08": {
+          "xid": "PER08",
+          "data_ele": "364",
+          "name": "Communication Number",
+          "usage": "S",
+          "seq": "08"
+        },
+        "PER09": {
+          "xid": "PER09",
+          "data_ele": "443",
+          "name": "Contact Inquiry Reference",
+          "usage": "N",
+          "seq": "09"
+        }
+      }
+    },
+    "RDM": {
+      "name": "Remittance Delivery Method",
+      "usage": "S",
+      "pos": "0450",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "RDM01",
+          "data_ele": "756",
+          "name": "Report Transmission Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "BM",
+              "EM",
+              "FT",
+              "OL"
+            ]
+          }
+        },
+        {
+          "xid": "RDM02",
+          "data_ele": "93",
+          "name": "Name",
+          "usage": "S",
+          "seq": "02"
+        },
+        {
+          "xid": "RDM03",
+          "data_ele": "166",
+          "name": "Address Information",
+          "usage": "N",
+          "seq": "03"
+        },
+        {
+          "xid": "RDM04",
+          "data_ele": "C040",
+          "name": "Reference Identifier",
+          "usage": "N",
+          "seq": "04",
+          "elements": []
+        },
+        {
+          "xid": "RDM05",
+          "data_ele": "C040",
+          "name": "Reference Identifier",
+          "usage": "N",
+          "seq": "05",
+          "elements": []
+        }
+      ],
+      "elementsByXid": {
+        "RDM01": {
+          "xid": "RDM01",
+          "data_ele": "756",
+          "name": "Report Transmission Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "BM",
+              "EM",
+              "FT",
+              "OL"
+            ]
+          }
+        },
+        "RDM02": {
+          "xid": "RDM02",
+          "data_ele": "93",
+          "name": "Name",
+          "usage": "S",
+          "seq": "02"
+        },
+        "RDM03": {
+          "xid": "RDM03",
+          "data_ele": "166",
+          "name": "Address Information",
+          "usage": "N",
+          "seq": "03"
+        },
+        "RDM04": {
+          "xid": "RDM04",
+          "data_ele": "C040",
+          "name": "Reference Identifier",
+          "usage": "N",
+          "seq": "04",
+          "elements": []
+        },
+        "RDM05": {
+          "xid": "RDM05",
+          "data_ele": "C040",
+          "name": "Reference Identifier",
+          "usage": "N",
+          "seq": "05",
+          "elements": []
+        }
+      }
+    },
+    "LX": {
+      "name": "Header Number",
+      "usage": "S",
+      "pos": "0100",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "LX01",
+          "data_ele": "554",
+          "name": "Assigned Number",
+          "usage": "R",
+          "seq": "01"
+        }
+      ],
+      "elementsByXid": {
+        "LX01": {
+          "xid": "LX01",
+          "data_ele": "554",
+          "name": "Assigned Number",
+          "usage": "R",
+          "seq": "01"
+        }
+      }
+    },
+    "TS3": {
+      "name": "Provider Summary Information",
+      "usage": "S",
+      "pos": "0110",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "TS301",
+          "data_ele": "127",
+          "name": "Provider Identifier",
+          "usage": "R",
+          "seq": "01"
+        },
+        {
+          "xid": "TS302",
+          "data_ele": "1331",
+          "name": "Facility Code Value",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "TS303",
+          "data_ele": "373",
+          "name": "Fiscal Period Date",
+          "usage": "R",
+          "seq": "03"
+        },
+        {
+          "xid": "TS304",
+          "data_ele": "380",
+          "name": "Total Claim Count",
+          "usage": "R",
+          "seq": "04"
+        },
+        {
+          "xid": "TS305",
+          "data_ele": "782",
+          "name": "Total Claim Charge Amount",
+          "usage": "R",
+          "seq": "05"
+        },
+        {
+          "xid": "TS306",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "06"
+        },
+        {
+          "xid": "TS307",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "07"
+        },
+        {
+          "xid": "TS308",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "08"
+        },
+        {
+          "xid": "TS309",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "09"
+        },
+        {
+          "xid": "TS310",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "10"
+        },
+        {
+          "xid": "TS311",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "11"
+        },
+        {
+          "xid": "TS312",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "12"
+        },
+        {
+          "xid": "TS313",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "13"
+        },
+        {
+          "xid": "TS314",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "14"
+        },
+        {
+          "xid": "TS315",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "15"
+        },
+        {
+          "xid": "TS316",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "16"
+        },
+        {
+          "xid": "TS317",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "17"
+        },
+        {
+          "xid": "TS318",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "18"
+        },
+        {
+          "xid": "TS319",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "19"
+        },
+        {
+          "xid": "TS320",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "20"
+        },
+        {
+          "xid": "TS321",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "21"
+        },
+        {
+          "xid": "TS322",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "22"
+        },
+        {
+          "xid": "TS323",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "23"
+        },
+        {
+          "xid": "TS324",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "24"
+        }
+      ],
+      "elementsByXid": {
+        "TS301": {
+          "xid": "TS301",
+          "data_ele": "127",
+          "name": "Provider Identifier",
+          "usage": "R",
+          "seq": "01"
+        },
+        "TS302": {
+          "xid": "TS302",
+          "data_ele": "1331",
+          "name": "Facility Code Value",
+          "usage": "R",
+          "seq": "02"
+        },
+        "TS303": {
+          "xid": "TS303",
+          "data_ele": "373",
+          "name": "Fiscal Period Date",
+          "usage": "R",
+          "seq": "03"
+        },
+        "TS304": {
+          "xid": "TS304",
+          "data_ele": "380",
+          "name": "Total Claim Count",
+          "usage": "R",
+          "seq": "04"
+        },
+        "TS305": {
+          "xid": "TS305",
+          "data_ele": "782",
+          "name": "Total Claim Charge Amount",
+          "usage": "R",
+          "seq": "05"
+        },
+        "TS306": {
+          "xid": "TS306",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "06"
+        },
+        "TS307": {
+          "xid": "TS307",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "07"
+        },
+        "TS308": {
+          "xid": "TS308",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "08"
+        },
+        "TS309": {
+          "xid": "TS309",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "09"
+        },
+        "TS310": {
+          "xid": "TS310",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "10"
+        },
+        "TS311": {
+          "xid": "TS311",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "11"
+        },
+        "TS312": {
+          "xid": "TS312",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "12"
+        },
+        "TS313": {
+          "xid": "TS313",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "13"
+        },
+        "TS314": {
+          "xid": "TS314",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "14"
+        },
+        "TS315": {
+          "xid": "TS315",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "15"
+        },
+        "TS316": {
+          "xid": "TS316",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "16"
+        },
+        "TS317": {
+          "xid": "TS317",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "17"
+        },
+        "TS318": {
+          "xid": "TS318",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "18"
+        },
+        "TS319": {
+          "xid": "TS319",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "19"
+        },
+        "TS320": {
+          "xid": "TS320",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "20"
+        },
+        "TS321": {
+          "xid": "TS321",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "21"
+        },
+        "TS322": {
+          "xid": "TS322",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "22"
+        },
+        "TS323": {
+          "xid": "TS323",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "23"
+        },
+        "TS324": {
+          "xid": "TS324",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "24"
+        }
+      }
+    },
+    "TS2": {
+      "name": "Provider Supplemental Summary Information",
+      "usage": "S",
+      "pos": "0120",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "TS201",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "01"
+        },
+        {
+          "xid": "TS202",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "02"
+        },
+        {
+          "xid": "TS203",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "03"
+        },
+        {
+          "xid": "TS204",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "04"
+        },
+        {
+          "xid": "TS205",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "05"
+        },
+        {
+          "xid": "TS206",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "06"
+        },
+        {
+          "xid": "TS207",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "07"
+        },
+        {
+          "xid": "TS208",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "08"
+        },
+        {
+          "xid": "TS209",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "09"
+        },
+        {
+          "xid": "TS210",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "10"
+        },
+        {
+          "xid": "TS211",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "11"
+        },
+        {
+          "xid": "TS212",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "12"
+        },
+        {
+          "xid": "TS213",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "13"
+        },
+        {
+          "xid": "TS214",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "14"
+        },
+        {
+          "xid": "TS215",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "15"
+        },
+        {
+          "xid": "TS216",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "16"
+        },
+        {
+          "xid": "TS217",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "17"
+        },
+        {
+          "xid": "TS218",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "18"
+        },
+        {
+          "xid": "TS219",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "19"
+        }
+      ],
+      "elementsByXid": {
+        "TS201": {
+          "xid": "TS201",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "01"
+        },
+        "TS202": {
+          "xid": "TS202",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "02"
+        },
+        "TS203": {
+          "xid": "TS203",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "03"
+        },
+        "TS204": {
+          "xid": "TS204",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "04"
+        },
+        "TS205": {
+          "xid": "TS205",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "05"
+        },
+        "TS206": {
+          "xid": "TS206",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "06"
+        },
+        "TS207": {
+          "xid": "TS207",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "07"
+        },
+        "TS208": {
+          "xid": "TS208",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "08"
+        },
+        "TS209": {
+          "xid": "TS209",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "09"
+        },
+        "TS210": {
+          "xid": "TS210",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "10"
+        },
+        "TS211": {
+          "xid": "TS211",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "11"
+        },
+        "TS212": {
+          "xid": "TS212",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "12"
+        },
+        "TS213": {
+          "xid": "TS213",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "13"
+        },
+        "TS214": {
+          "xid": "TS214",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "14"
+        },
+        "TS215": {
+          "xid": "TS215",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "15"
+        },
+        "TS216": {
+          "xid": "TS216",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "16"
+        },
+        "TS217": {
+          "xid": "TS217",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "17"
+        },
+        "TS218": {
+          "xid": "TS218",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "18"
+        },
+        "TS219": {
+          "xid": "TS219",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "19"
+        }
+      }
+    },
+    "CLP": {
+      "name": "Claim Payment Information",
+      "usage": "R",
+      "pos": "0130",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "CLP01",
+          "data_ele": "127",
+          "name": "Claim Submitter's Identifier",
+          "usage": "R",
+          "seq": "01"
+        },
+        {
+          "xid": "CLP02",
+          "data_ele": "1029",
+          "name": "Claim Status Code",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "1",
+              "19",
+              "2",
+              "20",
+              "21",
+              "22",
+              "23",
+              "25",
+              "3",
+              "4"
+            ]
+          }
+        },
+        {
+          "xid": "CLP03",
+          "data_ele": "782",
+          "name": "Total Claim Charge Amount",
+          "usage": "R",
+          "seq": "03"
+        },
+        {
+          "xid": "CLP04",
+          "data_ele": "782",
+          "name": "Total Claim Payment Amount",
+          "usage": "R",
+          "seq": "04"
+        },
+        {
+          "xid": "CLP05",
+          "data_ele": "782",
+          "name": "Patient Responsibility Amount",
+          "usage": "S",
+          "seq": "05"
+        },
+        {
+          "xid": "CLP06",
+          "data_ele": "1032",
+          "name": "Claim Filing Indicator Code",
+          "usage": "R",
+          "seq": "06",
+          "valid_codes": {
+            "code": [
+              "12",
+              "13",
+              "14",
+              "15",
+              "16",
+              "17",
+              "AM",
+              "CH",
+              "DS",
+              "HM",
+              "LM",
+              "MA",
+              "MB",
+              "MC",
+              "OF",
+              "TV",
+              "VA",
+              "WC",
+              "ZZ"
+            ]
+          }
+        },
+        {
+          "xid": "CLP07",
+          "data_ele": "127",
+          "name": "Payer Claim Control Number",
+          "usage": "R",
+          "seq": "07"
+        },
+        {
+          "xid": "CLP08",
+          "data_ele": "1331",
+          "name": "Facility Code Value",
+          "usage": "S",
+          "seq": "08"
+        },
+        {
+          "xid": "CLP09",
+          "data_ele": "1073",
+          "name": "Claim Frequency Type Code",
+          "usage": "N",
+          "seq": "09"
+        },
+        {
+          "xid": "CLP10",
+          "data_ele": "98",
+          "name": "Patient Status Code",
+          "usage": "N",
+          "seq": "10"
+        },
+        {
+          "xid": "CLP11",
+          "data_ele": "1325",
+          "name": "Diagnosis Related Group (DRG) Code",
+          "usage": "N",
+          "seq": "11"
+        },
+        {
+          "xid": "CLP12",
+          "data_ele": "380",
+          "name": "Diagnosis Related Group (DRG) Weight",
+          "usage": "N",
+          "seq": "12"
+        },
+        {
+          "xid": "CLP13",
+          "data_ele": "954",
+          "name": "Discharge Fraction",
+          "usage": "N",
+          "seq": "13"
+        },
+        {
+          "xid": "CLP14",
+          "data_ele": "1073",
+          "name": "Yes/No Condition or Response Code",
+          "usage": "N",
+          "seq": "14"
+        }
+      ],
+      "elementsByXid": {
+        "CLP01": {
+          "xid": "CLP01",
+          "data_ele": "127",
+          "name": "Claim Submitter's Identifier",
+          "usage": "R",
+          "seq": "01"
+        },
+        "CLP02": {
+          "xid": "CLP02",
+          "data_ele": "1029",
+          "name": "Claim Status Code",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "1",
+              "19",
+              "2",
+              "20",
+              "21",
+              "22",
+              "23",
+              "25",
+              "3",
+              "4"
+            ]
+          }
+        },
+        "CLP03": {
+          "xid": "CLP03",
+          "data_ele": "782",
+          "name": "Total Claim Charge Amount",
+          "usage": "R",
+          "seq": "03"
+        },
+        "CLP04": {
+          "xid": "CLP04",
+          "data_ele": "782",
+          "name": "Total Claim Payment Amount",
+          "usage": "R",
+          "seq": "04"
+        },
+        "CLP05": {
+          "xid": "CLP05",
+          "data_ele": "782",
+          "name": "Patient Responsibility Amount",
+          "usage": "S",
+          "seq": "05"
+        },
+        "CLP06": {
+          "xid": "CLP06",
+          "data_ele": "1032",
+          "name": "Claim Filing Indicator Code",
+          "usage": "R",
+          "seq": "06",
+          "valid_codes": {
+            "code": [
+              "12",
+              "13",
+              "14",
+              "15",
+              "16",
+              "17",
+              "AM",
+              "CH",
+              "DS",
+              "HM",
+              "LM",
+              "MA",
+              "MB",
+              "MC",
+              "OF",
+              "TV",
+              "VA",
+              "WC",
+              "ZZ"
+            ]
+          }
+        },
+        "CLP07": {
+          "xid": "CLP07",
+          "data_ele": "127",
+          "name": "Payer Claim Control Number",
+          "usage": "R",
+          "seq": "07"
+        },
+        "CLP08": {
+          "xid": "CLP08",
+          "data_ele": "1331",
+          "name": "Facility Code Value",
+          "usage": "S",
+          "seq": "08"
+        },
+        "CLP09": {
+          "xid": "CLP09",
+          "data_ele": "1073",
+          "name": "Claim Frequency Type Code",
+          "usage": "N",
+          "seq": "09"
+        },
+        "CLP10": {
+          "xid": "CLP10",
+          "data_ele": "98",
+          "name": "Patient Status Code",
+          "usage": "N",
+          "seq": "10"
+        },
+        "CLP11": {
+          "xid": "CLP11",
+          "data_ele": "1325",
+          "name": "Diagnosis Related Group (DRG) Code",
+          "usage": "N",
+          "seq": "11"
+        },
+        "CLP12": {
+          "xid": "CLP12",
+          "data_ele": "380",
+          "name": "Diagnosis Related Group (DRG) Weight",
+          "usage": "N",
+          "seq": "12"
+        },
+        "CLP13": {
+          "xid": "CLP13",
+          "data_ele": "954",
+          "name": "Discharge Fraction",
+          "usage": "N",
+          "seq": "13"
+        },
+        "CLP14": {
+          "xid": "CLP14",
+          "data_ele": "1073",
+          "name": "Yes/No Condition or Response Code",
+          "usage": "N",
+          "seq": "14"
+        }
+      }
+    },
+    "CAS": {
+      "name": "Claim Adjustment",
+      "usage": "S",
+      "pos": "0135",
+      "max_use": 99,
+      "syntax": [
+        "L050607",
+        "C0605",
+        "C0705",
+        "L080910",
+        "C0908",
+        "C1008",
+        "L111213",
+        "C1211",
+        "C1311",
+        "L141516",
+        "C1514",
+        "C1614",
+        "L171819",
+        "C1817",
+        "C1917"
+      ],
+      "elements": [
+        {
+          "xid": "CAS01",
+          "data_ele": "1033",
+          "name": "Claim Adjustment Group Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "CO",
+              "OA",
+              "PI",
+              "PR"
+            ]
+          }
+        },
+        {
+          "xid": "CAS02",
+          "data_ele": "1034",
+          "name": "Claim Adjustment Reason Code",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "CAS03",
+          "data_ele": "782",
+          "name": "Claim Adjustment Amount",
+          "usage": "R",
+          "seq": "03"
+        },
+        {
+          "xid": "CAS04",
+          "data_ele": "380",
+          "name": "Claim Adjustment Quantity",
+          "usage": "S",
+          "seq": "04"
+        },
+        {
+          "xid": "CAS05",
+          "data_ele": "1034",
+          "name": "Claim Adjustment Reason Code",
+          "usage": "S",
+          "seq": "05"
+        },
+        {
+          "xid": "CAS06",
+          "data_ele": "782",
+          "name": "Claim Adjustment Amount",
+          "usage": "S",
+          "seq": "06"
+        },
+        {
+          "xid": "CAS07",
+          "data_ele": "380",
+          "name": "Claim Adjustment Quantity",
+          "usage": "S",
+          "seq": "07"
+        },
+        {
+          "xid": "CAS08",
+          "data_ele": "1034",
+          "name": "Claim Adjustment Reason Code",
+          "usage": "S",
+          "seq": "08"
+        },
+        {
+          "xid": "CAS09",
+          "data_ele": "782",
+          "name": "Claim Adjustment Amount",
+          "usage": "S",
+          "seq": "09"
+        },
+        {
+          "xid": "CAS10",
+          "data_ele": "380",
+          "name": "Claim Adjustment Quantity",
+          "usage": "S",
+          "seq": "10"
+        },
+        {
+          "xid": "CAS11",
+          "data_ele": "1034",
+          "name": "Claim Adjustment Reason Code",
+          "usage": "S",
+          "seq": "11"
+        },
+        {
+          "xid": "CAS12",
+          "data_ele": "782",
+          "name": "Claim Adjustment Amount",
+          "usage": "S",
+          "seq": "12"
+        },
+        {
+          "xid": "CAS13",
+          "data_ele": "380",
+          "name": "Claim Adjustment Quantity",
+          "usage": "S",
+          "seq": "13"
+        },
+        {
+          "xid": "CAS14",
+          "data_ele": "1034",
+          "name": "Claim Adjustment Reason Code",
+          "usage": "S",
+          "seq": "14"
+        },
+        {
+          "xid": "CAS15",
+          "data_ele": "782",
+          "name": "Claim Adjustment Amount",
+          "usage": "S",
+          "seq": "15"
+        },
+        {
+          "xid": "CAS16",
+          "data_ele": "380",
+          "name": "Claim Adjustment Quantity",
+          "usage": "S",
+          "seq": "16"
+        },
+        {
+          "xid": "CAS17",
+          "data_ele": "1034",
+          "name": "Claim Adjustment Reason Code",
+          "usage": "S",
+          "seq": "17"
+        },
+        {
+          "xid": "CAS18",
+          "data_ele": "782",
+          "name": "Claim Adjustment Amount",
+          "usage": "S",
+          "seq": "18"
+        },
+        {
+          "xid": "CAS19",
+          "data_ele": "380",
+          "name": "Claim Adjustment Quantity",
+          "usage": "S",
+          "seq": "19"
+        }
+      ],
+      "elementsByXid": {
+        "CAS01": {
+          "xid": "CAS01",
+          "data_ele": "1033",
+          "name": "Claim Adjustment Group Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "CO",
+              "OA",
+              "PI",
+              "PR"
+            ]
+          }
+        },
+        "CAS02": {
+          "xid": "CAS02",
+          "data_ele": "1034",
+          "name": "Claim Adjustment Reason Code",
+          "usage": "R",
+          "seq": "02"
+        },
+        "CAS03": {
+          "xid": "CAS03",
+          "data_ele": "782",
+          "name": "Claim Adjustment Amount",
+          "usage": "R",
+          "seq": "03"
+        },
+        "CAS04": {
+          "xid": "CAS04",
+          "data_ele": "380",
+          "name": "Claim Adjustment Quantity",
+          "usage": "S",
+          "seq": "04"
+        },
+        "CAS05": {
+          "xid": "CAS05",
+          "data_ele": "1034",
+          "name": "Claim Adjustment Reason Code",
+          "usage": "S",
+          "seq": "05"
+        },
+        "CAS06": {
+          "xid": "CAS06",
+          "data_ele": "782",
+          "name": "Claim Adjustment Amount",
+          "usage": "S",
+          "seq": "06"
+        },
+        "CAS07": {
+          "xid": "CAS07",
+          "data_ele": "380",
+          "name": "Claim Adjustment Quantity",
+          "usage": "S",
+          "seq": "07"
+        },
+        "CAS08": {
+          "xid": "CAS08",
+          "data_ele": "1034",
+          "name": "Claim Adjustment Reason Code",
+          "usage": "S",
+          "seq": "08"
+        },
+        "CAS09": {
+          "xid": "CAS09",
+          "data_ele": "782",
+          "name": "Claim Adjustment Amount",
+          "usage": "S",
+          "seq": "09"
+        },
+        "CAS10": {
+          "xid": "CAS10",
+          "data_ele": "380",
+          "name": "Claim Adjustment Quantity",
+          "usage": "S",
+          "seq": "10"
+        },
+        "CAS11": {
+          "xid": "CAS11",
+          "data_ele": "1034",
+          "name": "Claim Adjustment Reason Code",
+          "usage": "S",
+          "seq": "11"
+        },
+        "CAS12": {
+          "xid": "CAS12",
+          "data_ele": "782",
+          "name": "Claim Adjustment Amount",
+          "usage": "S",
+          "seq": "12"
+        },
+        "CAS13": {
+          "xid": "CAS13",
+          "data_ele": "380",
+          "name": "Claim Adjustment Quantity",
+          "usage": "S",
+          "seq": "13"
+        },
+        "CAS14": {
+          "xid": "CAS14",
+          "data_ele": "1034",
+          "name": "Claim Adjustment Reason Code",
+          "usage": "S",
+          "seq": "14"
+        },
+        "CAS15": {
+          "xid": "CAS15",
+          "data_ele": "782",
+          "name": "Claim Adjustment Amount",
+          "usage": "S",
+          "seq": "15"
+        },
+        "CAS16": {
+          "xid": "CAS16",
+          "data_ele": "380",
+          "name": "Claim Adjustment Quantity",
+          "usage": "S",
+          "seq": "16"
+        },
+        "CAS17": {
+          "xid": "CAS17",
+          "data_ele": "1034",
+          "name": "Claim Adjustment Reason Code",
+          "usage": "S",
+          "seq": "17"
+        },
+        "CAS18": {
+          "xid": "CAS18",
+          "data_ele": "782",
+          "name": "Claim Adjustment Amount",
+          "usage": "S",
+          "seq": "18"
+        },
+        "CAS19": {
+          "xid": "CAS19",
+          "data_ele": "380",
+          "name": "Claim Adjustment Quantity",
+          "usage": "S",
+          "seq": "19"
+        }
+      }
+    },
+    "NM1": {
+      "name": "Patient Name",
+      "usage": "R",
+      "pos": "0140",
+      "max_use": 1,
+      "syntax": [
+        "P0809",
+        "C1110",
+        "C1203"
+      ],
+      "elements": [
+        {
+          "xid": "NM101",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "QC"
+            ]
+          }
+        },
+        {
+          "xid": "NM102",
+          "data_ele": "1065",
+          "name": "Entity Type Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "1"
+            ]
+          }
+        },
+        {
+          "xid": "NM103",
+          "data_ele": "1035",
+          "name": "Patient Last Name",
+          "usage": "S",
+          "seq": "03"
+        },
+        {
+          "xid": "NM104",
+          "data_ele": "1036",
+          "name": "Patient First Name",
+          "usage": "S",
+          "seq": "04"
+        },
+        {
+          "xid": "NM105",
+          "data_ele": "1037",
+          "name": "Patient Middle Name or Initial",
+          "usage": "S",
+          "seq": "05"
+        },
+        {
+          "xid": "NM106",
+          "data_ele": "1038",
+          "name": "Name Prefix",
+          "usage": "N",
+          "seq": "06"
+        },
+        {
+          "xid": "NM107",
+          "data_ele": "1039",
+          "name": "Patient Name Suffix",
+          "usage": "S",
+          "seq": "07"
+        },
+        {
+          "xid": "NM108",
+          "data_ele": "66",
+          "name": "Identification Code Qualifier",
+          "usage": "S",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              "34",
+              "HN",
+              "II",
+              "MI",
+              "MR"
+            ]
+          }
+        },
+        {
+          "xid": "NM109",
+          "data_ele": "67",
+          "name": "Patient Identifier",
+          "usage": "S",
+          "seq": "09"
+        },
+        {
+          "xid": "NM110",
+          "data_ele": "706",
+          "name": "Entity Relationship Code",
+          "usage": "N",
+          "seq": "10"
+        },
+        {
+          "xid": "NM111",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "N",
+          "seq": "11"
+        },
+        {
+          "xid": "NM112",
+          "data_ele": "1035",
+          "name": "Name Last or Organization Name",
+          "usage": "N",
+          "seq": "12"
+        }
+      ],
+      "elementsByXid": {
+        "NM101": {
+          "xid": "NM101",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "QC"
+            ]
+          }
+        },
+        "NM102": {
+          "xid": "NM102",
+          "data_ele": "1065",
+          "name": "Entity Type Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "1"
+            ]
+          }
+        },
+        "NM103": {
+          "xid": "NM103",
+          "data_ele": "1035",
+          "name": "Patient Last Name",
+          "usage": "S",
+          "seq": "03"
+        },
+        "NM104": {
+          "xid": "NM104",
+          "data_ele": "1036",
+          "name": "Patient First Name",
+          "usage": "S",
+          "seq": "04"
+        },
+        "NM105": {
+          "xid": "NM105",
+          "data_ele": "1037",
+          "name": "Patient Middle Name or Initial",
+          "usage": "S",
+          "seq": "05"
+        },
+        "NM106": {
+          "xid": "NM106",
+          "data_ele": "1038",
+          "name": "Name Prefix",
+          "usage": "N",
+          "seq": "06"
+        },
+        "NM107": {
+          "xid": "NM107",
+          "data_ele": "1039",
+          "name": "Patient Name Suffix",
+          "usage": "S",
+          "seq": "07"
+        },
+        "NM108": {
+          "xid": "NM108",
+          "data_ele": "66",
+          "name": "Identification Code Qualifier",
+          "usage": "S",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              "34",
+              "HN",
+              "II",
+              "MI",
+              "MR"
+            ]
+          }
+        },
+        "NM109": {
+          "xid": "NM109",
+          "data_ele": "67",
+          "name": "Patient Identifier",
+          "usage": "S",
+          "seq": "09"
+        },
+        "NM110": {
+          "xid": "NM110",
+          "data_ele": "706",
+          "name": "Entity Relationship Code",
+          "usage": "N",
+          "seq": "10"
+        },
+        "NM111": {
+          "xid": "NM111",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "N",
+          "seq": "11"
+        },
+        "NM112": {
+          "xid": "NM112",
+          "data_ele": "1035",
+          "name": "Name Last or Organization Name",
+          "usage": "N",
+          "seq": "12"
+        }
+      }
+    },
+    "MIA": {
+      "name": "Inpatient Adjudication Information",
+      "usage": "S",
+      "pos": "0150",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "MIA01",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "R",
+          "seq": "01"
+        },
+        {
+          "xid": "MIA02",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "02"
+        },
+        {
+          "xid": "MIA03",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "S",
+          "seq": "03"
+        },
+        {
+          "xid": "MIA04",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "04"
+        },
+        {
+          "xid": "MIA05",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "05"
+        },
+        {
+          "xid": "MIA06",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "06"
+        },
+        {
+          "xid": "MIA07",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "07"
+        },
+        {
+          "xid": "MIA08",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "08"
+        },
+        {
+          "xid": "MIA09",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "09"
+        },
+        {
+          "xid": "MIA10",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "10"
+        },
+        {
+          "xid": "MIA11",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "11"
+        },
+        {
+          "xid": "MIA12",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "12"
+        },
+        {
+          "xid": "MIA13",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "13"
+        },
+        {
+          "xid": "MIA14",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "14"
+        },
+        {
+          "xid": "MIA15",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "15"
+        },
+        {
+          "xid": "MIA16",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "16"
+        },
+        {
+          "xid": "MIA17",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "17"
+        },
+        {
+          "xid": "MIA18",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "18"
+        },
+        {
+          "xid": "MIA19",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "19"
+        },
+        {
+          "xid": "MIA20",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "20"
+        },
+        {
+          "xid": "MIA21",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "21"
+        },
+        {
+          "xid": "MIA22",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "22"
+        },
+        {
+          "xid": "MIA23",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "23"
+        },
+        {
+          "xid": "MIA24",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "24"
+        }
+      ],
+      "elementsByXid": {
+        "MIA01": {
+          "xid": "MIA01",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "R",
+          "seq": "01"
+        },
+        "MIA02": {
+          "xid": "MIA02",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "02"
+        },
+        "MIA03": {
+          "xid": "MIA03",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "S",
+          "seq": "03"
+        },
+        "MIA04": {
+          "xid": "MIA04",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "04"
+        },
+        "MIA05": {
+          "xid": "MIA05",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "05"
+        },
+        "MIA06": {
+          "xid": "MIA06",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "06"
+        },
+        "MIA07": {
+          "xid": "MIA07",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "07"
+        },
+        "MIA08": {
+          "xid": "MIA08",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "08"
+        },
+        "MIA09": {
+          "xid": "MIA09",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "09"
+        },
+        "MIA10": {
+          "xid": "MIA10",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "10"
+        },
+        "MIA11": {
+          "xid": "MIA11",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "11"
+        },
+        "MIA12": {
+          "xid": "MIA12",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "12"
+        },
+        "MIA13": {
+          "xid": "MIA13",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "13"
+        },
+        "MIA14": {
+          "xid": "MIA14",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "14"
+        },
+        "MIA15": {
+          "xid": "MIA15",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "15"
+        },
+        "MIA16": {
+          "xid": "MIA16",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "16"
+        },
+        "MIA17": {
+          "xid": "MIA17",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "17"
+        },
+        "MIA18": {
+          "xid": "MIA18",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "18"
+        },
+        "MIA19": {
+          "xid": "MIA19",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "19"
+        },
+        "MIA20": {
+          "xid": "MIA20",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "20"
+        },
+        "MIA21": {
+          "xid": "MIA21",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "21"
+        },
+        "MIA22": {
+          "xid": "MIA22",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "22"
+        },
+        "MIA23": {
+          "xid": "MIA23",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "23"
+        },
+        "MIA24": {
+          "xid": "MIA24",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "24"
+        }
+      }
+    },
+    "MOA": {
+      "name": "Outpatient Adjudication Information",
+      "usage": "S",
+      "pos": "0155",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "MOA01",
+          "data_ele": "954",
+          "name": "Percentage as Decimal",
+          "usage": "S",
+          "seq": "01"
+        },
+        {
+          "xid": "MOA02",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "02"
+        },
+        {
+          "xid": "MOA03",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "03"
+        },
+        {
+          "xid": "MOA04",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "04"
+        },
+        {
+          "xid": "MOA05",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "05"
+        },
+        {
+          "xid": "MOA06",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "06"
+        },
+        {
+          "xid": "MOA07",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "07"
+        },
+        {
+          "xid": "MOA08",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "08"
+        },
+        {
+          "xid": "MOA09",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "09"
+        }
+      ],
+      "elementsByXid": {
+        "MOA01": {
+          "xid": "MOA01",
+          "data_ele": "954",
+          "name": "Percentage as Decimal",
+          "usage": "S",
+          "seq": "01"
+        },
+        "MOA02": {
+          "xid": "MOA02",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "02"
+        },
+        "MOA03": {
+          "xid": "MOA03",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "03"
+        },
+        "MOA04": {
+          "xid": "MOA04",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "04"
+        },
+        "MOA05": {
+          "xid": "MOA05",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "05"
+        },
+        "MOA06": {
+          "xid": "MOA06",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "06"
+        },
+        "MOA07": {
+          "xid": "MOA07",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "S",
+          "seq": "07"
+        },
+        "MOA08": {
+          "xid": "MOA08",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "08"
+        },
+        "MOA09": {
+          "xid": "MOA09",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "09"
+        }
+      }
+    },
+    "AMT": {
+      "name": "Amount",
+      "usage": "S",
+      "pos": "0190",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "AMT01",
+          "data_ele": "522",
+          "name": "Amount Qualifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "AU",
+              "D8",
+              "DY",
+              "F5",
+              "I",
+              "NL",
+              "T",
+              "T2",
+              "ZK",
+              "ZL",
+              "ZM",
+              "ZN",
+              "ZO"
+            ]
+          }
+        },
+        {
+          "xid": "AMT02",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "AMT03",
+          "data_ele": "478",
+          "name": "Credit/Debit Flag Code",
+          "usage": "N",
+          "seq": "03"
+        }
+      ],
+      "elementsByXid": {
+        "AMT01": {
+          "xid": "AMT01",
+          "data_ele": "522",
+          "name": "Amount Qualifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "AU",
+              "D8",
+              "DY",
+              "F5",
+              "I",
+              "NL",
+              "T",
+              "T2",
+              "ZK",
+              "ZL",
+              "ZM",
+              "ZN",
+              "ZO"
+            ]
+          }
+        },
+        "AMT02": {
+          "xid": "AMT02",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "R",
+          "seq": "02"
+        },
+        "AMT03": {
+          "xid": "AMT03",
+          "data_ele": "478",
+          "name": "Credit/Debit Flag Code",
+          "usage": "N",
+          "seq": "03"
+        }
+      }
+    },
+    "QTY": {
+      "name": "Quantity",
+      "usage": "S",
+      "pos": "0200",
+      "max_use": 1,
+      "syntax": [
+        "E0204",
+        "R0204"
+      ],
+      "elements": [
+        {
+          "xid": "QTY01",
+          "data_ele": "673",
+          "name": "Quantity Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "CA",
+              "CD",
+              "LA",
+              "LE",
+              "NE",
+              "NR",
+              "OU",
+              "PS",
+              "VS",
+              "ZK",
+              "ZL",
+              "ZM",
+              "ZN",
+              "ZO"
+            ]
+          }
+        },
+        {
+          "xid": "QTY02",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "QTY04",
+          "data_ele": "61",
+          "name": "Free-form Information",
+          "usage": "N",
+          "seq": "04"
+        },
+        {
+          "xid": "QTY03",
+          "data_ele": "C001",
+          "name": "Composite Unit of Measure",
+          "usage": "N",
+          "seq": "03",
+          "elements": []
+        }
+      ],
+      "elementsByXid": {
+        "QTY01": {
+          "xid": "QTY01",
+          "data_ele": "673",
+          "name": "Quantity Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "CA",
+              "CD",
+              "LA",
+              "LE",
+              "NE",
+              "NR",
+              "OU",
+              "PS",
+              "VS",
+              "ZK",
+              "ZL",
+              "ZM",
+              "ZN",
+              "ZO"
+            ]
+          }
+        },
+        "QTY02": {
+          "xid": "QTY02",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "R",
+          "seq": "02"
+        },
+        "QTY04": {
+          "xid": "QTY04",
+          "data_ele": "61",
+          "name": "Free-form Information",
+          "usage": "N",
+          "seq": "04"
+        },
+        "QTY03": {
+          "xid": "QTY03",
+          "data_ele": "C001",
+          "name": "Composite Unit of Measure",
+          "usage": "N",
+          "seq": "03",
+          "elements": []
+        }
+      }
+    },
+    "SVC": {
+      "name": "Service Payment Information",
+      "usage": "S",
+      "pos": "0300",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "SVC02",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "SVC03",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "R",
+          "seq": "03"
+        },
+        {
+          "xid": "SVC04",
+          "data_ele": "234",
+          "name": "Product/Service ID",
+          "usage": "N",
+          "seq": "04"
+        },
+        {
+          "xid": "SVC05",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "05"
+        },
+        {
+          "xid": "SVC07",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "07"
+        },
+        {
+          "xid": "SVC01",
+          "data_ele": "C003",
+          "name": "Composite Medical Procedure Identifier",
+          "usage": "R",
+          "seq": "01",
+          "elements": [
+            {
+              "xid": "SVC01-01",
+              "data_ele": "235",
+              "name": "Product/Service ID Qualifier",
+              "usage": "R",
+              "seq": "01",
+              "valid_codes": {
+                "code": [
+                  "AD",
+                  "ER",
+                  "HC",
+                  "HP",
+                  "IV",
+                  "N4",
+                  "N6",
+                  "NU",
+                  "UI",
+                  "WK"
+                ]
+              }
+            },
+            {
+              "xid": "SVC01-02",
+              "data_ele": "234",
+              "name": "Product/Service ID",
+              "usage": "R",
+              "seq": "02"
+            },
+            {
+              "xid": "SVC01-03",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "03"
+            },
+            {
+              "xid": "SVC01-04",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "04"
+            },
+            {
+              "xid": "SVC01-05",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "05"
+            },
+            {
+              "xid": "SVC01-06",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "06"
+            },
+            {
+              "xid": "SVC01-07",
+              "data_ele": "352",
+              "name": "Description",
+              "usage": "S",
+              "seq": "07"
+            },
+            {
+              "xid": "SVC01-08",
+              "data_ele": "234",
+              "name": "Product/Service ID",
+              "usage": "N",
+              "seq": "08"
+            }
+          ]
+        },
+        {
+          "xid": "SVC06",
+          "data_ele": "C003",
+          "name": "Composite Medical Procedure Identifier",
+          "usage": "N",
+          "seq": "06",
+          "elements": [
+            {
+              "xid": "SVC06-01",
+              "data_ele": "235",
+              "name": "Product/Service ID Qualifier",
+              "usage": "R",
+              "seq": "01",
+              "valid_codes": {
+                "code": [
+                  "AD",
+                  "ER",
+                  "HC",
+                  "HP",
+                  "IV",
+                  "N4",
+                  "NU",
+                  "WK"
+                ]
+              }
+            },
+            {
+              "xid": "SVC06-02",
+              "data_ele": "234",
+              "name": "Product/Service ID",
+              "usage": "R",
+              "seq": "02"
+            },
+            {
+              "xid": "SVC06-03",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "03"
+            },
+            {
+              "xid": "SVC06-04",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "04"
+            },
+            {
+              "xid": "SVC06-05",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "05"
+            },
+            {
+              "xid": "SVC06-06",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "06"
+            },
+            {
+              "xid": "SVC06-07",
+              "data_ele": "352",
+              "name": "Description",
+              "usage": "S",
+              "seq": "07"
+            },
+            {
+              "xid": "SVC06-08",
+              "data_ele": "234",
+              "name": "Product/Service ID",
+              "usage": "N",
+              "seq": "08"
+            }
+          ]
+        }
+      ],
+      "elementsByXid": {
+        "SVC02": {
+          "xid": "SVC02",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "R",
+          "seq": "02"
+        },
+        "SVC03": {
+          "xid": "SVC03",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "R",
+          "seq": "03"
+        },
+        "SVC04": {
+          "xid": "SVC04",
+          "data_ele": "234",
+          "name": "Product/Service ID",
+          "usage": "N",
+          "seq": "04"
+        },
+        "SVC05": {
+          "xid": "SVC05",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "05"
+        },
+        "SVC07": {
+          "xid": "SVC07",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "07"
+        },
+        "SVC01": {
+          "xid": "SVC01",
+          "data_ele": "C003",
+          "name": "Composite Medical Procedure Identifier",
+          "usage": "R",
+          "seq": "01",
+          "elements": [
+            {
+              "xid": "SVC01-01",
+              "data_ele": "235",
+              "name": "Product/Service ID Qualifier",
+              "usage": "R",
+              "seq": "01",
+              "valid_codes": {
+                "code": [
+                  "AD",
+                  "ER",
+                  "HC",
+                  "HP",
+                  "IV",
+                  "N4",
+                  "N6",
+                  "NU",
+                  "UI",
+                  "WK"
+                ]
+              }
+            },
+            {
+              "xid": "SVC01-02",
+              "data_ele": "234",
+              "name": "Product/Service ID",
+              "usage": "R",
+              "seq": "02"
+            },
+            {
+              "xid": "SVC01-03",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "03"
+            },
+            {
+              "xid": "SVC01-04",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "04"
+            },
+            {
+              "xid": "SVC01-05",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "05"
+            },
+            {
+              "xid": "SVC01-06",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "06"
+            },
+            {
+              "xid": "SVC01-07",
+              "data_ele": "352",
+              "name": "Description",
+              "usage": "S",
+              "seq": "07"
+            },
+            {
+              "xid": "SVC01-08",
+              "data_ele": "234",
+              "name": "Product/Service ID",
+              "usage": "N",
+              "seq": "08"
+            }
+          ]
+        },
+        "SVC06": {
+          "xid": "SVC06",
+          "data_ele": "C003",
+          "name": "Composite Medical Procedure Identifier",
+          "usage": "N",
+          "seq": "06",
+          "elements": [
+            {
+              "xid": "SVC06-01",
+              "data_ele": "235",
+              "name": "Product/Service ID Qualifier",
+              "usage": "R",
+              "seq": "01",
+              "valid_codes": {
+                "code": [
+                  "AD",
+                  "ER",
+                  "HC",
+                  "HP",
+                  "IV",
+                  "N4",
+                  "NU",
+                  "WK"
+                ]
+              }
+            },
+            {
+              "xid": "SVC06-02",
+              "data_ele": "234",
+              "name": "Product/Service ID",
+              "usage": "R",
+              "seq": "02"
+            },
+            {
+              "xid": "SVC06-03",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "03"
+            },
+            {
+              "xid": "SVC06-04",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "04"
+            },
+            {
+              "xid": "SVC06-05",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "05"
+            },
+            {
+              "xid": "SVC06-06",
+              "data_ele": "1339",
+              "name": "Procedure Modifier",
+              "usage": "S",
+              "seq": "06"
+            },
+            {
+              "xid": "SVC06-07",
+              "data_ele": "352",
+              "name": "Description",
+              "usage": "S",
+              "seq": "07"
+            },
+            {
+              "xid": "SVC06-08",
+              "data_ele": "234",
+              "name": "Product/Service ID",
+              "usage": "N",
+              "seq": "08"
+            }
+          ]
+        }
+      }
+    },
+    "LQ": {
+      "name": "Code Category",
+      "usage": "S",
+      "pos": "0325",
+      "max_use": 99,
+      "syntax": [
+        "C0102"
+      ],
+      "elements": [
+        {
+          "xid": "LQ01",
+          "data_ele": "1270",
+          "name": "Code List Qualifier Code",
+          "usage": "S",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "HE",
+              "RX"
+            ]
+          }
+        },
+        {
+          "xid": "LQ02",
+          "data_ele": "1271",
+          "name": "Industry Code",
+          "usage": "S",
+          "seq": "02"
+        }
+      ],
+      "elementsByXid": {
+        "LQ01": {
+          "xid": "LQ01",
+          "data_ele": "1270",
+          "name": "Code List Qualifier Code",
+          "usage": "S",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "HE",
+              "RX"
+            ]
+          }
+        },
+        "LQ02": {
+          "xid": "LQ02",
+          "data_ele": "1271",
+          "name": "Industry Code",
+          "usage": "S",
+          "seq": "02"
+        }
+      }
+    },
+    "PLB": {
+      "name": "Provider Adjustment",
+      "usage": "S",
+      "pos": "0100",
+      "max_use": 1,
+      "syntax": [
+        "P0506",
+        "P0708",
+        "P0910",
+        "P1112",
+        "P1314"
+      ],
+      "elements": [
+        {
+          "xid": "PLB01",
+          "data_ele": "127",
+          "name": "Provider Identifier",
+          "usage": "R",
+          "seq": "01"
+        },
+        {
+          "xid": "PLB02",
+          "data_ele": "373",
+          "name": "Fiscal Period Date",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "PLB04",
+          "data_ele": "782",
+          "name": "Provider Adjustment Amount",
+          "usage": "R",
+          "seq": "04"
+        },
+        {
+          "xid": "PLB06",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "06"
+        },
+        {
+          "xid": "PLB08",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "08"
+        },
+        {
+          "xid": "PLB10",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "10"
+        },
+        {
+          "xid": "PLB12",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "12"
+        },
+        {
+          "xid": "PLB14",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "14"
+        },
+        {
+          "xid": "PLB03",
+          "data_ele": "C042",
+          "name": "Adjustment Identifier",
+          "usage": "R",
+          "seq": "03",
+          "elements": [
+            {
+              "xid": "PLB03-01",
+              "data_ele": "1034",
+              "name": "Adjustment Reason Code",
+              "usage": "R",
+              "seq": "01",
+              "valid_codes": {
+                "code": [
+                  "50",
+                  "51",
+                  "72",
+                  "90",
+                  "AH",
+                  "AM",
+                  "AP",
+                  "B2",
+                  "B3",
+                  "BD",
+                  "BN",
+                  "C5",
+                  "CR",
+                  "CS",
+                  "CT",
+                  "CV",
+                  "CW",
+                  "DM",
+                  "E3",
+                  "FB",
+                  "FC",
+                  "GO",
+                  "HM",
+                  "IP",
+                  "IR",
+                  "IS",
+                  "J1",
+                  "L3",
+                  "L6",
+                  "LE",
+                  "LS",
+                  "OA",
+                  "OB",
+                  "PI",
+                  "PL",
+                  "RA",
+                  "RE",
+                  "SL",
+                  "TL",
+                  "WO",
+                  "WU"
+                ]
+              }
+            },
+            {
+              "xid": "PLB03-02",
+              "data_ele": "127",
+              "name": "Provider Adjustment Identifier",
+              "usage": "S",
+              "seq": "02"
+            }
+          ]
+        },
+        {
+          "xid": "PLB05",
+          "data_ele": "C042",
+          "name": "Adjustment Identifier",
+          "usage": "S",
+          "seq": "05",
+          "elements": [
+            {
+              "xid": "PLB05-01",
+              "data_ele": "1034",
+              "name": "Adjustment Reason Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "PLB05-02",
+              "data_ele": "127",
+              "name": "Provider Adjustment Identifier",
+              "usage": "S",
+              "seq": "02"
+            }
+          ]
+        },
+        {
+          "xid": "PLB07",
+          "data_ele": "C042",
+          "name": "Adjustment Identifier",
+          "usage": "S",
+          "seq": "07",
+          "elements": [
+            {
+              "xid": "PLB07-01",
+              "data_ele": "1034",
+              "name": "Adjustment Reason Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "PLB07-02",
+              "data_ele": "127",
+              "name": "Provider Adjustment Identifier",
+              "usage": "S",
+              "seq": "02"
+            }
+          ]
+        },
+        {
+          "xid": "PLB09",
+          "data_ele": "C042",
+          "name": "Adjustment Identifier",
+          "usage": "S",
+          "seq": "09",
+          "elements": [
+            {
+              "xid": "PLB09-01",
+              "data_ele": "1034",
+              "name": "Adjustment Reason Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "PLB09-02",
+              "data_ele": "127",
+              "name": "Provider Adjustment Identifier",
+              "usage": "S",
+              "seq": "02"
+            }
+          ]
+        },
+        {
+          "xid": "PLB11",
+          "data_ele": "C042",
+          "name": "Adjustment Identifier",
+          "usage": "S",
+          "seq": "11",
+          "elements": [
+            {
+              "xid": "PLB11-01",
+              "data_ele": "1034",
+              "name": "Adjustment Reason Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "PLB11-02",
+              "data_ele": "127",
+              "name": "Provider Adjustment Identifier",
+              "usage": "S",
+              "seq": "02"
+            }
+          ]
+        },
+        {
+          "xid": "PLB13",
+          "data_ele": "C042",
+          "name": "Adjustment Identifier",
+          "usage": "S",
+          "seq": "13",
+          "elements": [
+            {
+              "xid": "PLB13-01",
+              "data_ele": "1034",
+              "name": "Adjustment Reason Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "PLB13-02",
+              "data_ele": "127",
+              "name": "Provider Adjustment Identifier",
+              "usage": "S",
+              "seq": "02"
+            }
+          ]
+        }
+      ],
+      "elementsByXid": {
+        "PLB01": {
+          "xid": "PLB01",
+          "data_ele": "127",
+          "name": "Provider Identifier",
+          "usage": "R",
+          "seq": "01"
+        },
+        "PLB02": {
+          "xid": "PLB02",
+          "data_ele": "373",
+          "name": "Fiscal Period Date",
+          "usage": "R",
+          "seq": "02"
+        },
+        "PLB04": {
+          "xid": "PLB04",
+          "data_ele": "782",
+          "name": "Provider Adjustment Amount",
+          "usage": "R",
+          "seq": "04"
+        },
+        "PLB06": {
+          "xid": "PLB06",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "06"
+        },
+        "PLB08": {
+          "xid": "PLB08",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "08"
+        },
+        "PLB10": {
+          "xid": "PLB10",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "10"
+        },
+        "PLB12": {
+          "xid": "PLB12",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "12"
+        },
+        "PLB14": {
+          "xid": "PLB14",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "S",
+          "seq": "14"
+        },
+        "PLB03": {
+          "xid": "PLB03",
+          "data_ele": "C042",
+          "name": "Adjustment Identifier",
+          "usage": "R",
+          "seq": "03",
+          "elements": [
+            {
+              "xid": "PLB03-01",
+              "data_ele": "1034",
+              "name": "Adjustment Reason Code",
+              "usage": "R",
+              "seq": "01",
+              "valid_codes": {
+                "code": [
+                  "50",
+                  "51",
+                  "72",
+                  "90",
+                  "AH",
+                  "AM",
+                  "AP",
+                  "B2",
+                  "B3",
+                  "BD",
+                  "BN",
+                  "C5",
+                  "CR",
+                  "CS",
+                  "CT",
+                  "CV",
+                  "CW",
+                  "DM",
+                  "E3",
+                  "FB",
+                  "FC",
+                  "GO",
+                  "HM",
+                  "IP",
+                  "IR",
+                  "IS",
+                  "J1",
+                  "L3",
+                  "L6",
+                  "LE",
+                  "LS",
+                  "OA",
+                  "OB",
+                  "PI",
+                  "PL",
+                  "RA",
+                  "RE",
+                  "SL",
+                  "TL",
+                  "WO",
+                  "WU"
+                ]
+              }
+            },
+            {
+              "xid": "PLB03-02",
+              "data_ele": "127",
+              "name": "Provider Adjustment Identifier",
+              "usage": "S",
+              "seq": "02"
+            }
+          ]
+        },
+        "PLB05": {
+          "xid": "PLB05",
+          "data_ele": "C042",
+          "name": "Adjustment Identifier",
+          "usage": "S",
+          "seq": "05",
+          "elements": [
+            {
+              "xid": "PLB05-01",
+              "data_ele": "1034",
+              "name": "Adjustment Reason Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "PLB05-02",
+              "data_ele": "127",
+              "name": "Provider Adjustment Identifier",
+              "usage": "S",
+              "seq": "02"
+            }
+          ]
+        },
+        "PLB07": {
+          "xid": "PLB07",
+          "data_ele": "C042",
+          "name": "Adjustment Identifier",
+          "usage": "S",
+          "seq": "07",
+          "elements": [
+            {
+              "xid": "PLB07-01",
+              "data_ele": "1034",
+              "name": "Adjustment Reason Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "PLB07-02",
+              "data_ele": "127",
+              "name": "Provider Adjustment Identifier",
+              "usage": "S",
+              "seq": "02"
+            }
+          ]
+        },
+        "PLB09": {
+          "xid": "PLB09",
+          "data_ele": "C042",
+          "name": "Adjustment Identifier",
+          "usage": "S",
+          "seq": "09",
+          "elements": [
+            {
+              "xid": "PLB09-01",
+              "data_ele": "1034",
+              "name": "Adjustment Reason Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "PLB09-02",
+              "data_ele": "127",
+              "name": "Provider Adjustment Identifier",
+              "usage": "S",
+              "seq": "02"
+            }
+          ]
+        },
+        "PLB11": {
+          "xid": "PLB11",
+          "data_ele": "C042",
+          "name": "Adjustment Identifier",
+          "usage": "S",
+          "seq": "11",
+          "elements": [
+            {
+              "xid": "PLB11-01",
+              "data_ele": "1034",
+              "name": "Adjustment Reason Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "PLB11-02",
+              "data_ele": "127",
+              "name": "Provider Adjustment Identifier",
+              "usage": "S",
+              "seq": "02"
+            }
+          ]
+        },
+        "PLB13": {
+          "xid": "PLB13",
+          "data_ele": "C042",
+          "name": "Adjustment Identifier",
+          "usage": "S",
+          "seq": "13",
+          "elements": [
+            {
+              "xid": "PLB13-01",
+              "data_ele": "1034",
+              "name": "Adjustment Reason Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "PLB13-02",
+              "data_ele": "127",
+              "name": "Provider Adjustment Identifier",
+              "usage": "S",
+              "seq": "02"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "structure": [
+    {
+      "type": "loop",
+      "xid": "ISA_LOOP",
+      "name": "Interchange Control",
+      "usage": "R",
+      "pos": "0010",
+      "repeat": ">1",
+      "children": [
+                {
+                  "type": "segment",
+                  "xid": "ISA",
+                  "pos": "100",
+                  "usage": "R",
+                  "max_use": 1,
+                  "name": "Interchange Control Header"
+                },
+        {
+          "type": "loop",
+          "xid": "GS_LOOP",
+          "name": "Functional Group",
+          "usage": "R",
+          "pos": "0200",
+          "repeat": ">1",
+          "children": [
+            {
+              "type": "segment",
+              "xid": "GS",
+              "pos": "100",
+              "usage": "R",
+              "max_use": 1,
+              "name": "Functional Group Header"
+            },
+            {
+              "type": "loop",
+              "xid": "ST_LOOP",
+              "name": "Transaction Set",
+              "usage": "R",
+              "pos": "0000",
+              "repeat": ">1",
+              "children": [
+                {
+                  "type": "segment",
+                  "xid": "ST",
+                  "pos": "50",
+                  "usage": "R",
+                  "max_use": 1,
+                  "name": "Transaction Set Header"
+                },
+                {
+                  "type": "loop",
+                  "xid": "HEADER",
+                  "name": "Header",
+                  "usage": "R",
+                  "pos": "0000",
+                  "repeat": "1",
+                  "children": [
+                    {
+                      "type": "segment",
+                      "xid": "BPR",
+                      "pos": "0100",
+                      "usage": "R",
+                      "max_use": "1",
+                      "name": "Financial Information"
+                    },
+                    {
+                      "type": "segment",
+                      "xid": "TRN",
+                      "pos": "0200",
+                      "usage": "R",
+                      "max_use": "1",
+                      "name": "Reassociation Trace Number"
+                    },
+                    {
+                      "type": "segment",
+                      "xid": "CUR",
+                      "pos": "0300",
+                      "usage": "S",
+                      "max_use": "1",
+                      "name": "Foreign Currency Information"
+                    },
+                    {
+                      "type": "segment",
+                      "xid": "REF",
+                      "pos": "0400",
+                      "usage": "S",
+                      "max_use": 1,
+                      "name": "Receiver Identification"
+                    },
+                    {
+                      "type": "segment",
+                      "xid": "REF",
+                      "pos": "0400",
+                      "usage": "S",
+                      "max_use": 1,
+                      "name": "Version Identification"
+                    },
+                    {
+                      "type": "segment",
+                      "xid": "DTM",
+                      "pos": "0500",
+                      "usage": "S",
+                      "max_use": 1,
+                      "name": "Production Date"
+                    },
+                    {
+                      "type": "loop",
+                      "xid": "1000A",
+                      "name": "Payer Identification",
+                      "usage": "R",
+                      "pos": "0000",
+                      "repeat": "1",
+                      "children": [
+                        {
+                          "type": "segment",
+                          "xid": "N1",
+                          "pos": "0100",
+                          "usage": "R",
+                          "max_use": "1",
+                          "name": "Payer Identification"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "N3",
+                          "pos": "0200",
+                          "usage": "R",
+                          "max_use": "1",
+                          "name": "Payer Address"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "N4",
+                          "pos": "0250",
+                          "usage": "R",
+                          "max_use": "1",
+                          "name": "Payer City, State, Zip Code"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "REF",
+                          "pos": "0350",
+                          "usage": "S",
+                          "max_use": 4,
+                          "name": "Additional Payer Identification"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "PER",
+                          "pos": "0400",
+                          "usage": "S",
+                          "max_use": 1,
+                          "name": "Payer Contact Information"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "PER",
+                          "pos": "0400",
+                          "usage": "S",
+                          "max_use": 1,
+                          "name": "Payer Technical Contact Information"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "PER",
+                          "pos": "0400",
+                          "usage": "S",
+                          "max_use": 1,
+                          "name": "Payer WEB Site"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "loop",
+                      "xid": "1000B",
+                      "name": "Payee Identification",
+                      "usage": "R",
+                      "pos": "0000",
+                      "repeat": "1",
+                      "children": [
+                        {
+                          "type": "segment",
+                          "xid": "N1",
+                          "pos": "0100",
+                          "usage": "R",
+                          "max_use": "1",
+                          "name": "Payee Identification"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "N3",
+                          "pos": "0200",
+                          "usage": "S",
+                          "max_use": "1",
+                          "name": "Payee Address"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "N4",
+                          "pos": "0250",
+                          "usage": "S",
+                          "max_use": "1",
+                          "name": "Payee City, State, Zip Code"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "REF",
+                          "pos": "0350",
+                          "usage": "S",
+                          "max_use": 4,
+                          "name": "Payee Additional Identification"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "RDM",
+                          "pos": "0450",
+                          "usage": "S",
+                          "max_use": "1",
+                          "name": "Remittance Delivery Method"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "loop",
+                  "xid": "DETAIL",
+                  "name": "Detail",
+                  "usage": "S",
+                  "pos": "0000",
+                  "repeat": ">1",
+                  "children": [
+                    {
+                      "type": "loop",
+                      "xid": "2000",
+                      "name": "Header Number",
+                      "usage": "S",
+                      "pos": "0000",
+                      "repeat": ">1",
+                      "children": [
+                        {
+                          "type": "segment",
+                          "xid": "LX",
+                          "pos": "0100",
+                          "usage": "S",
+                          "max_use": "1",
+                          "name": "Header Number"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "TS3",
+                          "pos": "0110",
+                          "usage": "S",
+                          "max_use": "1",
+                          "name": "Provider Summary Information"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "TS2",
+                          "pos": "0120",
+                          "usage": "S",
+                          "max_use": "1",
+                          "name": "Provider Supplemental Summary Information"
+                        },
+                        {
+                          "type": "loop",
+                          "xid": "2100",
+                          "name": "Claim Payment Information",
+                          "usage": "R",
+                          "pos": "0000",
+                          "repeat": ">1",
+                          "children": [
+                            {
+                              "type": "segment",
+                              "xid": "CLP",
+                              "pos": "0130",
+                              "usage": "R",
+                              "max_use": "1",
+                              "name": "Claim Payment Information"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "CAS",
+                              "pos": "0135",
+                              "usage": "S",
+                              "max_use": 99,
+                              "name": "Claim Adjustment"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "NM1",
+                              "pos": "0140",
+                              "usage": "R",
+                              "max_use": 1,
+                              "name": "Patient Name"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "NM1",
+                              "pos": "0140",
+                              "usage": "S",
+                              "max_use": 1,
+                              "name": "Insured Name"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "NM1",
+                              "pos": "0140",
+                              "usage": "S",
+                              "max_use": 1,
+                              "name": "Corrected Patient/Insured Name"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "NM1",
+                              "pos": "0140",
+                              "usage": "S",
+                              "max_use": 1,
+                              "name": "Service Provider Name"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "NM1",
+                              "pos": "0140",
+                              "usage": "S",
+                              "max_use": 1,
+                              "name": "Crossover Carrier Name"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "NM1",
+                              "pos": "0140",
+                              "usage": "S",
+                              "max_use": 1,
+                              "name": "Corrected Priority Payer Name"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "NM1",
+                              "pos": "0140",
+                              "usage": "S",
+                              "max_use": 1,
+                              "name": "Other Subscriber Name"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "MIA",
+                              "pos": "0150",
+                              "usage": "S",
+                              "max_use": 1,
+                              "name": "Inpatient Adjudication Information"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "MOA",
+                              "pos": "0155",
+                              "usage": "S",
+                              "max_use": 1,
+                              "name": "Outpatient Adjudication Information"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "REF",
+                              "pos": "0160",
+                              "usage": "S",
+                              "max_use": 10,
+                              "name": "Other Claim Related Identification"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "REF",
+                              "pos": "0160",
+                              "usage": "S",
+                              "max_use": 10,
+                              "name": "Rendering Provider Identification"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "DTM",
+                              "pos": "0170",
+                              "usage": "S",
+                              "max_use": 4,
+                              "name": "Claim Date"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "DTM",
+                              "pos": "0170",
+                              "usage": "S",
+                              "max_use": 4,
+                              "name": "Coverage Expiration Date"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "DTM",
+                              "pos": "0170",
+                              "usage": "S",
+                              "max_use": 4,
+                              "name": "Claim Received Date"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "PER",
+                              "pos": "0180",
+                              "usage": "S",
+                              "max_use": 3,
+                              "name": "Claim Contact Information"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "AMT",
+                              "pos": "0190",
+                              "usage": "S",
+                              "max_use": 13,
+                              "name": "Claim Supplemental Information"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "QTY",
+                              "pos": "0200",
+                              "usage": "S",
+                              "max_use": 14,
+                              "name": "Claim Supplemental Information Quantity"
+                            },
+                            {
+                              "type": "loop",
+                              "xid": "2110",
+                              "name": "Service Payment Information",
+                              "usage": "S",
+                              "pos": "0000",
+                              "repeat": 999,
+                              "children": [
+                                {
+                                  "type": "segment",
+                                  "xid": "SVC",
+                                  "pos": "0300",
+                                  "usage": "S",
+                                  "max_use": "1",
+                                  "name": "Service Payment Information"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "DTM",
+                                  "pos": "0310",
+                                  "usage": "S",
+                                  "max_use": 2,
+                                  "name": "Service Date"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "CAS",
+                                  "pos": "0315",
+                                  "usage": "S",
+                                  "max_use": 99,
+                                  "name": "Service Adjustment"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "pos": "0320",
+                                  "usage": "S",
+                                  "max_use": 10,
+                                  "name": "Service Identification"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "pos": "0320",
+                                  "usage": "S",
+                                  "max_use": 10,
+                                  "name": "Line Item Control Number"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "pos": "0320",
+                                  "usage": "S",
+                                  "max_use": 10,
+                                  "name": "Rendering Provider Information"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "pos": "0320",
+                                  "usage": "S",
+                                  "max_use": 10,
+                                  "name": "HealthCare Policy Identification"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "AMT",
+                                  "pos": "0323",
+                                  "usage": "S",
+                                  "max_use": 10,
+                                  "name": "Service Supplemental Amount"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "QTY",
+                                  "pos": "0324",
+                                  "usage": "S",
+                                  "max_use": 6,
+                                  "name": "Service Supplemental Quantity"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "LQ",
+                                  "pos": "0325",
+                                  "usage": "S",
+                                  "max_use": 99,
+                                  "name": "Health Care Remark Codes"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "loop",
+                  "xid": "FOOTER",
+                  "name": "Footer",
+                  "usage": "S",
+                  "pos": "0000",
+                  "repeat": "1",
+                  "children": [
+                    {
+                      "type": "segment",
+                      "xid": "PLB",
+                      "pos": "0100",
+                      "usage": "S",
+                      "max_use": ">1",
+                      "name": "Provider Adjustment"
+                    }
+                  ]
+                },
+                {
+                  "type": "segment",
+                  "xid": "SE",
+                  "pos": "0400",
+                  "usage": "R",
+                  "max_use": 1,
+                  "name": "Transaction Set Trailer"
+                }
+              ]
+            },
+            {
+              "type": "segment",
+              "xid": "GE",
+              "pos": "300",
+              "usage": "R",
+              "max_use": 1,
+              "name": "Functional Group Trailer"
+            }
+          ]
+        },
+        {
+          "type": "segment",
+          "xid": "IEA",
+          "pos": "300",
+          "usage": "R",
+          "max_use": 1,
+          "name": "Interchange Control Trailer"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,2651 @@
+{
+  "transactionName": "HIPAA Health Care Claim Acknowledgement X214-277",
+  "segmentDefinitions": {
+    "ISA": {
+      "name": "Interchange Control Header",
+      "usage": "R",
+      "pos": "0100",
+      "max_use": "1",
+      "elements": [
+        {
+          "xid": "ISA01",
+          "data_ele": "I01",
+          "name": "Authorization Information Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "00",
+              "03"
+            ]
+          }
+        },
+        {
+          "xid": "ISA02",
+          "data_ele": "I02",
+          "name": "Authorization Information",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "ISA03",
+          "data_ele": "I03",
+          "name": "Security Information Qualifier",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "00",
+              "01"
+            ]
+          }
+        },
+        {
+          "xid": "ISA04",
+          "data_ele": "I04",
+          "name": "Security Information",
+          "usage": "R",
+          "seq": "04"
+        },
+        {
+          "xid": "ISA05",
+          "data_ele": "I05",
+          "name": "Interchange Sender ID Qualifier",
+          "usage": "R",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "01",
+              "14",
+              "20",
+              "27",
+              "28",
+              "29",
+              "30",
+              "33",
+              "ZZ"
+            ]
+          }
+        },
+        {
+          "xid": "ISA06",
+          "data_ele": "I06",
+          "name": "Interchange Sender ID",
+          "usage": "R",
+          "seq": "06"
+        },
+        {
+          "xid": "ISA07",
+          "data_ele": "I05",
+          "name": "Interchange Receiver ID Qualifier",
+          "usage": "R",
+          "seq": "07",
+          "valid_codes": {
+            "code": [
+              "01",
+              "14",
+              "20",
+              "27",
+              "28",
+              "29",
+              "30",
+              "33",
+              "ZZ"
+            ]
+          }
+        },
+        {
+          "xid": "ISA08",
+          "data_ele": "I07",
+          "name": "Interchange Receiver ID",
+          "usage": "R",
+          "seq": "08"
+        },
+        {
+          "xid": "ISA09",
+          "data_ele": "I08",
+          "name": "Interchange Date",
+          "usage": "R",
+          "seq": "09"
+        },
+        {
+          "xid": "ISA10",
+          "data_ele": "I09",
+          "name": "Interchange Time",
+          "usage": "R",
+          "seq": "10"
+        },
+        {
+          "xid": "ISA11",
+          "data_ele": "I65",
+          "name": "Interchange Control Standards Identifier",
+          "usage": "R",
+          "seq": "11"
+        },
+        {
+          "xid": "ISA12",
+          "data_ele": "I11",
+          "name": "Interchange Control Version Number",
+          "usage": "R",
+          "seq": "12",
+          "valid_codes": {
+            "code": [
+              "00501"
+            ]
+          }
+        },
+        {
+          "xid": "ISA13",
+          "data_ele": "I12",
+          "name": "Interchange Control Number",
+          "usage": "R",
+          "seq": "13"
+        },
+        {
+          "xid": "ISA14",
+          "data_ele": "I13",
+          "name": "Acknowledgment Requested",
+          "usage": "R",
+          "seq": "14",
+          "valid_codes": {
+            "code": [
+              "0",
+              "1"
+            ]
+          }
+        },
+        {
+          "xid": "ISA15",
+          "data_ele": "I14",
+          "name": "Usage Indicator",
+          "usage": "R",
+          "seq": "15",
+          "valid_codes": {
+            "code": [
+              "P",
+              "T"
+            ]
+          }
+        },
+        {
+          "xid": "ISA16",
+          "data_ele": "I15",
+          "name": "Component Element Separator",
+          "usage": "R",
+          "seq": "16"
+        }
+      ],
+      "elementsByXid": {
+        "ISA01": {
+          "xid": "ISA01",
+          "data_ele": "I01",
+          "name": "Authorization Information Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "00",
+              "03"
+            ]
+          }
+        },
+        "ISA02": {
+          "xid": "ISA02",
+          "data_ele": "I02",
+          "name": "Authorization Information",
+          "usage": "R",
+          "seq": "02"
+        },
+        "ISA03": {
+          "xid": "ISA03",
+          "data_ele": "I03",
+          "name": "Security Information Qualifier",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "00",
+              "01"
+            ]
+          }
+        },
+        "ISA04": {
+          "xid": "ISA04",
+          "data_ele": "I04",
+          "name": "Security Information",
+          "usage": "R",
+          "seq": "04"
+        },
+        "ISA05": {
+          "xid": "ISA05",
+          "data_ele": "I05",
+          "name": "Interchange Sender ID Qualifier",
+          "usage": "R",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "01",
+              "14",
+              "20",
+              "27",
+              "28",
+              "29",
+              "30",
+              "33",
+              "ZZ"
+            ]
+          }
+        },
+        "ISA06": {
+          "xid": "ISA06",
+          "data_ele": "I06",
+          "name": "Interchange Sender ID",
+          "usage": "R",
+          "seq": "06"
+        },
+        "ISA07": {
+          "xid": "ISA07",
+          "data_ele": "I05",
+          "name": "Interchange Receiver ID Qualifier",
+          "usage": "R",
+          "seq": "07",
+          "valid_codes": {
+            "code": [
+              "01",
+              "14",
+              "20",
+              "27",
+              "28",
+              "29",
+              "30",
+              "33",
+              "ZZ"
+            ]
+          }
+        },
+        "ISA08": {
+          "xid": "ISA08",
+          "data_ele": "I07",
+          "name": "Interchange Receiver ID",
+          "usage": "R",
+          "seq": "08"
+        },
+        "ISA09": {
+          "xid": "ISA09",
+          "data_ele": "I08",
+          "name": "Interchange Date",
+          "usage": "R",
+          "seq": "09"
+        },
+        "ISA10": {
+          "xid": "ISA10",
+          "data_ele": "I09",
+          "name": "Interchange Time",
+          "usage": "R",
+          "seq": "10"
+        },
+        "ISA11": {
+          "xid": "ISA11",
+          "data_ele": "I65",
+          "name": "Interchange Control Standards Identifier",
+          "usage": "R",
+          "seq": "11"
+        },
+        "ISA12": {
+          "xid": "ISA12",
+          "data_ele": "I11",
+          "name": "Interchange Control Version Number",
+          "usage": "R",
+          "seq": "12",
+          "valid_codes": {
+            "code": [
+              "00501"
+            ]
+          }
+        },
+        "ISA13": {
+          "xid": "ISA13",
+          "data_ele": "I12",
+          "name": "Interchange Control Number",
+          "usage": "R",
+          "seq": "13"
+        },
+        "ISA14": {
+          "xid": "ISA14",
+          "data_ele": "I13",
+          "name": "Acknowledgment Requested",
+          "usage": "R",
+          "seq": "14",
+          "valid_codes": {
+            "code": [
+              "0",
+              "1"
+            ]
+          }
+        },
+        "ISA15": {
+          "xid": "ISA15",
+          "data_ele": "I14",
+          "name": "Usage Indicator",
+          "usage": "R",
+          "seq": "15",
+          "valid_codes": {
+            "code": [
+              "P",
+              "T"
+            ]
+          }
+        },
+        "ISA16": {
+          "xid": "ISA16",
+          "data_ele": "I15",
+          "name": "Component Element Separator",
+          "usage": "R",
+          "seq": "16"
+        }
+      }
+    },
+    "TA1": {
+      "name": "Interchange Acknowledgement",
+      "usage": "S",
+      "pos": "0200",
+      "max_use": "1",
+      "elements": [
+        {
+          "xid": "TA101",
+          "data_ele": "I12",
+          "name": "Interchange Control Number",
+          "usage": "R",
+          "seq": "01"
+        },
+        {
+          "xid": "TA102",
+          "data_ele": "I08",
+          "name": "Interchange Date",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "TA103",
+          "data_ele": "I09",
+          "name": "Interchange Time",
+          "usage": "R",
+          "seq": "03"
+        },
+        {
+          "xid": "TA104",
+          "data_ele": "I17",
+          "name": "Interchange Acknowledgement Code",
+          "usage": "R",
+          "seq": "04",
+          "valid_codes": {
+            "code": [
+              "A",
+              "E",
+              "R"
+            ]
+          }
+        },
+        {
+          "xid": "TA105",
+          "data_ele": "I18",
+          "name": "Interchange Note Code",
+          "usage": "R",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006",
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015",
+              "016",
+              "017",
+              "018",
+              "019",
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031"
+            ]
+          }
+        }
+      ],
+      "elementsByXid": {
+        "TA101": {
+          "xid": "TA101",
+          "data_ele": "I12",
+          "name": "Interchange Control Number",
+          "usage": "R",
+          "seq": "01"
+        },
+        "TA102": {
+          "xid": "TA102",
+          "data_ele": "I08",
+          "name": "Interchange Date",
+          "usage": "R",
+          "seq": "02"
+        },
+        "TA103": {
+          "xid": "TA103",
+          "data_ele": "I09",
+          "name": "Interchange Time",
+          "usage": "R",
+          "seq": "03"
+        },
+        "TA104": {
+          "xid": "TA104",
+          "data_ele": "I17",
+          "name": "Interchange Acknowledgement Code",
+          "usage": "R",
+          "seq": "04",
+          "valid_codes": {
+            "code": [
+              "A",
+              "E",
+              "R"
+            ]
+          }
+        },
+        "TA105": {
+          "xid": "TA105",
+          "data_ele": "I18",
+          "name": "Interchange Note Code",
+          "usage": "R",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006",
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015",
+              "016",
+              "017",
+              "018",
+              "019",
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031"
+            ]
+          }
+        }
+      }
+    },
+    "IEA": {
+      "name": "Interchange Control Trailer",
+      "usage": "R",
+      "pos": "0300",
+      "max_use": "1",
+      "elements": [
+        {
+          "xid": "IEA01",
+          "data_ele": "I16",
+          "name": "Number of Included Functional Groups",
+          "usage": "R",
+          "seq": "01"
+        },
+        {
+          "xid": "IEA02",
+          "data_ele": "I12",
+          "name": "Interchange Control Number",
+          "usage": "R",
+          "seq": "02"
+        }
+      ],
+      "elementsByXid": {
+        "IEA01": {
+          "xid": "IEA01",
+          "data_ele": "I16",
+          "name": "Number of Included Functional Groups",
+          "usage": "R",
+          "seq": "01"
+        },
+        "IEA02": {
+          "xid": "IEA02",
+          "data_ele": "I12",
+          "name": "Interchange Control Number",
+          "usage": "R",
+          "seq": "02"
+        }
+      }
+    },
+    "GS": {
+      "name": "Functional Group Header",
+      "usage": "R",
+      "pos": "0100",
+      "max_use": "1",
+      "elements": [
+        {
+          "xid": "GS01",
+          "data_ele": "479",
+          "name": "Functional Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "HN"
+            ]
+          }
+        },
+        {
+          "xid": "GS02",
+          "data_ele": "142",
+          "name": "Application Sender's Code",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "GS03",
+          "data_ele": "124",
+          "name": "Application Receiver's Code",
+          "usage": "R",
+          "seq": "03"
+        },
+        {
+          "xid": "GS04",
+          "data_ele": "373",
+          "name": "Functional Group Date",
+          "usage": "R",
+          "seq": "04"
+        },
+        {
+          "xid": "GS05",
+          "data_ele": "337",
+          "name": "Functional Group Time",
+          "usage": "R",
+          "seq": "05"
+        },
+        {
+          "xid": "GS06",
+          "data_ele": "28",
+          "name": "Group Control Number",
+          "usage": "R",
+          "seq": "06"
+        },
+        {
+          "xid": "GS07",
+          "data_ele": "455",
+          "name": "Responsible Agency Code",
+          "usage": "R",
+          "seq": "07",
+          "valid_codes": {
+            "code": [
+              "X"
+            ]
+          }
+        },
+        {
+          "xid": "GS08",
+          "data_ele": "480",
+          "name": "Version / Release / Industry Identifier Code",
+          "usage": "R",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              "005010X214"
+            ]
+          }
+        }
+      ],
+      "elementsByXid": {
+        "GS01": {
+          "xid": "GS01",
+          "data_ele": "479",
+          "name": "Functional Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "HN"
+            ]
+          }
+        },
+        "GS02": {
+          "xid": "GS02",
+          "data_ele": "142",
+          "name": "Application Sender's Code",
+          "usage": "R",
+          "seq": "02"
+        },
+        "GS03": {
+          "xid": "GS03",
+          "data_ele": "124",
+          "name": "Application Receiver's Code",
+          "usage": "R",
+          "seq": "03"
+        },
+        "GS04": {
+          "xid": "GS04",
+          "data_ele": "373",
+          "name": "Functional Group Date",
+          "usage": "R",
+          "seq": "04"
+        },
+        "GS05": {
+          "xid": "GS05",
+          "data_ele": "337",
+          "name": "Functional Group Time",
+          "usage": "R",
+          "seq": "05"
+        },
+        "GS06": {
+          "xid": "GS06",
+          "data_ele": "28",
+          "name": "Group Control Number",
+          "usage": "R",
+          "seq": "06"
+        },
+        "GS07": {
+          "xid": "GS07",
+          "data_ele": "455",
+          "name": "Responsible Agency Code",
+          "usage": "R",
+          "seq": "07",
+          "valid_codes": {
+            "code": [
+              "X"
+            ]
+          }
+        },
+        "GS08": {
+          "xid": "GS08",
+          "data_ele": "480",
+          "name": "Version / Release / Industry Identifier Code",
+          "usage": "R",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              "005010X214"
+            ]
+          }
+        }
+      }
+    },
+    "GE": {
+      "name": "Functional Group Trailer",
+      "usage": "R",
+      "pos": "0300",
+      "max_use": "1",
+      "elements": [
+        {
+          "xid": "GE01",
+          "data_ele": "97",
+          "name": "Number of Transaction Sets Included",
+          "usage": "R",
+          "seq": "01"
+        },
+        {
+          "xid": "GE02",
+          "data_ele": "28",
+          "name": "Group Control Number",
+          "usage": "R",
+          "seq": "02"
+        }
+      ],
+      "elementsByXid": {
+        "GE01": {
+          "xid": "GE01",
+          "data_ele": "97",
+          "name": "Number of Transaction Sets Included",
+          "usage": "R",
+          "seq": "01"
+        },
+        "GE02": {
+          "xid": "GE02",
+          "data_ele": "28",
+          "name": "Group Control Number",
+          "usage": "R",
+          "seq": "02"
+        }
+      }
+    },
+    "ST": {
+      "name": "Transaction Set Header",
+      "usage": "R",
+      "pos": "0050",
+      "max_use": "1",
+      "elements": [
+        {
+          "xid": "ST01",
+          "data_ele": "143",
+          "name": "Transaction Set Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "277"
+            ]
+          }
+        },
+        {
+          "xid": "ST02",
+          "data_ele": "329",
+          "name": "Transaction Set Control Number",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "ST03",
+          "data_ele": "1705",
+          "name": "Version, Release, or Industry Identifier",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "005010X214"
+            ]
+          }
+        }
+      ],
+      "elementsByXid": {
+        "ST01": {
+          "xid": "ST01",
+          "data_ele": "143",
+          "name": "Transaction Set Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "277"
+            ]
+          }
+        },
+        "ST02": {
+          "xid": "ST02",
+          "data_ele": "329",
+          "name": "Transaction Set Control Number",
+          "usage": "R",
+          "seq": "02"
+        },
+        "ST03": {
+          "xid": "ST03",
+          "data_ele": "1705",
+          "name": "Version, Release, or Industry Identifier",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "005010X214"
+            ]
+          }
+        }
+      }
+    },
+    "SE": {
+      "name": "Transaction Set Trailer",
+      "usage": "R",
+      "pos": "5550",
+      "max_use": "1",
+      "elements": [
+        {
+          "xid": "SE01",
+          "data_ele": "96",
+          "name": "Transaction Segment Count",
+          "usage": "R",
+          "seq": "01"
+        },
+        {
+          "xid": "SE02",
+          "data_ele": "329",
+          "name": "Transaction Set Control Number",
+          "usage": "R",
+          "seq": "02"
+        }
+      ],
+      "elementsByXid": {
+        "SE01": {
+          "xid": "SE01",
+          "data_ele": "96",
+          "name": "Transaction Segment Count",
+          "usage": "R",
+          "seq": "01"
+        },
+        "SE02": {
+          "xid": "SE02",
+          "data_ele": "329",
+          "name": "Transaction Set Control Number",
+          "usage": "R",
+          "seq": "02"
+        }
+      }
+    },
+    "BHT": {
+      "name": "Beginning of Hierarchical Transaction",
+      "usage": "R",
+      "pos": "0200",
+      "max_use": "1",
+      "elements": [
+        {
+          "xid": "BHT01",
+          "data_ele": "1005",
+          "name": "Hierarchical Structure Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "0085"
+            ]
+          }
+        },
+        {
+          "xid": "BHT02",
+          "data_ele": "353",
+          "name": "Transaction Set Purpose Code",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "08"
+            ]
+          }
+        },
+        {
+          "xid": "BHT03",
+          "data_ele": "127",
+          "name": "Originator Application Transaction Identifier",
+          "usage": "R",
+          "seq": "03"
+        },
+        {
+          "xid": "BHT04",
+          "data_ele": "373",
+          "name": "Transaction Set Creation Date",
+          "usage": "R",
+          "seq": "04"
+        },
+        {
+          "xid": "BHT05",
+          "data_ele": "337",
+          "name": "Transaction Set Creation Time",
+          "usage": "R",
+          "seq": "05"
+        },
+        {
+          "xid": "BHT06",
+          "data_ele": "640",
+          "name": "Transaction Type Code",
+          "usage": "R",
+          "seq": "06",
+          "valid_codes": {
+            "code": [
+              "TH"
+            ]
+          }
+        }
+      ],
+      "elementsByXid": {
+        "BHT01": {
+          "xid": "BHT01",
+          "data_ele": "1005",
+          "name": "Hierarchical Structure Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "0085"
+            ]
+          }
+        },
+        "BHT02": {
+          "xid": "BHT02",
+          "data_ele": "353",
+          "name": "Transaction Set Purpose Code",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "08"
+            ]
+          }
+        },
+        "BHT03": {
+          "xid": "BHT03",
+          "data_ele": "127",
+          "name": "Originator Application Transaction Identifier",
+          "usage": "R",
+          "seq": "03"
+        },
+        "BHT04": {
+          "xid": "BHT04",
+          "data_ele": "373",
+          "name": "Transaction Set Creation Date",
+          "usage": "R",
+          "seq": "04"
+        },
+        "BHT05": {
+          "xid": "BHT05",
+          "data_ele": "337",
+          "name": "Transaction Set Creation Time",
+          "usage": "R",
+          "seq": "05"
+        },
+        "BHT06": {
+          "xid": "BHT06",
+          "data_ele": "640",
+          "name": "Transaction Type Code",
+          "usage": "R",
+          "seq": "06",
+          "valid_codes": {
+            "code": [
+              "TH"
+            ]
+          }
+        }
+      }
+    },
+    "HL": {
+      "name": "Information Source Level",
+      "usage": "R",
+      "pos": "0100",
+      "max_use": "1",
+      "elements": [
+        {
+          "xid": "HL01",
+          "data_ele": "628",
+          "name": "Hierarchical ID Number",
+          "usage": "R",
+          "seq": "01"
+        },
+        {
+          "xid": "HL02",
+          "data_ele": "734",
+          "name": "Hierarchical Parent ID Number",
+          "usage": "N",
+          "seq": "02"
+        },
+        {
+          "xid": "HL03",
+          "data_ele": "735",
+          "name": "Hierarchical Level Code",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "20"
+            ]
+          }
+        },
+        {
+          "xid": "HL04",
+          "data_ele": "736",
+          "name": "Hierarchical Child Code",
+          "usage": "R",
+          "seq": "04",
+          "valid_codes": {
+            "code": [
+              "1"
+            ]
+          }
+        }
+      ],
+      "elementsByXid": {
+        "HL01": {
+          "xid": "HL01",
+          "data_ele": "628",
+          "name": "Hierarchical ID Number",
+          "usage": "R",
+          "seq": "01"
+        },
+        "HL02": {
+          "xid": "HL02",
+          "data_ele": "734",
+          "name": "Hierarchical Parent ID Number",
+          "usage": "N",
+          "seq": "02"
+        },
+        "HL03": {
+          "xid": "HL03",
+          "data_ele": "735",
+          "name": "Hierarchical Level Code",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "20"
+            ]
+          }
+        },
+        "HL04": {
+          "xid": "HL04",
+          "data_ele": "736",
+          "name": "Hierarchical Child Code",
+          "usage": "R",
+          "seq": "04",
+          "valid_codes": {
+            "code": [
+              "1"
+            ]
+          }
+        }
+      }
+    },
+    "NM1": {
+      "name": "Information Source Name",
+      "usage": "R",
+      "pos": "0500",
+      "max_use": "1",
+      "syntax": [
+        "P0809",
+        "C1110",
+        "C1203"
+      ],
+      "elements": [
+        {
+          "xid": "NM101",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "PR",
+              "AY"
+            ]
+          }
+        },
+        {
+          "xid": "NM102",
+          "data_ele": "1065",
+          "name": "Entity Type Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "2"
+            ]
+          }
+        },
+        {
+          "xid": "NM103",
+          "data_ele": "1035",
+          "name": "Payer Name",
+          "usage": "R",
+          "seq": "03"
+        },
+        {
+          "xid": "NM104",
+          "data_ele": "1036",
+          "name": "Name First",
+          "usage": "N",
+          "seq": "04"
+        },
+        {
+          "xid": "NM105",
+          "data_ele": "1037",
+          "name": "Name Middle",
+          "usage": "N",
+          "seq": "05"
+        },
+        {
+          "xid": "NM106",
+          "data_ele": "1038",
+          "name": "Name Prefix",
+          "usage": "N",
+          "seq": "06"
+        },
+        {
+          "xid": "NM107",
+          "data_ele": "1039",
+          "name": "Name Suffix",
+          "usage": "N",
+          "seq": "07"
+        },
+        {
+          "xid": "NM108",
+          "data_ele": "66",
+          "name": "Identification Code Qualifier",
+          "usage": "R",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              "46",
+              "FI",
+              "PI",
+              "XV"
+            ]
+          }
+        },
+        {
+          "xid": "NM109",
+          "data_ele": "67",
+          "name": "Payer Identifier",
+          "usage": "R",
+          "seq": "09"
+        },
+        {
+          "xid": "NM110",
+          "data_ele": "706",
+          "name": "Entity Relationship Code",
+          "usage": "N",
+          "seq": "10"
+        },
+        {
+          "xid": "NM111",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "N",
+          "seq": "11"
+        },
+        {
+          "xid": "NM112",
+          "data_ele": "1035",
+          "name": "Name Last or Organization Name",
+          "usage": "N",
+          "seq": "12"
+        }
+      ],
+      "elementsByXid": {
+        "NM101": {
+          "xid": "NM101",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "PR",
+              "AY"
+            ]
+          }
+        },
+        "NM102": {
+          "xid": "NM102",
+          "data_ele": "1065",
+          "name": "Entity Type Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "2"
+            ]
+          }
+        },
+        "NM103": {
+          "xid": "NM103",
+          "data_ele": "1035",
+          "name": "Payer Name",
+          "usage": "R",
+          "seq": "03"
+        },
+        "NM104": {
+          "xid": "NM104",
+          "data_ele": "1036",
+          "name": "Name First",
+          "usage": "N",
+          "seq": "04"
+        },
+        "NM105": {
+          "xid": "NM105",
+          "data_ele": "1037",
+          "name": "Name Middle",
+          "usage": "N",
+          "seq": "05"
+        },
+        "NM106": {
+          "xid": "NM106",
+          "data_ele": "1038",
+          "name": "Name Prefix",
+          "usage": "N",
+          "seq": "06"
+        },
+        "NM107": {
+          "xid": "NM107",
+          "data_ele": "1039",
+          "name": "Name Suffix",
+          "usage": "N",
+          "seq": "07"
+        },
+        "NM108": {
+          "xid": "NM108",
+          "data_ele": "66",
+          "name": "Identification Code Qualifier",
+          "usage": "R",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              "46",
+              "FI",
+              "PI",
+              "XV"
+            ]
+          }
+        },
+        "NM109": {
+          "xid": "NM109",
+          "data_ele": "67",
+          "name": "Payer Identifier",
+          "usage": "R",
+          "seq": "09"
+        },
+        "NM110": {
+          "xid": "NM110",
+          "data_ele": "706",
+          "name": "Entity Relationship Code",
+          "usage": "N",
+          "seq": "10"
+        },
+        "NM111": {
+          "xid": "NM111",
+          "data_ele": "98",
+          "name": "Entity Identifier Code",
+          "usage": "N",
+          "seq": "11"
+        },
+        "NM112": {
+          "xid": "NM112",
+          "data_ele": "1035",
+          "name": "Name Last or Organization Name",
+          "usage": "N",
+          "seq": "12"
+        }
+      }
+    },
+    "TRN": {
+      "name": "Transmission Receipt Control Identifier",
+      "usage": "R",
+      "pos": "0900",
+      "max_use": "1",
+      "elements": [
+        {
+          "xid": "TRN01",
+          "data_ele": "481",
+          "name": "Trace Type Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "1"
+            ]
+          }
+        },
+        {
+          "xid": "TRN02",
+          "data_ele": "127",
+          "name": "Information Source Application Trace Identifier",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "TRN03",
+          "data_ele": "509",
+          "name": "Originating Company Identifier",
+          "usage": "N",
+          "seq": "03"
+        },
+        {
+          "xid": "TRN04",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "N",
+          "seq": "04"
+        }
+      ],
+      "elementsByXid": {
+        "TRN01": {
+          "xid": "TRN01",
+          "data_ele": "481",
+          "name": "Trace Type Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "1"
+            ]
+          }
+        },
+        "TRN02": {
+          "xid": "TRN02",
+          "data_ele": "127",
+          "name": "Information Source Application Trace Identifier",
+          "usage": "R",
+          "seq": "02"
+        },
+        "TRN03": {
+          "xid": "TRN03",
+          "data_ele": "509",
+          "name": "Originating Company Identifier",
+          "usage": "N",
+          "seq": "03"
+        },
+        "TRN04": {
+          "xid": "TRN04",
+          "data_ele": "127",
+          "name": "Reference Identification",
+          "usage": "N",
+          "seq": "04"
+        }
+      }
+    },
+    "DTP": {
+      "name": "Information Source Receipt Date",
+      "usage": "R",
+      "pos": "1200",
+      "max_use": "1",
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": "374",
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "050"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": "1250",
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": "1251",
+          "name": "Information Source Receipt Date",
+          "usage": "R",
+          "seq": "03"
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": "374",
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "050"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": "1250",
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": "1251",
+          "name": "Information Source Receipt Date",
+          "usage": "R",
+          "seq": "03"
+        }
+      }
+    },
+    "STC": {
+      "name": "Information Receiver Status Information",
+      "usage": "R",
+      "pos": "1000",
+      "max_use": ">1",
+      "elements": [
+        {
+          "xid": "STC01",
+          "data_ele": "C043",
+          "name": "Health Care Claim Status",
+          "usage": "R",
+          "seq": "01",
+          "elements": [
+            {
+              "xid": "STC01-01",
+              "data_ele": "1271",
+              "name": "Health Care Claim Status Category Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "STC01-02",
+              "data_ele": "1271",
+              "name": "Status Code",
+              "usage": "R",
+              "seq": "02"
+            },
+            {
+              "xid": "STC01-03",
+              "data_ele": "98",
+              "name": "Entity Identifier Code",
+              "usage": "S",
+              "seq": "03",
+              "valid_codes": {
+                "code": [
+                  "36",
+                  "40",
+                  "41",
+                  "AY",
+                  "PR"
+                ]
+              }
+            },
+            {
+              "xid": "STC01-04",
+              "data_ele": "1270",
+              "name": "Code List Qualifier Code",
+              "usage": "N",
+              "seq": "04"
+            }
+          ]
+        },
+        {
+          "xid": "STC02",
+          "data_ele": "373",
+          "name": "Status Information Effective Date",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "STC03",
+          "data_ele": "306",
+          "name": "Action Code",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "U",
+              "WQ"
+            ]
+          }
+        },
+        {
+          "xid": "STC04",
+          "data_ele": "782",
+          "name": "Total Submitted Charges for Unit Work",
+          "usage": "R",
+          "seq": "04"
+        },
+        {
+          "xid": "STC05",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "05"
+        },
+        {
+          "xid": "STC06",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "N",
+          "seq": "06"
+        },
+        {
+          "xid": "STC07",
+          "data_ele": "591",
+          "name": "Payment Method Code",
+          "usage": "N",
+          "seq": "07"
+        },
+        {
+          "xid": "STC08",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "N",
+          "seq": "08"
+        },
+        {
+          "xid": "STC09",
+          "data_ele": "429",
+          "name": "Check Number",
+          "usage": "N",
+          "seq": "09"
+        },
+        {
+          "xid": "STC10",
+          "data_ele": "C043",
+          "name": "Health Care Claim Status",
+          "usage": "S",
+          "seq": "10",
+          "elements": [
+            {
+              "xid": "STC10-01",
+              "data_ele": "1271",
+              "name": "Health Care Claim Status Category Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "STC10-02",
+              "data_ele": "1271",
+              "name": "Status Code",
+              "usage": "R",
+              "seq": "02"
+            },
+            {
+              "xid": "STC10-03",
+              "data_ele": "98",
+              "name": "Entity Identifier Code",
+              "usage": "S",
+              "seq": "03"
+            },
+            {
+              "xid": "STC10-04",
+              "data_ele": "1270",
+              "name": "Code List Qualifier Code",
+              "usage": "N",
+              "seq": "04"
+            }
+          ]
+        },
+        {
+          "xid": "STC11",
+          "data_ele": "C043",
+          "name": "Health Care Claim Status",
+          "usage": "S",
+          "seq": "11",
+          "elements": [
+            {
+              "xid": "STC11-01",
+              "data_ele": "1271",
+              "name": "Health Care Claim Status Category Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "STC11-02",
+              "data_ele": "1271",
+              "name": "Status Code",
+              "usage": "R",
+              "seq": "02"
+            },
+            {
+              "xid": "STC11-03",
+              "data_ele": "98",
+              "name": "Entity Identifier Code",
+              "usage": "S",
+              "seq": "03"
+            },
+            {
+              "xid": "STC11-04",
+              "data_ele": "1270",
+              "name": "Code List Qualifier Code",
+              "usage": "N",
+              "seq": "04"
+            }
+          ]
+        },
+        {
+          "xid": "STC12",
+          "data_ele": "933",
+          "name": "Free-form Message Text",
+          "usage": "N",
+          "seq": "12"
+        }
+      ],
+      "elementsByXid": {
+        "STC02": {
+          "xid": "STC02",
+          "data_ele": "373",
+          "name": "Status Information Effective Date",
+          "usage": "R",
+          "seq": "02"
+        },
+        "STC03": {
+          "xid": "STC03",
+          "data_ele": "306",
+          "name": "Action Code",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "U",
+              "WQ"
+            ]
+          }
+        },
+        "STC04": {
+          "xid": "STC04",
+          "data_ele": "782",
+          "name": "Total Submitted Charges for Unit Work",
+          "usage": "R",
+          "seq": "04"
+        },
+        "STC05": {
+          "xid": "STC05",
+          "data_ele": "782",
+          "name": "Monetary Amount",
+          "usage": "N",
+          "seq": "05"
+        },
+        "STC06": {
+          "xid": "STC06",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "N",
+          "seq": "06"
+        },
+        "STC07": {
+          "xid": "STC07",
+          "data_ele": "591",
+          "name": "Payment Method Code",
+          "usage": "N",
+          "seq": "07"
+        },
+        "STC08": {
+          "xid": "STC08",
+          "data_ele": "373",
+          "name": "Date",
+          "usage": "N",
+          "seq": "08"
+        },
+        "STC09": {
+          "xid": "STC09",
+          "data_ele": "429",
+          "name": "Check Number",
+          "usage": "N",
+          "seq": "09"
+        },
+        "STC12": {
+          "xid": "STC12",
+          "data_ele": "933",
+          "name": "Free-form Message Text",
+          "usage": "N",
+          "seq": "12"
+        },
+        "STC01": {
+          "xid": "STC01",
+          "data_ele": "C043",
+          "name": "Health Care Claim Status",
+          "usage": "R",
+          "seq": "01",
+          "elements": [
+            {
+              "xid": "STC01-01",
+              "data_ele": "1271",
+              "name": "Health Care Claim Status Category Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "STC01-02",
+              "data_ele": "1271",
+              "name": "Status Code",
+              "usage": "R",
+              "seq": "02"
+            },
+            {
+              "xid": "STC01-03",
+              "data_ele": "98",
+              "name": "Entity Identifier Code",
+              "usage": "S",
+              "seq": "03",
+              "valid_codes": {
+                "code": [
+                  "36",
+                  "40",
+                  "41",
+                  "AY",
+                  "PR"
+                ]
+              }
+            },
+            {
+              "xid": "STC01-04",
+              "data_ele": "1270",
+              "name": "Code List Qualifier Code",
+              "usage": "N",
+              "seq": "04"
+            }
+          ]
+        },
+        "STC10": {
+          "xid": "STC10",
+          "data_ele": "C043",
+          "name": "Health Care Claim Status",
+          "usage": "S",
+          "seq": "10",
+          "elements": [
+            {
+              "xid": "STC10-01",
+              "data_ele": "1271",
+              "name": "Health Care Claim Status Category Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "STC10-02",
+              "data_ele": "1271",
+              "name": "Status Code",
+              "usage": "R",
+              "seq": "02"
+            },
+            {
+              "xid": "STC10-03",
+              "data_ele": "98",
+              "name": "Entity Identifier Code",
+              "usage": "S",
+              "seq": "03"
+            },
+            {
+              "xid": "STC10-04",
+              "data_ele": "1270",
+              "name": "Code List Qualifier Code",
+              "usage": "N",
+              "seq": "04"
+            }
+          ]
+        },
+        "STC11": {
+          "xid": "STC11",
+          "data_ele": "C043",
+          "name": "Health Care Claim Status",
+          "usage": "S",
+          "seq": "11",
+          "elements": [
+            {
+              "xid": "STC11-01",
+              "data_ele": "1271",
+              "name": "Health Care Claim Status Category Code",
+              "usage": "R",
+              "seq": "01"
+            },
+            {
+              "xid": "STC11-02",
+              "data_ele": "1271",
+              "name": "Status Code",
+              "usage": "R",
+              "seq": "02"
+            },
+            {
+              "xid": "STC11-03",
+              "data_ele": "98",
+              "name": "Entity Identifier Code",
+              "usage": "S",
+              "seq": "03"
+            },
+            {
+              "xid": "STC11-04",
+              "data_ele": "1270",
+              "name": "Code List Qualifier Code",
+              "usage": "N",
+              "seq": "04"
+            }
+          ]
+        }
+      }
+    },
+    "QTY": {
+      "name": "Total Accepted Quantity",
+      "usage": "S",
+      "pos": "1210",
+      "max_use": "1",
+      "syntax": [
+        "E0204",
+        "R0204"
+      ],
+      "elements": [
+        {
+          "xid": "QTY01",
+          "data_ele": "673",
+          "name": "Quantity Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "90"
+            ]
+          }
+        },
+        {
+          "xid": "QTY02",
+          "data_ele": "380",
+          "name": "Total Accepted Quantity",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "QTY03",
+          "data_ele": "C001",
+          "name": "Composite Unit of Measure",
+          "usage": "N",
+          "seq": "03",
+          "elements": []
+        },
+        {
+          "xid": "QTY04",
+          "data_ele": "61",
+          "name": "Free-form Information",
+          "usage": "N",
+          "seq": "04"
+        }
+      ],
+      "elementsByXid": {
+        "QTY01": {
+          "xid": "QTY01",
+          "data_ele": "673",
+          "name": "Quantity Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "90"
+            ]
+          }
+        },
+        "QTY02": {
+          "xid": "QTY02",
+          "data_ele": "380",
+          "name": "Total Accepted Quantity",
+          "usage": "R",
+          "seq": "02"
+        },
+        "QTY04": {
+          "xid": "QTY04",
+          "data_ele": "61",
+          "name": "Free-form Information",
+          "usage": "N",
+          "seq": "04"
+        },
+        "QTY03": {
+          "xid": "QTY03",
+          "data_ele": "C001",
+          "name": "Composite Unit of Measure",
+          "usage": "N",
+          "seq": "03",
+          "elements": []
+        }
+      }
+    },
+    "AMT": {
+      "name": "Total Accepted Amount",
+      "usage": "S",
+      "pos": "1220",
+      "max_use": "1",
+      "elements": [
+        {
+          "xid": "AMT01",
+          "data_ele": "522",
+          "name": "Amount Qualifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "YU"
+            ]
+          }
+        },
+        {
+          "xid": "AMT02",
+          "data_ele": "782",
+          "name": "Total Accepted Amount",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "AMT03",
+          "data_ele": "478",
+          "name": "Credit/Debit Flag Code",
+          "usage": "N",
+          "seq": "03"
+        }
+      ],
+      "elementsByXid": {
+        "AMT01": {
+          "xid": "AMT01",
+          "data_ele": "522",
+          "name": "Amount Qualifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "YU"
+            ]
+          }
+        },
+        "AMT02": {
+          "xid": "AMT02",
+          "data_ele": "782",
+          "name": "Total Accepted Amount",
+          "usage": "R",
+          "seq": "02"
+        },
+        "AMT03": {
+          "xid": "AMT03",
+          "data_ele": "478",
+          "name": "Credit/Debit Flag Code",
+          "usage": "N",
+          "seq": "03"
+        }
+      }
+    },
+    "REF": {
+      "name": "Provider Secondary Identifier",
+      "usage": "S",
+      "pos": "1100",
+      "max_use": "1",
+      "elements": [
+        {
+          "xid": "REF01",
+          "data_ele": "128",
+          "name": "Reference Identification Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "0B",
+              "1G",
+              "G2",
+              "LU",
+              "SY",
+              "TJ"
+            ]
+          }
+        },
+        {
+          "xid": "REF02",
+          "data_ele": "127",
+          "name": "Provider Secondary Identifier",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "REF03",
+          "data_ele": "352",
+          "name": "Description",
+          "usage": "N",
+          "seq": "03"
+        }
+      ],
+      "elementsByXid": {
+        "REF01": {
+          "xid": "REF01",
+          "data_ele": "128",
+          "name": "Reference Identification Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "0B",
+              "1G",
+              "G2",
+              "LU",
+              "SY",
+              "TJ"
+            ]
+          }
+        },
+        "REF02": {
+          "xid": "REF02",
+          "data_ele": "127",
+          "name": "Provider Secondary Identifier",
+          "usage": "R",
+          "seq": "02"
+        },
+        "REF03": {
+          "xid": "REF03",
+          "data_ele": "352",
+          "name": "Description",
+          "usage": "N",
+          "seq": "03"
+        }
+      }
+    },
+    "SVC": {
+      "name": "Service Line Information",
+      "usage": "R",
+      "pos": "1800",
+      "max_use": "1",
+      "elements": [
+        {
+          "xid": "SVC02",
+          "data_ele": "782",
+          "name": "Line Item Charge Amount",
+          "usage": "R",
+          "seq": "02"
+        },
+        {
+          "xid": "SVC03",
+          "data_ele": "782",
+          "name": "Line Item Provider Payment Amount",
+          "usage": "N",
+          "seq": "03"
+        },
+        {
+          "xid": "SVC04",
+          "data_ele": "234",
+          "name": "Revenue Code",
+          "usage": "S",
+          "seq": "04"
+        },
+        {
+          "xid": "SVC05",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "05"
+        },
+        {
+          "xid": "SVC07",
+          "data_ele": "380",
+          "name": "Original Units of Service Count",
+          "usage": "S",
+          "seq": "07"
+        }
+      ],
+      "elementsByXid": {
+        "SVC02": {
+          "xid": "SVC02",
+          "data_ele": "782",
+          "name": "Line Item Charge Amount",
+          "usage": "R",
+          "seq": "02"
+        },
+        "SVC03": {
+          "xid": "SVC03",
+          "data_ele": "782",
+          "name": "Line Item Provider Payment Amount",
+          "usage": "N",
+          "seq": "03"
+        },
+        "SVC04": {
+          "xid": "SVC04",
+          "data_ele": "234",
+          "name": "Revenue Code",
+          "usage": "S",
+          "seq": "04"
+        },
+        "SVC05": {
+          "xid": "SVC05",
+          "data_ele": "380",
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "05"
+        },
+        "SVC07": {
+          "xid": "SVC07",
+          "data_ele": "380",
+          "name": "Original Units of Service Count",
+          "usage": "S",
+          "seq": "07"
+        }
+      }
+    }
+  },
+  "structure": [
+    {
+      "type": "loop",
+      "xid": "ISA_LOOP",
+      "name": "Interchange Control Header",
+      "usage": "R",
+      "pos": "0010",
+      "repeat": ">1",
+      "children": [
+        {
+          "type": "segment",
+          "xid": "ISA",
+          "pos": "0100",
+          "usage": "R",
+          "max_use": "1",
+          "name": "Interchange Control Header"
+        },
+        {
+          "type": "segment",
+          "xid": "TA1",
+          "pos": "0200",
+          "usage": "S",
+          "max_use": "1",
+          "name": "Interchange Acknowledgement"
+        },
+        {
+          "type": "loop",
+          "xid": "GS_LOOP",
+          "name": "Functional Group Header",
+          "usage": "R",
+          "pos": "0200",
+          "repeat": ">1",
+          "children": [
+            {
+              "type": "segment",
+              "xid": "GS",
+              "pos": "0100",
+              "usage": "R",
+              "max_use": "1",
+              "name": "Functional Group Header"
+            },
+            {
+              "type": "loop",
+              "xid": "ST_LOOP",
+              "name": "Transaction Set Header",
+              "usage": "R",
+              "pos": "0200",
+              "repeat": ">1",
+              "children": [
+                {
+                  "type": "segment",
+                  "xid": "ST",
+                  "pos": "0050",
+                  "usage": "R",
+                  "max_use": "1",
+                  "name": "Transaction Set Header"
+                },
+                {
+                  "type": "loop",
+                  "xid": "HEADER",
+                  "name": "Header",
+                  "usage": "R",
+                  "pos": "0100",
+                  "repeat": "1",
+                  "children": [
+                    {
+                      "type": "segment",
+                      "xid": "BHT",
+                      "pos": "0200",
+                      "usage": "R",
+                      "max_use": "1",
+                      "name": "Beginning of Hierarchical Transaction"
+                    }
+                  ]
+                },
+                {
+                  "type": "loop",
+                  "xid": "DETAIL",
+                  "name": "Table 2 - Detail",
+                  "usage": "R",
+                  "pos": "0200",
+                  "repeat": ">1",
+                  "children": [
+                    {
+                      "type": "loop",
+                      "xid": "2000A",
+                      "name": "Information Source Level",
+                      "usage": "R",
+                      "pos": "0100",
+                      "repeat": ">1",
+                      "children": [
+                        {
+                          "type": "segment",
+                          "xid": "HL",
+                          "pos": "0100",
+                          "usage": "R",
+                          "max_use": "1",
+                          "name": "Information Source Level"
+                        },
+                        {
+                          "type": "loop",
+                          "xid": "2100A",
+                          "name": "Information Source Name",
+                          "usage": "R",
+                          "pos": "0500",
+                          "repeat": "1",
+                          "children": [
+                            {
+                              "type": "segment",
+                              "xid": "NM1",
+                              "pos": "0500",
+                              "usage": "R",
+                              "max_use": "1",
+                              "name": "Information Source Name"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "loop",
+                          "xid": "2200A",
+                          "name": "Transmission Receipt Control Identifier",
+                          "usage": "R",
+                          "pos": "0900",
+                          "repeat": ">1",
+                          "children": [
+                            {
+                              "type": "segment",
+                              "xid": "TRN",
+                              "pos": "0900",
+                              "usage": "R",
+                              "max_use": "1",
+                              "name": "Transmission Receipt Control Identifier"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "DTP",
+                              "pos": "1200",
+                              "usage": "R",
+                              "max_use": "1",
+                              "name": "Information Source Receipt Date"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "DTP",
+                              "pos": "1200",
+                              "usage": "R",
+                              "max_use": "1",
+                              "name": "Information Source Process Date"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "loop",
+                          "xid": "2000B",
+                          "name": "Information Receiver Level",
+                          "usage": "R",
+                          "pos": "2000",
+                          "repeat": "1",
+                          "children": [
+                            {
+                              "type": "segment",
+                              "xid": "HL",
+                              "pos": "0100",
+                              "usage": "R",
+                              "max_use": "1",
+                              "name": "Information Receiver Level"
+                            },
+                            {
+                              "type": "loop",
+                              "xid": "2100B",
+                              "name": "Information Receiver Name",
+                              "usage": "R",
+                              "pos": "0500",
+                              "repeat": "1",
+                              "children": [
+                                {
+                                  "type": "segment",
+                                  "xid": "NM1",
+                                  "pos": "0500",
+                                  "usage": "R",
+                                  "max_use": "1",
+                                  "name": "Information Receiver Name"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "loop",
+                              "xid": "2200B",
+                              "name": "Information Receiver Trace Identifier",
+                              "usage": "R",
+                              "pos": "0900",
+                              "repeat": "1",
+                              "children": [
+                                {
+                                  "type": "segment",
+                                  "xid": "TRN",
+                                  "pos": "0900",
+                                  "usage": "R",
+                                  "max_use": "1",
+                                  "name": "Information Receiver Trace Identifier"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "STC",
+                                  "pos": "1000",
+                                  "usage": "R",
+                                  "max_use": ">1",
+                                  "name": "Information Receiver Status Information"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "QTY",
+                                  "pos": "1210",
+                                  "usage": "S",
+                                  "max_use": "1",
+                                  "name": "Total Accepted Quantity"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "QTY",
+                                  "pos": "1210",
+                                  "usage": "S",
+                                  "max_use": "1",
+                                  "name": "Total Rejected Quantity"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "AMT",
+                                  "pos": "1220",
+                                  "usage": "S",
+                                  "max_use": "1",
+                                  "name": "Total Accepted Amount"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "AMT",
+                                  "pos": "1220",
+                                  "usage": "S",
+                                  "max_use": "1",
+                                  "name": "Total Rejected Amount"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "loop",
+                              "xid": "2000C",
+                              "name": "Billing Provider of Service Level",
+                              "usage": "R",
+                              "pos": "2000",
+                              "repeat": ">1",
+                              "children": [
+                                {
+                                  "type": "segment",
+                                  "xid": "HL",
+                                  "pos": "0100",
+                                  "usage": "R",
+                                  "max_use": "1",
+                                  "name": "Billing Provider of Service Level"
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2100C",
+                                  "name": "Billing Provider Name",
+                                  "usage": "R",
+                                  "pos": "0500",
+                                  "repeat": ">1",
+                                  "children": [
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "pos": "0500",
+                                      "usage": "R",
+                                      "max_use": "1",
+                                      "name": "Billing Provider Name"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2200C",
+                                  "name": "Provider of Service Information Trace Identifier",
+                                  "usage": "S",
+                                  "pos": "0900",
+                                  "repeat": "1",
+                                  "children": [
+                                    {
+                                      "type": "segment",
+                                      "xid": "TRN",
+                                      "pos": "0900",
+                                      "usage": "R",
+                                      "max_use": "1",
+                                      "name": "Provider of Service Information Trace Identifier"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "STC",
+                                      "pos": "1000",
+                                      "usage": "R",
+                                      "max_use": ">1",
+                                      "name": "Billing Provider Status Information"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "pos": "1100",
+                                      "usage": "S",
+                                      "max_use": "1",
+                                      "name": "Provider Secondary Identifier"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "QTY",
+                                      "pos": "1210",
+                                      "usage": "S",
+                                      "max_use": "1",
+                                      "name": "Total Accepted Quantity"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "QTY",
+                                      "pos": "1210",
+                                      "usage": "S",
+                                      "max_use": "1",
+                                      "name": "Total Rejected Quantity"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "AMT",
+                                      "pos": "1220",
+                                      "usage": "S",
+                                      "max_use": "1",
+                                      "name": "Total Accepted Amount"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "AMT",
+                                      "pos": "1220",
+                                      "usage": "S",
+                                      "max_use": "1",
+                                      "name": "Total Rejected Amount"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2000D",
+                                  "name": "Patient Level",
+                                  "usage": "R",
+                                  "pos": "2000",
+                                  "repeat": ">1",
+                                  "children": [
+                                    {
+                                      "type": "segment",
+                                      "xid": "HL",
+                                      "pos": "0100",
+                                      "usage": "R",
+                                      "max_use": "1",
+                                      "name": "Patient Level"
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2100D",
+                                      "name": "Patient Name",
+                                      "usage": "R",
+                                      "pos": "0500",
+                                      "repeat": "1",
+                                      "children": [
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "pos": "0500",
+                                          "usage": "R",
+                                          "max_use": "1",
+                                          "name": "Patient Name"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2200D",
+                                      "name": "Claim Status Tracking Number",
+                                      "usage": "S",
+                                      "pos": "0900",
+                                      "repeat": ">1",
+                                      "children": [
+                                        {
+                                          "type": "segment",
+                                          "xid": "TRN",
+                                          "pos": "0900",
+                                          "usage": "R",
+                                          "max_use": "1",
+                                          "name": "Claim Status Tracking Number"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "STC",
+                                          "pos": "1000",
+                                          "usage": "R",
+                                          "max_use": ">1",
+                                          "name": "Claim Level Status Information"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "pos": "1100",
+                                          "usage": "S",
+                                          "max_use": "1",
+                                          "name": "Payer Claim Control Number"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "pos": "1100",
+                                          "usage": "S",
+                                          "max_use": "1",
+                                          "name": "Claim Indentifier Number For Clearinghouses and Other Transmission Intermediaries"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "pos": "1100",
+                                          "usage": "S",
+                                          "max_use": "1",
+                                          "name": "Institutional Bill Type Identification"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "DTP",
+                                          "pos": "1200",
+                                          "usage": "R",
+                                          "max_use": "1",
+                                          "name": "Claim Level Service Date"
+                                        },
+                                        {
+                                          "type": "loop",
+                                          "xid": "2220D",
+                                          "name": "Service Line Information",
+                                          "usage": "S",
+                                          "pos": "1800",
+                                          "repeat": ">1",
+                                          "children": [
+                                            {
+                                              "type": "segment",
+                                              "xid": "SVC",
+                                              "pos": "1800",
+                                              "usage": "R",
+                                              "max_use": "1",
+                                              "name": "Service Line Information"
+                                            },
+                                            {
+                                              "type": "segment",
+                                              "xid": "STC",
+                                              "pos": "1900",
+                                              "usage": "R",
+                                              "max_use": "1",
+                                              "name": "Service Line Level Status Information"
+                                            },
+                                            {
+                                              "type": "segment",
+                                              "xid": "REF",
+                                              "pos": "2000",
+                                              "usage": "S",
+                                              "max_use": "1",
+                                              "name": "Service Line Item Identification"
+                                            },
+                                            {
+                                              "type": "segment",
+                                              "xid": "REF",
+                                              "pos": "2000",
+                                              "usage": "S",
+                                              "max_use": "1",
+                                              "name": "Pharmacy Prescription Number"
+                                            },
+                                            {
+                                              "type": "segment",
+                                              "xid": "DTP",
+                                              "pos": "2100",
+                                              "usage": "S",
+                                              "max_use": "1",
+                                              "name": "Service Line Date"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "loop",
+                  "xid": "FOOTER",
+                  "name": "Table 3 - Footer",
+                  "usage": "N",
+                  "pos": "3000",
+                  "repeat": "1",
+                  "children": []
+                },
+                {
+                  "type": "segment",
+                  "xid": "SE",
+                  "pos": "5550",
+                  "usage": "R",
+                  "max_use": "1",
+                  "name": "Transaction Set Trailer"
+                }
+              ]
+            },
+            {
+              "type": "segment",
+              "xid": "GE",
+              "pos": "0300",
+              "usage": "R",
+              "max_use": "1",
+              "name": "Functional Group Trailer"
+            }
+          ]
+        },
+        {
+          "type": "segment",
+          "xid": "IEA",
+          "pos": "0300",
+          "usage": "R",
+          "max_use": "1",
+          "name": "Interchange Control Trailer"
+        }
+      ]
+    }
+  ]
+}
