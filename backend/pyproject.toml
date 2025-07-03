@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "edi-lens-backend"
+version = "0.1.0"
+description = "Backend for EDI Lens Validator"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.111.0"
+uvicorn = {extras = ["standard"], version = "^0.30.1"}
+sqlalchemy = {extras = ["asyncio"], version = "^2.0.31"}
+asyncpg = "^0.29.0"
+pydantic = "^2.8.2"
+pydantic-settings = "^2.3.4"
+alembic = "^1.13.2"
+
+# <<< ADD THIS NEW SECTION >>>
+# This defines the 'dev' dependency group. It's empty for now,
+# but its existence is required for the '--without dev' flag to work.
+[tool.poetry.group.dev.dependencies]
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

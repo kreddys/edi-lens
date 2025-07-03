@@ -1,0 +1,49 @@
+services:
+  # The Python Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000" # Expose FastAPI port
+    volumes:
+      - ./backend/src:/app/src # Mount source for live-reloading
+    # <<< ADD THIS LINE >>>
+    # This tells docker-compose to load the .env file from the project root
+    # into the environment of this specific container.
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy # Wait for DB to be ready
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # The React Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173" # Expose Vite dev server port
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Avoid overwriting node_modules from host
+    depends_on:
+      - backend
+
+  # The PostgreSQL Database Service
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data/
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5

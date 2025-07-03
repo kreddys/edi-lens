@@ -8,6 +8,14 @@ export default defineConfig({
   plugins: [
     react(),
   ],
+  server: { // <<< ADD THIS BLOCK
+    host: true, // Allow Vite to be accessed from outside the container
+    port: 5173, // Explicitly set the port
+    // Optional: for HMR (Hot Module Replacement) to work through a proxy
+    hmr: {
+      clientPort: 5173,
+    },
+  },
   // Vitest configuration
   test: {
     globals: true, // Use global APIs like describe, it, expect
@@ -21,7 +29,5 @@ export default defineConfig({
       '**/.{idea,git,cache,output,temp}/**',
       '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*'
     ]
-    // Optional: include source maps for better stack traces
-    // sourcemap: 'inline',
   },
 })
