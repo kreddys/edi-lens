@@ -4,6 +4,10 @@ version = "0.1.0"
 description = "Backend for EDI Lens Validator"
 authors = ["Your Name <you@example.com>"]
 readme = "README.md"
+# <<< ADD THIS SECTION >>>
+packages = [
+    { include = "src" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -15,11 +19,7 @@ pydantic = "^2.8.2"
 pydantic-settings = "^2.3.4"
 alembic = "^1.13.2"
 
-# <<< ADD THIS NEW SECTION >>>
-# This defines the 'dev' dependency group. It's empty for now,
-# but its existence is required for the '--without dev' flag to work.
 [tool.poetry.group.dev.dependencies]
-
 
 [build-system]
 requires = ["poetry-core"]
