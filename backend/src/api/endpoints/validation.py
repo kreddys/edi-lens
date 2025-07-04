@@ -4,13 +4,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api import schemas
 from src.core.database import get_db
 from src.core.edi_parser import parse_edi # <-- Import our new parser
+from src.core.auth import get_current_user
+from src.core.auth import User
 
 router = APIRouter()
 
 @router.post("/", response_model=schemas.ValidationResponse)
 async def validate_edi_endpoint(
     request: schemas.ValidationRequest,
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)    
 ):
     """
     Receives EDI data, validates it against configured rules,
@@ -25,13 +28,11 @@ async def validate_edi_endpoint(
         # Return a 400 Bad Request error.
         raise HTTPException(status_code=400, detail=parse_result.error)
 
-    # TODO (Future steps will go here)
-    # - Fetch rules from DB
-    # - Build hierarchical structure
-    # - Run validator
-    # - Generate acknowledgements
+    # TODO: Use the `current_user` object to implement multi-tenancy
+    # For example, you could fetch rules that belong to the user's tenant/organization.
+    # logger.info(f"Validation request by user: {current_user.username}")
 
-    # For now, return the successfully parsed segments
+    # ... (rest of the function)
     return schemas.ValidationResponse(
         status="Parsed Successfully",
         findings=[], # No validation logic yet
