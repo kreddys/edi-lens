@@ -54,3 +54,6 @@ build/
 docker-compose.override.yml
 postgres-data/
 llm_export.txt
+
+# Generated Keycloak config with secrets
+keycloak-config/realm-export.json

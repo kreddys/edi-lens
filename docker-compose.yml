@@ -34,7 +34,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/home/appuser/app
-      - /home/appuser/app/.venv # Anonymous volume to avoid overwriting venv
+      - /home/appuser/app/.venv
     env_file:
       - .env
     networks:
@@ -62,6 +62,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
+      # Mount the whole directory. Keycloak will find the generated realm-export.json inside.
       - ./keycloak-config:/opt/keycloak/data/import
     networks:
       - edi_network
@@ -81,8 +82,9 @@ services:
       - .env
     networks:
       - edi_network
-    command: npm run dev -- --host
+    command: npm run dev -- --host 
 
+# No extra volumes are needed for this method
 networks:
   edi_network:
     driver: bridge

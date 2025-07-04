@@ -5,7 +5,8 @@
 #
 # Description:
 # This script provides essential commands to manage the Docker-based
-# development environment.
+# development environment. It handles dynamic configuration generation
+# and service orchestration.
 # ==============================================================================
 
 # --- Configuration ---
@@ -34,9 +35,8 @@ error() {
     exit 1
 }
 
-# --- SCRIPT INITIALIZATION (THE CRITICAL FIX) ---
-# Source the .env file to make variables available to docker-compose for substitution
-# This must happen before any docker-compose commands are run.
+# --- SCRIPT INITIALIZATION ---
+# Source the .env file to make variables available for substitution in docker-compose
 if [ -f .env ]; then
     info "Loading environment variables from .env file..."
     export $(grep -v '^#' .env | xargs)
@@ -45,6 +45,21 @@ else
 fi
 
 # --- Main Functions ---
+
+# Prepares Keycloak config by running the Python script to inject secrets
+prepare_kc_config() {
+    info "Preparing Keycloak configuration from template..."
+    if ! command -v "python3" &> /dev/null; then
+        error "'python3' command not found. Please install it to run the config script."
+    fi
+    # Run the Python script to generate the final realm-export.json
+    python3 scripts/prepare_keycloak_config.py
+    if [ $? -ne 0 ]; then
+        error "Failed to prepare Keycloak configuration. Aborting."
+    fi
+}
+
+# Displays the help message
 usage() {
     echo "EDI Lens Project Management Script"
     echo ""
@@ -61,12 +76,15 @@ usage() {
     echo ""
 }
 
+# Starts all services in detached mode
 start_app() {
+    prepare_kc_config # Run the config prep script before starting services
     info "Building images and starting all services (db, backend, keycloak, frontend)..."
     docker-compose up --build -d
     success "All services are starting in the background. Use './run_app.sh logs' or 'docker-compose ps' to check status."
 }
 
+# Stops and removes all services
 stop_app() {
     info "Stopping and removing all services and the network..."
     docker-compose down
@@ -79,16 +97,18 @@ follow_logs() {
     docker-compose logs -f
 }
 
+# Builds images for all services
 build_images() {
     info "Building all service images..."
     docker-compose build
     success "Image build complete."
 }
 
+# Runs backend tests with a fresh database
 run_backend_tests() {
-    info "Preparing a fresh test database for backend tests..."
+    info "Preparing for backend tests..."
+    prepare_kc_config # Also run before tests, in case config is needed
 
-    # Ensure dependency services are up for the test run command
     info "Starting dependency services (db, keycloak)..."
     docker-compose up -d db keycloak
 
@@ -114,6 +134,7 @@ run_backend_tests() {
     exit $TEST_EXIT_CODE
 }
 
+# Deletes all data and starts fresh
 start_clean_app() {
     warn "This will permanently delete the main database and all other service volumes."
     read -p "Are you sure you want to continue? (y/N): " -r
@@ -129,7 +150,7 @@ start_clean_app() {
             rm -rf ./postgres-data
             success "Local database directory cleaned."
         fi
-        # Start everything up again, which will re-create everything
+        # The start_app function will handle the rest, including config prep
         start_app
     else
         info "Clean start operation cancelled."
@@ -138,6 +159,7 @@ start_clean_app() {
 }
 
 # --- Script Execution ---
+# Check that Docker and docker-compose are installed
 if ! command -v "docker" &> /dev/null; then
     error "'docker' command not found. Please install it to continue."
 fi
@@ -145,6 +167,7 @@ if ! command -v "docker-compose" &> /dev/null; then
     error "'docker-compose' command not found. Please install it to continue."
 fi
 
+# Main command dispatcher
 COMMAND=$1
 case "$COMMAND" in
     start) start_app ;;
