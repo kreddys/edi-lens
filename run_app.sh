@@ -87,7 +87,7 @@ start_app() {
 # Stops and removes all services
 stop_app() {
     info "Stopping and removing all services and the network..."
-    docker-compose down
+    docker-compose down --remove-orphans
     success "All services have been stopped."
 }
 
@@ -100,7 +100,7 @@ follow_logs() {
 # Builds images for all services
 build_images() {
     info "Building all service images..."
-    docker-compose build
+    docker-compose build --no-cache
     success "Image build complete."
 }
 
