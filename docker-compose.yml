@@ -47,12 +47,23 @@ services:
       timeout: 5s
       retries: 5
 
-  # The Keycloak Service
   keycloak:
     image: quay.io/keycloak/keycloak:25.0
     ports:
       - "8080:8080"
     environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-    command: start-dev
+      # --- UPDATED: Use variables from .env ---
+      KEYCLOAK_ADMIN: ${KC_ADMIN_USER}
+      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD}
+
+      # --- Keycloak Database Configuration (no changes here) ---
+      KC_DB: ${KC_DB}
+      KC_DB_URL_HOST: ${KC_DB_URL_HOST}
+      KC_DB_URL_DATABASE: ${KC_DB_URL_DATABASE}
+      KC_DB_USERNAME: ${KC_DB_USERNAME}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+      KC_DB_SCHEMA: ${KC_DB_SCHEMA}
+    command: start --hostname-strict=false --http-enabled=true
+    depends_on:
+      db:
+        condition: service_healthy

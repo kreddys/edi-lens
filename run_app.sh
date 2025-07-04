@@ -12,7 +12,7 @@
 # Color definitions for better readability
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m' # Added back for warnings
+YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
@@ -52,6 +52,7 @@ usage() {
     echo "  stop          Stop and remove all running services."
     echo "  build         Force a rebuild of all service images without starting them."
     echo "  test:backend  Re-creates the test database and runs all backend tests."
+    echo "  init:kc-db    Create the dedicated database and user for Keycloak from .env values."
     echo "  -h, --help    Display this help message."
     echo ""
 }
@@ -59,21 +60,21 @@ usage() {
 # Starts all services in detached mode
 start_app() {
     info "Building images and starting all services (db, backend, keycloak, etc.)..."
-    docker-compose up --build -d --remove-orphans
+    docker-compose up --build -d
     success "All services are starting in the background. Use 'docker-compose ps' to check status."
 }
 
 # Stops and removes all services
 stop_app() {
     info "Stopping and removing all services..."
-    docker-compose down -v --remove-orphans
+    docker-compose down
     success "All services have been stopped."
 }
 
 # Builds images for all services
 build_images() {
     info "Building all service images..."
-    docker-compose build --no-cache
+    docker-compose build
     success "Image build complete."
 }
 
@@ -91,7 +92,6 @@ run_backend_tests() {
     docker-compose run --rm backend pytest
 }
 
-# <<< NEW FUNCTION >>>
 # Deletes the dev database and starts fresh
 start_clean_app() {
     warn "This will permanently delete the main development database in './postgres-data'."
@@ -114,6 +114,45 @@ start_clean_app() {
     fi
 }
 
+# Creates the keycloak database and user from .env values
+init_keycloak_db() {
+    info "Creating Keycloak database and user from .env settings..."
+    warn "This requires the main 'db' service to be running. Starting it now if needed."
+    
+    # Load .env file to make sure we have the variables
+    if [ -f .env ]; then
+        export $(grep -v '^#' .env | xargs)
+    else
+        error ".env file not found. Cannot proceed."
+    fi
+
+    # Check if all required variables are set
+    if [ -z "${POSTGRES_USER}" ] || [ -z "${KC_DB_USERNAME}" ] || [ -z "${KC_DB_PASSWORD}" ] || [ -z "${KC_DB_URL_DATABASE}" ]; then
+        error "One or more required variables (POSTGRES_USER, KC_DB_USERNAME, KC_DB_PASSWORD, KC_DB_URL_DATABASE) are not set in your .env file."
+    fi
+
+    # Ensure the db service is running
+    docker-compose up -d db
+    
+    info "Waiting for PostgreSQL to be ready..."
+    sleep 5 
+
+    info "Executing SQL script to create database and user..."
+    # This is the updated command that passes all three variables to psql
+    docker-compose exec -T db psql -U ${POSTGRES_USER} -d postgres \
+        -v KC_USERNAME_VAR="${KC_DB_USERNAME}" \
+        -v KC_PASSWORD_VAR="${KC_DB_PASSWORD}" \
+        -v KC_DB_NAME_VAR="${KC_DB_URL_DATABASE}" \
+        < scripts/init-keycloak-db.sql
+    
+    if [ $? -eq 0 ]; then
+        success "Keycloak database and user created successfully."
+        info "You can now start all services with './run_app.sh start'."
+    else
+        error "Failed to create Keycloak database. Check the SQL script and .env file."
+    fi
+}
+
 
 # --- Script Execution ---
 
@@ -132,7 +171,7 @@ case "$COMMAND" in
     start)
         start_app
         ;;
-    start:clean) # <<< NEW CASE
+    start:clean)
         start_clean_app
         ;;
     stop)
@@ -143,6 +182,9 @@ case "$COMMAND" in
         ;;
     test:backend)
         run_backend_tests
+        ;;
+    init:kc-db)
+        init_keycloak_db
         ;;
     -h|--help)
         usage
