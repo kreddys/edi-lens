@@ -2,15 +2,9 @@
 
 # ==============================================================================
 # Utility Script for the EDI Lens Project
-#
-# Description:
-# This script provides essential commands to manage the Docker-based
-# development environment. It handles dynamic configuration generation
-# and service orchestration.
 # ==============================================================================
 
 # --- Configuration ---
-# Color definitions for better readability
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -18,25 +12,12 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # --- Helper Functions ---
-info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-error() {
-    echo -e "${RED}[ERROR]${NC} $1" >&2
-    exit 1
-}
+info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+error() { echo -e "${RED}[ERROR]${NC} $1" >&2; exit 1; }
 
 # --- SCRIPT INITIALIZATION ---
-# Source the .env file to make variables available for substitution in docker-compose
 if [ -f .env ]; then
     info "Loading environment variables from .env file..."
     export $(grep -v '^#' .env | xargs)
@@ -52,7 +33,9 @@ prepare_kc_config() {
     if ! command -v "python3" &> /dev/null; then
         error "'python3' command not found. Please install it."
     fi
-    python3 scripts/prepare_keycloak_config.py
+    # --- THIS IS THE CHANGE ---
+    # Call the script from its new location
+    python3 backend/scripts/prepare_keycloak_config.py
     if [ $? -ne 0 ]; then
         error "Failed to prepare Keycloak configuration. Aborting."
     fi
@@ -122,7 +105,6 @@ run_backend_tests() {
     fi
 
     info "(3/3) Executing pytest for unit tests (tests not marked 'integration')..."
-    # Use the service name 'backend', which docker-compose understands
     docker-compose run --rm --service-ports backend pytest -m "not integration"
     
     TEST_EXIT_CODE=$?
@@ -135,37 +117,30 @@ run_backend_tests() {
 run_integration_tests() {
     info "Preparing to run INTEGRATION tests..."
     
-    # 1. Start all services required for the integration test
     info "(1/3) Starting all services..."
     start_app
     
-    # Give Docker a moment to start creating the containers
     info "Waiting for containers to initialize..."
     sleep 5
 
-    # 2. Wait for the backend to become healthy before running tests
     info "(2/3) Waiting for the backend service to be healthy..."
     
-    TIMEOUT=120 # 2 minutes
+    TIMEOUT=120
     INTERVAL=5
     ELAPSED=0
 
-    # This loop is now robust and does not use a hardcoded container name
     while true; do
-        # Get the container ID using the SERVICE name ('backend')
         BACKEND_CONTAINER_ID=$(docker-compose ps -q backend)
         
-        # Check if the container object exists yet
         if [ -z "$BACKEND_CONTAINER_ID" ]; then
             STATUS="creating"
         else
-            # If it exists, get its health status using its ID
             STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}' "$BACKEND_CONTAINER_ID" 2>/dev/null)
         fi
 
         if [ "$STATUS" == "healthy" ]; then
             success "Backend service is healthy."
-            break # Exit the loop
+            break
         fi
 
         if [ $ELAPSED -ge $TIMEOUT ]; then
@@ -177,9 +152,7 @@ run_integration_tests() {
         ELAPSED=$((ELAPSED + INTERVAL))
     done
 
-    # 3. Run only the tests marked with 'integration'
     info "(3/3) Executing pytest for integration tests..."
-    # Use the SERVICE name 'backend' to execute the command. This is correct.
     docker-compose exec backend pytest -m integration
     
     TEST_EXIT_CODE=$?
@@ -188,6 +161,27 @@ run_integration_tests() {
     stop_app
     
     exit $TEST_EXIT_CODE
+}
+
+# Deletes all data and starts fresh
+start_clean_app() {
+    warn "This will permanently delete the main database and all other service volumes."
+    read -p "Are you sure you want to continue? (y/N): " -r
+    echo
+
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        info "Proceeding with clean start..."
+        docker-compose down -v
+        if [ -d "./postgres-data" ]; then
+            info "Deleting local database directory './postgres-data'..."
+            rm -rf ./postgres-data
+            success "Local database directory cleaned."
+        fi
+        start_app
+    else
+        info "Clean start operation cancelled."
+        exit 0
+    fi
 }
 
 # --- Script Execution ---
