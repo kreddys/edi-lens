@@ -22,33 +22,35 @@ class TradingPartnerRepository:
         Create a new trading partner, along with their profiles and criteria,
         all within a single database transaction.
         """
-        async with self.db.begin_nested(): # Create a savepoint
-            # Create the main TradingPartner object
-            db_partner = trading_partner.TradingPartner(
-                name=partner_in.name,
-                description=partner_in.description,
-            )
-            self.db.add(db_partner)
-            await self.db.flush()
-
-            for profile_in in partner_in.profiles:
-                db_profile = partner_profile.PartnerProfile(
-                    name=profile_in.name,
-                    implementation_guide=profile_in.implementation_guide,
-                    priority=profile_in.priority,
-                    partner_id=db_partner.id
-                )
-                self.db.add(db_profile)
-                await self.db.flush()
-
-                for criterion_in in profile_in.criteria:
-                    db_criterion = profile_criterion.ProfileCriterion(
-                        profile_id=db_profile.id,
-                        **criterion_in.model_dump()
-                    )
-                    self.db.add(db_criterion)
+        # The session provided by the fixture (self.db) is already in a transaction
+        # managed by the db_session fixture. No explicit commit or nested transaction
+        # is needed here for tests.
         
-        await self.db.commit()
+        db_partner = trading_partner.TradingPartner(
+            name=partner_in.name,
+            description=partner_in.description,
+        )
+        self.db.add(db_partner)
+        await self.db.flush() # Flush to get the ID of the new partner
+
+        for profile_in in partner_in.profiles:
+            db_profile = partner_profile.PartnerProfile(
+                name=profile_in.name,
+                implementation_guide=profile_in.implementation_guide,
+                priority=profile_in.priority,
+                partner_id=db_partner.id
+            )
+            self.db.add(db_profile)
+            await self.db.flush() # Flush to get the ID of the new profile
+
+            for criterion_in in profile_in.criteria:
+                db_criterion = profile_criterion.ProfileCriterion(
+                    profile_id=db_profile.id,
+                    **criterion_in.model_dump()
+                )
+                self.db.add(db_criterion)
+        
+        # No explicit commit() here; the db_session fixture handles the transaction rollback.
 
         # Eagerly load the relationships before returning
         result = await self.db.execute(

@@ -3,6 +3,7 @@ import sys
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from src.core.config import settings
+from src.core.database import Base
 
 async def create_test_db():
     """Creates the test database."""
@@ -23,6 +24,7 @@ async def create_test_db():
         await conn.execute(text(f"CREATE DATABASE {db_name}"))
 
     await engine.dispose()
+
     print("--- Test Database Created Successfully ---")
 
 

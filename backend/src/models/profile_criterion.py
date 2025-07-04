@@ -26,4 +26,4 @@ class ProfileCriterion(Base):
     value = Column(String, nullable=False)
 
     # tenant = relationship("Tenant")
-    profile = relationship("PartnerProfile")
+    profile = relationship("PartnerProfile", back_populates="criteria")

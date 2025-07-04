@@ -16,6 +16,22 @@ services:
         condition: service_healthy
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 
+  # Backend service specifically for running tests
+  backend_test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: test # Use the 'test' stage from the Dockerfile
+    volumes:
+      - ./backend:/app
+      - /app/.venv
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    # No command here, as the entrypoint is set in the Dockerfile for tests
+
   # The React Frontend Service
   frontend:
     build:

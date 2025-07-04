@@ -12,8 +12,8 @@ class TradingPartner(Base):
     name = Column(String, nullable=False, unique=True, index=True)
     description = Column(Text, nullable=True)
 
-    # tenant = relationship("Tenant")
-    
+    profiles = relationship("PartnerProfile", back_populates="partner", cascade="all, delete-orphan")
+
     # The name is now globally unique
     __table_args__ = (
         UniqueConstraint('name', name='_partner_name_uc'),

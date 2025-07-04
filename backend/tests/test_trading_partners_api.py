@@ -9,8 +9,9 @@ from src.core.auth import User
 pytestmark = pytest.mark.asyncio
 
 @pytest.fixture
-def mock_get_current_user(app):
+def mock_get_current_user():
     """Fixture to mock the get_current_user dependency for protected routes."""
+    from src.main import app
     # This user object mimics the one we'd get from a validated Keycloak token
     mock_user = User(
         sub="mock-user-id",

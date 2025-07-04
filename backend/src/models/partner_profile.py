@@ -15,4 +15,5 @@ class PartnerProfile(Base):
     snip_level_enabled = Column(Integer, nullable=False, default=1)
 
     # tenant = relationship("Tenant")
-    partner = relationship("TradingPartner")
+    partner = relationship("TradingPartner", back_populates="profiles")
+    criteria = relationship("ProfileCriterion", back_populates="profile", cascade="all, delete-orphan")

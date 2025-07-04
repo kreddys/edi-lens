@@ -170,31 +170,32 @@ run_backend_standalone() {
 
 # Runs backend tests
 run_backend_tests() {
+    # Determine the absolute path to poetry and pytest within the Docker container's venv
+    # This is the most reliable way to ensure they are found, bypassing any PATH issues.
+    PYTHON_BIN="/app/.venv/bin/python"
+    POETRY_BIN="/app/.venv/bin/poetry"
+    PYTEST_BIN="/app/.venv/bin/pytest"
+    
     # Check for the --clean-db flag
-    # The arguments passed to this function are in "$@"
-    if [[ " $@ " == *" --clean-db "* ]]; then
+    if [[ " $* " == *" --clean-db "* ]]; then
         info "Fresh DB requested. Re-creating the test database..."
-        
-        # --- THIS IS THE FIX ---
-        # We must use the Python executable from inside our virtual environment
-        # to ensure it can find all the installed packages (like sqlalchemy).
-        DB_MANAGER_CMD="/app/.venv/bin/python -m tests.manage_test_db create"
-        
-        # The '--entrypoint ""' is still needed to bypass our custom entrypoint script
-        docker-compose run --rm --entrypoint "" backend sh -c "$DB_MANAGER_CMD"
-
+        # Use the explicit Python interpreter to run the manage_test_db script
+        docker-compose run --rm --entrypoint "$PYTHON_BIN" backend -m tests.manage_test_db create
         if [ $? -ne 0 ]; then
             error "Failed to create test database. Aborting tests."
         fi
+        info "Waiting for database to be ready..."
+        sleep 5 # Give the database a moment to fully initialize
     else
         info "Running backend tests on existing test database."
         info "Use './run_app.sh test:backend --clean-db' for a completely fresh run."
     fi
 
-    # Now, run pytest using its absolute path.
+    # Now, run pytest using the explicit Python interpreter from the venv
     info "Executing pytest..."
-    PYTEST_CMD="/app/.venv/bin/pytest"
-    docker-compose run --rm --entrypoint "" backend sh -c "$PYTEST_CMD"
+    # The '--entrypoint' flag tells docker-compose to use the specified executable
+    # as the entrypoint for this specific 'run' command.
+    docker-compose run --rm backend_test
 }
 
 
