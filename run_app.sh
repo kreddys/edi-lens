@@ -1,22 +1,18 @@
 #!/bin/bash
 
 # ==============================================================================
-# Comprehensive Utility Script for the EDI Lens Project
-#
-# Author: Your Name
-# Version: 1.2.0
+# Simplified Utility Script for the EDI Lens Project
 #
 # Description:
-# This script provides a simple command-line interface to manage the
-# Docker-based development environment for the EDI Lens application,
-# including the database, backend, and frontend services.
+# This script provides essential commands to manage the Docker-based
+# development environment.
 # ==============================================================================
 
 # --- Configuration ---
 # Color definitions for better readability
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
+YELLOW='\033[1;33m' # Added back for warnings
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
@@ -42,244 +38,120 @@ error() {
     exit 1
 }
 
-# Checks if a required command exists
-check_command() {
-    if ! command -v "$1" &> /dev/null; then
-        error "'$1' command not found. Please install it to continue."
-    fi
-}
-
-# Checks if required files exist before running commands
-check_files() {
-    if [ ! -f "docker-compose.yml" ]; then
-        error "docker-compose.yml not found. Please run this script from the project root."
-    fi
-    if [ ! -f ".env" ]; then
-        error ".env file not found. Please create it from the template."
-    fi
-}
-
 # --- Main Functions ---
+
 # Displays the help message
 usage() {
-    echo "EDI Lens Project Management Script"
+    echo "Simplified EDI Lens Project Management Script"
     echo ""
     echo "Usage: $0 [command]"
     echo ""
-    echo "Development Commands:"
-    echo "  dev                 Start all services in watch mode (foreground). You will see live logs."
-    echo "  start               Start all services in the background (detached). (Default)"
-    echo "  stop                Stop and remove all running services."
-    echo "  down                Alias for 'stop'."
-    echo "  logs [service]      Follow logs for all services or a specific one (e.g., backend, frontend)."
-    echo "  build [service]     Force a rebuild of all images or a specific service image."
-    echo "  status              Show the status of running containers."
+    echo "Available Commands:"
+    echo "  start         Build images and start all services in the background. (Default)"
+    echo "  start:clean   Permanently delete the database data, then start all services."
+    echo "  stop          Stop and remove all running services."
+    echo "  build         Force a rebuild of all service images without starting them."
+    echo "  test:backend  Re-creates the test database and runs all backend tests."
+    echo "  -h, --help    Display this help message."
     echo ""
-    echo "Testing Commands:"
-    echo "  test:backend [--clean-db] Run backend tests. Use --clean-db to force a fresh test database."
-    echo "  test:frontend       Run the frontend tests."
-    echo ""
-    echo "Service-specific Commands:"
-    echo "  start:db            Start only the database service."
-    echo "  start:backend       Start only the backend service (and its db dependency)."
-    echo "  start:frontend      Start only the frontend service (and its backend dependency)."
-    echo ""
-    echo "Maintenance Commands:"
-    echo "  clean               Stop all services AND permanently delete the database volume."
-    echo "  clean:start         Run 'clean' and then 'start' for a fresh environment."
-    echo "  standalone:backend  Start the DB and provide instructions to run the backend locally."
-    echo ""
-    echo "Diagnostic Commands:"
-    echo "  ls                  List the contents of the /app directory inside the backend container."
-    echo ""
-    echo "  -h, --help          Display this help message."
-    echo ""
-}
-
-# Starts all services in foreground/watch mode
-start_dev() {
-    info "Starting all services in DEV (watch) mode..."
-    info "Logs will be displayed in this terminal. Press Ctrl+C to stop."
-    docker-compose up --build
 }
 
 # Starts all services in detached mode
-start_all() {
-    info "Starting all services (db, backend, frontend) in the background..."
-    docker-compose up --build -d
-    success "All services are starting up. Use './run_app.sh status' to check."
+start_app() {
+    info "Building images and starting all services (db, backend, keycloak, etc.)..."
+    docker-compose up --build -d --remove-orphans
+    success "All services are starting in the background. Use 'docker-compose ps' to check status."
 }
 
 # Stops and removes all services
 stop_app() {
     info "Stopping and removing all services..."
-    docker-compose down
+    docker-compose down -v --remove-orphans
     success "All services have been stopped."
 }
 
-# Shows logs, optionally for a specific service
-show_logs() {
-    info "Following logs... (Press Ctrl+C to stop)"
-    if [ -n "$1" ]; then
-        docker-compose logs -f "$1"
-    else
-        docker-compose logs -f
-    fi
-}
-
-# Builds images, optionally for a specific service
+# Builds images for all services
 build_images() {
-    info "Building images..."
-    if [ -n "$1" ]; then
-        docker-compose build "$1"
-    else
-        docker-compose build
-    fi
+    info "Building all service images..."
+    docker-compose build --no-cache
     success "Image build complete."
 }
 
-# Deletes the database data for a clean start
-clean_db() {
-    warn "This will permanently delete the local database data in './postgres-data'."
+# Runs backend tests with a fresh database
+run_backend_tests() {
+    info "Preparing a fresh test database..."
+    info "(1/3) Dropping old test database (if it exists)..."
+    docker-compose run --rm backend python -m tests.manage_test_db drop
+    info "(2/3) Creating new test database..."
+    docker-compose run --rm backend python -m tests.manage_test_db create
+    if [ $? -ne 0 ]; then
+        error "Failed to create the test database. Aborting tests."
+    fi
+    info "(3/3) Executing pytest..."
+    docker-compose run --rm backend pytest
+}
+
+# <<< NEW FUNCTION >>>
+# Deletes the dev database and starts fresh
+start_clean_app() {
+    warn "This will permanently delete the main development database in './postgres-data'."
     read -p "Are you sure you want to continue? (y/N): " -r
-    echo
+    echo # Move to a new line
+
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        info "Stopping services before cleaning..."
+        info "Proceeding with clean start..."
+        # 1. Stop any running containers
         stop_app
+        # 2. Delete the local data directory
         info "Deleting database directory './postgres-data'..."
         rm -rf ./postgres-data
-        success "Database cleaned successfully."
+        success "Database cleaned."
+        # 3. Start everything up again, which will re-create the directory
+        start_app
     else
-        info "Clean operation cancelled."
+        info "Clean start operation cancelled."
         exit 0
     fi
 }
 
-# Runs the backend standalone
-run_backend_standalone() {
-    info "Starting database service for standalone backend..."
-    docker-compose up -d db
-    
-    warn "To run the backend standalone, please do the following in another terminal:"
-    echo "  1. In the '.env' file, change POSTGRES_SERVER from 'db' to 'localhost'."
-    echo "  2. Navigate to the backend folder: cd backend"
-    echo "  3. Run the server: poetry run uvicorn src.main:app --reload"
-    echo ""
-    info "Remember to change POSTGRES_SERVER back to 'db' before running the full stack again."
-}
-
-# Runs backend tests
-run_backend_tests() {
-    # Determine the absolute path to poetry and pytest within the Docker container's venv
-    # This is the most reliable way to ensure they are found, bypassing any PATH issues.
-    PYTHON_BIN="/app/.venv/bin/python"
-    POETRY_BIN="/app/.venv/bin/poetry"
-    PYTEST_BIN="/app/.venv/bin/pytest"
-    
-    # Check for the --clean-db flag
-    if [[ " $* " == *" --clean-db "* ]]; then
-        info "Fresh DB requested. Re-creating the test database..."
-        # Use the explicit Python interpreter to run the manage_test_db script
-        docker-compose run --rm --entrypoint "$PYTHON_BIN" backend -m tests.manage_test_db create
-        if [ $? -ne 0 ]; then
-            error "Failed to create test database. Aborting tests."
-        fi
-        info "Waiting for database to be ready..."
-        sleep 5 # Give the database a moment to fully initialize
-    else
-        info "Running backend tests on existing test database."
-        info "Use './run_app.sh test:backend --clean-db' for a completely fresh run."
-    fi
-
-    # Now, run pytest using the explicit Python interpreter from the venv
-    info "Executing pytest..."
-    # The '--entrypoint' flag tells docker-compose to use the specified executable
-    # as the entrypoint for this specific 'run' command.
-    docker-compose run --rm backend_test
-}
-
-
-# Runs frontend tests
-run_frontend_tests() {
-    info "Running frontend tests..."
-    docker-compose run --rm frontend npm test
-    # The exit code of npm test will be the exit code of the script
-}
 
 # --- Script Execution ---
-# Preamble checks
-check_command "docker"
-check_command "docker-compose"
-check_files
+
+# Check that Docker and docker-compose are installed
+if ! command -v "docker" &> /dev/null; then
+    error "'docker' command not found. Please install it to continue."
+fi
+if ! command -v "docker-compose" &> /dev/null; then
+    error "'docker-compose' command not found. Please install it to continue."
+fi
 
 # Main command dispatcher
 COMMAND=$1
-# Pass all subsequent arguments to the functions
-ARGS="${*:2}"
 
 case "$COMMAND" in
-    dev)
-        start_dev
-        ;;
     start)
-        start_all
+        start_app
         ;;
-    stop|down)
+    start:clean) # <<< NEW CASE
+        start_clean_app
+        ;;
+    stop)
         stop_app
         ;;
-    logs)
-        show_logs "$ARGS"
-        ;;
     build)
-        build_images "$ARGS"
-        ;;
-    status)
-        docker-compose ps
-        ;;
-    start:db)
-        info "Starting database service..."
-        docker-compose up -d db
-        success "Database service started."
-        ;;
-    start:backend)
-        info "Starting backend service (and dependencies)..."
-        docker-compose up --build -d backend
-        success "Backend service started."
-        ;;
-    start:frontend)
-        info "Starting frontend service (and dependencies)..."
-        docker-compose up --build -d frontend
-        success "Frontend service started."
-        ;;
-    clean)
-        clean_db
-        ;;
-    clean:start)
-        clean_db
-        start_all
-        ;;
-    standalone:backend)
-        run_backend_standalone
-        ;;
-    ls)
-        info "Listing contents of /app in the backend container..."
-        # This command will show us exactly what files are present
-        docker-compose run --rm --entrypoint "" backend ls -la /app
+        build_images
         ;;
     test:backend)
-        run_backend_tests "$ARGS"
-        ;;
-    test:frontend)
-        run_frontend_tests
+        run_backend_tests
         ;;
     -h|--help)
         usage
         ;;
-    "") # No command given, default action
+    "") # No command given, default action is to start the app
         info "No command specified. Defaulting to 'start'."
-        start_all
+        start_app
         ;;
     *) # Invalid command
-        error "Invalid command: '$COMMAND'\nRun './run_app.sh --help' to see available commands."
+        error "Invalid command: '$COMMAND'\nRun './run_app.sh --help' for available commands."
         ;;
 esac

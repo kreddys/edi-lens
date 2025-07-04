@@ -1,36 +1,21 @@
 services:
-  # The Python Backend Service
+  # The Python Backend Service - NOW THE ONLY ONE
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    # --- THIS IS THE CORRECTED SECTION ---
+    # We mount the src folder for live code reloading, but leave the
+    # .venv folder (managed by the Docker image) alone.
     volumes:
-      - ./backend:/app
-      - /app/.venv
+      - ./backend/src:/home/appuser/app/src
     env_file:
       - .env
     depends_on:
       db:
         condition: service_healthy
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
-
-  # Backend service specifically for running tests
-  backend_test:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: test # Use the 'test' stage from the Dockerfile
-    volumes:
-      - ./backend:/app
-      - /app/.venv
-    env_file:
-      - .env
-    depends_on:
-      db:
-        condition: service_healthy
-    # No command here, as the entrypoint is set in the Dockerfile for tests
 
   # The React Frontend Service
   frontend:
@@ -61,13 +46,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-      
-  # <<< NEW KEYCLOAK SERVICE >>>
+
+  # The Keycloak Service
   keycloak:
     image: quay.io/keycloak/keycloak:25.0
     ports:
-      - "8080:8080" # Keycloak UI/API port
+      - "8080:8080"
     environment:
-      KEYCLOAK_ADMIN: admin # Admin username for Keycloak UI
-      KEYCLOAK_ADMIN_PASSWORD: admin # Admin password for Keycloak UI
-    command: start-dev # Use development mode for easy setup
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command: start-dev

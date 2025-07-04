@@ -1,79 +1,47 @@
-# Stage 1: Build stage with production dependencies
+# Stage 1: Builder stage with all dependencies
+# <<< THE FIX IS HERE >>>
+# We set the final WORKDIR *before* installing anything.
 FROM python:3.11-slim AS builder
 
-WORKDIR /app
+# Set the final working directory that will be used in the app stage
+WORKDIR /home/appuser/app
 
 # Install poetry
-RUN pip install poetry
+RUN pip install --no-cache-dir poetry
 
-# Copy only dependency definition files
-COPY pyproject.toml poetry.lock ./
-
-# Install production dependencies into a virtual environment
-RUN poetry config virtualenvs.in-project true && \
-    poetry install --no-root --without dev
-
-# Stage 2: Build stage with all dependencies (for testing)
-FROM python:3.11-slim AS test_builder
-
-WORKDIR /app
-
-# Install poetry
-RUN pip install poetry
-
-# Copy only dependency definition files
+# Copy only dependency definition files to leverage Docker cache
 COPY pyproject.toml poetry.lock ./
 
 # Install all dependencies (including dev) into a virtual environment
+# Now, poetry will create the venv with the correct /home/appuser/app path.
 RUN poetry config virtualenvs.in-project true && \
     poetry install --no-root
 
-# Stage 3: Final application stage
+
+# Stage 2: Final application stage
 FROM python:3.11-slim
 
-# Set the PYTHONPATH to include the root of our app
-# This allows imports like 'from src.core import ...' to work correctly everywhere.
-ENV PYTHONPATH=/app
+# Set a non-root user for security
+RUN useradd --create-home --shell /bin/bash appuser
+USER appuser
+# Use the same WORKDIR as the builder stage
+WORKDIR /home/appuser/app
 
-WORKDIR /app
+# Set the PYTHONPATH to include the root of our app
+ENV PYTHONPATH=/home/appuser/app
+# Add the venv to the PATH
+ENV PATH="/home/appuser/app/.venv/bin:$PATH"
 
 # Copy the virtual environment from the builder stage
-COPY --from=builder /app/.venv ./.venv
+# The source path now matches the destination WORKDIR
+COPY --from=builder --chown=appuser:appuser /home/appuser/app/.venv ./.venv
 
 # Copy the application source code
-COPY ./src ./src
+COPY --chown=appuser:appuser ./src ./src
+COPY --chown=appuser:appuser ./tests ./tests
 
-# Copy the entrypoint script and make it executable
-COPY entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/entrypoint.sh
-
-# Set the entrypoint
-ENTRYPOINT ["entrypoint.sh"]
-
-# The port the app will run on
+# Expose the port the app will run on
 EXPOSE 8000
 
-# Set the default command to run when the container starts
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-# Stage 4: Test stage
-FROM python:3.11-slim AS test
-
-WORKDIR /app
-
-# Set the PYTHONPATH to include the root of our app
-ENV PYTHONPATH=/app
-
-# Copy the virtual environment with all dependencies from the test_builder stage
-COPY --from=test_builder /app/.venv ./.venv
-
-# Copy the application source code and tests
-COPY ./src ./src
-COPY ./tests ./tests
-
-# Copy the entrypoint script and make it executable
-COPY entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/entrypoint.sh
-
-# Set the entrypoint for tests (can be overridden)
-ENTRYPOINT ["/app/.venv/bin/pytest"]
+# Set the default command to run when the container starts.
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
