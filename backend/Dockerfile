@@ -14,6 +14,10 @@ RUN poetry config virtualenvs.in-project true && \
 # Stage 2: Final application stage
 FROM python:3.11-slim
 
+USER root
+RUN apt-get update && apt-get install -y curl && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN useradd --create-home --shell /bin/bash appuser
 USER appuser
 WORKDIR /home/appuser/app
