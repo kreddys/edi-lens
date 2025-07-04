@@ -10,10 +10,8 @@ RUN pip install poetry
 COPY pyproject.toml poetry.lock ./
 
 # Install dependencies into a virtual environment
-# --no-root: don't install the project itself, only dependencies
-# --without dev: skip development dependencies (FIXED from --no-dev)
 RUN poetry config virtualenvs.in-project true && \
-    poetry install --no-root --without dev
+    poetry install --no-root
 
 # Stage 2: Final application stage
 FROM python:3.11-slim
@@ -23,14 +21,21 @@ WORKDIR /app
 # Copy the virtual environment from the builder stage
 COPY --from=builder /app/.venv ./.venv
 
-# Activate the virtual environment
-ENV PATH="/app/.venv/bin:$PATH"
-
 # Copy the application source code
 COPY ./src ./src
+
+# --- NEW CHANGES HERE ---
+# Copy the entrypoint script and make it executable
+COPY entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Set the entrypoint
+ENTRYPOINT ["entrypoint.sh"]
+# --- END NEW CHANGES ---
+
 
 # The port the app will run on
 EXPOSE 8000
 
-# The command to run the application (will be overridden by docker-compose for dev)
+# Set the default command to run when the container starts
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

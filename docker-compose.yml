@@ -1,21 +1,18 @@
 services:
-  # The Python Backend Service
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8000:8000" # Expose FastAPI port
+      - "8000:8000"
     volumes:
-      - ./backend/src:/app/src # Mount source for live-reloading
-    # <<< ADD THIS LINE >>>
-    # This tells docker-compose to load the .env file from the project root
-    # into the environment of this specific container.
+      - ./backend:/app
+      - /app/.venv
     env_file:
       - .env
     depends_on:
       db:
-        condition: service_healthy # Wait for DB to be ready
+        condition: service_healthy
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 
   # The React Frontend Service

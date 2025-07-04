@@ -84,6 +84,7 @@ usage() {
     echo "  clean               Stop all services AND permanently delete the database volume."
     echo "  clean:start         Run 'clean' and then 'start' for a fresh environment."
     echo "  standalone:backend  Start the DB and provide instructions to run the backend locally."
+    echo "  test:backend        Run the backend tests using pytest."
     echo "  test:frontend       Run the frontend tests."
     echo ""
     echo "  -h, --help          Display this help message."
@@ -162,6 +163,18 @@ run_backend_standalone() {
     info "Remember to change POSTGRES_SERVER back to 'db' before running the full stack again."
 }
 
+# Runs backend tests
+run_backend_tests() {
+    info "Running backend tests..."
+    # We combine two solutions:
+    # 1. The docker-compose.yml volume exclusion ensures /app/.venv exists.
+    # 2. This command bypasses any entrypoint/PATH issues by calling pytest directly.
+    #
+    # The '--entrypoint ""' flag overrides the Dockerfile's entrypoint.
+    # Then we provide the full command with the absolute path to pytest.
+    docker-compose run --rm --entrypoint "" backend /app/.venv/bin/pytest
+}
+
 # Runs frontend tests
 run_frontend_tests() {
     info "Running frontend tests..."
@@ -222,6 +235,9 @@ case "$COMMAND" in
         ;;
     standalone:backend)
         run_backend_standalone
+        ;;
+    test:backend)
+        run_backend_tests
         ;;
     test:frontend)
         run_frontend_tests
