@@ -50,9 +50,8 @@ fi
 prepare_kc_config() {
     info "Preparing Keycloak configuration from template..."
     if ! command -v "python3" &> /dev/null; then
-        error "'python3' command not found. Please install it to run the config script."
+        error "'python3' command not found. Please install it."
     fi
-    # Run the Python script to generate the final realm-export.json
     python3 scripts/prepare_keycloak_config.py
     if [ $? -ne 0 ]; then
         error "Failed to prepare Keycloak configuration. Aborting."
@@ -66,28 +65,29 @@ usage() {
     echo "Usage: $0 [command]"
     echo ""
     echo "Available Commands:"
-    echo "  start         Build images and start all services in the background. (Default)"
-    echo "  start:clean   Permanently delete all volumes and data, then start all services."
-    echo "  stop          Stop and remove all running services and networks."
-    echo "  logs          Follow the logs of all running services."
-    echo "  build         Force a rebuild of all service images without starting them."
-    echo "  test:backend  Re-creates the test database and runs all backend tests."
-    echo "  -h, --help    Display this help message."
+    echo "  start           Build images and start all services in the background. (Default)"
+    echo "  start:clean     Permanently delete all volumes and data, then start all services."
+    echo "  stop            Stop and remove all running services and networks."
+    echo "  logs            Follow the logs of all running services."
+    echo "  build           Force a rebuild of all service images without starting them."
+    echo "  test:backend    Run unit tests with a temporary test database."
+    echo "  test:integration Run integration tests against live services."
+    echo "  -h, --help      Display this help message."
     echo ""
 }
 
 # Starts all services in detached mode
 start_app() {
-    prepare_kc_config # Run the config prep script before starting services
-    info "Building images and starting all services (db, backend, keycloak, frontend)..."
+    prepare_kc_config
+    info "Building images and starting all services..."
     docker-compose up --build -d
-    success "All services are starting in the background. Use './run_app.sh logs' or 'docker-compose ps' to check status."
+    success "All services are starting. Use './run_app.sh logs' or 'docker-compose ps' to check status."
 }
 
 # Stops and removes all services
 stop_app() {
     info "Stopping and removing all services and the network..."
-    docker-compose down --remove-orphans
+    docker-compose down
     success "All services have been stopped."
 }
 
@@ -100,14 +100,14 @@ follow_logs() {
 # Builds images for all services
 build_images() {
     info "Building all service images..."
-    docker-compose build --no-cache
+    docker-compose build
     success "Image build complete."
 }
 
-# Runs backend tests with a fresh database
+# Runs unit tests with a temporary database
 run_backend_tests() {
-    info "Preparing for backend tests..."
-    prepare_kc_config # Also run before tests, in case config is needed
+    info "Preparing for backend unit tests..."
+    prepare_kc_config
 
     info "Starting dependency services (db, keycloak)..."
     docker-compose up -d db keycloak
@@ -121,45 +121,76 @@ run_backend_tests() {
         error "Failed to create the test database. Aborting tests."
     fi
 
-    info "(3/3) Executing pytest..."
-    docker-compose run --rm --service-ports backend pytest
+    info "(3/3) Executing pytest for unit tests (tests not marked 'integration')..."
+    # Use the service name 'backend', which docker-compose understands
+    docker-compose run --rm --service-ports backend pytest -m "not integration"
     
-    # Store the exit code of the tests
     TEST_EXIT_CODE=$?
-
-    info "Tests complete. Stopping dependency services..."
+    info "Unit tests complete. Stopping dependency services..."
     docker-compose stop db keycloak
-
-    # Exit with the same code as pytest
     exit $TEST_EXIT_CODE
 }
 
-# Deletes all data and starts fresh
-start_clean_app() {
-    warn "This will permanently delete the main database and all other service volumes."
-    read -p "Are you sure you want to continue? (y/N): " -r
-    echo
+# Runs integration tests against the live stack
+run_integration_tests() {
+    info "Preparing to run INTEGRATION tests..."
+    
+    # 1. Start all services required for the integration test
+    info "(1/3) Starting all services..."
+    start_app
+    
+    # Give Docker a moment to start creating the containers
+    info "Waiting for containers to initialize..."
+    sleep 5
 
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        info "Proceeding with clean start..."
-        # Stop any running containers and remove all associated volumes
-        docker-compose down -v
-        # The postgres-data directory is host-mounted, so it must be removed manually
-        if [ -d "./postgres-data" ]; then
-            info "Deleting local database directory './postgres-data'..."
-            rm -rf ./postgres-data
-            success "Local database directory cleaned."
+    # 2. Wait for the backend to become healthy before running tests
+    info "(2/3) Waiting for the backend service to be healthy..."
+    
+    TIMEOUT=120 # 2 minutes
+    INTERVAL=5
+    ELAPSED=0
+
+    # This loop is now robust and does not use a hardcoded container name
+    while true; do
+        # Get the container ID using the SERVICE name ('backend')
+        BACKEND_CONTAINER_ID=$(docker-compose ps -q backend)
+        
+        # Check if the container object exists yet
+        if [ -z "$BACKEND_CONTAINER_ID" ]; then
+            STATUS="creating"
+        else
+            # If it exists, get its health status using its ID
+            STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}' "$BACKEND_CONTAINER_ID" 2>/dev/null)
         fi
-        # The start_app function will handle the rest, including config prep
-        start_app
-    else
-        info "Clean start operation cancelled."
-        exit 0
-    fi
+
+        if [ "$STATUS" == "healthy" ]; then
+            success "Backend service is healthy."
+            break # Exit the loop
+        fi
+
+        if [ $ELAPSED -ge $TIMEOUT ]; then
+            error "Timeout waiting for backend service to become healthy. Check 'docker-compose logs backend'."
+        fi
+        
+        info "Backend is not healthy yet (Status: $STATUS). Waiting ${INTERVAL}s..."
+        sleep $INTERVAL
+        ELAPSED=$((ELAPSED + INTERVAL))
+    done
+
+    # 3. Run only the tests marked with 'integration'
+    info "(3/3) Executing pytest for integration tests..."
+    # Use the SERVICE name 'backend' to execute the command. This is correct.
+    docker-compose exec backend pytest -m integration
+    
+    TEST_EXIT_CODE=$?
+
+    info "Integration tests complete. Stopping all services."
+    stop_app
+    
+    exit $TEST_EXIT_CODE
 }
 
 # --- Script Execution ---
-# Check that Docker and docker-compose are installed
 if ! command -v "docker" &> /dev/null; then
     error "'docker' command not found. Please install it to continue."
 fi
@@ -167,7 +198,6 @@ if ! command -v "docker-compose" &> /dev/null; then
     error "'docker-compose' command not found. Please install it to continue."
 fi
 
-# Main command dispatcher
 COMMAND=$1
 case "$COMMAND" in
     start) start_app ;;
@@ -176,6 +206,7 @@ case "$COMMAND" in
     logs) follow_logs ;;
     build) build_images ;;
     test:backend) run_backend_tests ;;
+    test:integration) run_integration_tests ;;
     -h|--help) usage ;;
     "")
         info "No command specified. Defaulting to 'start'."

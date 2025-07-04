@@ -7,38 +7,31 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
+# --- THIS IS THE NEW SECTION ---
+# Import your app's settings and Base model
+from src.core.config import settings
+from src.core.database import Base
+import src.models  # Ensure all models are loaded for metadata
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# --- THIS IS THE CRITICAL CHANGE ---
+# Set the sqlalchemy.url from your Pydantic settings object,
+# overriding the static value in alembic.ini.
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# --- THIS IS THE UPDATED SECTION ---
-# Import the Base object from your database configuration
-from src.core.database import Base
-
-# Import the entire models package. This executes the models/__init__.py file,
-# which in turn imports all your individual model classes (Tenant, User, etc.).
-# This ensures that Base.metadata is aware of all your tables before proceeding.
-import src.models
-
 # Set the target_metadata for Alembic's 'autogenerate' support
 target_metadata = Base.metadata
-# --- END UPDATED SECTION ---
-
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-    Calls to context.execute() here emit the given string to the
-    script output.
-    """
+    """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,

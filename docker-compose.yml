@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   db:
     image: postgres:15
@@ -37,7 +39,15 @@ services:
       - .env
     networks:
       - edi_network
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    command: >
+      bash -c "alembic upgrade head && 
+               uvicorn src.main:app --host 0.0.0.0 --port 8000" # <-- REMOVED --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   keycloak:
     image: quay.io/keycloak/keycloak:latest
@@ -59,7 +69,6 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # Mount the whole directory. Keycloak will find the generated realm-export.json inside.
       - ./keycloak-config:/opt/keycloak/data/import
     networks:
       - edi_network
@@ -78,9 +87,8 @@ services:
       - .env
     networks:
       - edi_network
-    command: npm run dev -- --host 
+    command: npm run dev -- --host
 
-# No extra volumes are needed for this method
 networks:
   edi_network:
     driver: bridge
