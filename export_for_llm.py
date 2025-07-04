@@ -34,70 +34,69 @@ def load_gitignore_spec(repo_root):
 
 def generate_export_content(paths_to_scan, gitignore_spec, verbose=False):
     """
-    Walks through the specified paths and generates the concatenated file content,
-    respecting .gitignore rules.
+    Processes specified paths to generate the concatenated file content.
+    - Handles both individual files and directories.
+    - Respects .gitignore rules.
+    - Skips binary files.
     """
-    output_content = []
+    output_chunks = []
     exported_file_count = 0
-    # Determine repo_root based on the script's location
-    script_dir = Path(__file__).parent.resolve()
-    repo_root = script_dir # Assuming script is in edi-lens/
+    repo_root = Path(__file__).parent.resolve()
 
-    for start_path_str in paths_to_scan:
-        # Make start_path absolute relative to repo_root
-        abs_start_path = repo_root / start_path_str
-        if not abs_start_path.exists():
-            print(f"Warning: Path '{start_path_str}' does not exist. Skipping.")
+    def process_file(file_path):
+        """Helper function to process a single file."""
+        nonlocal exported_file_count
+        relative_file_path = file_path.relative_to(repo_root)
+
+        # Check .gitignore
+        if gitignore_spec.match_file(str(relative_file_path)):
+            if verbose:
+                print(f"Skipping ignored file: {relative_file_path}")
+            return
+
+        # Check if the file is binary
+        if is_binary_file(file_path):
+            if verbose:
+                print(f"Skipping binary file: {relative_file_path}")
+            return
+
+        if verbose:
+            print(f"Exporting: {relative_file_path}")
+        
+        try:
+            with file_path.open('r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+
+            output_chunks.append(f"-- START OF FILE {relative_file_path} --")
+            output_chunks.append(content)
+            output_chunks.append(f"-- END OF FILE {relative_file_path} --\n")
+            exported_file_count += 1
+        except Exception as e:
+            print(f"Could not read file {file_path}: {e}")
+
+    for path_str in paths_to_scan:
+        path = repo_root / path_str
+        if not path.exists():
+            print(f"Warning: Path '{path_str}' does not exist. Skipping.")
             continue
 
-        for root_str, dirs, files in os.walk(abs_start_path, topdown=True):
-            root = Path(root_str)
-            
-            # Filter out directories based on .gitignore before recursing
-            # Create a copy of dirs to modify in place
-            dirs_to_prune = []
-            for d in dirs:
-                dir_path = root / d
-                relative_dir_path = dir_path.relative_to(repo_root)
-                if gitignore_spec.match_file(str(relative_dir_path) + '/'): # Add / to match directories
-                    if verbose:
-                        print(f"Skipping ignored directory: {relative_dir_path}")
-                    dirs_to_prune.append(d)
-            
-            for d in dirs_to_prune:
-                dirs.remove(d)
-
-            for file in sorted(files):
-                file_path = root / file
-                relative_file_path = file_path.relative_to(repo_root)
-
-                # Check .gitignore for file exclusion
-                if gitignore_spec.match_file(str(relative_file_path)):
-                    if verbose:
-                        print(f"Skipping ignored file: {relative_file_path}")
-                    continue
-
-                # Check if the file is binary (not already ignored by .gitignore)
-                if is_binary_file(file_path):
-                    if verbose:
-                        print(f"Skipping binary file: {relative_file_path}")
-                    continue
-
-                if verbose:
-                    print(f"Exporting: {relative_file_path}")
+        if path.is_file():
+            process_file(path)
+        elif path.is_dir():
+            for root_str, dirs, files in os.walk(path, topdown=True):
+                root = Path(root_str)
                 
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
+                # Prune ignored directories before recursing
+                dirs_to_prune = [d for d in dirs if gitignore_spec.match_file(str((root / d).relative_to(repo_root)) + '/')]
+                for d in dirs_to_prune:
+                    if verbose:
+                        print(f"Skipping ignored directory: {(root / d).relative_to(repo_root)}/")
+                    dirs.remove(d)
 
-                    output_content.append(f"-- START OF FILE {relative_file_path} --")
-                    output_content.append(content)
-                    output_content.append(f"-- END OF FILE {relative_file_path} --\n")
-                    exported_file_count += 1
-                except Exception as e:
-                    print(f"Could not read file {file_path}: {e}")
+                for file in sorted(files):
+                    process_file(root / file)
     
-    return "\n".join(output_content), exported_file_count
+    return "\n".join(output_chunks), exported_file_count
 
 def main():
     """
@@ -111,12 +110,12 @@ def main():
     parser.add_argument(
         '--frontend', 
         action='store_true', 
-        help='Only export the frontend directory (frontend/src and relevant top-level frontend config).'
+        help='Only export the frontend directory and its related config files.'
     )
     parser.add_argument(
         '--backend', 
         action='store_true', 
-        help='Only export the backend directory (backend/src and relevant top-level backend config).'
+        help='Only export the backend directory and its related config files.'
     )
     parser.add_argument(
         '-o', '--output', 
@@ -131,17 +130,19 @@ def main():
 
     args = parser.parse_args()
 
-    # Determine repo_root based on the script's location
-    script_dir = Path(__file__).parent.resolve()
-    repo_root = script_dir # Assuming script is in edi-lens/
+    repo_root = Path(__file__).parent.resolve()
     gitignore_spec = load_gitignore_spec(repo_root)
 
-    # Determine which paths to scan
+    # Default to including both if no specific flag is provided
+    scan_all = not args.frontend and not args.backend
+
     paths_to_scan = []
-    if args.frontend and not args.backend:
-        paths_to_scan.append('frontend/src')
-        # Add specific frontend config files
+
+    # Frontend paths
+    if args.frontend or scan_all:
         paths_to_scan.extend([
+            'frontend/src',
+            'frontend/e2e',
             'frontend/package.json',
             'frontend/package-lock.json',
             'frontend/tsconfig.json',
@@ -153,74 +154,51 @@ def main():
             'frontend/eslint.config.js',
             'frontend/nginx.conf',
             'frontend/Dockerfile',
+            'frontend/README.md',
         ])
-    elif args.backend and not args.frontend:
-        paths_to_scan.append('backend/src')
-        paths_to_scan.append('backend/tests')
-        # Add specific backend config files
+    
+    # Backend paths
+    if args.backend or scan_all:
         paths_to_scan.extend([
+            'backend/src',
+            'backend/tests',
+            'backend/alembic',
             'backend/pyproject.toml',
             'backend/poetry.lock',
             'backend/alembic.ini',
             'backend/pytest.ini',
             'backend/Dockerfile',
             'backend/entrypoint.sh',
+            'backend/README.md',
         ])
-    else:
-        # Default to both if no flags are specified or if both are specified
-        paths_to_scan.extend(['frontend/src', 'backend/src'])
-        # Add top-level config files
+    
+    # Top-level and shared files for 'all' mode
+    if scan_all:
         paths_to_scan.extend([
             'docker-compose.yml',
-            'export_for_llm.py', # Include itself for context
+            'export_for_llm.py',
             'run_app.sh',
-            'backend/README.md',
-            'frontend/README.md',
-            '.github/workflows/fly-deploy.yml',
-        ])
-        # Add test and migration directories
-        paths_to_scan.extend([
-            'backend/tests',
-            'frontend/e2e',
-            'backend/alembic/versions',
-        ])
-        # Add common config files from frontend and backend
-        paths_to_scan.extend([
-            'frontend/package.json',
-            'frontend/package-lock.json',
-            'frontend/tsconfig.json',
-            'frontend/tsconfig.app.json',
-            'frontend/tsconfig.node.json',
-            'frontend/vite.config.ts',
-            'frontend/tailwind.config.js',
-            'frontend/postcss.config.cjs',
-            'frontend/eslint.config.js',
-            'frontend/nginx.conf',
-            'frontend/Dockerfile',
-            'backend/pyproject.toml',
-            'backend/poetry.lock',
-            'backend/alembic.ini',
-            'backend/pytest.ini',
-            'backend/Dockerfile',
-            'backend/entrypoint.sh',
+            '.github',
         ])
 
+    # Remove duplicates while preserving order
+    unique_paths = list(dict.fromkeys(paths_to_scan))
 
     print(f"Starting export...")
-    print(f"Scanning paths: {', '.join(paths_to_scan)}")
+    print(f"Scanning paths: {', '.join(unique_paths)}")
     print(f"Outputting to: {args.output}")
 
     # Generate the content
-    content, count = generate_export_content(paths_to_scan, gitignore_spec, args.verbose)
+    content, count = generate_export_content(unique_paths, gitignore_spec, args.verbose)
 
     # Write the content to the output file
     try:
         with open(args.output, 'w', encoding='utf-8') as f:
+            f.write(f"--- START OF FILE {args.output} ---\n")
             f.write(content)
         print(f"\nSuccess! Exported {count} files to '{args.output}'.")
     except Exception as e:
         print(f"\nError writing to output file: {e}")
-
 
 if __name__ == "__main__":
     main()

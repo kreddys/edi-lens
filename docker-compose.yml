@@ -1,24 +1,74 @@
 services:
-  # The Python Backend Service - NOW THE ONLY ONE
+  db:
+    image: postgres:15
+    container_name: edidb
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      KEYCLOAK_DB_DATABASE: ${KEYCLOAK_DB_DATABASE}
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data/
+      - ./db-init:/docker-entrypoint-initdb.d
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    networks:
+      - edi_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${KEYCLOAK_DB_DATABASE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
+    container_name: edibackend
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    # --- THIS IS THE CORRECTED SECTION ---
-    # We mount the src folder for live code reloading, but leave the
-    # .venv folder (managed by the Docker image) alone.
-    volumes:
-      - ./backend/src:/home/appuser/app/src
-    env_file:
-      - .env
     depends_on:
       db:
         condition: service_healthy
+      keycloak:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/home/appuser/app
+      - /home/appuser/app/.venv # Anonymous volume to avoid overwriting venv
+    env_file:
+      - .env
+    networks:
+      - edi_network
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # The React Frontend Service
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: edikeycloak
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL_HOST: db
+      KC_DB_URL_PORT: 5432
+      KC_DB_URL_DATABASE: ${KEYCLOAK_DB_DATABASE}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_DB_SCHEMA: public
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak-config:/opt/keycloak/data/import
+    networks:
+      - edi_network
+    command: start-dev --import-realm
+
   frontend:
+    container_name: edifrontend
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -27,43 +77,12 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    depends_on:
-      - backend
+    env_file:
+      - .env
+    networks:
+      - edi_network
+    command: npm run dev -- --host
 
-  # The PostgreSQL Database for OUR Application
-  db:
-    image: postgres:15-alpine
-    volumes:
-      - ./postgres-data:/var/lib/postgresql/data/
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  keycloak:
-    image: quay.io/keycloak/keycloak:25.0
-    ports:
-      - "8080:8080"
-    environment:
-      # --- UPDATED: Use variables from .env ---
-      KEYCLOAK_ADMIN: ${KC_ADMIN_USER}
-      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD}
-
-      # --- Keycloak Database Configuration (no changes here) ---
-      KC_DB: ${KC_DB}
-      KC_DB_URL_HOST: ${KC_DB_URL_HOST}
-      KC_DB_URL_DATABASE: ${KC_DB_URL_DATABASE}
-      KC_DB_USERNAME: ${KC_DB_USERNAME}
-      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
-      KC_DB_SCHEMA: ${KC_DB_SCHEMA}
-    command: start --hostname-strict=false --http-enabled=true
-    depends_on:
-      db:
-        condition: service_healthy
+networks:
+  edi_network:
+    driver: bridge
