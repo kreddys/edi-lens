@@ -1,4 +1,5 @@
 services:
+  # The Python Backend Service
   backend:
     build:
       context: ./backend
@@ -21,14 +22,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "5173:5173" # Expose Vite dev server port
+      - "5173:5173"
     volumes:
       - ./frontend:/app
-      - /app/node_modules # Avoid overwriting node_modules from host
+      - /app/node_modules
     depends_on:
       - backend
 
-  # The PostgreSQL Database Service
+  # The PostgreSQL Database for OUR Application
   db:
     image: postgres:15-alpine
     volumes:
@@ -44,3 +45,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+      
+  # <<< NEW KEYCLOAK SERVICE >>>
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    ports:
+      - "8080:8080" # Keycloak UI/API port
+    environment:
+      KEYCLOAK_ADMIN: admin # Admin username for Keycloak UI
+      KEYCLOAK_ADMIN_PASSWORD: admin # Admin password for Keycloak UI
+    command: start-dev # Use development mode for easy setup

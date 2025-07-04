@@ -7,7 +7,7 @@ from src.core.edi_parser import parse_edi # <-- Import our new parser
 
 router = APIRouter()
 
-@router.post("/validate", response_model=schemas.ValidationResponse)
+@router.post("/", response_model=schemas.ValidationResponse)
 async def validate_edi_endpoint(
     request: schemas.ValidationRequest,
     db: AsyncSession = Depends(get_db)

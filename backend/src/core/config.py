@@ -1,15 +1,17 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    # Database configuration
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
     POSTGRES_SERVER: str
     POSTGRES_PORT: int
-
-    # API configuration
     API_V1_STR: str = "/api/v1"
+    SECRET_KEY: str
+
+    # --- NEW: Keycloak Settings ---
+    KEYCLOAK_URL: str
+    KEYCLOAK_REALM: str
     
     @property
     def DATABASE_URL(self) -> str:

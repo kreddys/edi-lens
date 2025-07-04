@@ -11,10 +11,15 @@ COPY pyproject.toml poetry.lock ./
 
 # Install dependencies into a virtual environment
 RUN poetry config virtualenvs.in-project true && \
-    poetry install --no-root
+    poetry install --no-root --without dev
 
 # Stage 2: Final application stage
 FROM python:3.11-slim
+
+# --- THIS IS THE FIX ---
+# Set the PYTHONPATH to include the root of our app
+# This allows imports like 'from src.core import ...' to work correctly everywhere.
+ENV PYTHONPATH=/app
 
 WORKDIR /app
 
@@ -24,15 +29,12 @@ COPY --from=builder /app/.venv ./.venv
 # Copy the application source code
 COPY ./src ./src
 
-# --- NEW CHANGES HERE ---
 # Copy the entrypoint script and make it executable
 COPY entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Set the entrypoint
 ENTRYPOINT ["entrypoint.sh"]
-# --- END NEW CHANGES ---
-
 
 # The port the app will run on
 EXPOSE 8000

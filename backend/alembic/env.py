@@ -16,19 +16,19 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# --- THIS IS THE PART TO CHANGE ---
-# Import your Base from your models module
+# --- THIS IS THE UPDATED SECTION ---
+# Import the Base object from your database configuration
 from src.core.database import Base
-from src.models import trading_partner, partner_config, rule, partner_override # Import all your models
 
-# Add your model's MetaData object here for 'autogenerate' support
+# Import the entire models package. This executes the models/__init__.py file,
+# which in turn imports all your individual model classes (Tenant, User, etc.).
+# This ensures that Base.metadata is aware of all your tables before proceeding.
+import src.models
+
+# Set the target_metadata for Alembic's 'autogenerate' support
 target_metadata = Base.metadata
-# --- END CHANGE ---
+# --- END UPDATED SECTION ---
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.

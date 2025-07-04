@@ -53,3 +53,4 @@ build/
 # Docker
 docker-compose.override.yml
 postgres-data/
+llm_export.txt

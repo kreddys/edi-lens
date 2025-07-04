@@ -4,7 +4,7 @@
 # Comprehensive Utility Script for the EDI Lens Project
 #
 # Author: Your Name
-# Version: 1.1.0
+# Version: 1.2.0
 #
 # Description:
 # This script provides a simple command-line interface to manage the
@@ -66,7 +66,7 @@ usage() {
     echo ""
     echo "Usage: $0 [command]"
     echo ""
-    echo "Commands:"
+    echo "Development Commands:"
     echo "  dev                 Start all services in watch mode (foreground). You will see live logs."
     echo "  start               Start all services in the background (detached). (Default)"
     echo "  stop                Stop and remove all running services."
@@ -74,6 +74,10 @@ usage() {
     echo "  logs [service]      Follow logs for all services or a specific one (e.g., backend, frontend)."
     echo "  build [service]     Force a rebuild of all images or a specific service image."
     echo "  status              Show the status of running containers."
+    echo ""
+    echo "Testing Commands:"
+    echo "  test:backend [--clean-db] Run backend tests. Use --clean-db to force a fresh test database."
+    echo "  test:frontend       Run the frontend tests."
     echo ""
     echo "Service-specific Commands:"
     echo "  start:db            Start only the database service."
@@ -84,8 +88,9 @@ usage() {
     echo "  clean               Stop all services AND permanently delete the database volume."
     echo "  clean:start         Run 'clean' and then 'start' for a fresh environment."
     echo "  standalone:backend  Start the DB and provide instructions to run the backend locally."
-    echo "  test:backend        Run the backend tests using pytest."
-    echo "  test:frontend       Run the frontend tests."
+    echo ""
+    echo "Diagnostic Commands:"
+    echo "  ls                  List the contents of the /app directory inside the backend container."
     echo ""
     echo "  -h, --help          Display this help message."
     echo ""
@@ -165,15 +170,33 @@ run_backend_standalone() {
 
 # Runs backend tests
 run_backend_tests() {
-    info "Running backend tests..."
-    # We combine two solutions:
-    # 1. The docker-compose.yml volume exclusion ensures /app/.venv exists.
-    # 2. This command bypasses any entrypoint/PATH issues by calling pytest directly.
-    #
-    # The '--entrypoint ""' flag overrides the Dockerfile's entrypoint.
-    # Then we provide the full command with the absolute path to pytest.
-    docker-compose run --rm --entrypoint "" backend /app/.venv/bin/pytest
+    # Check for the --clean-db flag
+    # The arguments passed to this function are in "$@"
+    if [[ " $@ " == *" --clean-db "* ]]; then
+        info "Fresh DB requested. Re-creating the test database..."
+        
+        # --- THIS IS THE FIX ---
+        # We must use the Python executable from inside our virtual environment
+        # to ensure it can find all the installed packages (like sqlalchemy).
+        DB_MANAGER_CMD="/app/.venv/bin/python -m tests.manage_test_db create"
+        
+        # The '--entrypoint ""' is still needed to bypass our custom entrypoint script
+        docker-compose run --rm --entrypoint "" backend sh -c "$DB_MANAGER_CMD"
+
+        if [ $? -ne 0 ]; then
+            error "Failed to create test database. Aborting tests."
+        fi
+    else
+        info "Running backend tests on existing test database."
+        info "Use './run_app.sh test:backend --clean-db' for a completely fresh run."
+    fi
+
+    # Now, run pytest using its absolute path.
+    info "Executing pytest..."
+    PYTEST_CMD="/app/.venv/bin/pytest"
+    docker-compose run --rm --entrypoint "" backend sh -c "$PYTEST_CMD"
 }
+
 
 # Runs frontend tests
 run_frontend_tests() {
@@ -190,7 +213,8 @@ check_files
 
 # Main command dispatcher
 COMMAND=$1
-SERVICE=$2
+# Pass all subsequent arguments to the functions
+ARGS="${*:2}"
 
 case "$COMMAND" in
     dev)
@@ -203,10 +227,10 @@ case "$COMMAND" in
         stop_app
         ;;
     logs)
-        show_logs "$SERVICE"
+        show_logs "$ARGS"
         ;;
     build)
-        build_images "$SERVICE"
+        build_images "$ARGS"
         ;;
     status)
         docker-compose ps
@@ -236,8 +260,13 @@ case "$COMMAND" in
     standalone:backend)
         run_backend_standalone
         ;;
+    ls)
+        info "Listing contents of /app in the backend container..."
+        # This command will show us exactly what files are present
+        docker-compose run --rm --entrypoint "" backend ls -la /app
+        ;;
     test:backend)
-        run_backend_tests
+        run_backend_tests "$ARGS"
         ;;
     test:frontend)
         run_frontend_tests

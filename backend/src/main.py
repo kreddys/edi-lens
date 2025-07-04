@@ -1,39 +1,38 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from src.core.database import init_db
-from src.api.endpoints import validation
+# Import your new router
+from src.api.endpoints import validation, trading_partners
+from src.core.auth import get_current_user, User
 
-# Define an async context manager for application lifespan events
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Code to run on startup
-    print("--- Starting up backend service ---")
-    await init_db()
-    print("--- Database initialized ---")
+    print("--- Starting up simplified backend service with Keycloak auth ---")
     yield
-    # Code to run on shutdown
-    print("--- Shutting down backend service ---")
 
+app = FastAPI(title="EDI Lens Validator API", lifespan=lifespan)
 
-app = FastAPI(
-    title="EDI Lens Validator API",
-    lifespan=lifespan
-)
-
-# Configure CORS
-# In a production environment, you should restrict the origins.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins for now
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Include API routers
-app.include_router(validation.router, prefix="/api/v1", tags=["Validation"])
+# A protected endpoint to test auth
+@app.get("/users/me", response_model=User, tags=["Users"])
+async def read_users_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+# Include our custom application routers
+app.include_router(validation.router, prefix="/api/v1/validate", tags=["Validation"])
+app.include_router(
+    trading_partners.router, 
+    prefix="/api/v1/trading-partners", 
+    tags=["Trading Partners"]
+)
 
 @app.get("/health", tags=["Health"])
 def health_check():
