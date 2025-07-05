@@ -148,7 +148,7 @@ def main():
     # Always include these shared project-level files
     paths_to_scan.extend([
         'docker-compose.yml',
-        'run_app.sh',
+        'scripts/run_app.sh',
     ])
 
     unique_paths = list(dict.fromkeys(paths_to_scan))
