@@ -5,8 +5,7 @@ from sqlalchemy.orm import selectinload
 import logging
 import sqlalchemy as sa
 
-# --- THIS IS THE FIX ---
-# Add 'profile_criterion' to the import list.
+# No changes needed to this import
 from src.models import trading_partner, partner_profile, profile_criterion
 from src.api import schemas
 
@@ -36,9 +35,15 @@ class TradingPartnerRepository:
         count_query = select(sa.func.count()).select_from(trading_partner.TradingPartner).filter_by(tenant_id=tenant_id)
         total_count = (await self.db.execute(count_query)).scalar_one()
 
-        # Query for the paginated data
+        # --- THIS IS THE FIX ---
+        # Eagerly load the 'profiles' and the nested 'criteria' relationships
+        # to prevent the MissingGreenlet/lazy-loading error during response serialization.
         query = (
             select(trading_partner.TradingPartner)
+            .options(
+                selectinload(trading_partner.TradingPartner.profiles)
+                .selectinload(partner_profile.PartnerProfile.criteria)
+            )
             .filter_by(tenant_id=tenant_id)
             .offset(skip)
             .limit(limit)
@@ -47,6 +52,7 @@ class TradingPartnerRepository:
         result = await self.db.execute(query)
         partners = result.scalars().all()
         
+        logger.debug(f"Successfully fetched {len(partners)} partners with eager loading.")
         return partners, total_count    
 
     async def create_with_profiles(self, *, partner_in: schemas.TradingPartnerCreate, tenant_id: str) -> trading_partner.TradingPartner:
@@ -80,10 +86,11 @@ class TradingPartnerRepository:
                 )
                 self.db.add(db_criterion)
         
-        await self.db.flush()
-        logger.debug(f"Flushed all profiles and criteria for partner '{db_partner.name}'. Refreshing object.")
+        await self.db.commit()
+        logger.debug(f"Committed partner '{db_partner.name}'. Refreshing object with relationships.")
         
         # Eagerly load the relationships before returning
+        # This is necessary because after a commit, the previous object instances are expired.
         result = await self.db.execute(
             select(trading_partner.TradingPartner)
             .options(

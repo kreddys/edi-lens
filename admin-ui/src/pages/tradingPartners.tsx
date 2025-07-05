@@ -34,7 +34,22 @@ export const TradingPartnerList: React.FC<IResourceComponentsProps> = () => {
 };
 
 export const TradingPartnerCreate: React.FC<IResourceComponentsProps> = () => {
-    const { saveButtonProps, refineCore: { formLoading }, register, formState: { errors } } = useForm();
+    // --- THIS IS THE FIX ---
+    // Add defaultValues to ensure `profiles` is always present in the form data,
+    // even if it's an empty array. This prevents the 422 error.
+    const { 
+        saveButtonProps, 
+        refineCore: { formLoading }, 
+        register, 
+        formState: { errors } 
+    } = useForm({
+        defaultValues: {
+            name: "",
+            description: "",
+            profiles: [],
+        },
+    });
+
     return (
         <Create isLoading={formLoading} saveButtonProps={saveButtonProps}>
             <Box component="form" sx={{ display: "flex", flexDirection: "column" }} autoComplete="off">

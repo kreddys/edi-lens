@@ -20,6 +20,8 @@ async def validate_edi_endpoint(
     Receives EDI data, validates it against configured rules for the specified tenant,
     and returns a compliance report with acknowledgements.
     """
+    logger.debug(f"User '{auth.username}' validation request payload: {request.model_dump_json(indent=2)}")
+    
     logger.info(f"User '{auth.username}' from tenant '{auth.tenant_id}' initiated validation.")
     
     parse_result = parse_edi(request.edi_data)

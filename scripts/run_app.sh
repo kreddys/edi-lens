@@ -104,7 +104,7 @@ case "$COMMAND" in
                 fi
 
                 info "Rebuilding all services with no cache..."
-                docker-compose build --no-cache
+                docker-compose build
 
                 info "Starting services..."
                 docker-compose up -d

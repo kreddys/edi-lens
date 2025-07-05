@@ -45,6 +45,8 @@ async def create_trading_partner(
     """
     Create a new Trading Partner for the tenant specified in the X-Tenant-ID header.
     """
+    logger.debug(f"User '{auth.username}' create partner request payload: {partner_in.model_dump_json(indent=2)}")
+    
     logger.info(f"User '{auth.username}' attempting to create partner '{partner_in.name}' in tenant '{auth.tenant_id}'.")
     repo = TradingPartnerRepository(db)
 
