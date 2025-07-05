@@ -1,64 +1,53 @@
-import { keycloakAuthProvider } from 'ra-keycloak';
-import Keycloak, { KeycloakTokenParsed } from 'keycloak-js';
-import { AuthProvider } from 'react-admin';
+import Keycloak from 'keycloak-js';
+import { AuthBindings } from '@refinedev/core';
 
-// The keycloak-js instance.
 const keycloak = new Keycloak({
     url: import.meta.env.VITE_KEYCLOAK_URL,
     realm: import.meta.env.VITE_KEYCLOAK_REALM,
     clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID,
 });
 
-// The base provider from the library, configured correctly.
-const baseAuthProvider = keycloakAuthProvider(keycloak, {
-    // --- THIS IS THE FIX ---
-    // The onLoad option must be passed inside initOptions.
-    initOptions: {
-        onLoad: 'login-required',
+export const authProvider: AuthBindings = {
+    login: async () => {
+        const url = keycloak.createLoginUrl();
+        window.location.href = url;
+        return { success: false };
     },
-});
-
-interface UserProfile extends KeycloakTokenParsed {
-    id: string;
-    fullName?: string;
-    groups?: string[];
-}
-
-// Wrap the base provider to add our custom logic
-export const authProvider: AuthProvider = {
-    ...baseAuthProvider,
-    
-    // We override getIdentity to provide the user's groups to the UI.
-    getIdentity: async () => {
-        // First, ensure the user is authenticated. This will also initialize the keycloak instance.
+    logout: async () => {
+        localStorage.clear();
+        const url = keycloak.createLogoutUrl();
+        window.location.href = url;
+        return { success: false };
+    },
+    check: async () => {
         try {
-            await baseAuthProvider.checkAuth({}); // Pass empty params to match interface
+            const authenticated = await keycloak.init({ onLoad: 'login-required' });
+            if (authenticated && keycloak.token) {
+                localStorage.setItem("keycloak_token", keycloak.token);
+                return { authenticated: true };
+            }
         } catch (error) {
-            // Let the base provider handle the redirect on auth error.
-            return Promise.reject(error);
+            console.error("Authentication check failed", error);
         }
-        
-        if (keycloak.tokenParsed) {
-             const profile: UserProfile = {
-                id: keycloak.tokenParsed.sub || '',
-                fullName: keycloak.tokenParsed.name,
-                groups: keycloak.tokenParsed.groups || [],
-            };
-            return Promise.resolve(profile);
-        }
-
-        // Fallback that should rarely be hit.
-        if (baseAuthProvider.getIdentity) {
-            return baseAuthProvider.getIdentity();
-        }
-
-        return Promise.reject('Could not retrieve user identity.');
+        return { authenticated: false, logout: true, redirectTo: "/login" };
     },
-
-    // We override logout to clear our custom data.
-    logout: async (params?: any) => {
-        localStorage.removeItem('selected_tenant');
-        // Let the base provider handle the actual logout and redirect.
-        return baseAuthProvider.logout(params);
+    getPermissions: async () => {
+        return keycloak.tokenParsed?.realm_access?.roles || [];
+    },
+    getIdentity: async () => {
+        if (keycloak.tokenParsed) {
+            return {
+                id: keycloak.tokenParsed.sub,
+                name: keycloak.tokenParsed.name,
+                groups: keycloak.tokenParsed.groups,
+            };
+        }
+        return null;
+    },
+    onError: async (error) => {
+        if (error.response?.status === 401 || error.response?.status === 403) {
+            return { logout: true };
+        }
+        return { error };
     },
 };
