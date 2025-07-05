@@ -1,41 +1,40 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+import logging
 
 from src.api import schemas
 from src.core.database import get_db
-from src.core.edi_parser import parse_edi # <-- Import our new parser
-from src.core.auth import get_current_user
-from src.core.auth import User
+from src.core.edi_parser import parse_edi
+from src.core.auth import require_permission, AuthContext
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.post("/", response_model=schemas.ValidationResponse)
 async def validate_edi_endpoint(
     request: schemas.ValidationRequest,
-    current_user: User = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission("validation:run")),
     db: AsyncSession = Depends(get_db)    
 ):
     """
-    Receives EDI data, validates it against configured rules,
+    Receives EDI data, validates it against configured rules for the specified tenant,
     and returns a compliance report with acknowledgements.
     """
+    logger.info(f"User '{auth.username}' from tenant '{auth.tenant_id}' initiated validation.")
     
-    # Step 1: Parse the raw EDI data using our new parser
     parse_result = parse_edi(request.edi_data)
 
     if parse_result.error:
-        # If the parser returns an error, we can't proceed.
-        # Return a 400 Bad Request error.
+        logger.warning(f"EDI parsing failed for tenant '{auth.tenant_id}': {parse_result.error}")
         raise HTTPException(status_code=400, detail=parse_result.error)
+    
+    logger.info(f"Successfully parsed {len(parse_result.segments)} segments for tenant '{auth.tenant_id}'.")
 
-    # TODO: Use the `current_user` object to implement multi-tenancy
-    # For example, you could fetch rules that belong to the user's tenant/organization.
-    # logger.info(f"Validation request by user: {current_user.username}")
+    # ... future validation logic will use auth.tenant_id ...
 
-    # ... (rest of the function)
     return schemas.ValidationResponse(
         status="Parsed Successfully",
-        findings=[], # No validation logic yet
+        findings=[],
         ta1_acknowledgement=None,
         ack999_acknowledgement=None,
         parsed_segments=parse_result.segments,

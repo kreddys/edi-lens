@@ -20,25 +20,26 @@ class PartnerProfileCreate(BaseModel):
 class TradingPartnerCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    # Each partner must be created with at least one profile
     profiles: List[PartnerProfileCreate]
 
 # --- Schemas for Reading Data (Response Models) ---
-# These include IDs and use from_attributes to map from ORM models.
 
 class ProfileCriterion(ProfileCriterionCreate):
     id: int
     profile_id: int
+    tenant_id: str
     model_config = ConfigDict(from_attributes=True)
 
 class PartnerProfile(PartnerProfileCreate):
     id: int
     partner_id: int
+    tenant_id: str
     criteria: List[ProfileCriterion]
     model_config = ConfigDict(from_attributes=True)
 
 class TradingPartner(TradingPartnerCreate):
     id: int
+    tenant_id: str
     name: str
     description: Optional[str] = None
     profiles: List[PartnerProfile]

@@ -20,10 +20,7 @@ async def login(request: Request):
     Redirects the user to the Keycloak login page by manually constructing
     the URL with the public-facing address.
     """
-    # Get the full URL for our callback endpoint
     redirect_uri = request.url_for('callback')
-
-    # Define the parameters for the Keycloak auth URL
     params = {
         'client_id': settings.KEYCLOAK_CLIENT_ID,
         'response_type': 'code',
@@ -31,7 +28,6 @@ async def login(request: Request):
         'redirect_uri': redirect_uri
     }
     
-    # Manually build the final URL using the BROWSER-FACING Keycloak URL
     auth_url_base = f"{settings.KEYCLOAK_BROWSER_URL}/realms/{settings.KEYCLOAK_REALM}/protocol/openid-connect/auth"
     auth_url = f"{auth_url_base}?{urlencode(params)}"
     
@@ -48,7 +44,6 @@ async def callback(request: Request):
         return {"error": "Authorization code not provided"}
 
     logger.debug(f"Received authorization code (first 10 chars): {code[:10]}...")
-
     redirect_uri = request.url_for('callback')
     
     try:
@@ -63,5 +58,4 @@ async def callback(request: Request):
         return TokenResponse(access_token=token_data['access_token'])
     except Exception as e:
         logger.error(f"Error during token exchange: {e}", exc_info=True)
-        # Re-raise or return an error response
         raise HTTPException(status_code=400, detail="Failed to exchange code for token.")

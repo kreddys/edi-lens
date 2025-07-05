@@ -17,7 +17,7 @@ class ProfileCriterion(Base):
     __tablename__ = 'profile_criteria'
 
     id = Column(Integer, primary_key=True, index=True)
-    # tenant_id = Column(Integer, ForeignKey('tenants.id'), nullable=False)
+    tenant_id = Column(String, nullable=False, index=True)
     profile_id = Column(Integer, ForeignKey('partner_profiles.id'), nullable=False)
     
     field_source = Column(SQLAlchemyEnum(FieldSource), nullable=False)
@@ -25,5 +25,4 @@ class ProfileCriterion(Base):
     operator = Column(SQLAlchemyEnum(Operator), nullable=False)
     value = Column(String, nullable=False)
 
-    # tenant = relationship("Tenant")
     profile = relationship("PartnerProfile", back_populates="criteria")

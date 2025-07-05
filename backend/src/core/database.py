@@ -1,12 +1,13 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
-from typing import AsyncGenerator # <<< IMPORT THIS
+from typing import AsyncGenerator
+import logging
 from .config import settings
 
-# Create the async engine
+logger = logging.getLogger(__name__)
+
 engine = create_async_engine(settings.DATABASE_URL, echo=False)
 
-# Create a sessionmaker
 AsyncSessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
@@ -15,11 +16,13 @@ AsyncSessionLocal = sessionmaker(
     expire_on_commit=False,
 )
 
-# Base class for SQLAlchemy models
 Base = declarative_base()
 
-# --- THIS IS THE CORRECTED FUNCTION SIGNATURE ---
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency to get a database session."""
+    logger.debug("Creating new database session.")
     async with AsyncSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            logger.debug("Closing database session.")

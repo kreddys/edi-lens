@@ -2,56 +2,63 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import Optional
 from sqlalchemy.orm import selectinload
+import logging
 
+# --- THIS IS THE FIX ---
+# Add 'profile_criterion' to the import list.
 from src.models import trading_partner, partner_profile, profile_criterion
 from src.api import schemas
+
+logger = logging.getLogger(__name__)
 
 class TradingPartnerRepository:
     def __init__(self, db_session: AsyncSession):
         self.db: AsyncSession = db_session
 
-    async def get_by_name(self, *, name: str) -> Optional[trading_partner.TradingPartner]:
-        """Retrieve a single trading partner by its unique name."""
+    async def get_by_name(self, *, name: str, tenant_id: str) -> Optional[trading_partner.TradingPartner]:
+        """Retrieve a single trading partner by name for a specific tenant."""
+        logger.debug(f"Querying for trading partner with name='{name}' in tenant='{tenant_id}'.")
         result = await self.db.execute(
-            select(trading_partner.TradingPartner).filter(trading_partner.TradingPartner.name == name)
+            select(trading_partner.TradingPartner)
+            .filter(trading_partner.TradingPartner.name == name)
+            .filter(trading_partner.TradingPartner.tenant_id == tenant_id)
         )
         return result.scalars().first()
 
-    async def create_with_profiles(self, *, partner_in: schemas.TradingPartnerCreate) -> trading_partner.TradingPartner:
-        """
-        Create a new trading partner, along with their profiles and criteria,
-        all within a single database transaction.
-        """
-        # The session provided by the fixture (self.db) is already in a transaction
-        # managed by the db_session fixture. No explicit commit or nested transaction
-        # is needed here for tests.
-        
+    async def create_with_profiles(self, *, partner_in: schemas.TradingPartnerCreate, tenant_id: str) -> trading_partner.TradingPartner:
+        """Create a new trading partner for a specific tenant."""
+        logger.info(f"Creating partner '{partner_in.name}' with {len(partner_in.profiles)} profiles for tenant '{tenant_id}'.")
         db_partner = trading_partner.TradingPartner(
             name=partner_in.name,
             description=partner_in.description,
+            tenant_id=tenant_id
         )
         self.db.add(db_partner)
-        await self.db.flush() # Flush to get the ID of the new partner
+        await self.db.flush()
 
+        logger.debug(f"Created base partner with id={db_partner.id}. Now creating profiles.")
         for profile_in in partner_in.profiles:
             db_profile = partner_profile.PartnerProfile(
                 name=profile_in.name,
                 implementation_guide=profile_in.implementation_guide,
                 priority=profile_in.priority,
-                partner_id=db_partner.id
+                partner_id=db_partner.id,
+                tenant_id=tenant_id
             )
             self.db.add(db_profile)
-            await self.db.flush() # Flush to get the ID of the new profile
+            await self.db.flush()
 
             for criterion_in in profile_in.criteria:
                 db_criterion = profile_criterion.ProfileCriterion(
                     profile_id=db_profile.id,
+                    tenant_id=tenant_id,
                     **criterion_in.model_dump()
                 )
                 self.db.add(db_criterion)
         
-        # No explicit commit() here; the db_session fixture handles the transaction rollback.
-
+        await self.db.flush()
+        logger.debug(f"Flushed all profiles and criteria for partner '{db_partner.name}'. Refreshing object.")
+        
         # Eagerly load the relationships before returning
         result = await self.db.execute(
             select(trading_partner.TradingPartner)

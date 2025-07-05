@@ -6,7 +6,7 @@ class PartnerProfile(Base):
     __tablename__ = 'partner_profiles'
 
     id = Column(Integer, primary_key=True, index=True)
-    # tenant_id = Column(Integer, ForeignKey('tenants.id'), nullable=False)
+    tenant_id = Column(String, nullable=False, index=True)
     partner_id = Column(Integer, ForeignKey('trading_partners.id'), nullable=False)
     
     name = Column(String, nullable=False)
@@ -14,6 +14,5 @@ class PartnerProfile(Base):
     priority = Column(Integer, nullable=False, default=10)
     snip_level_enabled = Column(Integer, nullable=False, default=1)
 
-    # tenant = relationship("Tenant")
     partner = relationship("TradingPartner", back_populates="profiles")
     criteria = relationship("ProfileCriterion", back_populates="profile", cascade="all, delete-orphan")
