@@ -74,20 +74,31 @@ services:
       retries: 3
       start_period: 30s
 
-  frontend:
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "5173:5173"
+  #   volumes:
+  #     - ./frontend:/app
+  #     - /app/node_modules
+  #   env_file:
+  #     - .env
+  #   networks:
+  #     - edi_network
+  #   command: npm run dev -- --host 
+
+  admin-ui:
     build:
-      context: ./frontend
+      context: ./admin-ui
       dockerfile: Dockerfile
     ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    env_file:
-      - .env
+      - "3000:80"
+    depends_on:
+      - backend
     networks:
       - edi_network
-    command: npm run dev -- --host 
 
 networks:
   edi_network:

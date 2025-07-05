@@ -38,7 +38,30 @@ COMPOSITE_ROLES = {
 TENANTS = {"tenant-a": "tenant-admin", "tenant-b": "tenant-viewer"}
 # --- THIS IS PART OF THE FIX ---
 # Add our new 'basic' scope to the list of default scopes for our client.
-CLIENTS = [{"clientId": KEYCLOAK_CLIENT_ID, "name": "EDI Lens API Client", "secret": CLIENT_SECRET, "enabled": True, "publicClient": False, "clientAuthenticatorType": "client-secret", "standardFlowEnabled": True, "directAccessGrantsEnabled": True, "redirectUris": ["http://localhost:8000/*", "http://localhost:5173/*", "http://127.0.0.1:8000/*", "http://127.0.0.1:5173/*"], "webOrigins": ["http://localhost:5173", "http://127.0.0.1:5173"], "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "email", "basic"], "optionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"]}]
+
+CLIENTS = [
+    {
+        "clientId": KEYCLOAK_CLIENT_ID,
+        "name": "EDI Lens Main UI",
+        "secret": CLIENT_SECRET,
+        "enabled": True,
+        "publicClient": False,
+        "clientAuthenticatorType": "client-secret",
+        "standardFlowEnabled": True,
+        "directAccessGrantsEnabled": True,
+        # --- THIS IS THE FIX ---
+        "redirectUris": [
+            "http://localhost:3000/*",      # Main redirect for login success
+            "http://localhost:3000/login",  # Explicitly add the logout redirect
+        ],
+        "webOrigins": [
+            "http://localhost:3000",
+        ],
+        "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "email", "basic"],
+        "optionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"]
+    }
+]
+
 USERS = [
     {"username": "superuser@edilens.com", "password": "password", "firstName": "Super", "lastName": "User", "email": "superuser@edilens.com", "groups": ["tenant-a", "tenant-b"], "realm_roles": ["superuser", "tenant-admin"]},
     {"username": "admin.a@edilens.com", "password": "password", "firstName": "Admin", "lastName": "Alpha", "email": "admin.a@edilens.com", "groups": ["tenant-a"], "realm_roles": []},

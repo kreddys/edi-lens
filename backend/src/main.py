@@ -19,9 +19,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="EDI Lens Validator API", lifespan=lifespan)
 
+# Add the new admin UI's origin to the list
+origins = [
+    "http://localhost:5173", # Existing Vite frontend
+    "http://localhost:3000", # New Admin UI
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
