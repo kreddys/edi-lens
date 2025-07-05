@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     
     LOG_LEVEL: str = "INFO"
 
+    BACKEND_HOST: str = "backend"    
+
     @property
     def DATABASE_URL(self) -> str:
         return (

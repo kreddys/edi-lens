@@ -1,18 +1,19 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-import logging # <<< ADD THIS
+import logging
 
 # Import your routers
 from src.api.endpoints import validation, trading_partners, auth
+# --- THIS IS THE FIX ---
+# Ensure we import the correct User model
 from src.core.auth import get_current_user, User
-from src.core.config import setup_logging # <<< ADD THIS
+from src.core.config import setup_logging
 
-logger = logging.getLogger(__name__) # <<< ADD THIS
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # --- ADD THIS ---
     setup_logging()
     logger.info("--- Starting up EDI Lens Validator API ---")
     yield
@@ -35,7 +36,7 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 # Include our new auth router
-app.include_router(auth.router, prefix="/api/v1/auth") # <<< ADD THIS LINE
+app.include_router(auth.router, prefix="/api/v1/auth")
 
 # Include our custom application routers
 app.include_router(validation.router, prefix="/api/v1/validate", tags=["Validation"])
