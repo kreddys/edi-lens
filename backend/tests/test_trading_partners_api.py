@@ -71,7 +71,7 @@ async def test_create_trading_partner(
     # The request no longer needs an Authorization header because we are
     # directly mocking the get_current_user dependency.
     response = await async_client.post(
-        "/api/v1/trading-partners/", 
+        "/api/v1/trading-partners", 
         json=partner_data,
         headers=headers
     )

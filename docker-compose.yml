@@ -39,7 +39,7 @@ services:
       - edi_network
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 10s
+      interval: 60s
       timeout: 5s
       retries: 10
       start_period: 30s

@@ -1,4 +1,4 @@
-import { Create, List, useDataGrid } from "@refinedev/mui";
+import { Create, List, useDataGrid, EditButton } from "@refinedev/mui";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { useForm } from "@refinedev/react-hook-form";
 import { Box, TextField } from "@mui/material";
@@ -6,12 +6,26 @@ import { IResourceComponentsProps } from "@refinedev/core";
 
 export const TradingPartnerList: React.FC<IResourceComponentsProps> = () => {
     const { dataGridProps } = useDataGrid();
+    
+    // Add an actions column to the grid
     const columns: GridColDef[] = [
         { field: 'id', headerName: 'ID', width: 90 },
         { field: 'name', headerName: 'Name', flex: 1 },
         { field: 'description', headerName: 'Description', flex: 2 },
         { field: 'tenant_id', headerName: 'Tenant', flex: 1 },
+        {
+            field: "actions",
+            headerName: "Actions",
+            sortable: false,
+            renderCell: function render({ row }) {
+                return <EditButton hideText recordItemId={row.id} />;
+            },
+            align: "center",
+            headerAlign: "center",
+            minWidth: 80,
+        },
     ];
+
     return (
         <List>
             <DataGrid {...dataGridProps} columns={columns} autoHeight />
@@ -30,7 +44,6 @@ export const TradingPartnerCreate: React.FC<IResourceComponentsProps> = () => {
                 <TextField {...register("description")}
                     margin="normal" fullWidth multiline rows={4}
                     label="Description" name="description" />
-                 {/* A real app would have a nested form for profiles/criteria here */}
             </Box>
         </Create>
     );

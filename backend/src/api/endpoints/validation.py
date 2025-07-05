@@ -10,7 +10,7 @@ from src.core.auth import require_permission, AuthContext
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-@router.post("/", response_model=schemas.ValidationResponse)
+@router.post("/validate", response_model=schemas.ValidationResponse)
 async def validate_edi_endpoint(
     request: schemas.ValidationRequest,
     auth: AuthContext = Depends(require_permission("validation:run")),

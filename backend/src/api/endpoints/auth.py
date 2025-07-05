@@ -8,13 +8,13 @@ from src.core.config import keycloak_openid, settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(redirect_slashes=False)
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
-@router.get("/login", response_class=RedirectResponse, tags=["Authentication"])
+@router.get("/auth/login", response_class=RedirectResponse, tags=["Authentication"])
 async def login(request: Request):
     """
     Redirects the user to the Keycloak login page by manually constructing
@@ -35,7 +35,7 @@ async def login(request: Request):
     return RedirectResponse(auth_url)
 
 
-@router.get("/callback", response_model=TokenResponse, tags=["Authentication"])
+@router.get("/auth/callback", response_model=TokenResponse, tags=["Authentication"])
 async def callback(request: Request):
     logger.info("Received callback from Keycloak.")
     code = request.query_params.get('code')

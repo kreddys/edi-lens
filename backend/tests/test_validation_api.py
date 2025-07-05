@@ -39,7 +39,7 @@ async def test_validate_endpoint_unauthenticated(async_client: AsyncClient):
     # We still need to send the header, but the auth dependency will fail first.
     headers = {"X-Tenant-ID": "tenant-a"}
     response = await async_client.post(
-        "/api/v1/validate/", 
+        "/api/v1/validate", 
         json=request_data,
         headers=headers
     )
@@ -56,7 +56,7 @@ async def test_validate_endpoint_success(async_client: AsyncClient, mock_get_cur
     headers = {"X-Tenant-ID": "tenant-a"}
 
     response = await async_client.post(
-        "/api/v1/validate/", 
+        "/api/v1/validate", 
         json=request_data,
         headers=headers
     )
@@ -74,7 +74,7 @@ async def test_validate_endpoint_parsing_error(async_client: AsyncClient, mock_g
     headers = {"X-Tenant-ID": "tenant-a"}
 
     response = await async_client.post(
-        "/api/v1/validate/", 
+        "/api/v1/validate", 
         json=request_data,
         headers=headers
     )
