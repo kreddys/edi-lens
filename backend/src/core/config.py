@@ -11,7 +11,6 @@ class Settings(BaseSettings):
     POSTGRES_SERVER: str
     POSTGRES_PORT: int
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str
 
     KEYCLOAK_URL: str
     KEYCLOAK_BROWSER_URL: str
