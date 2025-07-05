@@ -19,15 +19,25 @@ class RealmAccess(BaseModel):
 
 class User(BaseModel):
     """
-    Pydantic model for user data from the token. This now correctly handles
-    the nested roles structure.
+    Pydantic model for user data from the token. This now directly
+    maps to the JWT claims for clarity.
     """
-    id: str = Field(alias="sub")
-    username: Optional[str] = Field(alias="preferred_username", default=None)
+    sub: str  # The user's unique ID
+    preferred_username: str
     email: Optional[str] = None
-    first_name: Optional[str] = Field(alias="given_name", default=None)
-    last_name: Optional[str] = Field(alias="family_name", default=None)
-    realm_access: RealmAccess # Use the nested model to parse roles
+    given_name: Optional[str] = None
+    family_name: Optional[str] = None
+    realm_access: RealmAccess
+
+    # This allows you to still access 'user.id' as a property if you want
+    @property
+    def id(self) -> str:
+        return self.sub
+
+    # This allows you to still access 'user.username'
+    @property
+    def username(self) -> str:
+        return self.preferred_username
 
 # A simple cache for Keycloak's public key
 _keycloak_public_key = None

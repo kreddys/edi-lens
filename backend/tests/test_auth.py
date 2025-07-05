@@ -5,50 +5,35 @@ from fastapi.security import HTTPAuthorizationCredentials
 from src.core.auth import get_current_user
 from tests.utils_for_test import forge_jwt, TEST_PUBLIC_KEY
 
-# This mark applies to all tests in this file
 pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture(autouse=True)
 def mock_get_public_key(mocker):
-    """
-    This fixture automatically mocks the `get_keycloak_public_key` function
-    for every test in this file.
-
-    It converts our static PEM public key into the JWK dictionary format that
-    the main `get_current_user` function expects from the real implementation.
-    """
     from jose import jwk
-
-    # The `jwk.construct` function is perfect for creating the dictionary
-    # that python-jose uses for verification.
     public_jwk_dict = jwk.construct(TEST_PUBLIC_KEY, algorithm="RS256").to_dict()
-
     mocker.patch(
         "src.core.auth.get_keycloak_public_key",
         return_value=public_jwk_dict,
     )
 
-
 async def test_get_current_user_success():
     """
     Tests successful validation of a perfectly valid token.
     """
-    # 1. Forge a token with a standard payload.
     token = forge_jwt(payload_override={})
-
-    # 2. Simulate the credentials object that FastAPI's dependency system provides.
     creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
-
-    # 3. Call the function we are testing.
     user = await get_current_user(creds=creds)
 
-    # 4. Assert that the parsed user object has the correct data.
-    assert user.id == "test-user-id"
-    assert user.username == "testuser"
-    assert user.first_name == "Test"
+    # --- THIS IS THE FIX ---
+    # Assert using the correct attribute names from the Pydantic model
+    assert user.sub == "test-user-id"
+    assert user.preferred_username == "testuser"
+    assert user.given_name == "Test"
+    assert user.family_name == "User"
     assert "test_role" in user.realm_access.roles
 
+# ... (the rest of the file is correct and does not need changes,
+#      as it only checks for exceptions, not attribute values) ...
 
 async def test_get_current_user_expired_token_raises_exception():
     """
