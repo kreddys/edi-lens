@@ -116,13 +116,13 @@ async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer_
     try:
         public_key = await get_keycloak_public_key()
         
-        logger.debug(f"Expecting token audience: {settings.KEYCLOAK_CLIENT_ID}")
+        logger.debug(f"Expecting token audience: {settings.KEYCLOAK_BACKEND_CLIENT_ID}")
 
         payload = jwt.decode(
             creds.credentials,
             public_key,
             algorithms=["RS256"],
-            audience=settings.KEYCLOAK_CLIENT_ID
+            audience=settings.KEYCLOAK_BACKEND_CLIENT_ID
         )
         logger.debug(f"Token payload successfully decoded and validated: {payload}")
 

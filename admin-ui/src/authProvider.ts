@@ -1,52 +1,54 @@
-import Keycloak from 'keycloak-js';
 import { AuthBindings } from '@refinedev/core';
+import keycloak from './keycloak';
+import getLogger from './logger';
 
-const keycloak = new Keycloak({
-    url: import.meta.env.VITE_KEYCLOAK_URL,
-    realm: import.meta.env.VITE_KEYCLOAK_REALM,
-    clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID,
-});
+const logger = getLogger('AUTH');
 
 export const authProvider: AuthBindings = {
     login: async () => {
-        const url = keycloak.createLoginUrl();
-        window.location.href = url;
-        return { success: false };
+        logger.log("Initiating login...");
+        await keycloak.login();
+        return { success: true };
     },
     logout: async () => {
+        logger.log("Initiating logout...");
         localStorage.clear();
-        const url = keycloak.createLogoutUrl();
-        window.location.href = url;
-        return { success: false };
+        await keycloak.logout({ redirectUri: window.location.origin });
+        return { success: true, redirectTo: '/login' };
     },
     check: async () => {
-        try {
-            const authenticated = await keycloak.init({ onLoad: 'login-required' });
-            if (authenticated && keycloak.token) {
-                localStorage.setItem("keycloak_token", keycloak.token);
-                return { authenticated: true };
-            }
-        } catch (error) {
-            console.error("Authentication check failed", error);
+        logger.debug("check() called. Authenticated:", keycloak.authenticated);
+        if (keycloak.authenticated && keycloak.token) {
+            return { authenticated: true };
         }
+        logger.debug("Check failed, returning unauthenticated.");
         return { authenticated: false, logout: true, redirectTo: "/login" };
     },
     getPermissions: async () => {
-        return keycloak.tokenParsed?.realm_access?.roles || [];
+        const roles = keycloak.tokenParsed?.realm_access?.roles || [];
+        logger.debug("getPermissions() called. Roles:", roles);
+        return roles;
     },
     getIdentity: async () => {
+        logger.debug("getIdentity() called.");
         if (keycloak.tokenParsed) {
-            return {
+            const identity = {
                 id: keycloak.tokenParsed.sub,
                 name: keycloak.tokenParsed.name,
                 groups: keycloak.tokenParsed.groups,
+                ...keycloak.tokenParsed,
             };
+            logger.debug("Identity found:", identity);
+            return identity;
         }
+        logger.warn("getIdentity() called, but no token parsed.");
         return null;
     },
     onError: async (error) => {
+        logger.error("onError() caught an error:", error);
         if (error.response?.status === 401 || error.response?.status === 403) {
-            return { logout: true };
+            logger.warn("Authentication error detected, logging out.");
+            return { logout: true, redirectTo: '/login' };
         }
         return { error };
     },

@@ -10,8 +10,9 @@ KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
 ADMIN_USER = os.getenv("KEYCLOAK_ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.getenv("KEYCLOAK_ADMIN_PASSWORD", "admin")
 REALM_NAME = os.getenv("KEYCLOAK_REALM", "edi-lens")
-CLIENT_SECRET = os.getenv("KEYCLOAK_CLIENT_SECRET", "this-is-a-default-secret-change-it")
-KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "edi-lens-client")
+CLIENT_SECRET = os.getenv("KEYCLOAK_BACKEND_CLIENT_SECRET", "this-is-a-default-secret-change-it")
+KEYCLOAK_BACKEND_CLIENT_ID = os.getenv("KEYCLOAK_BACKEND_CLIENT_ID", "edi-lens-backend")
+KEYCLOAK_UI_CLIENT_ID = os.getenv("KEYCLOAK_UI_CLIENT_ID", "edi-lens-ui")
 
 # --- Blueprint Definitions (unchanged) ---
 ATOMIC_ROLES = [
@@ -41,24 +42,22 @@ TENANTS = {"tenant-a": "tenant-admin", "tenant-b": "tenant-viewer"}
 
 CLIENTS = [
     {
-        "clientId": KEYCLOAK_CLIENT_ID,
-        "name": "EDI Lens Main UI",
-        "secret": CLIENT_SECRET,
-        "enabled": True,
-        "publicClient": False,
-        "clientAuthenticatorType": "client-secret",
+        "clientId": KEYCLOAK_UI_CLIENT_ID,
+        "name": "EDI Lens UI",
+        "publicClient": True, # Public client, no secret
         "standardFlowEnabled": True,
-        "directAccessGrantsEnabled": True,
-        # --- THIS IS THE FIX ---
-        "redirectUris": [
-            "http://localhost:3000/*",      # Main redirect for login success
-            "http://localhost:3000/login",  # Explicitly add the logout redirect
-        ],
-        "webOrigins": [
-            "http://localhost:3000",
-        ],
-        "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "email", "basic"],
-        "optionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"]
+        "directAccessGrantsEnabled": False, # Not needed for UI
+        "redirectUris": ["http://localhost:3000/*"],
+        "webOrigins": ["http://localhost:3000"],
+    },
+    {
+        "clientId": KEYCLOAK_BACKEND_CLIENT_ID,
+        "name": "EDI Lens Backend",
+        "secret": os.getenv("KEYCLOAK_BACKEND_CLIENT_SECRET"),
+        "publicClient": False, # Confidential client
+        "clientAuthenticatorType": "client-secret",
+        "directAccessGrantsEnabled": True, # For testing
+        "serviceAccountsEnabled": True, # Good practice for backend clients
     }
 ]
 
@@ -141,7 +140,7 @@ def create_or_update_client_scope_mappers(admin_client: KeycloakAdmin):
     }
     audience_mapper = {
         "name": "audience-mapper", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper",
-        "config": {"access.token.claim": "true", "included.client.audience": KEYCLOAK_CLIENT_ID}
+        "config": {"access.token.claim": "true", "included.client.audience": KEYCLOAK_BACKEND_CLIENT_ID}
     }
 
     for mapper in [group_mapper, audience_mapper]:

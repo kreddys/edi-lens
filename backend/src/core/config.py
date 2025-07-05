@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     KEYCLOAK_URL: str
     KEYCLOAK_BROWSER_URL: str
     KEYCLOAK_REALM: str
-    KEYCLOAK_CLIENT_ID: str
-    KEYCLOAK_CLIENT_SECRET: str
+    KEYCLOAK_BACKEND_CLIENT_ID: str
+    KEYCLOAK_BACKEND_CLIENT_SECRET: str
     
     LOG_LEVEL: str = "INFO"
 
@@ -57,6 +57,6 @@ def setup_logging():
 keycloak_openid = KeycloakOpenID(
     server_url=settings.KEYCLOAK_URL,
     realm_name=settings.KEYCLOAK_REALM,
-    client_id=settings.KEYCLOAK_CLIENT_ID,
-    client_secret_key=settings.KEYCLOAK_CLIENT_SECRET
+    client_id=settings.KEYCLOAK_BACKEND_CLIENT_ID,
+    client_secret_key=settings.KEYCLOAK_BACKEND_CLIENT_SECRET
 )

@@ -22,7 +22,7 @@ async def login(request: Request):
     """
     redirect_uri = request.url_for('callback')
     params = {
-        'client_id': settings.KEYCLOAK_CLIENT_ID,
+        'client_id': settings.KEYCLOAK_BACKEND_CLIENT_ID,
         'response_type': 'code',
         'scope': 'openid profile email',
         'redirect_uri': redirect_uri

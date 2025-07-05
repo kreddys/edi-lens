@@ -67,7 +67,7 @@ def forge_jwt(
     payload_override: Dict[str, Any],
     # --- THIS IS THE FIX ---
     # Use the client ID from settings to ensure consistency.
-    client_id: str = settings.KEYCLOAK_CLIENT_ID,
+    client_id: str = settings.KEYCLOAK_BACKEND_CLIENT_ID,
     expires_in: int = 300,
 ) -> str:
     """Creates a signed JWT for testing purposes."""

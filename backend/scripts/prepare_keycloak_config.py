@@ -4,16 +4,16 @@ import sys
 from pathlib import Path
 
 # The unique placeholder we'll use in our template file
-PLACEHOLDER = "##KEYCLOAK_CLIENT_SECRET##"
+PLACEHOLDER = "##KEYCLOAK_BACKEND_CLIENT_SECRET##"
 
 def main():
     """
     Reads the realm template, injects the client secret from the environment,
     and writes the final realm-export.json file.
     """
-    client_secret = os.getenv("KEYCLOAK_CLIENT_SECRET")
+    client_secret = os.getenv("KEYCLOAK_BACKEND_CLIENT_SECRET")
     if not client_secret:
-        print("Error: KEYCLOAK_CLIENT_SECRET environment variable not set.", file=sys.stderr)
+        print("Error: KEYCLOAK_BACKEND_CLIENT_SECRET environment variable not set.", file=sys.stderr)
         sys.exit(1)
 
     # --- THIS PATH LOGIC IS UPDATED ---

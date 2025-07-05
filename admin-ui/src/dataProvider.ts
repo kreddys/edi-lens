@@ -1,38 +1,49 @@
 import simpleRestProvider from "@refinedev/simple-rest";
 import { DataProvider } from "@refinedev/core";
 import axios from "axios";
+import keycloak from "./keycloak";
+import getLogger from './logger';
 
-// Create an axios instance
+const logger = getLogger('DATA');
 const axiosInstance = axios.create();
 
-// Use an interceptor to add headers to every request
 axiosInstance.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('keycloak_token');
+        logger.debug(`Requesting: ${config.method?.toUpperCase()} ${config.url}`);
         const selectedTenant = localStorage.getItem('selected_tenant');
 
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+        if (keycloak.authenticated && keycloak.token) {
+            config.headers.Authorization = `Bearer ${keycloak.token}`;
+            logger.debug("Attached Authorization header.");
         }
         
         if (selectedTenant) {
             config.headers['X-Tenant-ID'] = selectedTenant;
+            logger.debug(`Attached X-Tenant-ID header: ${selectedTenant}`);
         } else {
-            console.warn('No tenant selected. Halting API request.');
-            // Cancel the request if no tenant is selected
+            logger.warn('No tenant selected. Halting API request.');
             return Promise.reject(new axios.Cancel('No tenant selected'));
         }
 
         return config;
     },
     (error) => {
+        logger.error("Axios request error:", error);
         return Promise.reject(error);
     }
 );
 
-// --- THIS IS THE FIX ---
-// The `dataProvider` was not being exported.
-// We pass the API URL and our custom axios instance to the simpleRestProvider.
+axiosInstance.interceptors.response.use(
+    (response) => {
+        logger.debug(`Response from ${response.config.url}:`, response.status, response.data);
+        return response;
+    },
+    (error) => {
+        logger.error("Axios response error:", error.response?.status, error.response?.data);
+        return Promise.reject(error);
+    }
+)
+
 export const dataProvider: DataProvider = simpleRestProvider(
     import.meta.env.VITE_API_URL, 
     axiosInstance

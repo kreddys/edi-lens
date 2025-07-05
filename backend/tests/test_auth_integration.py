@@ -20,15 +20,15 @@ async def get_test_user_token() -> str:
 
     payload = {
         "grant_type": "password",
-        "client_id": settings.KEYCLOAK_CLIENT_ID,
-        "client_secret": settings.KEYCLOAK_CLIENT_SECRET,
+        "client_id": settings.KEYCLOAK_BACKEND_CLIENT_ID,
+        "client_secret": settings.KEYCLOAK_BACKEND_CLIENT_SECRET,
         "username": "superuser@edilens.com",
         "password": "password",
         "scope": "openid profile email",
         # --- THIS IS THE FIX ---
         # Explicitly request our client_id as the audience. This ensures the
         # 'aud' claim in the resulting token is 'edi-lens-client'.
-        "audience": settings.KEYCLOAK_CLIENT_ID,
+        "audience": settings.KEYCLOAK_BACKEND_CLIENT_ID,
     }
     
     async with httpx.AsyncClient() as client:
