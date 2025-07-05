@@ -2,6 +2,8 @@ import time
 from typing import Dict, Any
 from jose import jwt
 
+from src.core.config import settings
+
 # --- PASTE YOUR GENERATED KEYS HERE ---
 # This is our static private key for signing test JWTs
 TEST_PRIVATE_KEY = """
@@ -63,12 +65,14 @@ TEST_PUBLIC_KEY_DICT = {
 
 def forge_jwt(
     payload_override: Dict[str, Any],
-    client_id: str = "fastapi-client",
+    # --- THIS IS THE FIX ---
+    # Use the client ID from settings to ensure consistency.
+    client_id: str = settings.KEYCLOAK_CLIENT_ID,
     expires_in: int = 300,
 ) -> str:
     """Creates a signed JWT for testing purposes."""
     now = int(time.time())
-    
+
     payload = {
         "exp": now + expires_in,
         "iat": now,
@@ -81,22 +85,24 @@ def forge_jwt(
         "family_name": "User",
         "realm_access": {
             "roles": ["test_role", "offline_access"]
-        }
+        },
+        # Add the 'groups' claim to match the new User model
+        "groups": ["tenant-a", "tenant-b"]
     }
-    
+
     payload.update(payload_override)
-    
+
     # --- ADD THIS LOGIC ---
     # If an override value is None, remove the key from the payload entirely.
     keys_to_delete = [key for key, value in payload.items() if value is None]
     for key in keys_to_delete:
         del payload[key]
-    
+
     token = jwt.encode(
         claims=payload,
         key=TEST_PRIVATE_KEY,
         algorithm="RS256",
         headers={"kid": "test-key-id"}
     )
-    
+
     return token

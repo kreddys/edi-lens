@@ -163,11 +163,13 @@ def main():
             'backend/src',
             'backend/tests',
             'backend/alembic',
+            'backend/scripts',
             'backend/pyproject.toml',
             'backend/poetry.lock',
             'backend/alembic.ini',
             'backend/pytest.ini',
             'backend/Dockerfile',
+            'backend/.dockerignore',
             'backend/entrypoint.sh',
             'backend/README.md',
         ])
@@ -178,7 +180,6 @@ def main():
             'docker-compose.yml',
             'export_for_llm.py',
             'run_app.sh',
-            '.github',
         ])
 
     # Remove duplicates while preserving order

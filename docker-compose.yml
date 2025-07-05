@@ -64,8 +64,6 @@ services:
     ports:
       - "8080:8080"
       - "9000:9000" # <-- Expose the management port
-    volumes:
-      - ./keycloak-config:/opt/keycloak/data/import
     networks:
       - edi_network
     command: start-dev --import-realm

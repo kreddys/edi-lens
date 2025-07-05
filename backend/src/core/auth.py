@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 bearer_scheme = HTTPBearer()
 
+# --- THIS IS THE FIX ---
+# Update the Pydantic models to match the new token structure with RBAC fields.
 class RealmAccess(BaseModel):
     """A Pydantic model for the nested 'realm_access' object in the token."""
     roles: List[str] = []
@@ -20,14 +22,13 @@ class RealmAccess(BaseModel):
 class User(BaseModel):
     """
     Pydantic model for user data from the token. This now directly
-    maps to the JWT claims for clarity.
+    maps to the JWT claims for clarity, including RBAC information.
     """
     sub: str  # The user's unique ID
-    preferred_username: str
+    preferred_username: Optional[str] = None
     email: Optional[str] = None
-    given_name: Optional[str] = None
-    family_name: Optional[str] = None
-    realm_access: RealmAccess
+    groups: List[str] = Field(default_factory=list) # For tenant validation
+    realm_access: RealmAccess = Field(default_factory=RealmAccess) # For role/permission validation
 
     # This allows you to still access 'user.id' as a property if you want
     @property
@@ -37,7 +38,7 @@ class User(BaseModel):
     # This allows you to still access 'user.username'
     @property
     def username(self) -> str:
-        return self.preferred_username
+        return self.preferred_username or "unknown_user"
 
 # A simple cache for Keycloak's public key
 _keycloak_public_key = None
@@ -102,7 +103,7 @@ async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer_
         logger.debug(f"Token payload: {payload}") # This is very useful for debugging claims
 
         user = User.model_validate(payload)
-        if user.id is None:
+        if user.sub is None:
             logger.error("User ID (sub) not found in token payload.")
             raise credentials_exception
         
