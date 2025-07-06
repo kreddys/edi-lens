@@ -4,8 +4,6 @@ from jose import jwt
 
 from src.core.config import settings
 
-# --- PASTE YOUR GENERATED KEYS HERE ---
-# This is our static private key for signing test JWTs
 TEST_PRIVATE_KEY = """
 -----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCwbYHY0Vk2+cpg
@@ -37,7 +35,6 @@ OuryrAusyY88sKWinzaMkUE=
 -----END PRIVATE KEY-----
 """
 
-# This is the corresponding public key our mock will return
 TEST_PUBLIC_KEY = """
 -----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsG2B2NFZNvnKYIWA9HY3
@@ -50,59 +47,24 @@ RQIDAQAB
 -----END PUBLIC KEY-----
 """
 
-# This is the public key formatted as a dictionary, similar to how
-# Keycloak's JWKS endpoint would provide it. This is what our mock will actually return.
-TEST_PUBLIC_KEY_DICT = {
-    "kty": "RSA",
-    "use": "sig",
-    "kid": "test-key-id",
-    "alg": "RS256",
-    # This part can be generated from the PEM, but for simplicity, we'll
-    # assume the jose library can handle the full public key dict. We'll
-    # adjust if needed. For now, we will pass the PEM string directly.
-}
-
-
 def forge_jwt(
     payload_override: Dict[str, Any],
-    # --- THIS IS THE FIX ---
-    # Use the client ID from settings to ensure consistency.
     client_id: str = settings.KEYCLOAK_BACKEND_CLIENT_ID,
     expires_in: int = 300,
 ) -> str:
     """Creates a signed JWT for testing purposes."""
     now = int(time.time())
-
     payload = {
-        "exp": now + expires_in,
-        "iat": now,
-        "iss": "http://localhost:8080/realms/test-realm",
-        "aud": client_id,
-        "sub": "test-user-id",
-        "preferred_username": "testuser",
-        "email": "test@example.com",
-        "given_name": "Test",
-        "family_name": "User",
-        "realm_access": {
-            "roles": ["test_role", "offline_access"]
-        },
-        # Add the 'groups' claim to match the new User model
+        "exp": now + expires_in, "iat": now,
+        "iss": "http://localhost:8080/realms/test-realm", "aud": client_id,
+        "sub": "test-user-id", "preferred_username": "testuser",
+        "email": "test@example.com", "given_name": "Test", "family_name": "User",
+        "realm_access": { "roles": ["test_role", "offline_access"] },
         "groups": ["tenant-a", "tenant-b"]
     }
-
     payload.update(payload_override)
-
-    # --- ADD THIS LOGIC ---
-    # If an override value is None, remove the key from the payload entirely.
     keys_to_delete = [key for key, value in payload.items() if value is None]
     for key in keys_to_delete:
         del payload[key]
-
-    token = jwt.encode(
-        claims=payload,
-        key=TEST_PRIVATE_KEY,
-        algorithm="RS256",
-        headers={"kid": "test-key-id"}
-    )
-
+    token = jwt.encode(claims=payload, key=TEST_PRIVATE_KEY, algorithm="RS256", headers={"kid": "test-key-id"})
     return token

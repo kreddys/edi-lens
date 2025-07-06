@@ -2,7 +2,7 @@ import pytest
 from httpx import AsyncClient
 
 from src.main import app
-from .test_edi_parser import VALID_EDI_STRING
+from ..core.test_edi_parser import VALID_EDI_STRING
 from src.core.auth import User, RealmAccess, get_current_user
 
 pytestmark = pytest.mark.asyncio
