@@ -7,3 +7,5 @@ select * from public.profile_criteria;
 select * from public.profile_rule_associations;
 
 select * from public.rules;
+
+select * from public.audit_logs;

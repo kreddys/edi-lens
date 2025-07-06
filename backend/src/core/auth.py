@@ -5,8 +5,10 @@ from jose import jwt, JWTError
 from pydantic import BaseModel, Field
 from typing import List, Optional, Annotated
 import logging
+import uuid
 
 from src.core.config import settings
+from src.core.audit import user_id_cv, username_cv, tenant_id_cv, request_id_cv
 
 logger = logging.getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -51,6 +53,13 @@ def require_permission(permission: str):
         x_tenant_id: Annotated[str, Header()],
         user: User = Depends(get_current_user)
     ) -> AuthContext:
+        # --- THIS IS THE FIX ---
+        # Set context variables for the audit logging system.
+        user_id_cv.set(user.sub)
+        username_cv.set(user.username)
+        tenant_id_cv.set(x_tenant_id)
+        request_id_cv.set(str(uuid.uuid4())) # Generate a unique ID for this request
+
         logger.debug(f"Checking permission '{permission}' for user '{user.username}' in tenant '{x_tenant_id}'.")
         auth_context = AuthContext(user, x_tenant_id)
         

@@ -6,13 +6,19 @@ import logging
 from src.api.endpoints import validation, trading_partners, auth
 from src.core.auth import get_current_user, User
 from src.core.config import setup_logging
+from src.core.audit import before_flush, after_flush
 
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    # --- THIS IS THE FIX ---
+    # The event listeners are synchronous, so we don't need to do anything
+    # special for them in an async app. They are registered on import.
+    # We just need to ensure the module is loaded.
     logger.info("--- Starting up EDI Lens Validator API ---")
+    logger.info("Audit logging system initialized.")
     yield
     logger.info("--- Shutting down EDI Lens Validator API ---")
 

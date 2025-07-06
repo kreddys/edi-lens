@@ -2,6 +2,18 @@ import logging
 import sys
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from keycloak import KeycloakOpenID
+from pathlib import Path
+
+# --- THIS IS THE FIX ---
+# Build a path to the .env file in the project root.
+# __file__ -> /path/to/project/backend/src/core/config.py
+# .parent -> /path/to/project/backend/src/core/
+# .parent -> /path/to/project/backend/src/
+# .parent -> /path/to/project/backend/
+# .parent -> /path/to/project/
+# Then we append '.env' to this path.
+# This makes the location of the .env file independent of the current working directory.
+ENV_PATH = Path(__file__).parent.parent.parent.parent / ".env"
 
 # --- Settings Model (with LOG_LEVEL) ---
 class Settings(BaseSettings):
@@ -28,7 +40,7 @@ class Settings(BaseSettings):
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@"
             f"{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=ENV_PATH)
 
 settings = Settings()
 

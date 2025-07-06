@@ -13,3 +13,4 @@ from .trading_partner import TradingPartner
 from .partner_profile import PartnerProfile
 from .profile_criterion import ProfileCriterion
 from .profile_rule_association import ProfileRuleAssociation
+from .audit_log import AuditLog
