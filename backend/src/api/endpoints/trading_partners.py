@@ -15,13 +15,14 @@ from src.repositories.trading_partner import TradingPartnerRepository
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Reusable dependency to get a partner and check for existence
 async def get_partner_or_404(
     partner_id: int,
     tenant_id: str,
     db: AsyncSession
 ) -> trading_partner.TradingPartner:
     repo = TradingPartnerRepository(db)
+    # --- THIS IS THE FIX ---
+    # Ensure the helper always eager loads everything needed.
     partner = await repo.get_by_id(partner_id=partner_id, tenant_id=tenant_id)
     if not partner:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trading partner not found")
@@ -37,14 +38,9 @@ async def list_trading_partners(
     _end: int = Query(10, alias="end"),
 ):
     """List all trading partners for the tenant."""
-    logger.info(f"User '{auth.username}' listing partners for tenant '{auth.tenant_id}'.")
     repo = TradingPartnerRepository(db)
-    
     limit = _end - _start
-    partners, total_count = await repo.get_all_for_tenant(
-        tenant_id=auth.tenant_id, skip=_start, limit=limit
-    )
-    
+    partners, total_count = await repo.get_all_for_tenant(tenant_id=auth.tenant_id, skip=_start, limit=limit)
     response.headers["X-Total-Count"] = str(total_count)
     return partners
 
@@ -55,7 +51,6 @@ async def get_trading_partner(
     auth: AuthContext = Depends(require_permission("partner:read"))
 ):
     """Get a single trading partner by ID."""
-    logger.info(f"User '{auth.username}' getting partner id={partner_id} for tenant '{auth.tenant_id}'.")
     partner = await get_partner_or_404(partner_id=partner_id, tenant_id=auth.tenant_id, db=db)
     return partner
 
@@ -67,29 +62,16 @@ async def create_trading_partner(
     auth: AuthContext = Depends(require_permission("partner:create"))
 ):
     """Create a new Trading Partner."""
-    logger.info(f"User '{auth.username}' attempting to create partner '{partner_in.name}' in tenant '{auth.tenant_id}'.")
     repo = TradingPartnerRepository(db)
-
     existing_partner = await repo.get_by_name(name=partner_in.name, tenant_id=auth.tenant_id)
     if existing_partner:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"A trading partner with name '{partner_in.name}' already exists in this tenant."
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"A trading partner with name '{partner_in.name}' already exists in this tenant.")
+    
+    new_partner = await repo.create_with_profiles(partner_in=partner_in, tenant_id=auth.tenant_id)
+    await db.commit()
+    # Eagerly load the full object graph for the response
+    return await get_partner_or_404(partner_id=new_partner.id, tenant_id=auth.tenant_id, db=db)
 
-    try:
-        new_partner = await repo.create_with_profiles(partner_in=partner_in, tenant_id=auth.tenant_id)
-        await db.commit()
-        await db.refresh(new_partner, attribute_names=["profiles"])
-        return new_partner
-        
-    except Exception as e:
-        logger.error(f"Error creating partner, rolling back transaction: {e}", exc_info=True)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while creating the trading partner."
-        )
 
 @router.put("/trading-partners/{partner_id}", response_model=schemas.TradingPartner)
 async def update_trading_partner(
@@ -99,31 +81,25 @@ async def update_trading_partner(
     auth: AuthContext = Depends(require_permission("partner:update"))
 ):
     """Update an existing Trading Partner."""
-    logger.info(f"User '{auth.username}' attempting to update partner id={partner_id} in tenant '{auth.tenant_id}'.")
     repo = TradingPartnerRepository(db)
-    
     db_partner = await get_partner_or_404(partner_id=partner_id, tenant_id=auth.tenant_id, db=db)
 
-    # Check for name conflict if the name is being changed
     if db_partner.name != partner_in.name:
         existing = await repo.get_by_name(name=partner_in.name, tenant_id=auth.tenant_id)
         if existing and existing.id != partner_id:
-             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"A trading partner with name '{partner_in.name}' already exists in this tenant."
-            )
+             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"A trading partner with name '{partner_in.name}' already exists in this tenant.")
+    
     try:
-        updated_partner = await repo.update(db_partner=db_partner, partner_in=partner_in)
+        updated_partner_id = (await repo.update(db_partner=db_partner, partner_in=partner_in)).id
         await db.commit()
-        await db.refresh(updated_partner)
-        return updated_partner
+        # --- THIS IS THE FIX ---
+        # After committing, the session is expired. We MUST re-fetch the object
+        # with full relationships to ensure it can be serialized correctly.
+        return await get_partner_or_404(partner_id=updated_partner_id, tenant_id=auth.tenant_id, db=db)
     except Exception as e:
         logger.error(f"Error updating partner, rolling back transaction: {e}", exc_info=True)
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while updating the trading partner."
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An error occurred while updating the trading partner.")
 
 
 @router.delete("/trading-partners/{partner_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -133,7 +109,6 @@ async def delete_trading_partner(
     auth: AuthContext = Depends(require_permission("partner:delete"))
 ):
     """Delete a trading partner."""
-    logger.info(f"User '{auth.username}' attempting to delete partner id={partner_id} in tenant '{auth.tenant_id}'.")
     repo = TradingPartnerRepository(db)
     db_partner = await get_partner_or_404(partner_id=partner_id, tenant_id=auth.tenant_id, db=db)
     await repo.delete(db_partner=db_partner)

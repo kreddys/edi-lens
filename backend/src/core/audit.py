@@ -4,7 +4,7 @@ from typing import Dict, Any, List
 from enum import Enum
 
 from sqlalchemy import event
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, RelationshipProperty
 from sqlalchemy.orm.attributes import get_history
 from sqlalchemy.orm.session import SessionTransaction
 
@@ -30,6 +30,12 @@ def _get_changed_data(obj) -> Dict[str, Any]:
     """Extracts changed data from a dirty SQLAlchemy object."""
     changes = {}
     for attr in obj.__mapper__.attrs:
+        # --- THIS IS THE FIX ---
+        # We check if the attribute is a relationship. If it is, we skip it
+        # to avoid trying to serialize entire related objects.
+        if isinstance(attr, RelationshipProperty):
+            continue
+
         history = get_history(obj, attr.key)
         if history.has_changes():
             changes[attr.key] = {
@@ -56,8 +62,6 @@ def before_flush(session: Session, flush_context, instances):
     if not user_id:
         return
 
-    # --- THIS IS THE FIX ---
-    # Use the session's info dictionary to store objects needing a PK update.
     if 'audit_pk_updates' not in session.info:
         session.info['audit_pk_updates'] = []
 
@@ -65,9 +69,6 @@ def before_flush(session: Session, flush_context, instances):
         if isinstance(obj, AuditLog):
             continue
         
-        # --- THIS IS THE FIX ---
-        # Explicitly do not set record_pk here, as it's None anyway.
-        # This makes the intent clearer.
         audit_entry = AuditLog(
             tenant_id=tenant_id_cv.get(),
             user_id=user_id,
@@ -124,5 +125,4 @@ def after_flush_postexec(session: Session, flush_context):
         for parent_obj, audit_entry in session.info['audit_pk_updates']:
             if hasattr(parent_obj, 'id') and parent_obj.id is not None:
                 audit_entry.record_pk = str(parent_obj.id)
-        # Clear the list for the next flush in this transaction
         session.info['audit_pk_updates'].clear()

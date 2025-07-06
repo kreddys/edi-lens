@@ -103,71 +103,36 @@ class TradingPartnerRepository:
         """Update a trading partner and its nested profiles/criteria."""
         logger.info(f"Updating partner id={db_partner.id} for tenant '{db_partner.tenant_id}'.")
         
+        partner_data_to_update = partner_in.model_dump(exclude_unset=True)
         # Update top-level fields
-        db_partner.name = partner_in.name
-        db_partner.description = partner_in.description
+        db_partner.name = partner_data_to_update.get("name", db_partner.name)
+        db_partner.description = partner_data_to_update.get("description", db_partner.description)
 
         # Sync profiles
-        incoming_profiles = {p.id: p for p in partner_in.profiles if p.id}
-        existing_profiles = {p.id: p for p in db_partner.profiles}
+        if "profiles" in partner_data_to_update:
+            # A simple but effective strategy: delete existing and add new ones.
+            # This is safe because of cascade delete-orphan.
+            db_partner.profiles.clear()
+            await self.db.flush()
 
-        # Update and Add
-        new_profiles = []
-        for profile_in in partner_in.profiles:
-            if profile_in.id in existing_profiles: # Update existing profile
-                db_profile = existing_profiles[profile_in.id]
-                db_profile.name = profile_in.name
-                db_profile.implementation_guide = profile_in.implementation_guide
-                db_profile.priority = profile_in.priority
-                # Sync criteria
-                self._sync_criteria(db_profile, profile_in.criteria)
-            else: # Add new profile
-                new_db_profile = partner_profile.PartnerProfile(
+            for profile_in in partner_in.profiles:
+                new_profile = partner_profile.PartnerProfile(
                     name=profile_in.name,
                     implementation_guide=profile_in.implementation_guide,
                     priority=profile_in.priority,
-                    tenant_id=db_partner.tenant_id,
-                    criteria=[
-                        profile_criterion.ProfileCriterion(tenant_id=db_partner.tenant_id, **c.model_dump())
-                        for c in profile_in.criteria
-                    ]
+                    tenant_id=db_partner.tenant_id
                 )
-                new_profiles.append(new_db_profile)
-        
-        # The relationship cascade will handle adding these new profiles
-        db_partner.profiles.extend(new_profiles)
+                new_profile.criteria = [
+                    profile_criterion.ProfileCriterion(tenant_id=db_partner.tenant_id, **c.model_dump())
+                    for c in profile_in.criteria
+                ]
+                db_partner.profiles.append(new_profile)
 
-        # Delete old profiles
-        # The cascade="all, delete-orphan" on the relationship does this automatically
-        # when we replace the collection. We'll build the final list.
-        final_profiles = [p for p in db_partner.profiles if p.id in incoming_profiles] + new_profiles
-        db_partner.profiles = final_profiles
-        
         self.db.add(db_partner)
         await self.db.flush()
+        # The key fix is to return the flushed object which is still attached to the session
+        # The endpoint will then handle the final commit and eager re-fetch.
         return db_partner
-
-    def _sync_criteria(self, db_profile: partner_profile.PartnerProfile, criteria_in: List[schemas.ProfileCriterionUpdate]):
-        """Helper to sync criteria for a given profile."""
-        incoming_criteria = {c.id: c for c in criteria_in if c.id}
-        existing_criteria = {c.id: c for c in db_profile.criteria}
-        
-        new_criteria = []
-        for crit_in in criteria_in:
-            if crit_in.id in existing_criteria:
-                db_crit = existing_criteria[crit_in.id]
-                db_crit.field_source = crit_in.field_source
-                db_crit.field_identifier = crit_in.field_identifier
-                db_crit.operator = crit_in.operator
-                db_crit.value = crit_in.value
-            else:
-                new_criteria.append(profile_criterion.ProfileCriterion(
-                    tenant_id=db_profile.tenant_id, **crit_in.model_dump()
-                ))
-        
-        final_criteria = [c for c in db_profile.criteria if c.id in incoming_criteria] + new_criteria
-        db_profile.criteria = final_criteria
-
 
     async def delete(self, *, db_partner: trading_partner.TradingPartner) -> None:
         """Delete a trading partner."""
