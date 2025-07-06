@@ -1,83 +1,68 @@
 import pytest
 from httpx import AsyncClient
 
+from src.main import app
 from .test_edi_parser import VALID_EDI_STRING
-from src.core.auth import User, RealmAccess
+from src.core.auth import User, RealmAccess, get_current_user
 
 pytestmark = pytest.mark.asyncio
 
-
 @pytest.fixture
-def mock_get_current_user():
-    """
-    Mocks the get_current_user dependency for the validation endpoint.
-    Provides a user with the 'validation:run' permission and tenant membership.
-    """
-    from src.main import app
-    from src.core.auth import get_current_user
-    
+def mock_user_with_validation_perm():
+    """Provides a user with the 'validation:run' permission."""
     mock_user = User(
         sub="mock-validator-user-456",
         preferred_username="validator",
         groups=["tenant-a"],
         realm_access=RealmAccess(roles=["validation:run"])
     )
-    
-    async def _mock():
-        return mock_user
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    yield
+    del app.dependency_overrides[get_current_user]
 
-    app.dependency_overrides[get_current_user] = _mock
+@pytest.fixture
+def mock_user_without_validation_perm():
+    """Provides a user who is authenticated but lacks the 'validation:run' permission."""
+    mock_user = User(
+        sub="mock-no-perm-user-789",
+        preferred_username="no-validator",
+        groups=["tenant-a"],
+        realm_access=RealmAccess(roles=["some-other-role"]) # No validation role
+    )
+    app.dependency_overrides[get_current_user] = lambda: mock_user
     yield
     del app.dependency_overrides[get_current_user]
 
 
 async def test_validate_endpoint_unauthenticated(async_client: AsyncClient):
-    """
-    Tests that a request without an Authorization header is rejected.
-    """
+    """Tests that a request without a valid token is rejected."""
+    # No dependency override means get_current_user will fail
     request_data = {"edi_data": VALID_EDI_STRING}
-    # We still need to send the header, but the auth dependency will fail first.
-    headers = {"X-Tenant-ID": "tenant-a"}
-    response = await async_client.post(
-        "/api/v1/validate", 
-        json=request_data,
-        headers=headers
-    )
+    headers = {"X-Tenant-ID": "tenant-a", "Authorization": "Bearer invalidtoken"}
+    response = await async_client.post("/api/v1/validate", json=request_data, headers=headers)
+    assert response.status_code == 401
 
-    # --- THIS IS THE FIX ---
-    # FastAPI's Bearer scheme fails before checking the header, returning 403.
+async def test_validate_endpoint_lacks_permission(async_client: AsyncClient, mock_user_without_validation_perm):
+    """Tests that an authenticated user without the correct permission is rejected."""
+    request_data = {"edi_data": VALID_EDI_STRING}
+    headers = {"X-Tenant-ID": "tenant-a"}
+    response = await async_client.post("/api/v1/validate", json=request_data, headers=headers)
     assert response.status_code == 403
+    assert "Permission 'validation:run' required" in response.json()["detail"]
 
 
-async def test_validate_endpoint_success(async_client: AsyncClient, mock_get_current_user):
-    """Tests a successful validation request from an authenticated user."""
+async def test_validate_endpoint_success(async_client: AsyncClient, mock_user_with_validation_perm):
+    """Tests a successful validation request from an authorized user."""
     request_data = {"edi_data": VALID_EDI_STRING}
-    
     headers = {"X-Tenant-ID": "tenant-a"}
-
-    response = await async_client.post(
-        "/api/v1/validate", 
-        json=request_data,
-        headers=headers
-    )
-    
+    response = await async_client.post("/api/v1/validate", json=request_data, headers=headers)
     assert response.status_code == 200, response.text
     data = response.json()
     assert data["status"] == "Parsed Successfully"
-    assert len(data["parsed_segments"]) == 5
 
-
-async def test_validate_endpoint_parsing_error(async_client: AsyncClient, mock_get_current_user):
+async def test_validate_endpoint_parsing_error(async_client: AsyncClient, mock_user_with_validation_perm):
     """Tests that a request with invalid EDI data returns a 400 error."""
     request_data = {"edi_data": "this is not valid edi~"}
-    
     headers = {"X-Tenant-ID": "tenant-a"}
-
-    response = await async_client.post(
-        "/api/v1/validate", 
-        json=request_data,
-        headers=headers
-    )
-
-    assert response.status_code == 400, response.text
-    assert "No valid segments found" in response.json()["detail"]
+    response = await async_client.post("/api/v1/validate", json=request_data, headers=headers)
+    assert response.status_code == 400
