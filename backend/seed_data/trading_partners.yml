@@ -1,0 +1,58 @@
+- tenant_id: "tenant-a"
+  name: "United Health Group (Professional)"
+  description: "Handles 837P claims for UHG nationwide."
+  profiles:
+    - name: "UHG Payer Connect - 837P"
+      implementation_guide: "005010X222A1"
+      priority: 10
+      criteria:
+        - field_source: "ISA"
+          field_identifier: "08"
+          operator: "EQUALS"
+          value: "UHG_RECEIVER_ID"
+        - field_source: "GS"
+          field_identifier: "01"
+          operator: "EQUALS"
+          value: "HC"
+
+- tenant_id: "tenant-a"
+  name: "Change Healthcare (Clearinghouse)"
+  description: "Handles claims status and remittances from Change Healthcare."
+  profiles:
+    - name: "CHC - 835 Remittances"
+      implementation_guide: "005010X221A1"
+      priority: 100
+      criteria:
+        - field_source: "ISA"
+          field_identifier: "06"
+          operator: "STARTS_WITH"
+          value: "CHANGE_HEALTH"
+        - field_source: "GS"
+          field_identifier: "01"
+          operator: "EQUALS"
+          value: "HP" # 835 Transaction Code
+    - name: "CHC - 277 Claims Status"
+      implementation_guide: "005010X212"
+      priority: 100
+      criteria:
+        - field_source: "ISA"
+          field_identifier: "06"
+          operator: "STARTS_WITH"
+          value: "CHANGE_HEALTH"
+        - field_source: "GS"
+          field_identifier: "01"
+          operator: "EQUALS"
+          value: "HN" # 277 Transaction Code
+
+- tenant_id: "tenant-b"
+  name: "State Medicaid"
+  description: "Configuration for state-level Medicaid submissions."
+  profiles:
+    - name: "Medicaid - Dental Claims"
+      implementation_guide: "005010X224A2"
+      priority: 50
+      criteria:
+        - field_source: "FILENAME"
+          field_identifier: "name"
+          operator: "CONTAINS"
+          value: "_medicaid_dental_"

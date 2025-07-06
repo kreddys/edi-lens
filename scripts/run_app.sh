@@ -165,6 +165,12 @@ case "$COMMAND" in
     "setup:keycloak")
         setup_keycloak
         ;;
+    "seed")
+        info "Seeding the database with initial data..."
+        info "Any additional arguments will be passed to the script (e.g., --clean)."
+        docker-compose run --rm "$BACKEND_SERVICE_NAME" python -m scripts.seed "$@"
+        success "Database seeding complete."
+        ;;
     *)
         error "Unknown command: $COMMAND"
         ;;
