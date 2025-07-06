@@ -123,6 +123,7 @@ def main():
             'backend/tests',
             'backend/alembic',
             'backend/scripts',
+            'backend/seed_data',
             'backend/pyproject.toml',
             'backend/poetry.lock',
             'backend/alembic.ini',

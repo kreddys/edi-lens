@@ -2,11 +2,13 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
+from pathlib import Path
 
 from src.api.endpoints import validation, trading_partners, auth
 from src.core.auth import get_current_user, User
 from src.core.config import setup_logging
 from src.core.audit import before_flush, after_flush_postexec
+from src.core.schema_manager import schema_manager
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +16,13 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     setup_logging()
     logger.info("--- Starting up EDI Lens Validator API ---")
+    
+    # --- THIS IS THE NEW CODE ---
+    # Load all EDI implementation guide schemas into memory on startup.
+    schema_dir = Path(__file__).parent / "edi_schemas"
+    schema_manager.load_schemas(schema_dir)
+    # --- END OF NEW CODE ---
+    
     logger.info("Audit logging system initialized.")
     yield
     logger.info("--- Shutting down EDI Lens Validator API ---")
