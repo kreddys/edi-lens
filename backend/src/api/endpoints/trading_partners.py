@@ -29,7 +29,8 @@ async def get_partner_or_404(
     return partner
 
 
-@router.get("/trading-partners", response_model=List[schemas.TradingPartner])
+@router.get("/trading-partners", response_model=List[schemas.TradingPartner], summary="List Trading Partners",
+            description="Retrieves a paginated list of all trading partners for the tenant specified in the `X-Tenant-ID` header. Requires `partner:read` permission.")
 async def list_trading_partners(
     response: Response,
     db: AsyncSession = Depends(get_db),
@@ -44,7 +45,8 @@ async def list_trading_partners(
     response.headers["X-Total-Count"] = str(total_count)
     return partners
 
-@router.get("/trading-partners/{partner_id}", response_model=schemas.TradingPartner)
+@router.get("/trading-partners/{partner_id}", response_model=schemas.TradingPartner, summary="Get a Single Trading Partner",
+            description="Fetches the complete details of a single trading partner, including all nested profiles and criteria. Requires `partner:read` permission.")
 async def get_trading_partner(
     partner_id: int,
     db: AsyncSession = Depends(get_db),
@@ -55,7 +57,8 @@ async def get_trading_partner(
     return partner
 
 
-@router.post("/trading-partners", response_model=schemas.TradingPartner, status_code=status.HTTP_201_CREATED)
+@router.post("/trading-partners", response_model=schemas.TradingPartner, status_code=status.HTTP_201_CREATED, summary="Create a Trading Partner",
+             description="Creates a new trading partner with its associated profiles and criteria. Requires `partner:create` permission.")
 async def create_trading_partner(
     partner_in: schemas.TradingPartnerCreate,
     db: AsyncSession = Depends(get_db),
@@ -73,7 +76,8 @@ async def create_trading_partner(
     return await get_partner_or_404(partner_id=new_partner.id, tenant_id=auth.tenant_id, db=db)
 
 
-@router.put("/trading-partners/{partner_id}", response_model=schemas.TradingPartner)
+@router.put("/trading-partners/{partner_id}", response_model=schemas.TradingPartner, summary="Update a Trading Partner",
+            description="Updates an existing trading partner. This endpoint supports full replacement of profiles and criteria. Requires `partner:update` permission.")
 async def update_trading_partner(
     partner_id: int,
     partner_in: schemas.TradingPartnerUpdate,
@@ -102,7 +106,8 @@ async def update_trading_partner(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An error occurred while updating the trading partner.")
 
 
-@router.delete("/trading-partners/{partner_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/trading-partners/{partner_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a Trading Partner",
+               description="Deletes a trading partner and all of its associated profiles and criteria. Requires `partner:delete` permission.")
 async def delete_trading_partner(
     partner_id: int,
     db: AsyncSession = Depends(get_db),
