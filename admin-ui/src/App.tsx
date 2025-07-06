@@ -1,54 +1,43 @@
 import { Refine } from "@refinedev/core";
 import { RefineKbar, RefineKbarProvider } from "@refinedev/kbar";
-import {
-    ErrorComponent,
-    useNotificationProvider,
-    RefineThemes,
-} from "@refinedev/antd";
-import { App as AntdApp, ConfigProvider } from "antd";
+import { ErrorComponent, useNotificationProvider } from "@refinedev/antd";
 import "@refinedev/antd/dist/reset.css";
 
 import routerBindings, { NavigateToResource, UnsavedChangesNotifier } from "@refinedev/react-router-v6";
 import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
 
-import { dataProvider } from "./dataProvider";
-import { authProvider } from "./authProvider";
-// --- THIS IS THE FIX ---
-// Import the new access control provider
-import { accessControlProvider } from "./accessControlProvider";
 import { Layout } from "./components/layout";
-import { TradingPartnerList, TradingPartnerCreate } from "./pages/tradingPartners";
+import { dataProvider, authProvider, accessControlProvider, ThemeProvider } from "./providers";
+
+// --- THIS IS THE FIX ---
+// Import each component directly from its file path.
+import { TradingPartnerList } from "./pages/tradingPartners/list";
+import { TradingPartnerCreate } from "./pages/tradingPartners/create";
+import { TradingPartnerEdit } from "./pages/tradingPartners/edit";
+import { TradingPartnerShow } from "./pages/tradingPartners/show";
 
 function App() {
   return (
     <BrowserRouter>
       <RefineKbarProvider>
-        <ConfigProvider theme={RefineThemes.Blue}>
-          <AntdApp>
+        <ThemeProvider>
             <Refine
               dataProvider={dataProvider}
               routerProvider={routerBindings}
               authProvider={authProvider}
               notificationProvider={useNotificationProvider}
-              // --- THIS IS THE FIX ---
-              // Add the access control provider to the Refine component
               accessControlProvider={accessControlProvider}
               resources={[
                 {
                   name: "trading-partners",
                   list: "/trading-partners",
                   create: "/trading-partners/create",
-                  meta: { 
-                    label: "Trading Partners",
-                    // This tells Refine which permission is needed to even see this in the menu
-                    canDelete: true, // Example, not used yet but good practice
-                  },
+                  edit: "/trading-partners/edit/:id",
+                  show: "/trading-partners/show/:id",
+                  meta: { label: "Trading Partners" },
                 },
               ]}
-              options={{
-                syncWithLocation: true,
-                warnWhenUnsavedChanges: true,
-              }}
+              options={{ syncWithLocation: true, warnWhenUnsavedChanges: true }}
             >
               <Routes>
                 <Route element={<Layout><Outlet /></Layout>}>
@@ -56,6 +45,8 @@ function App() {
                   <Route path="/trading-partners">
                     <Route index element={<TradingPartnerList />} />
                     <Route path="create" element={<TradingPartnerCreate />} />
+                    <Route path="edit/:id" element={<TradingPartnerEdit />} />
+                    <Route path="show/:id" element={<TradingPartnerShow />} />
                   </Route>
                   <Route path="*" element={<ErrorComponent />} />
                 </Route>
@@ -63,8 +54,7 @@ function App() {
               <RefineKbar />
               <UnsavedChangesNotifier />
             </Refine>
-          </AntdApp>
-        </ConfigProvider>
+        </ThemeProvider>
       </RefineKbarProvider>
     </BrowserRouter>
   );

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional
 
 from src.models.profile_criterion import FieldSource, Operator
@@ -21,6 +21,21 @@ class TradingPartnerCreate(BaseModel):
     name: str
     description: Optional[str] = None
     profiles: List[PartnerProfileCreate]
+
+# --- Schemas for Updating Data ---
+
+class ProfileCriterionUpdate(ProfileCriterionCreate):
+    id: Optional[int] = None
+
+class PartnerProfileUpdate(PartnerProfileCreate):
+    id: Optional[int] = None
+    criteria: List[ProfileCriterionUpdate]
+
+class TradingPartnerUpdate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    profiles: List[PartnerProfileUpdate]
+
 
 # --- Schemas for Reading Data (Response Models) ---
 

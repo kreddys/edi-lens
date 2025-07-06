@@ -1,6 +1,5 @@
 import { AuthBindings } from '@refinedev/core';
-import keycloak from './keycloak';
-import getLogger from './logger';
+import { keycloak, getLogger } from '../utils';
 
 const logger = getLogger('AUTH');
 

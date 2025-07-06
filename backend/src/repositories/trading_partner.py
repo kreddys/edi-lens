@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import Optional, List, Tuple
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 import logging
 import sqlalchemy as sa
 
@@ -13,6 +13,20 @@ logger = logging.getLogger(__name__)
 class TradingPartnerRepository:
     def __init__(self, db_session: AsyncSession):
         self.db: AsyncSession = db_session
+
+    async def get_by_id(self, *, partner_id: int, tenant_id: str) -> Optional[trading_partner.TradingPartner]:
+        """Retrieve a single trading partner by its ID for a specific tenant."""
+        logger.debug(f"Querying for partner id='{partner_id}' in tenant='{tenant_id}'.")
+        query = (
+            select(trading_partner.TradingPartner)
+            .options(
+                selectinload(trading_partner.TradingPartner.profiles)
+                .selectinload(partner_profile.PartnerProfile.criteria)
+            )
+            .filter_by(id=partner_id, tenant_id=tenant_id)
+        )
+        result = await self.db.execute(query)
+        return result.scalars().first()
 
     async def get_by_name(self, *, name: str, tenant_id: str) -> Optional[trading_partner.TradingPartner]:
         """Retrieve a single trading partner by name for a specific tenant."""
@@ -33,10 +47,6 @@ class TradingPartnerRepository:
         count_query = select(sa.func.count()).select_from(trading_partner.TradingPartner).filter_by(tenant_id=tenant_id)
         total_count = (await self.db.execute(count_query)).scalar_one()
 
-        # --- THIS IS THE FIX ---
-        # Ensure that the query eagerly loads not just the 'profiles', but also
-        # the 'criteria' within each profile. This prevents any lazy-loading
-        # during response serialization.
         query = (
             select(trading_partner.TradingPartner)
             .options(
@@ -57,10 +67,6 @@ class TradingPartnerRepository:
     async def create_with_profiles(self, *, partner_in: schemas.TradingPartnerCreate, tenant_id: str) -> trading_partner.TradingPartner:
         """Create a new trading partner for a specific tenant."""
         logger.info(f"Creating partner '{partner_in.name}' with {len(partner_in.profiles)} profiles for tenant '{tenant_id}'.")
-        
-        # --- THIS IS THE FIX ---
-        # Following the recommended pattern: build the object graph, add it to the
-        # session, and flush to get IDs, but let the caller manage the commit.
         
         db_partner = trading_partner.TradingPartner(
             name=partner_in.name,
@@ -86,14 +92,85 @@ class TradingPartnerRepository:
             db_profiles.append(db_profile)
         db_partner.profiles = db_profiles
         
-        # 2. Add the top-level object to the session.
         self.db.add(db_partner)
-        
-        # 3. Flush the session to send data to the DB and get generated IDs.
-        #    The transaction remains OPEN.
         await self.db.flush()
         logger.debug(f"Flushed partner '{db_partner.name}'. ID should be available now.")
-        
-        # 4. Return the instance. It's fully populated and part of the session.
-        #    The calling test fixture or get_db dependency will handle the commit/rollback.
         return db_partner
+
+    async def update(
+        self, *, db_partner: trading_partner.TradingPartner, partner_in: schemas.TradingPartnerUpdate
+    ) -> trading_partner.TradingPartner:
+        """Update a trading partner and its nested profiles/criteria."""
+        logger.info(f"Updating partner id={db_partner.id} for tenant '{db_partner.tenant_id}'.")
+        
+        # Update top-level fields
+        db_partner.name = partner_in.name
+        db_partner.description = partner_in.description
+
+        # Sync profiles
+        incoming_profiles = {p.id: p for p in partner_in.profiles if p.id}
+        existing_profiles = {p.id: p for p in db_partner.profiles}
+
+        # Update and Add
+        new_profiles = []
+        for profile_in in partner_in.profiles:
+            if profile_in.id in existing_profiles: # Update existing profile
+                db_profile = existing_profiles[profile_in.id]
+                db_profile.name = profile_in.name
+                db_profile.implementation_guide = profile_in.implementation_guide
+                db_profile.priority = profile_in.priority
+                # Sync criteria
+                self._sync_criteria(db_profile, profile_in.criteria)
+            else: # Add new profile
+                new_db_profile = partner_profile.PartnerProfile(
+                    name=profile_in.name,
+                    implementation_guide=profile_in.implementation_guide,
+                    priority=profile_in.priority,
+                    tenant_id=db_partner.tenant_id,
+                    criteria=[
+                        profile_criterion.ProfileCriterion(tenant_id=db_partner.tenant_id, **c.model_dump())
+                        for c in profile_in.criteria
+                    ]
+                )
+                new_profiles.append(new_db_profile)
+        
+        # The relationship cascade will handle adding these new profiles
+        db_partner.profiles.extend(new_profiles)
+
+        # Delete old profiles
+        # The cascade="all, delete-orphan" on the relationship does this automatically
+        # when we replace the collection. We'll build the final list.
+        final_profiles = [p for p in db_partner.profiles if p.id in incoming_profiles] + new_profiles
+        db_partner.profiles = final_profiles
+        
+        self.db.add(db_partner)
+        await self.db.flush()
+        return db_partner
+
+    def _sync_criteria(self, db_profile: partner_profile.PartnerProfile, criteria_in: List[schemas.ProfileCriterionUpdate]):
+        """Helper to sync criteria for a given profile."""
+        incoming_criteria = {c.id: c for c in criteria_in if c.id}
+        existing_criteria = {c.id: c for c in db_profile.criteria}
+        
+        new_criteria = []
+        for crit_in in criteria_in:
+            if crit_in.id in existing_criteria:
+                db_crit = existing_criteria[crit_in.id]
+                db_crit.field_source = crit_in.field_source
+                db_crit.field_identifier = crit_in.field_identifier
+                db_crit.operator = crit_in.operator
+                db_crit.value = crit_in.value
+            else:
+                new_criteria.append(profile_criterion.ProfileCriterion(
+                    tenant_id=db_profile.tenant_id, **crit_in.model_dump()
+                ))
+        
+        final_criteria = [c for c in db_profile.criteria if c.id in incoming_criteria] + new_criteria
+        db_profile.criteria = final_criteria
+
+
+    async def delete(self, *, db_partner: trading_partner.TradingPartner) -> None:
+        """Delete a trading partner."""
+        logger.info(f"Deleting partner id={db_partner.id} for tenant '{db_partner.tenant_id}'.")
+        await self.db.delete(db_partner)
+        await self.db.flush()

@@ -1,9 +1,10 @@
 import { ThemedLayoutV2, ThemedTitleV2 } from "@refinedev/antd";
 import { useGetIdentity } from "@refinedev/core";
-import { Layout as AntdLayout, Select, Typography, Avatar, Space } from "antd";
+import { Layout as AntdLayout, Select, Typography, Avatar, Space, theme } from "antd";
 import React, { useEffect, useState } from "react";
 
 const { Header: AntdHeader } = AntdLayout;
+const { useToken } = theme;
 
 const TenantSelector = () => {
     const { data: identity } = useGetIdentity<{groups: string[]}>();
@@ -49,21 +50,23 @@ const UserMenu = () => {
 }
 
 const CustomHeader: React.FC = () => {
+    const { token } = useToken();
     return (
         <AntdHeader
             style={{
-                padding: "0 24px",
+                backgroundColor: token.colorBgContainer,
                 display: "flex",
-                justifyContent: "space-between",
+                // --- THIS IS THE FIX ---
+                // The header only contains right-aligned elements now.
+                justifyContent: "flex-end",
                 alignItems: "center",
-                backgroundColor: "#FFF" // Set a background color for visibility
+                padding: "0 24px",
+                height: "64px",
+                position: "sticky",
+                top: 0,
+                zIndex: 1,
             }}
         >
-            {/* ThemedTitleV2 is now inside our custom header, so we don't need a separate prop */}
-            <ThemedTitleV2
-                collapsed={false}
-                text="EDI Lens"
-            />
             <Space>
                 <TenantSelector />
                 <UserMenu />
@@ -77,7 +80,15 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
     return (
         <ThemedLayoutV2
             Header={CustomHeader}
-            Title={({ collapsed }) => <ThemedTitleV2 collapsed={collapsed} text="EDI Lens" />}
+            // --- THIS IS THE FIX ---
+            // We re-introduce the `Title` prop to `ThemedLayoutV2`.
+            // This prop specifically targets the title area in the Sider (sidebar).
+            Title={({ collapsed }) => (
+                <ThemedTitleV2
+                    collapsed={collapsed}
+                    text="EDI Lens" // Your project name here
+                />
+            )}
         >
             {children}
         </ThemedLayoutV2>
