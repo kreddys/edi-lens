@@ -47,8 +47,8 @@ CLIENTS = [
         "publicClient": True, # Public client, no secret
         "standardFlowEnabled": True,
         "directAccessGrantsEnabled": False, # Not needed for UI
-        "redirectUris": ["http://localhost:3000/*"],
-        "webOrigins": ["http://localhost:3000"],
+        "redirectUris": ["http://localhost:3001/*", "http://localhost:3000/*"],
+        "webOrigins": ["http://localhost:3001", "http://localhost:3000"],
     },
     {
         "clientId": KEYCLOAK_BACKEND_CLIENT_ID,

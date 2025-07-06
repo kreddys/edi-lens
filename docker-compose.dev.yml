@@ -1,0 +1,23 @@
+# FILE: docker-compose.dev.yml
+#
+# This file provides development-specific overrides for docker-compose.
+# It should be used with the main docker-compose.yml file like this:
+# docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  backend:
+    # This command overrides the default CMD in the Dockerfile.
+    # The --reload flag enables auto-reloading when source code changes.
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+  admin-ui:
+    build:
+      context: ./admin-ui
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./admin-ui:/app
+      - /app/node_modules
+    ports:
+      - "3001:3000"  # React dev server runs on 3000
+    command: npm run dev -- --host
+    environment:
+      - CHOKIDAR_USEPOLLING=true

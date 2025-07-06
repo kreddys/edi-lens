@@ -56,7 +56,7 @@ run_backend_integration_tests() {
 
 # --- Main Logic ---
 if [ -z "$1" ]; then
-    error "Usage: ./scripts/run_app.sh [up|down|clean|logs|migrate:make \"message\"|migrate:run|...]"
+    error "Usage: ./scripts/run_app.sh [up|dev|down|clean|logs|migrate:make \"message\"|migrate:run|...]"
 fi
 COMMAND=$1
 shift # Shift arguments so $1 is now the migration message if present
@@ -75,8 +75,13 @@ case "$COMMAND" in
     "up")
         info "Starting all application services with live-reload..."
         # This will now start the uvicorn server with --reload by default
-        docker-compose up --build
+        docker-compose up -d --build
         ;;
+    "dev")
+        info "Starting all services in DEVELOPMENT mode (with backend live-reload)..."
+        # We explicitly specify both compose files. The override file is last.
+        docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+        ;;        
     "down")
         stop_services
         ;;
@@ -104,8 +109,8 @@ case "$COMMAND" in
                     warn "postgres-data folder not found at $POSTGRES_DATA_DIR."
                 fi
 
-                info "Rebuilding all services with no cache..."
-                docker-compose build --no-cache
+                info "Rebuilding all services..."
+                docker-compose build
                 success "Clean complete."
                 ;;
             *)
@@ -143,7 +148,7 @@ case "$COMMAND" in
         info "Preparing for backend unit tests..."
         docker-compose up -d db keycloak
         sleep 5 # Wait for dependencies
-        setup_keycloak
+        #setup_keycloak
         run_backend_tests
         info "Unit tests complete. Stopping services..."
         stop_services

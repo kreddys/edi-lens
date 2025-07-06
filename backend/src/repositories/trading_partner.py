@@ -33,6 +33,10 @@ class TradingPartnerRepository:
         count_query = select(sa.func.count()).select_from(trading_partner.TradingPartner).filter_by(tenant_id=tenant_id)
         total_count = (await self.db.execute(count_query)).scalar_one()
 
+        # --- THIS IS THE FIX ---
+        # Ensure that the query eagerly loads not just the 'profiles', but also
+        # the 'criteria' within each profile. This prevents any lazy-loading
+        # during response serialization.
         query = (
             select(trading_partner.TradingPartner)
             .options(

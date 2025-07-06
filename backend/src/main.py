@@ -22,7 +22,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="EDI Lens Validator API", lifespan=lifespan)
 
-origins = ["http://localhost:3000"]
+origins = [
+    "http://localhost:3000",  # Keep this for the production admin-ui
+    "http://localhost:3001",  # Add this for the development admin-ui
+]
 
 app.add_middleware(
     CORSMiddleware,

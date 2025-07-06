@@ -1,0 +1,13 @@
+# Dockerfile.dev
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Let Docker run your local files, so no need to copy the rest
+
+# Start the dev server (e.g., Vite, CRA, Next.js, etc.)
+CMD ["npm", "run", "dev"]
