@@ -46,10 +46,15 @@ export const authProvider: AuthBindings = {
     },
     onError: async (error) => {
         logger.error("onError() caught an error:", error);
-        if (error.response?.status === 401 || error.response?.status === 403) {
-            logger.warn("Authentication error detected, logging out.");
+        // --- THIS IS THE FIX ---
+        // Only trigger a logout on a 401 (Unauthorized) error.
+        if (error.response?.status === 401) {
+            logger.warn("Authentication token is invalid or expired, logging out.");
             return { logout: true, redirectTo: '/login' };
         }
+
+        // For all other errors (including 403 Forbidden), let Refine's
+        // notificationProvider show the error message.
         return { error };
     },
 };

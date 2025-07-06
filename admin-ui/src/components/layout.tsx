@@ -1,11 +1,12 @@
-import { ThemedLayoutV2, ThemedTitleV2 } from "@refinedev/mui";
+import { ThemedLayoutV2, ThemedTitleV2 } from "@refinedev/antd";
 import { useGetIdentity } from "@refinedev/core";
-import { AppBar, MenuItem, Select, SelectChangeEvent, Toolbar, Typography, Avatar } from "@mui/material";
-import { useEffect, useState } from "react";
+import { Layout as AntdLayout, Select, Typography, Avatar, Space } from "antd";
+import React, { useEffect, useState } from "react";
+
+const { Header: AntdHeader } = AntdLayout;
 
 const TenantSelector = () => {
-    // We expect the identity to have a 'groups' property
-    const { data: identity } = useGetIdentity<{groups: string[], name: string}>();
+    const { data: identity } = useGetIdentity<{groups: string[]}>();
     const [selectedTenant, setSelectedTenant] = useState(localStorage.getItem('selected_tenant') || '');
 
     useEffect(() => {
@@ -17,8 +18,8 @@ const TenantSelector = () => {
         }
     }, [identity, selectedTenant]);
 
-    const handleChange = (event: SelectChangeEvent) => {
-        localStorage.setItem('selected_tenant', event.target.value);
+    const handleChange = (value: string) => {
+        localStorage.setItem('selected_tenant', value);
         window.location.reload();
     };
 
@@ -28,42 +29,57 @@ const TenantSelector = () => {
         <Select
             value={selectedTenant}
             onChange={handleChange}
-            variant="standard"
-            sx={{ color: 'white', ml: 2, '& .MuiSelect-icon': { color: 'white' }, '& .MuiInput-underline:before': { borderBottomColor: 'white' } }}
-        >
-            {identity.groups.map((group: string) => (
-                <MenuItem key={group} value={group}>{group}</MenuItem>
-            ))}
-        </Select>
+            options={identity.groups.map(group => ({ label: group, value: group }))}
+            bordered={false}
+            style={{ minWidth: 120 }}
+        />
     );
 };
 
-// A simple user menu component to show avatar and name
 const UserMenu = () => {
-    const { data: identity } = useGetIdentity<{name: string}>();
+    const { data: identity } = useGetIdentity<{name: string, avatar: string}>();
     if (!identity) return null;
 
     return (
-        <div style={{display: 'flex', alignItems: 'center', marginLeft: '16px'}}>
-            <Avatar sx={{ width: 32, height: 32, marginRight: '8px' }} />
-            <Typography color="white">{identity.name}</Typography>
-        </div>
+        <Space style={{ marginLeft: "16px" }}>
+            <Avatar src={identity.avatar} />
+            <Typography.Text strong>{identity.name}</Typography.Text>
+        </Space>
     )
 }
 
-const Header = () => (
-    <AppBar position="sticky">
-        <Toolbar>
-            <ThemedTitleV2 collapsed={false} />
-            <Typography sx={{ flex: 1 }}></Typography>
-            <TenantSelector />
-            <UserMenu />
-        </Toolbar>
-    </AppBar>
-);
+const CustomHeader: React.FC = () => {
+    return (
+        <AntdHeader
+            style={{
+                padding: "0 24px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                backgroundColor: "#FFF" // Set a background color for visibility
+            }}
+        >
+            {/* ThemedTitleV2 is now inside our custom header, so we don't need a separate prop */}
+            <ThemedTitleV2
+                collapsed={false}
+                text="EDI Lens"
+            />
+            <Space>
+                <TenantSelector />
+                <UserMenu />
+            </Space>
+        </AntdHeader>
+    );
+};
 
-export const Layout = ({ children }: { children: React.ReactNode }) => (
-    <ThemedLayoutV2 Header={Header}>
-        {children}
-    </ThemedLayoutV2>
-);
+
+export const Layout = ({ children }: { children: React.ReactNode }) => {
+    return (
+        <ThemedLayoutV2
+            Header={CustomHeader}
+            Title={({ collapsed }) => <ThemedTitleV2 collapsed={collapsed} text="EDI Lens" />}
+        >
+            {children}
+        </ThemedLayoutV2>
+    );
+};
