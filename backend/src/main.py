@@ -6,17 +6,15 @@ import logging
 from src.api.endpoints import validation, trading_partners, auth
 from src.core.auth import get_current_user, User
 from src.core.config import setup_logging
-from src.core.audit import before_flush, after_flush
+# --- THIS IS THE FIX ---
+# Correct the import to match the new function name 'after_flush_postexec'
+from src.core.audit import before_flush, after_flush_postexec
 
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
-    # --- THIS IS THE FIX ---
-    # The event listeners are synchronous, so we don't need to do anything
-    # special for them in an async app. They are registered on import.
-    # We just need to ensure the module is loaded.
     logger.info("--- Starting up EDI Lens Validator API ---")
     logger.info("Audit logging system initialized.")
     yield
@@ -39,7 +37,6 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
     logger.info(f"User {current_user.username} fetched their profile.")
     return current_user
 
-# --- THIS IS THE FIX ---
 # Keep the main prefix generic and let the endpoint files define their specific paths.
 app.include_router(auth.router, prefix="/api/v1", tags=["Authentication"])
 app.include_router(validation.router, prefix="/api/v1", tags=["Validation"])

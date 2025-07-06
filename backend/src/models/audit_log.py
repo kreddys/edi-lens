@@ -23,7 +23,11 @@ class AuditLog(Base):
     timestamp_utc = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     action = Column(SQLAlchemyEnum(AuditAction), nullable=False)
     table_name = Column(String, nullable=False, index=True)
-    record_pk = Column(String, nullable=False, index=True) # Use String for flexibility with UUIDs later
+    
+    # --- THIS IS THE FIX ---
+    # Allow record_pk to be temporarily NULL for CREATE actions.
+    # The 'after_flush_postexec' hook will populate it before the transaction commits.
+    record_pk = Column(String, nullable=True, index=True)
 
     # Data columns (The change itself)
     before_value = Column(JSON, nullable=True)

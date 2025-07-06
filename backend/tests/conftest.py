@@ -18,37 +18,30 @@ test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 TestAsyncSessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
-    bind=test_engine, # Bind the sessionmaker to the engine
+    bind=test_engine,
     class_=AsyncSession,
     expire_on_commit=False,
 )
 
+# --- THIS IS THE FIX ---
+# Replace the old fixtures with a single, more robust one.
+# This fixture sets up the DB schema for each function and provides a session.
 @pytest_asyncio.fixture(scope="function")
-async def setup_db():
-    """Set up and tear down the test database schema."""
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Fixture that provides a database session for a test, and handles
+    schema creation and teardown.
+    """
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    yield
+
+    async with TestAsyncSessionLocal() as session:
+        yield session
+
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
-@pytest_asyncio.fixture()
-async def db_session():
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-    async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-    
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    session = async_session()
-    try:
-        async with session.begin():
-            yield session
-    finally:
-        await session.close()
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-        await engine.dispose()
+    await test_engine.dispose()
 
 
 @pytest_asyncio.fixture(scope="function")

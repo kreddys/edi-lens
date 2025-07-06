@@ -35,7 +35,8 @@ setup_keycloak() {
 manage_test_db() {
     local command=$1
     info "Running database command: $command"
-    docker-compose exec "$BACKEND_SERVICE_NAME" python -m tests.manage_test_db "$command"
+    # Override the default command to run the manage_test_db script
+    docker-compose run --rm "$BACKEND_SERVICE_NAME" python -m tests.manage_test_db "$command"
 }
 
 run_backend_tests() {
@@ -44,19 +45,21 @@ run_backend_tests() {
     info "(2/3) Creating new test database..."
     manage_test_db "create"
     info "(3/3) Executing pytest for unit tests (tests not marked 'integration')..."
-    docker-compose exec "$BACKEND_SERVICE_NAME" pytest -m "not integration"
+    # Override the default command to run pytest
+    docker-compose run --rm "$BACKEND_SERVICE_NAME" pytest -m "not integration"
 }
 
 run_backend_integration_tests() {
     info "Executing pytest for integration tests (tests marked 'integration')..."
-    docker-compose exec "$BACKEND_SERVICE_NAME" pytest -m "integration"
+    docker-compose run --rm "$BACKEND_SERVICE_NAME" pytest -m "integration"
 }
 
 # --- Main Logic ---
 if [ -z "$1" ]; then
-    error "Usage: ./scripts/run_app.sh [up|down|clean|logs|test:backend|test:integration|setup:keycloak]"
+    error "Usage: ./scripts/run_app.sh [up|down|clean|logs|migrate:make \"message\"|migrate:run|...]"
 fi
 COMMAND=$1
+shift # Shift arguments so $1 is now the migration message if present
 
 # Load .env from project root
 if [ -f "$(dirname "$0")/../.env" ]; then
@@ -70,11 +73,9 @@ check_docker
 
 case "$COMMAND" in
     "up")
-        info "Starting all application services..."
-        docker-compose up -d --build
-        setup_keycloak
-        #info "Application is up and running. Tailing logs..."
-        #docker-compose logs -f
+        info "Starting all application services with live-reload..."
+        # This will now start the uvicorn server with --reload by default
+        docker-compose up --build
         ;;
     "down")
         stop_services
@@ -104,40 +105,57 @@ case "$COMMAND" in
                 fi
 
                 info "Rebuilding all services with no cache..."
-                docker-compose build
-
-                info "Starting services..."
-                docker-compose up -d
-
-                setup_keycloak
-
-                #info "Clean build and start complete. Tailing logs..."
-                #docker-compose logs -f
+                docker-compose build --no-cache
+                success "Clean complete."
                 ;;
             *)
                 warn "Clean operation cancelled by user."
                 ;;
         esac
     ;;
+    "migrate:make")
+        if [ -z "$1" ]; then
+            error "Migration message is required. Usage: ./scripts/run_app.sh migrate:make \"your message\""
+        fi
+        info "Generating new migration: $1"
+        info "Starting dependent services..."
+        docker-compose up -d db keycloak
+        sleep 5 # Give services time to stabilize
+        info "Running alembic command..."
+        # Use 'run --rm' to start a temporary container for the command
+        docker-compose run --rm "$BACKEND_SERVICE_NAME" alembic revision --autogenerate -m "$1"
+        success "Migration file created. Please check it for correctness."
+        ;;
+    "migrate:run")
+        info "Applying migrations to the database..."
+        info "Starting dependent services..."
+        docker-compose up -d db
+        sleep 5
+        info "Running alembic upgrade..."
+        docker-compose run --rm "$BACKEND_SERVICE_NAME" alembic upgrade head
+        success "Migrations applied."
+        ;;
     "logs")
         info "Tailing logs for all services..."
         docker-compose logs -f
         ;;
     "test:backend")
         info "Preparing for backend unit tests..."
-        docker-compose up -d --build
+        docker-compose up -d db keycloak
+        sleep 5 # Wait for dependencies
         setup_keycloak
         run_backend_tests
         info "Unit tests complete. Stopping services..."
-        docker-compose down
+        stop_services
         ;;
     "test:integration")
         info "Preparing for backend integration tests..."
-        docker-compose up -d --build
+        docker-compose up -d db keycloak
+        sleep 5
         setup_keycloak
         run_backend_integration_tests
         info "Integration tests complete. Stopping services..."
-        docker-compose down
+        stop_services
         ;;
     "setup:keycloak")
         setup_keycloak
