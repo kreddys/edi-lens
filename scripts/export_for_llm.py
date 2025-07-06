@@ -143,12 +143,20 @@ def main():
             'admin-ui/nginx.conf',
             'admin-ui/index.html',
             'admin-ui/Dockerfile',
+            'admin-ui/Dockerfile.dev',
+            'admin-ui/README.md',
         ])
 
     # Always include these shared project-level files
     paths_to_scan.extend([
+        '.gitignore',
+        'README.md',
+        '.env.example',
         'docker-compose.yml',
+        'docker-compose.dev.yml',
         'scripts/run_app.sh',
+        'scripts/queries.sql',
+        'docs'
     ])
 
     unique_paths = list(dict.fromkeys(paths_to_scan))
