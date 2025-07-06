@@ -106,7 +106,7 @@ async def test_partner_crud_with_live_superuser_token():
 async def test_partner_creation_denied_for_viewer_with_live_token():
     """
     Verifies that a user with a valid token but insufficient permissions
-    (viewer.b@edilens.com lacks 'partner:create') is rejected.
+    (viewer.b@edilens.com lacks 'trading-partners:create') is rejected.
     """
     # viewer.b@edilens.com is in group 'tenant-b' and has role 'tenant-viewer'
     token = await get_user_token("viewer.b@edilens.com")
@@ -120,9 +120,10 @@ async def test_partner_creation_denied_for_viewer_with_live_token():
     async with httpx.AsyncClient() as client:
         response = await client.post(base_url, headers=headers, json=create_data)
     
-    # We expect a 403 Forbidden because the role 'partner:create' is missing.
+    # We expect a 403 Forbidden because the role 'trading-partners:create' is missing.
     assert response.status_code == 403
-    assert "Permission 'partner:create' required" in response.text
+    # --- THIS IS THE FIX ---
+    assert "Permission 'trading-partners:create' required" in response.text
 
 @pytest.mark.asyncio
 async def test_tenant_isolation_with_live_tokens():
@@ -182,4 +183,4 @@ async def test_audit_log_with_live_token():
     # 3. Assert that the user details in the log match the token claims
     assert log_entry.user_id == claims["sub"]
     assert log_entry.username == claims["preferred_username"]
-    assert log_entry.tenant_id == "tenant-a"    
+    assert log_entry.tenant_id == "tenant-a"

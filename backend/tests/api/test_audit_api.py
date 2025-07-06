@@ -13,7 +13,8 @@ pytestmark = pytest.mark.asyncio
 def mock_get_current_user_for_audit():
     mock_user = User(
         sub="audit-user-789", preferred_username="auditor", groups=["tenant-a"], 
-        realm_access=RealmAccess(roles=["partner:create", "partner:update", "partner:delete"]) 
+        # --- THIS IS THE FIX ---
+        realm_access=RealmAccess(roles=["trading-partners:create", "trading-partners:update", "trading-partners:delete"]) 
     )
     app.dependency_overrides[get_current_user] = lambda: mock_user
     yield mock_user

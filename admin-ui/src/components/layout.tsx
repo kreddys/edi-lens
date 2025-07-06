@@ -31,7 +31,8 @@ const TenantSelector = () => {
             value={selectedTenant}
             onChange={handleChange}
             options={identity.groups.map(group => ({ label: group, value: group }))}
-            bordered={false}
+            // --- THIS IS THE FIX ---
+            variant="borderless"
             style={{ minWidth: 120 }}
         />
     );
@@ -56,8 +57,6 @@ const CustomHeader: React.FC = () => {
             style={{
                 backgroundColor: token.colorBgContainer,
                 display: "flex",
-                // --- THIS IS THE FIX ---
-                // The header only contains right-aligned elements now.
                 justifyContent: "flex-end",
                 alignItems: "center",
                 padding: "0 24px",
@@ -80,9 +79,6 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
     return (
         <ThemedLayoutV2
             Header={CustomHeader}
-            // --- THIS IS THE FIX ---
-            // We re-introduce the `Title` prop to `ThemedLayoutV2`.
-            // This prop specifically targets the title area in the Sider (sidebar).
             Title={({ collapsed }) => (
                 <ThemedTitleV2
                     collapsed={collapsed}

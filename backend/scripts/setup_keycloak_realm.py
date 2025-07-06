@@ -14,12 +14,14 @@ CLIENT_SECRET = os.getenv("KEYCLOAK_BACKEND_CLIENT_SECRET", "this-is-a-default-s
 KEYCLOAK_BACKEND_CLIENT_ID = os.getenv("KEYCLOAK_BACKEND_CLIENT_ID", "edi-lens-backend")
 KEYCLOAK_UI_CLIENT_ID = os.getenv("KEYCLOAK_UI_CLIENT_ID", "edi-lens-ui")
 
-# --- Blueprint Definitions (unchanged) ---
+# --- Blueprint Definitions (with fix) ---
+# --- THIS IS THE FIX ---
+# Renamed all 'partner:*' roles to 'trading-partners:*'
 ATOMIC_ROLES = [
-    {"name": "partner:create", "description": "Can create new trading partners"},
-    {"name": "partner:read", "description": "Can read trading partner configurations"},
-    {"name": "partner:update", "description": "Can update trading partners"},
-    {"name": "partner:delete", "description": "Can delete trading partners"},
+    {"name": "trading-partners:create", "description": "Can create new trading partners"},
+    {"name": "trading-partners:read", "description": "Can read trading partner configurations"},
+    {"name": "trading-partners:update", "description": "Can update trading partners"},
+    {"name": "trading-partners:delete", "description": "Can delete trading partners"},
     {"name": "validation:run", "description": "Can run EDI validation"},
     {"name": "user:create", "description": "Can invite/create new users in the tenant"},
     {"name": "user:read", "description": "Can view other users in the tenant"},
@@ -31,14 +33,12 @@ ATOMIC_ROLES = [
     {"name": "superuser:read-all", "description": "Can read data across all tenants"},
 ]
 COMPOSITE_ROLES = {
-    "tenant-admin": {"description": "Full control over a single tenant", "children": ["partner:create", "partner:read", "partner:update", "partner:delete", "validation:run", "user:create", "user:read", "user:update", "user:delete", "billing:manage", "billing:read"]},
-    "tenant-editor": {"description": "Can manage trading partners but not users or billing", "children": ["partner:create", "partner:read", "partner:update", "partner:delete", "validation:run"]},
-    "tenant-viewer": {"description": "Read-only access to a tenant's data", "children": ["partner:read", "validation:run"]},
+    "tenant-admin": {"description": "Full control over a single tenant", "children": ["trading-partners:create", "trading-partners:read", "trading-partners:update", "trading-partners:delete", "validation:run", "user:create", "user:read", "user:update", "user:delete", "billing:manage", "billing:read"]},
+    "tenant-editor": {"description": "Can manage trading partners but not users or billing", "children": ["trading-partners:create", "trading-partners:read", "trading-partners:update", "trading-partners:delete", "validation:run"]},
+    "tenant-viewer": {"description": "Read-only access to a tenant's data", "children": ["trading-partners:read", "validation:run"]},
     "superuser": {"description": "Global administrator for the entire application", "children": ["superuser:impersonate", "superuser:read-all"]},
 }
 TENANTS = {"tenant-a": "tenant-admin", "tenant-b": "tenant-viewer"}
-# --- THIS IS PART OF THE FIX ---
-# Add our new 'basic' scope to the list of default scopes for our client.
 
 CLIENTS = [
     {
@@ -77,7 +77,6 @@ def get_keycloak_admin_client() -> KeycloakAdmin:
     )
     return KeycloakAdmin(connection=connection)
 
-# --- THIS IS THE FIX ---
 def create_or_update_client_scope_mappers(admin_client: KeycloakAdmin):
     """Ensures the necessary token mappers and scopes exist."""
     print("\n--- Configuring Client Scopes and Mappers ---")

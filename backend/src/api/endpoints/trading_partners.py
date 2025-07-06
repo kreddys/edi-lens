@@ -21,8 +21,6 @@ async def get_partner_or_404(
     db: AsyncSession
 ) -> trading_partner.TradingPartner:
     repo = TradingPartnerRepository(db)
-    # --- THIS IS THE FIX ---
-    # Ensure the helper always eager loads everything needed.
     partner = await repo.get_by_id(partner_id=partner_id, tenant_id=tenant_id)
     if not partner:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trading partner not found")
@@ -30,11 +28,11 @@ async def get_partner_or_404(
 
 
 @router.get("/trading-partners", response_model=List[schemas.TradingPartner], summary="List Trading Partners",
-            description="Retrieves a paginated list of all trading partners for the tenant specified in the `X-Tenant-ID` header. Requires `partner:read` permission.")
+            description="Retrieves a paginated list of all trading partners for the tenant specified in the `X-Tenant-ID` header. Requires `trading-partners:read` permission.")
 async def list_trading_partners(
     response: Response,
     db: AsyncSession = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("partner:read")),
+    auth: AuthContext = Depends(require_permission("trading-partners:read")),
     _start: int = Query(0, alias="start"),
     _end: int = Query(10, alias="end"),
 ):
@@ -46,11 +44,11 @@ async def list_trading_partners(
     return partners
 
 @router.get("/trading-partners/{partner_id}", response_model=schemas.TradingPartner, summary="Get a Single Trading Partner",
-            description="Fetches the complete details of a single trading partner, including all nested profiles and criteria. Requires `partner:read` permission.")
+            description="Fetches the complete details of a single trading partner, including all nested profiles and criteria. Requires `trading-partners:read` permission.")
 async def get_trading_partner(
     partner_id: int,
     db: AsyncSession = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("partner:read"))
+    auth: AuthContext = Depends(require_permission("trading-partners:read"))
 ):
     """Get a single trading partner by ID."""
     partner = await get_partner_or_404(partner_id=partner_id, tenant_id=auth.tenant_id, db=db)
@@ -58,11 +56,11 @@ async def get_trading_partner(
 
 
 @router.post("/trading-partners", response_model=schemas.TradingPartner, status_code=status.HTTP_201_CREATED, summary="Create a Trading Partner",
-             description="Creates a new trading partner with its associated profiles and criteria. Requires `partner:create` permission.")
+             description="Creates a new trading partner with its associated profiles and criteria. Requires `trading-partners:create` permission.")
 async def create_trading_partner(
     partner_in: schemas.TradingPartnerCreate,
     db: AsyncSession = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("partner:create"))
+    auth: AuthContext = Depends(require_permission("trading-partners:create"))
 ):
     """Create a new Trading Partner."""
     repo = TradingPartnerRepository(db)
@@ -77,12 +75,12 @@ async def create_trading_partner(
 
 
 @router.put("/trading-partners/{partner_id}", response_model=schemas.TradingPartner, summary="Update a Trading Partner",
-            description="Updates an existing trading partner. This endpoint supports full replacement of profiles and criteria. Requires `partner:update` permission.")
+            description="Updates an existing trading partner. This endpoint supports full replacement of profiles and criteria. Requires `trading-partners:update` permission.")
 async def update_trading_partner(
     partner_id: int,
     partner_in: schemas.TradingPartnerUpdate,
     db: AsyncSession = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("partner:update"))
+    auth: AuthContext = Depends(require_permission("trading-partners:update"))
 ):
     """Update an existing Trading Partner."""
     repo = TradingPartnerRepository(db)
@@ -96,7 +94,6 @@ async def update_trading_partner(
     try:
         updated_partner_id = (await repo.update(db_partner=db_partner, partner_in=partner_in)).id
         await db.commit()
-        # --- THIS IS THE FIX ---
         # After committing, the session is expired. We MUST re-fetch the object
         # with full relationships to ensure it can be serialized correctly.
         return await get_partner_or_404(partner_id=updated_partner_id, tenant_id=auth.tenant_id, db=db)
@@ -107,11 +104,11 @@ async def update_trading_partner(
 
 
 @router.delete("/trading-partners/{partner_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a Trading Partner",
-               description="Deletes a trading partner and all of its associated profiles and criteria. Requires `partner:delete` permission.")
+               description="Deletes a trading partner and all of its associated profiles and criteria. Requires `trading-partners:delete` permission.")
 async def delete_trading_partner(
     partner_id: int,
     db: AsyncSession = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("partner:delete"))
+    auth: AuthContext = Depends(require_permission("trading-partners:delete"))
 ):
     """Delete a trading partner."""
     repo = TradingPartnerRepository(db)
