@@ -7,12 +7,25 @@ from src.core.cdm import CdmInterchange, CdmFunctionalGroup, CdmTransaction, Cdm
 logger = logging.getLogger(__name__)
 
 def get_guide_version_from_edi(edi_string: str) -> Optional[str]:
-    element_delimiter, segment_delimiter = '*', '~'
+    # This initial detection is a "best guess" before full parsing
+    element_delimiter = '*'
+    segment_delimiter = '~'
+
     clean_edi = edi_string.strip()
+    # A standard X12 file will have the ISA segment as the first 106 characters
     if clean_edi.startswith('ISA') and len(clean_edi) >= 106:
-        element_delimiter = clean_edi[3]
+        element_delimiter = clean_edi[103]
         segment_delimiter = clean_edi[105]
-    for segment in clean_edi.split(segment_delimiter):
+
+    # Handle the edge case where the segment delimiter itself is a newline
+    if segment_delimiter in ('\r', '\n'):
+        # Normalize all line endings to the detected delimiter
+        edi_for_splitting = clean_edi.replace('\r\n', '\n').replace('\r', '\n')
+    else:
+        # If the delimiter is a normal character, we can safely split by it
+        edi_for_splitting = clean_edi
+
+    for segment in edi_for_splitting.split(segment_delimiter):
         clean_segment = segment.strip()
         if clean_segment.startswith("GS" + element_delimiter):
             parts = clean_segment.split(element_delimiter)
@@ -26,26 +39,64 @@ class EdiParser:
         self.errors: List[CdmValidationError] = []
         logger.debug(f"Parser initialized with {len(self.all_segments)} segments.")
 
-    def _segmentize_and_parse(self, edi_string: str) -> List[CdmSegment]:
-        element_delimiter, segment_delimiter = self._detect_delimiters(edi_string)
-        segments = []
-        edi_content = edi_string.strip().replace('\r\n', '\n').replace('\r', '')
-        raw_segments = edi_content.split(segment_delimiter)
-        for i, seg_str in enumerate(raw_segments):
-            if clean_seg := seg_str.strip():
-                parts = clean_seg.split(element_delimiter)
-                segments.append(CdmSegment(
-                    segment_id=parts[0],
-                    elements=[CdmElement(value=val, position=i + 1) for i, val in enumerate(parts[1:])],
-                    line_number=i + 1,
-                    raw_segment=clean_seg
-                ))
-        return segments
-
-    def _detect_delimiters(self, edi_string: str) -> Tuple[str, str]:
+    def _detect_delimiters(self, edi_string: str) -> Tuple[str, str, str]:
+        """
+        Detects the element delimiter, segment terminator, and component separator from the ISA segment.
+        Returns defaults if ISA is not present or malformed.
+        """
         clean_edi = edi_string.strip()
-        if clean_edi.startswith('ISA') and len(clean_edi) >= 106: return clean_edi[3], clean_edi[105]
-        return '*', '~'
+        if clean_edi.startswith('ISA') and len(clean_edi) >= 106:
+            # ISA segment has a fixed length of 106 characters (including the segment ID 'ISA')
+            element_delimiter = clean_edi[103]
+            segment_terminator = clean_edi[105]
+            component_separator = clean_edi[104]
+            return element_delimiter, segment_terminator, component_separator
+        
+        # Fallback to defaults if ISA is not standard
+        logger.warning("Could not find standard ISA segment. Falling back to default delimiters ('*', '~', ':').")
+        return '*', '~', ':'
+
+
+    def _segmentize_and_parse(self, edi_string: str) -> List[CdmSegment]:
+        """
+        Tokenizes the raw EDI string into a list of CdmSegment objects using the
+        delimiters specified in the ISA segment.
+        """
+        element_delimiter, segment_terminator, _ = self._detect_delimiters(edi_string)
+        segments = []
+        
+        # First, normalize all possible line endings to a single character (\n)
+        # This simplifies the logic without destroying a potential \n or \r delimiter.
+        edi_content = edi_string.strip().replace('\r\n', '\n').replace('\r', '\n')
+
+        # If the segment terminator is NOT a newline, we can safely remove all newlines
+        # before splitting. This handles files that use both newlines AND a character
+        # terminator (e.g., ~) for readability.
+        if segment_terminator != '\n':
+            edi_content = edi_content.replace('\n', '')
+
+        raw_segments = edi_content.split(segment_terminator)
+
+        for i, seg_str in enumerate(raw_segments):
+            clean_seg = seg_str.strip()
+            if not clean_seg:
+                continue
+
+            parts = clean_seg.split(element_delimiter)
+            segment_id = parts[0]
+            elements = [CdmElement(value=val, position=i + 1) for i, val in enumerate(parts[1:])]
+            
+            segments.append(CdmSegment(
+                segment_id=segment_id,
+                elements=elements,
+                line_number=i + 1,
+                raw_segment=clean_seg
+            ))
+            
+            if segment_id == 'IEA':
+                break
+                
+        return segments
 
     def _find_next_segment(self, segment_id: str, segments: List[CdmSegment], start_index: int) -> int:
         for i in range(start_index, len(segments)):
@@ -88,13 +139,10 @@ class EdiParser:
                     logger.debug(f"    -> MATCH (Loop): Descending into '{schema_node.xid}'")
                     sub_loop, segments_consumed = self._build_tree(segments[cursor:], schema_node.children)
                     sub_loop.loop_id = schema_node.xid
-                    # Propagate errors from the sub-loop to the current loop
                     cdm_loop.errors.extend(sub_loop.errors)
                     cdm_loop.add_loop(sub_loop)
                     cursor += segments_consumed
                 else:
-                    # If it doesn't match, we simply break the repetition loop and move to the next schema node.
-                    # The check for mandatory segments will be done by a separate validator, not the parser.
                     logger.debug(f"    -> NO MATCH. Moving to next schema node.")
                     break
         
@@ -116,41 +164,28 @@ class EdiParser:
         
         transaction.errors.extend(body_loop.errors)
 
-        # --- THIS IS THE FIX ---
-        # The parser's job is to build the tree. A separate validator should
-        # handle completeness checks. Removing this allows a partially-parsed
-        # but structurally valid file to be returned without a parser-level error.
         if consumed_count != len(transaction_body_segments):
-            # Determine the line number for the error.
-            # If some segments were consumed, error is likely related to the segment after the last consumed one.
-            # If no segments were consumed (consumed_count == 0) and body was expected, error is at start of body.
-            # If all segments were consumed but we still expected more (not this case, but for completeness), it's an end issue.
             error_line = None
             error_seg_id = None
             message_detail = f"Processed {consumed_count} segments, but expected to process {len(transaction_body_segments)} segments in the transaction body."
 
             if consumed_count < len(transaction_body_segments):
-                # The error is likely due to an unexpected segment or a missing mandatory segment
-                # that prevented further parsing. The problematic segment is transaction_body_segments[consumed_count].
                 problematic_segment = transaction_body_segments[consumed_count]
                 error_line = problematic_segment.line_number
                 error_seg_id = problematic_segment.segment_id
                 message_detail = f"Unexpected structure or missing mandatory segment at or before '{error_seg_id}' (line {error_line}). {message_detail}"
             elif consumed_count == 0 and len(transaction_body_segments) > 0:
-                # Body was expected but nothing in it could be parsed.
-                # Error at the start of the transaction body.
                 error_line = transaction_body_segments[0].line_number
-                error_seg_id = transaction_body_segments[0].segment_id # The first segment that was problematic
+                error_seg_id = transaction_body_segments[0].segment_id
                 message_detail = f"Could not parse transaction body starting with '{error_seg_id}' (line {error_line}). {message_detail}"
 
 
             error = CdmValidationError(
                 message=f"Transaction parsing incomplete. {message_detail}",
                 line_number=error_line,
-                segment_id=error_seg_id # Or the ID of the last expected mandatory segment if known
+                segment_id=error_seg_id
             )
             transaction.errors.append(error)
-        # --- END OF POTENTIAL FIX ---
 
         return transaction
 
@@ -190,10 +225,7 @@ class EdiParser:
 
                 se_idx = self._find_next_segment('SE', transaction_segments, st_idx)
                 if se_idx == -1:
-                    # Test expects this error on the interchange object
                     interchange.errors.append(CdmValidationError(message=f"Unclosed transaction set found at line {transaction_segments[st_idx].line_number}."))
-                    # We should probably stop processing further transactions in this group if one is malformed like this.
-                    # For now, just report error and break from transaction loop for this group.
                     break
                 
                 single_transaction_block = transaction_segments[st_idx : se_idx + 1]
