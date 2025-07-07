@@ -84,8 +84,9 @@ def test_invalid_edi_structure_causes_transaction_error(x222a1_schema: Implement
     
     transaction = interchange.functional_groups[0].transactions[0]
     assert len(transaction.errors) == 1
-    assert "Parsing finished unexpectedly" in transaction.errors[0].message
-    assert "Consumed 7 of 8 segments" in transaction.errors[0].message
+    # Updated assertion for the new error message
+    expected_error_msg = "Transaction parsing incomplete. Unexpected structure or missing mandatory segment at or before 'SV1' (line 11). Processed 7 segments, but expected to process 8 segments in the transaction body."
+    assert transaction.errors[0].message == expected_error_msg
 
 def test_multi_transaction_837p_is_parsed_correctly(x222a1_schema: ImplementationGuideSchema):
     """

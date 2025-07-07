@@ -101,4 +101,6 @@ def test_parser_handles_missing_mandatory_segment(x222a1_schema: ImplementationG
     # The error should be on the specific transaction
     transaction = interchange.functional_groups[0].transactions[0]
     assert len(transaction.errors) == 1
-    assert "Parsing finished unexpectedly" in transaction.errors[0].message
+    # Updated assertion for the new error message
+    expected_error_msg = "Transaction parsing incomplete. Unexpected structure or missing mandatory segment at or before 'SV1' (line 11). Processed 7 segments, but expected to process 8 segments in the transaction body."
+    assert transaction.errors[0].message == expected_error_msg

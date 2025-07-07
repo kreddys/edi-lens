@@ -120,10 +120,37 @@ class EdiParser:
         # The parser's job is to build the tree. A separate validator should
         # handle completeness checks. Removing this allows a partially-parsed
         # but structurally valid file to be returned without a parser-level error.
-        # if consumed_count != len(transaction_body_segments):
-        #     error = CdmValidationError(message=f"Parsing finished unexpectedly. Consumed {consumed_count} of {len(transaction_body_segments)} segments.")
-        #     transaction.errors.append(error)
-        # --- END OF FIX ---
+        if consumed_count != len(transaction_body_segments):
+            # Determine the line number for the error.
+            # If some segments were consumed, error is likely related to the segment after the last consumed one.
+            # If no segments were consumed (consumed_count == 0) and body was expected, error is at start of body.
+            # If all segments were consumed but we still expected more (not this case, but for completeness), it's an end issue.
+            error_line = None
+            error_seg_id = None
+            message_detail = f"Processed {consumed_count} segments, but expected to process {len(transaction_body_segments)} segments in the transaction body."
+
+            if consumed_count < len(transaction_body_segments):
+                # The error is likely due to an unexpected segment or a missing mandatory segment
+                # that prevented further parsing. The problematic segment is transaction_body_segments[consumed_count].
+                problematic_segment = transaction_body_segments[consumed_count]
+                error_line = problematic_segment.line_number
+                error_seg_id = problematic_segment.segment_id
+                message_detail = f"Unexpected structure or missing mandatory segment at or before '{error_seg_id}' (line {error_line}). {message_detail}"
+            elif consumed_count == 0 and len(transaction_body_segments) > 0:
+                # Body was expected but nothing in it could be parsed.
+                # Error at the start of the transaction body.
+                error_line = transaction_body_segments[0].line_number
+                error_seg_id = transaction_body_segments[0].segment_id # The first segment that was problematic
+                message_detail = f"Could not parse transaction body starting with '{error_seg_id}' (line {error_line}). {message_detail}"
+
+
+            error = CdmValidationError(
+                message=f"Transaction parsing incomplete. {message_detail}",
+                line_number=error_line,
+                segment_id=error_seg_id # Or the ID of the last expected mandatory segment if known
+            )
+            transaction.errors.append(error)
+        # --- END OF POTENTIAL FIX ---
 
         return transaction
 
@@ -163,7 +190,10 @@ class EdiParser:
 
                 se_idx = self._find_next_segment('SE', transaction_segments, st_idx)
                 if se_idx == -1:
-                    func_group.errors.append(CdmValidationError(message=f"Unclosed transaction set found at line {transaction_segments[st_idx].line_number}."))
+                    # Test expects this error on the interchange object
+                    interchange.errors.append(CdmValidationError(message=f"Unclosed transaction set found at line {transaction_segments[st_idx].line_number}."))
+                    # We should probably stop processing further transactions in this group if one is malformed like this.
+                    # For now, just report error and break from transaction loop for this group.
                     break
                 
                 single_transaction_block = transaction_segments[st_idx : se_idx + 1]
