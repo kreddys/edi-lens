@@ -40,27 +40,33 @@ This document outlines the development tasks for implementing a schema-driven ED
 
 ---
 
-## 🚀 Phase 2: Core Engine & Data-Driven Validation
+## 🚀 **Phase 2 (Revised): Core Engine & Data-Driven Validation**
 
-*Goal: Upgrade the parser to be schema-aware and build a validation engine that can execute schema-defined rules.*
+*Goal: Create a **forgiving parser** and a **strict validator** that work together to produce a comprehensive list of findings.*
 
--   [ ] **Enhance the EDI Parser**:
-    -   [ ] Create `src/core/cdm.py` to define the Canonical Data Model (CDM) Pydantic models. The CDM should be a tree-like structure representing the loops and segments of the parsed EDI file.
-    -   [ ] Refactor `src/core/edi_parser.py`:
-        -   [ ] The main parsing function should now accept an `ImplementationGuideSchema` object.
-        -   [ ] The parser will use the `structure` definition from the schema to intelligently build the hierarchical CDM object, correctly identifying loops and their nesting.
-        -   [ ] The parser must also perform **SNIP Level 3 (Balancing)** checks (e.g., `IEA` count vs. `GS` count, `SE` count vs. segment count).
+-   [ ] **Refactor the EDI Parser (`src/core/edi_parser.py`)**:
+    -   [ ] **Change the Goal**: The parser's primary goal is now to build a *best-effort* CDM, not to enforce schema rules.
+    -   [ ] **Remove Strict Checks**:
+        -   [x] Remove the `if consumed_count != len(transaction_segments): raise ValueError(...)` check. The parser should simply return the CDM it built and the number of segments it was able to place.
+        -   The parser should continue processing even if a segment or loop doesn't match the schema, leaving un-placed segments for the validator to report.
+    -   [ ] The parser should only fail on truly unrecoverable errors (e.g., can't find ST/SE, invalid delimiters).
 
--   [ ] **Develop the Validation Engine**:
-    -   [ ] Create a new file: `backend/src/core/validator.py`.
+-   [ ] **Develop the Validation Engine (`src/core/validator.py`)**:
     -   [ ] Implement the `ValidationEngine` class.
-    -   [ ] Implement the `execute_schema_validation(cdm: CDM, schema: ImplementationGuideSchema)` method. This method will:
-        -   [ ] **Traverse the CDM**: Walk through each loop, segment, and element.
-        -   [ ] **Perform SNIP 1 (Integrity)**: Verify that the segments appear in an order allowed by the schema's `structure`.
-        -   [ ] **Perform SNIP 2 (Requirement)**: For each loop/segment definition in the schema, check the CDM to ensure that required nodes (`usage: "R"`) exist and that `max_use` is not exceeded.
-        -   [ ] **Perform SNIP 4 (Code Sets)**: For each element in the CDM, check its value against the `valid_codes` array in its schema definition.
-        -   [ ] **Perform SNIP 5 (Syntax)**: Implement logic to interpret and validate rules from the `syntax` array in segment definitions (e.g., `P0809` -> if element 8 exists, element 9 must also exist).
-    -   [ ] Define a `ValidationFinding` schema in `src/api/schemas.py` to hold detailed error information (rule ID, severity, message, location path like `2000B/2300/CLM[1]/CLM02`).
+    -   [ ] Implement the `execute_schema_validation(cdm: CDM, total_segments: int, consumed_segments: int, schema: ImplementationGuideSchema)` method. This method will:
+        -   [ ] **Check for Unconsumed Segments**: The very first check should be `if total_segments != consumed_segments`, which would generate a specific "Unexpected structure" or "Trailing segments" error. This replaces the `ValueError` from the old parser.
+        -   [ ] **Traverse the CDM**: Walk through the generated CDM tree.
+        -   [ ] **Perform SNIP 1 (Integrity)**, **SNIP 2 (Requirement)**, **SNIP 4 (Code Sets)**, and **SNIP 5 (Syntax)** checks against the schema.
+        -   [ ] For every violation found, it should create and append a `ValidationFinding` object to a list.
+    -   [ ] The engine should **return the complete list of findings**, not stop on the first error.
+
+-   [ ] **Develop the Acknowledgement Generator (`src/core/ack_generator.py`)**:
+    -   [ ] Create a new `AcknowledgementGenerator` class.
+    -   [ ] Implement a `create_999(findings: List[ValidationFinding], original_gs: CdmSegment, original_st: CdmSegment)` method. This method will:
+        -   [ ] Analyze the `findings` list to determine the overall status for `AK901` (`A`, `E`, or `R`).
+        -   [ ] Iterate through the findings to build the necessary `IK3`, `IK4` (for segment-level issues), and `IK5` (for transaction set-level issues) segments.
+        -   [ ] Use the `original_gs` and `original_st` segments to correctly populate the envelope of the 999.
+        -   [ ] Return the complete 999 as a raw EDI string.
 
 ---
 
@@ -82,21 +88,22 @@ This document outlines the development tasks for implementing a schema-driven ED
 
 ---
 
-## 🔌 Phase 4: API & Orchestration
+## 🔌 Phase 4 (Revised): API & Orchestration
 
-*Goal: Tie all the new components together in the main validation API endpoint.*
+*Goal: Update the `/validate` endpoint to use the new, decoupled components.*
 
 -   [ ] **Refactor the `/validate` Endpoint** (`src/api/endpoints/validation.py`):
-    -   [ ] The endpoint should now orchestrate the entire process:
-        1.  Get the raw EDI data from the request.
-        2.  Determine the implementation guide version (e.g., from `GS08`).
-        3.  Call `SchemaManager.get_schema()` to load the appropriate guide.
-        4.  Call the enhanced `edi_parser` with the EDI data and the schema to get the CDM. Handle parsing errors and potential TA1 generation.
-        5.  Identify the `PartnerProfile` using existing logic.
-        6.  Instantiate the `ValidationEngine`.
-        7.  Execute validation to get a list of findings.
-        8.  (From previous plan) Call `AcknowledgementGenerator` to create the 999 response.
-        9.  Return the full `ValidationResponse`, including findings and the 999.
+    -   [ ] The endpoint's new orchestration will be:
+        1.  Get raw EDI data.
+        2.  Call `SchemaManager` to get the correct schema.
+        3.  Call `EdiParser.parse()` to get the best-effort **CDM** and the **consumed segment count**.
+        4.  Instantiate `ValidationEngine`.
+        5.  Call `ValidationEngine.execute_schema_validation(...)` to get the list of **findings**.
+        6.  Instantiate `AcknowledgementGenerator`.
+        7.  Call `AcknowledgementGenerator.create_999(...)` to get the **999 string**.
+        8.  Return a `ValidationResponse` containing the findings and the generated 999 acknowledgement.
+
+By adopting this revised plan, your application will be able to correctly handle structurally invalid files, provide detailed feedback to the user, and generate the compliant 999 acknowledgement required for proper EDI communication.
 
 ---
 
