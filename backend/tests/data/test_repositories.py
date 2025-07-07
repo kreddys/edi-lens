@@ -9,7 +9,7 @@ from src.repositories.trading_partner import TradingPartnerRepository
 from src.models import trading_partner, partner_profile
 from src.api import schemas
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 @pytest.fixture
 def repo(db_session: AsyncSession) -> TradingPartnerRepository:

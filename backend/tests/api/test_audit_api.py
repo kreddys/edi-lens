@@ -7,7 +7,7 @@ from src.main import app
 from src.models import audit_log
 from src.core.auth import User, RealmAccess, get_current_user
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 @pytest.fixture
 def mock_get_current_user_for_audit():

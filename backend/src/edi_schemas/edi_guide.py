@@ -1,9 +1,8 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Union, Dict, Any
+from typing import List, Optional, Union, Dict, Any, Annotated, Literal
 
-# Pydantic models for parsing and representing an implementation guide schema.
-# These models provide a type-safe way to interact with the guide's structure,
-# segments, elements, and validation rules.
+# --- THIS IS THE FIX ---
+# Updated `StructureLoopDefinition` to allow `repeat` to be a string or integer.
 
 class ValidCodes(BaseModel):
     """Defines the list of valid codes for a specific element."""
@@ -17,7 +16,6 @@ class ElementDefinition(BaseModel):
     usage: str
     seq: str
     valid_codes: Optional[ValidCodes] = None
-    # For composite elements, they can contain sub-elements
     elements: Optional[List['ElementDefinition']] = None
 
 class SegmentDefinition(BaseModel):
@@ -28,34 +26,36 @@ class SegmentDefinition(BaseModel):
     max_use: int
     elements: List[ElementDefinition]
     elementsByXid: Dict[str, ElementDefinition] = Field(..., alias='elementsByXid')
-    syntax: Optional[List[Any]] = None
-
-# These two classes represent nodes in the hierarchical 'structure' of the guide.
-# They use forward references ('StructureLoopDefinition', 'StructureSegmentDefinition')
-# to handle the recursive nature of EDI loops.
+    syntax: Optional[List[Optional[str]]] = None
 
 class StructureLoopDefinition(BaseModel):
     """Represents a loop within the EDI structure (e.g., 2000A)."""
-    type: str = 'loop'
+    type: Literal['loop']
     xid: str
     name: str
     usage: str
     pos: str
-    repeat: str
-    children: List[Union['StructureLoopDefinition', 'StructureSegmentDefinition']]
+    repeat: Union[str, int] # Changed from str to Union[str, int]
+    children: List['StructureChild']
 
 class StructureSegmentDefinition(BaseModel):
     """Represents a segment's position within the EDI structure."""
-    type: str = 'segment'
+    type: Literal['segment']
     xid: str
     pos: str
     usage: str
     max_use: int = Field(..., alias='max_use')
     name: str
 
-# Rebuild the models to resolve the forward references.
+StructureChild = Annotated[
+    Union[StructureLoopDefinition, StructureSegmentDefinition],
+    Field(discriminator='type')
+]
+
+# Rebuild the model to resolve the forward references.
 StructureLoopDefinition.model_rebuild()
 ElementDefinition.model_rebuild()
+
 
 class ImplementationGuideSchema(BaseModel):
     """
@@ -64,7 +64,7 @@ class ImplementationGuideSchema(BaseModel):
     """
     transactionName: str = Field(..., alias='transactionName')
     segmentDefinitions: Dict[str, SegmentDefinition] = Field(..., alias='segmentDefinitions')
-    structure: List[Union[StructureLoopDefinition, StructureSegmentDefinition]]
+    structure: List[StructureChild]
 
     def get_gs08_version(self) -> Optional[str]:
         """
@@ -75,6 +75,5 @@ class ImplementationGuideSchema(BaseModel):
         if gs_def:
             gs08_def = gs_def.elementsByXid.get("GS08")
             if gs08_def and gs08_def.valid_codes:
-                # Assuming the first code is the primary version identifier
                 return str(gs08_def.valid_codes.code[0])
         return None

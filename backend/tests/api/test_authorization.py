@@ -7,7 +7,7 @@ from src.main import app
 from src.core.auth import User, RealmAccess, get_current_user, require_permission, AuthContext
 from src.core.audit import user_id_cv, username_cv, tenant_id_cv, request_id_cv
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 auth_test_router = APIRouter()
 @auth_test_router.get("/protected-route")

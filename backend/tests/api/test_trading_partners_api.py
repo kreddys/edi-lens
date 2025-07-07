@@ -9,7 +9,7 @@ from src.main import app
 from src.models import trading_partner, partner_profile, profile_criterion
 from src.core.auth import User, RealmAccess, get_current_user
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 @pytest.fixture
 def partner_manager_user():

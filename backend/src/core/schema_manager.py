@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional
 
+# --- THIS IS THE FIX ---
 from src.edi_schemas.edi_guide import ImplementationGuideSchema
 
 logger = logging.getLogger(__name__)

@@ -3,6 +3,27 @@ from typing import List, Optional
 
 from src.models.profile_criterion import FieldSource, Operator
 
+# --- THIS IS THE NEW SECTION ---
+
+class FindingLocation(BaseModel):
+    """Specifies the exact location of a validation finding within the EDI document."""
+    loop_id: Optional[str] = None
+    segment_id: str
+    segment_instance: int # 1-based index of the segment within its loop
+    element_position: int
+    line_number: int
+    value: Optional[str] = None
+
+class ValidationFinding(BaseModel):
+    """Represents a single validation issue found in the EDI document."""
+    level: str # 'error', 'warning', 'info'
+    code: str  # A unique code for the rule that was violated
+    message: str
+    location: FindingLocation
+
+# --- END OF NEW SECTION ---
+
+
 # --- Schemas for Creating Data ---
 
 class ProfileCriterionCreate(BaseModel):
@@ -61,7 +82,7 @@ class TradingPartner(TradingPartnerCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- EDI & Validation Schemas (Unchanged) ---
+# --- EDI & Validation Schemas (Partially Updated) ---
 class EdiElement(BaseModel):
     value: str
 
@@ -74,23 +95,10 @@ class ValidationRequest(BaseModel):
     edi_data: str
     file_name: Optional[str] = None
 
-class FindingLocation(BaseModel):
-    loop_id: Optional[str] = None
-    segment_id: str
-    segment_instance: int
-    element_position: int
-    line_number: int
-    value: Optional[str] = None
-
-class ValidationFinding(BaseModel):
-    level: str
-    code: str
-    message: str
-    location: FindingLocation
-
+# --- THIS RESPONSE IS NOW UPDATED ---
 class ValidationResponse(BaseModel):
     status: str
-    findings: List[ValidationFinding]
+    findings: List[ValidationFinding] # Changed from a simple string
     ta1_acknowledgement: Optional[str] = None
     ack999_acknowledgement: Optional[str] = None
-    parsed_segments: List[EdiSegment]
+    # parsed_segments is no longer needed as the CDM is an internal structure

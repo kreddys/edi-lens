@@ -1,3 +1,4 @@
+import pytest
 import pytest_asyncio
 from typing import AsyncGenerator
 from httpx import AsyncClient, ASGITransport
@@ -23,9 +24,9 @@ TestAsyncSessionLocal = sessionmaker(
     expire_on_commit=False,
 )
 
-# --- THIS IS THE FIX ---
-# Replace the old fixtures with a single, more robust one.
-# This fixture sets up the DB schema for each function and provides a session.
+# --- THIS IS THE CHANGE ---
+# Add the 'integration' marker to the database session fixture.
+@pytest.mark.integration
 @pytest_asyncio.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """

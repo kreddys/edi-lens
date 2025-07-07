@@ -4,8 +4,10 @@ import logging
 
 from src.api import schemas
 from src.core.database import get_db
-from src.core.edi_parser import parse_edi
+# --- THIS IS THE FIX ---
+from src.core.edi_parser import EdiParser, get_guide_version_from_edi
 from src.core.auth import require_permission, AuthContext
+from src.core.schema_manager import schema_manager
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -18,27 +20,37 @@ async def validate_edi_endpoint(
     db: AsyncSession = Depends(get_db)    
 ):
     """
-    Receives EDI data, validates it against configured rules for the specified tenant,
-    and returns a compliance report with acknowledgements.
+    Receives EDI data, validates it against a loaded implementation guide schema,
+    and returns a compliance report.
     """
-    logger.debug(f"User '{auth.username}' validation request payload: {request.model_dump_json(indent=2)}")
+    logger.info(f"User '{auth.username}' from tenant '{auth.tenant_id}' initiated validation for file '{request.file_name}'.")
     
-    logger.info(f"User '{auth.username}' from tenant '{auth.tenant_id}' initiated validation.")
-    
-    parse_result = parse_edi(request.edi_data)
+    # 1. Determine which implementation guide to use from the EDI data itself.
+    guide_version = get_guide_version_from_edi(request.edi_data)
+    if not guide_version:
+        raise HTTPException(status_code=400, detail="Could not determine implementation guide version (GS08) from EDI data.")
+        
+    # 2. Load the appropriate schema for that guide.
+    schema = schema_manager.get_schema(guide_version)
+    if not schema:
+        logger.warning(f"No implementation guide schema found for version '{guide_version}'.")
+        raise HTTPException(status_code=400, detail=f"Unsupported implementation guide version: {guide_version}")
+        
+    # 3. Parse the EDI data into the Canonical Data Model (CDM) using the loaded schema.
+    try:
+        parser = EdiParser(edi_string=request.edi_data, schema=schema)
+        cdm = parser.parse()
+        logger.info(f"Successfully parsed EDI into CDM for guide '{guide_version}'.")
+    except ValueError as e:
+        logger.error(f"Failed to parse EDI data: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"EDI Parsing Error: {e}")
 
-    if parse_result.error:
-        logger.warning(f"EDI parsing failed for tenant '{auth.tenant_id}': {parse_result.error}")
-        raise HTTPException(status_code=400, detail=parse_result.error)
-    
-    logger.info(f"Successfully parsed {len(parse_result.segments)} segments for tenant '{auth.tenant_id}'.")
-
-    # ... future validation logic will use auth.tenant_id ...
+    # TODO: Implement Phase 2 - Run ValidationEngine against the CDM.
+    # For now, we return a success response if parsing succeeds.
 
     return schemas.ValidationResponse(
         status="Parsed Successfully",
-        findings=[],
+        findings=[],  # Placeholder for future validation findings
         ta1_acknowledgement=None,
         ack999_acknowledgement=None,
-        parsed_segments=parse_result.segments,
     )
