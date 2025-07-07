@@ -54,6 +54,15 @@ class EdiParser:
                 return node
         return None
 
+    def _get_starting_segment_id(self, node: StructureChild) -> Optional[str]:
+        """Recursively finds the first segment ID for a given schema node."""
+        if isinstance(node, StructureSegmentDefinition):
+            return node.xid
+        if isinstance(node, StructureLoopDefinition) and node.children:
+            # This handles cases where a loop's first child is another loop.
+            return self._get_starting_segment_id(node.children[0])
+        return None
+
     def _build_tree(self, segments: List[CdmSegment], schema_nodes: List[StructureChild]) -> Tuple[CdmLoop, int]:
         cdm_loop = CdmLoop(loop_id="level_content")
         cursor = 0
@@ -81,7 +90,9 @@ class EdiParser:
                     logger.debug(f"    -> MATCH (Segment): Consuming '{schema_node.xid}'")
                     cdm_loop.segments.append(current_segment)
                     cursor += 1
-                elif isinstance(schema_node, StructureLoopDefinition) and schema_node.children and current_segment.segment_id == schema_node.children[0].xid:
+                # --- THIS IS THE FIX ---
+                # Use the new helper to correctly identify the starting segment of a loop, even if nested.
+                elif isinstance(schema_node, StructureLoopDefinition) and self._get_starting_segment_id(schema_node) == current_segment.segment_id:
                     logger.debug(f"    -> MATCH (Loop): Descending into '{schema_node.xid}'")
                     sub_loop, segments_consumed = self._build_tree(segments[cursor:], schema_node.children)
                     sub_loop.loop_id = schema_node.xid
@@ -104,6 +115,9 @@ class EdiParser:
         st_segment = self.segments[st_idx]
         se_segment = self.segments[se_idx]
         
+        # --- THIS IS THE FIX ---
+        # The schema definition for the ST loop includes ST, HEADER, DETAIL etc.
+        # We process the segments *between* ST and SE, using the schema *inside* the ST loop.
         transaction_segments = self.segments[st_idx + 1:se_idx]
         logger.debug(f"Found ST at index {st_idx}, SE at {se_idx}. Processing {len(transaction_segments)} segments.")
         
@@ -111,7 +125,10 @@ class EdiParser:
         gs_loop = next((n for n in isa_loop.children if isinstance(n, StructureLoopDefinition) and n.xid == 'GS_LOOP'))
         st_loop_schema = next((n for n in gs_loop.children if isinstance(n, StructureLoopDefinition) and n.xid == 'ST_LOOP'))
         
-        body_loop, consumed_count = self._build_tree(transaction_segments, st_loop_schema.children)
+        # We should not be processing ST and SE segments here, so we pass the children of the ST_LOOP schema
+        st_loop_children = st_loop_schema.children[1:-1] # Exclude ST and SE segment definitions from the schema itself.
+
+        body_loop, consumed_count = self._build_tree(transaction_segments, st_loop_children)
         body_loop.loop_id = "ST_LOOP"
 
         logger.debug(f"--- PARSE COMPLETE. Total segments consumed in body: {consumed_count} ---")
