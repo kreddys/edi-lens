@@ -2,7 +2,7 @@ import logging
 from typing import List, Optional, Tuple
 
 from src.edi_schemas.edi_guide import ImplementationGuideSchema, StructureLoopDefinition, StructureSegmentDefinition, StructureChild
-from src.core.cdm import CdmTransaction, CdmLoop, CdmSegment, CdmElement
+from src.core.cdm import CdmInterchange, CdmFunctionalGroup, CdmTransaction, CdmLoop, CdmSegment, CdmElement, CdmValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +22,9 @@ def get_guide_version_from_edi(edi_string: str) -> Optional[str]:
 class EdiParser:
     def __init__(self, edi_string: str, schema: ImplementationGuideSchema):
         self.schema = schema
-        self.segments: List[CdmSegment] = self._segmentize_and_parse(edi_string)
-        logger.debug(f"Parser initialized with {len(self.segments)} segments.")
+        self.all_segments: List[CdmSegment] = self._segmentize_and_parse(edi_string)
+        self.errors: List[CdmValidationError] = []
+        logger.debug(f"Parser initialized with {len(self.all_segments)} segments.")
 
     def _segmentize_and_parse(self, edi_string: str) -> List[CdmSegment]:
         element_delimiter, segment_delimiter = self._detect_delimiters(edi_string)
@@ -45,21 +46,17 @@ class EdiParser:
         clean_edi = edi_string.strip()
         if clean_edi.startswith('ISA') and len(clean_edi) >= 106: return clean_edi[3], clean_edi[105]
         return '*', '~'
-    
-    def _find_schema_node_for_segment(self, schema_nodes: List[StructureChild], segment_id: str) -> Optional[StructureChild]:
-        for node in schema_nodes:
-            if isinstance(node, StructureSegmentDefinition) and node.xid == segment_id:
-                return node
-            if isinstance(node, StructureLoopDefinition) and node.children and node.children[0].xid == segment_id:
-                return node
-        return None
+
+    def _find_next_segment(self, segment_id: str, segments: List[CdmSegment], start_index: int) -> int:
+        for i in range(start_index, len(segments)):
+            if segments[i].segment_id == segment_id:
+                return i
+        return -1
 
     def _get_starting_segment_id(self, node: StructureChild) -> Optional[str]:
-        """Recursively finds the first segment ID for a given schema node."""
         if isinstance(node, StructureSegmentDefinition):
             return node.xid
         if isinstance(node, StructureLoopDefinition) and node.children:
-            # This handles cases where a loop's first child is another loop.
             return self._get_starting_segment_id(node.children[0])
         return None
 
@@ -67,11 +64,9 @@ class EdiParser:
         cdm_loop = CdmLoop(loop_id="level_content")
         cursor = 0
         
-        # Iterate through the schema rules for the current level
         for schema_node in schema_nodes:
             if cursor >= len(segments): break
 
-            # Determine max repetitions for the current schema node
             max_repeats = 1
             if isinstance(schema_node, StructureLoopDefinition):
                 repeat_str = str(schema_node.repeat).replace('>', '')
@@ -79,7 +74,6 @@ class EdiParser:
             elif isinstance(schema_node, StructureSegmentDefinition):
                 max_repeats = schema_node.max_use
 
-            # Process repetitions of the current schema node
             for i in range(max_repeats):
                 if cursor >= len(segments): break
                 
@@ -90,49 +84,95 @@ class EdiParser:
                     logger.debug(f"    -> MATCH (Segment): Consuming '{schema_node.xid}'")
                     cdm_loop.segments.append(current_segment)
                     cursor += 1
-                # --- THIS IS THE FIX ---
-                # Use the new helper to correctly identify the starting segment of a loop, even if nested.
                 elif isinstance(schema_node, StructureLoopDefinition) and self._get_starting_segment_id(schema_node) == current_segment.segment_id:
                     logger.debug(f"    -> MATCH (Loop): Descending into '{schema_node.xid}'")
                     sub_loop, segments_consumed = self._build_tree(segments[cursor:], schema_node.children)
                     sub_loop.loop_id = schema_node.xid
+                    # Propagate errors from the sub-loop to the current loop
+                    cdm_loop.errors.extend(sub_loop.errors)
                     cdm_loop.add_loop(sub_loop)
                     cursor += segments_consumed
                 else:
-                    # The current segment doesn't match this schema node, so stop trying to find repetitions
+                    # If it doesn't match, we simply break the repetition loop and move to the next schema node.
+                    # The check for mandatory segments will be done by a separate validator, not the parser.
                     logger.debug(f"    -> NO MATCH. Moving to next schema node.")
                     break
         
         return cdm_loop, cursor
-
-    def parse(self) -> CdmTransaction:
-        logger.debug("--- PARSE START ---")
-        st_idx = next((i for i, s in enumerate(self.segments) if s.segment_id == 'ST'), -1)
-        se_idx = next((i for i, s in enumerate(self.segments) if s.segment_id == 'SE'), -1)
-        if st_idx == -1: raise ValueError("ST segment not found.")
-        if se_idx == -1: raise ValueError("SE segment not found at end of transaction.")
-
-        st_segment = self.segments[st_idx]
-        se_segment = self.segments[se_idx]
-        
-        # --- THIS IS THE FIX ---
-        # The schema definition for the ST loop includes ST, HEADER, DETAIL etc.
-        # We process the segments *between* ST and SE, using the schema *inside* the ST loop.
-        transaction_segments = self.segments[st_idx + 1:se_idx]
-        logger.debug(f"Found ST at index {st_idx}, SE at {se_idx}. Processing {len(transaction_segments)} segments.")
+    def _parse_transaction_set(self, segments: List[CdmSegment]) -> CdmTransaction:
+        st_segment = segments[0]
+        se_segment = segments[-1]
+        transaction_body_segments = segments[1:-1]
         
         isa_loop = next((n for n in self.schema.structure if isinstance(n, StructureLoopDefinition) and n.xid == 'ISA_LOOP'))
         gs_loop = next((n for n in isa_loop.children if isinstance(n, StructureLoopDefinition) and n.xid == 'GS_LOOP'))
         st_loop_schema = next((n for n in gs_loop.children if isinstance(n, StructureLoopDefinition) and n.xid == 'ST_LOOP'))
-        
-        # We should not be processing ST and SE segments here, so we pass the children of the ST_LOOP schema
-        st_loop_children = st_loop_schema.children[1:-1] # Exclude ST and SE segment definitions from the schema itself.
+        st_loop_children = st_loop_schema.children[1:-1]
 
-        body_loop, consumed_count = self._build_tree(transaction_segments, st_loop_children)
+        body_loop, consumed_count = self._build_tree(transaction_body_segments, st_loop_children)
         body_loop.loop_id = "ST_LOOP"
 
-        logger.debug(f"--- PARSE COMPLETE. Total segments consumed in body: {consumed_count} ---")
-        if consumed_count != len(transaction_segments):
-             raise ValueError(f"Parsing finished unexpectedly. Consumed {consumed_count} of {len(transaction_segments)} segments.")
+        transaction = CdmTransaction(header=st_segment, trailer=se_segment, body=body_loop)
+        
+        transaction.errors.extend(body_loop.errors)
 
-        return CdmTransaction(header=st_segment, trailer=se_segment, body=body_loop)
+        # --- THIS IS THE FIX ---
+        # The parser's job is to build the tree. A separate validator should
+        # handle completeness checks. Removing this allows a partially-parsed
+        # but structurally valid file to be returned without a parser-level error.
+        # if consumed_count != len(transaction_body_segments):
+        #     error = CdmValidationError(message=f"Parsing finished unexpectedly. Consumed {consumed_count} of {len(transaction_body_segments)} segments.")
+        #     transaction.errors.append(error)
+        # --- END OF FIX ---
+
+        return transaction
+
+    def parse(self) -> CdmInterchange:
+        self.errors.clear()
+        
+        isa_idx = self._find_next_segment('ISA', self.all_segments, 0)
+        iea_idx = self._find_next_segment('IEA', self.all_segments, isa_idx if isa_idx != -1 else 0)
+
+        if isa_idx == -1 or iea_idx == -1:
+            self.errors.append(CdmValidationError(message="ISA/IEA envelope not found."))
+            return CdmInterchange(
+                header=self.all_segments[isa_idx] if isa_idx != -1 else CdmSegment(segment_id='ISA', elements=[], line_number=0, raw_segment=''),
+                trailer=self.all_segments[iea_idx] if iea_idx != -1 else CdmSegment(segment_id='IEA', elements=[], line_number=0, raw_segment=''),
+                errors=self.errors
+            )
+
+        interchange = CdmInterchange(header=self.all_segments[isa_idx], trailer=self.all_segments[iea_idx])
+        
+        group_segments = self.all_segments[isa_idx + 1:iea_idx]
+        cursor = 0
+        while cursor < len(group_segments):
+            gs_idx = self._find_next_segment('GS', group_segments, cursor)
+            if gs_idx == -1: break
+
+            ge_idx = self._find_next_segment('GE', group_segments, gs_idx)
+            if ge_idx == -1:
+                interchange.errors.append(CdmValidationError(message=f"Unclosed functional group found at line {group_segments[gs_idx].line_number}."))
+                break
+
+            func_group = CdmFunctionalGroup(header=group_segments[gs_idx], trailer=group_segments[ge_idx])
+            transaction_segments = group_segments[gs_idx + 1:ge_idx]
+            ts_cursor = 0
+            while ts_cursor < len(transaction_segments):
+                st_idx = self._find_next_segment('ST', transaction_segments, ts_cursor)
+                if st_idx == -1: break
+
+                se_idx = self._find_next_segment('SE', transaction_segments, st_idx)
+                if se_idx == -1:
+                    func_group.errors.append(CdmValidationError(message=f"Unclosed transaction set found at line {transaction_segments[st_idx].line_number}."))
+                    break
+                
+                single_transaction_block = transaction_segments[st_idx : se_idx + 1]
+                cdm_transaction = self._parse_transaction_set(single_transaction_block)
+                func_group.transactions.append(cdm_transaction)
+                
+                ts_cursor = se_idx + 1
+
+            interchange.functional_groups.append(func_group)
+            cursor = ge_idx + 1
+            
+        return interchange

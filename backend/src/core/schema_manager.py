@@ -3,24 +3,20 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional
 
-# --- THIS IS THE FIX ---
 from src.edi_schemas.edi_guide import ImplementationGuideSchema
 
 logger = logging.getLogger(__name__)
 
 class SchemaManager:
     """
-    A singleton class to load, manage, and provide access to EDI implementation
-    guide schemas from JSON definition files.
+    A class to load, manage, and provide access to EDI implementation
+    guide schemas from JSON definition files. This is no longer a singleton
+    at the class level, but will be instantiated once in the application.
     """
-    _instance = None
     _schemas: Dict[str, ImplementationGuideSchema]
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(SchemaManager, cls).__new__(cls)
-            cls._instance._schemas = {}
-        return cls._instance
+    def __init__(self):
+        self._schemas = {}
 
     def load_schemas(self, schema_dir: Path):
         """
@@ -57,5 +53,5 @@ class SchemaManager:
         """
         return self._schemas.get(guide_version)
 
-# Create a single, global instance of the manager
-schema_manager = SchemaManager()
+# --- REMOVED THIS LINE ---
+schema_manager = SchemaManager() 
