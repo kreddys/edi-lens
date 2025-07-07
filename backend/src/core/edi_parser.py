@@ -1,6 +1,6 @@
 import logging
-from typing import List, Dict, Optional, Tuple, Iterator
-from itertools import chain
+from typing import List, Optional, Tuple, Iterator
+from itertools import tee
 
 from src.edi_schemas.edi_guide import ImplementationGuideSchema, StructureLoopDefinition, StructureSegmentDefinition, StructureChild
 from src.core.cdm import CdmTransaction, CdmLoop, CdmSegment, CdmElement
@@ -21,8 +21,9 @@ def get_guide_version_from_edi(edi_string: str) -> Optional[str]:
         segment_delimiter = clean_edi[105]
 
     for segment in clean_edi.split(segment_delimiter):
-        if segment.startswith("GS" + element_delimiter):
-            parts = segment.split(element_delimiter)
+        clean_segment = segment.strip()
+        if clean_segment.startswith("GS" + element_delimiter):
+            parts = clean_segment.split(element_delimiter)
             if len(parts) > 8:
                 return parts[8]
     return None
@@ -40,7 +41,8 @@ class EdiParser:
         self._detect_delimiters()
         
         segments = self._segmentize(edi_string)
-        self.segment_iterator = iter(segments)
+        self.segments: List[Tuple[int, str]] = segments
+        self.segment_cursor: int = 0
 
     def _detect_delimiters(self):
         clean_edi = self.raw_edi.strip()
@@ -49,9 +51,7 @@ class EdiParser:
             self.segment_delimiter = clean_edi[105]
 
     def _segmentize(self, edi_string: str) -> List[Tuple[int, str]]:
-        """Splits the raw EDI string into a list of clean segments."""
         segments = []
-        # Normalize and split by the detected segment delimiter
         edi_content = edi_string.strip().replace('\r\n', '').replace('\n', '')
         raw_segments = edi_content.split(self.segment_delimiter)
         for i, seg_str in enumerate(raw_segments):
@@ -64,84 +64,72 @@ class EdiParser:
         segment_id = parts[0]
         elements = [CdmElement(value=val, position=i + 1) for i, val in enumerate(parts[1:])]
         return CdmSegment(segment_id=segment_id, elements=elements, line_number=line_number, raw_segment=raw_segment)
+        
+    def _peek_segment_id(self) -> Optional[str]:
+        """Looks at the ID of the next segment without advancing the cursor."""
+        if self.segment_cursor < len(self.segments):
+            _ , segment_str = self.segments[self.segment_cursor]
+            return segment_str.split(self.element_delimiter)[0]
+        return None
+
+    def _consume_segment(self) -> CdmSegment:
+        """Consumes and parses the next segment, advancing the cursor."""
+        line_num, segment_str = self.segments[self.segment_cursor]
+        self.segment_cursor += 1
+        return self._parse_segment_string(line_num, segment_str)
 
     def parse(self) -> CdmTransaction:
-        st_segment_obj = None
-        se_segment_obj = None
+        # Skip ISA, GS
+        self.segment_cursor = 2
         
-        # Advance iterator past ISA and GS
-        for _ in range(2): next(self.segment_iterator, None)
+        # Consume ST
+        st_segment = self._consume_segment()
+        if st_segment.segment_id != 'ST':
+             raise ValueError("ST segment not found or out of order.")
+
+        # The schema for the transaction body starts within the ST_LOOP
+        isa_loop_schema = self.schema.structure[0]
+        gs_loop_schema = isa_loop_schema.children[1]
+        st_loop_schema = gs_loop_schema.children[1]
         
-        # Parse ST
-        line_num, st_str = next(self.segment_iterator, (None, None))
-        if st_str and st_str.startswith('ST'):
-            st_segment_obj = self._parse_segment_string(line_num, st_str)
-        else:
-            raise ValueError("ST segment not found or out of order.")
-            
-        # The schema's top-level structure defines the transaction body.
-        body_schema = self.schema.structure[0].children[1].children # ISA_LOOP -> GS_LOOP -> [children]
-        
-        # Create a virtual root loop for the transaction body
         transaction_body_loop = CdmLoop(loop_id="body")
-        self._parse_level(self.segment_iterator, body_schema, transaction_body_loop)
+        self._parse_level(st_loop_schema.children, transaction_body_loop)
 
-        # The last segment parsed by _parse_level should be the SE segment
-        # We assume the last segment processed within the transaction's main parsing logic is SE
-        # A more robust parser would have explicit trailer handling
-        last_segment = transaction_body_loop.segments.pop()
-        if last_segment.segment_id == 'SE':
-            se_segment_obj = last_segment
-        else:
-            # Put it back if it's not the SE
-            transaction_body_loop.segments.append(last_segment)
-            raise ValueError("SE segment not found at the end of the transaction.")
+        # Consume SE
+        se_segment = self._consume_segment()
+        if se_segment.segment_id != 'SE':
+             raise ValueError("SE segment not found at expected position.")
 
-        return CdmTransaction(header=st_segment_obj, trailer=se_segment_obj, body=transaction_body_loop)
+        return CdmTransaction(header=st_segment, trailer=se_segment, body=transaction_body_loop)
 
-
-    def _parse_level(self, segments: Iterator[Tuple[int, str]], level_schema: List[StructureChild], parent_cdm_loop: CdmLoop):
+    def _parse_level(self, level_schema: List[StructureChild], parent_cdm_loop: CdmLoop):
         """
-        Parses one hierarchical level of the EDI structure.
+        Statefully parses one hierarchical level of the EDI structure.
         """
-        # --- THIS IS THE FIX ---
-        # A new stateful parsing approach that correctly handles the schema.
-        from itertools import tee
-        
-        schema_idx = 0
-        while schema_idx < len(level_schema):
-            schema_node = level_schema[schema_idx]
-            
-            # Peek at the next segment in the stream
-            segments, peek_segments = tee(segments)
-            next_segment_tuple = next(peek_segments, None)
-            if not next_segment_tuple:
-                break # End of EDI data
-
-            _ , next_segment_str = next_segment_tuple
-            next_segment_id = next_segment_str.split(self.element_delimiter)[0]
-
+        for schema_node in level_schema:
             if isinstance(schema_node, StructureLoopDefinition):
-                # If the next segment starts a new loop defined in the schema...
-                loop_start_id = schema_node.children[0].xid
-                if next_segment_id == loop_start_id:
-                    new_cdm_loop = CdmLoop(loop_id=schema_node.xid)
-                    parent_cdm_loop.add_loop(new_cdm_loop)
-                    self._parse_level(segments, schema_node.children, new_cdm_loop)
-                    # After parsing the loop, we might need to check for more repetitions of it
-                    # This simple implementation moves to the next schema node. A full implementation
-                    # would handle loop repeats here.
-                    schema_idx += 1
-                else:
-                    schema_idx += 1 # Move to the next schema definition if no match
+                repeat_count_str = str(schema_node.repeat).replace('>', '')
+                max_repeats = int(repeat_count_str) if repeat_count_str.isdigit() else 99999
+                
+                for _ in range(max_repeats):
+                    next_segment_id = self._peek_segment_id()
+                    if not next_segment_id: break
+                    
+                    loop_start_id = schema_node.children[0].xid
+                    if next_segment_id == loop_start_id:
+                        new_cdm_loop = CdmLoop(loop_id=schema_node.xid)
+                        parent_cdm_loop.add_loop(new_cdm_loop)
+                        self._parse_level(schema_node.children, new_cdm_loop)
+                    else:
+                        break # Done with repetitions of this loop
             
             elif isinstance(schema_node, StructureSegmentDefinition):
-                 # If the next segment matches the segment defined in the schema...
-                if next_segment_id == schema_node.xid:
-                    line_num, segment_str = next(segments) # Consume the segment
-                    parsed_segment = self._parse_segment_string(line_num, segment_str)
-                    parent_cdm_loop.segments.append(parsed_segment)
-                else:
-                    schema_idx += 1 # Move to the next schema definition if no match
-            else:
-                 schema_idx += 1
+                for _ in range(schema_node.max_use):
+                    next_segment_id = self._peek_segment_id()
+                    if not next_segment_id: break
+
+                    if next_segment_id == schema_node.xid:
+                        parsed_segment = self._consume_segment()
+                        parent_cdm_loop.segments.append(parsed_segment)
+                    else:
+                        break # Done with repetitions of this segment

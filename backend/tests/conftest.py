@@ -24,14 +24,13 @@ TestAsyncSessionLocal = sessionmaker(
     expire_on_commit=False,
 )
 
-# --- THIS IS THE CHANGE ---
-# Add the 'integration' marker to the database session fixture.
-@pytest.mark.integration
+# The @pytest.mark.integration marker should be applied to the TESTS,
+# not the fixture itself. This conftest is now correct.
 @pytest_asyncio.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """
     Fixture that provides a database session for a test, and handles
-    schema creation and teardown.
+    schema creation and teardown. This fixture is used by integration tests.
     """
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -49,7 +48,6 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """Provide a clean test client for each test function, with DB dependency overridden."""
     
-    # Override the get_db dependency to use the test session
     async def override_get_db():
         yield db_session
 
@@ -59,5 +57,4 @@ async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
 
-    # Clean up the dependency override
     app.dependency_overrides.clear()
