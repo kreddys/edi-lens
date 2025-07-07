@@ -39,20 +39,34 @@ manage_test_db() {
     docker-compose run --rm "$BACKEND_SERVICE_NAME" python -m tests.manage_test_db "$command"
 }
 
-run_backend_tests() {
-    info "(1/3) Dropping old test database (if it exists)..."
-    manage_test_db "drop"
-    info "(2/3) Creating new test database..."
-    manage_test_db "create"
-    info "(3/3) Executing pytest for unit tests (tests not marked 'integration')..."
-    # Override the default command to run pytest
-    docker-compose run --rm "$BACKEND_SERVICE_NAME" pytest -m "not integration"
+run_unit_tests() {
+    info "Running pure unit tests locally (no external services)..."
+    if ! command -v poetry &> /dev/null; then
+        error "poetry could not be found. Please install poetry and ensure it's in your PATH."
+    fi
+
+    (cd backend && poetry run pytest -m "unit")
+    success "Unit tests completed."
 }
 
-run_backend_integration_tests() {
-    info "Executing pytest for integration tests (tests marked 'integration')..."
+run_integration_tests() {
+    info "Preparing for integration tests..."
+    info "(1/4) Starting all services..."
+    docker-compose up -d --wait
+    
+    info "(2/4) Setting up Keycloak realm, roles, and users..."
+    setup_keycloak
+
+    info "(3/4) Creating/re-creating test database..."
+    manage_test_db "drop"
+    manage_test_db "create"
+
+    info "(4/4) Executing integration tests inside the backend container..."
     docker-compose run --rm "$BACKEND_SERVICE_NAME" pytest -m "integration"
+
+    success "Integration tests completed."
 }
+
 
 # --- Main Logic ---
 if [ -z "$1" ]; then
@@ -144,22 +158,12 @@ case "$COMMAND" in
         info "Tailing logs for all services..."
         docker-compose logs -f
         ;;
-    "test:backend")
-        info "Preparing for backend unit tests..."
-        docker-compose up -d db keycloak
-        sleep 5 # Wait for dependencies
-        #setup_keycloak
-        run_backend_tests
-        info "Unit tests complete. Stopping services..."
-        stop_services
+    "test:unit")
+        run_unit_tests
         ;;
     "test:integration")
-        info "Preparing for backend integration tests..."
-        docker-compose up -d db keycloak
-        sleep 5
-        setup_keycloak
-        run_backend_integration_tests
-        info "Integration tests complete. Stopping services..."
+        run_integration_tests
+        info "Stopping services after integration tests..."
         stop_services
         ;;
     "setup:keycloak")

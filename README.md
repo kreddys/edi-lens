@@ -106,8 +106,8 @@ All common development tasks are managed via the `./scripts/run_app.sh` script.
 | `./scripts/run_app.sh logs`                  | Tails the logs for all running services.                                    |
 | `./scripts/run_app.sh migrate:make "message"` | Generates a new Alembic database migration file.                            |
 | `./scripts/run_app.sh migrate:run`           | Applies all pending database migrations.                                    |
-| `./scripts/run_app.sh test:backend`          | Runs all non-integration tests for the backend.                             |
-| `./scripts/run_app.sh test:integration`      | Runs integration tests that require live Keycloak and database services.    |
+| `./scripts/run_app.sh test:unit`             | Runs pure unit tests locally (no Docker). Requires Poetry.                  |
+| `./scripts/run_app.sh test:integration`      | Runs all tests requiring services (DB, Keycloak) inside Docker.             |
 | `./scripts/run_app.sh setup:keycloak`        | (Re)configures the Keycloak realm with required settings.                   |
 
 ---

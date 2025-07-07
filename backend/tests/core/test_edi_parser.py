@@ -1,9 +1,12 @@
+# backend/tests/core/test_edi_parser.py
 import pytest
 import json
 from pathlib import Path
 
 from src.core.edi_parser import EdiParser
 from src.edi_schemas.edi_guide import ImplementationGuideSchema
+
+pytestmark = pytest.mark.unit
 
 # The same valid EDI string, but now used to test the full hierarchy.
 SIMPLE_837P_EDI = """ISA*00*          *00*          *ZZ*SENDERID       *ZZ*RECEIVERID     *240715*1200*^*00501*000000001*0*P*>~

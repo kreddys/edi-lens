@@ -72,7 +72,6 @@ async def test_repo_update_removes_orphan_profile(repo: TradingPartnerRepository
     updated_partner = await repo.update(db_partner=partner_with_two_profiles, partner_in=update_schema)
     await db_session.commit()
 
-    # --- THIS IS THE FIX ---
     # We must re-query the partner from the database with eager loading
     # to safely inspect its relationships after the transaction.
     result = await db_session.execute(

@@ -2,8 +2,6 @@ import pytest
 from httpx import AsyncClient
 
 from src.main import app
-# --- THIS IS THE FIX ---
-# Import the new constant name for the test EDI data.
 from ..core.test_edi_parser import SIMPLE_837P_EDI as VALID_EDI_STRING
 from src.core.auth import User, RealmAccess, get_current_user
 

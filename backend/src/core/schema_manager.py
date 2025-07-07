@@ -9,14 +9,19 @@ logger = logging.getLogger(__name__)
 
 class SchemaManager:
     """
-    A class to load, manage, and provide access to EDI implementation
-    guide schemas from JSON definition files. This is no longer a singleton
-    at the class level, but will be instantiated once in the application.
+    A singleton class to load, manage, and provide access to EDI implementation
+    guide schemas from JSON definition files.
     """
+    _instance = None
     _schemas: Dict[str, ImplementationGuideSchema]
 
-    def __init__(self):
-        self._schemas = {}
+    def __new__(cls):
+        if cls._instance is None:
+            logger.debug("Creating new SchemaManager instance.")
+            cls._instance = super(SchemaManager, cls).__new__(cls)
+            # Initialize attributes here, as __init__ might be called multiple times.
+            cls._instance._schemas = {}
+        return cls._instance
 
     def load_schemas(self, schema_dir: Path):
         """
@@ -53,5 +58,6 @@ class SchemaManager:
         """
         return self._schemas.get(guide_version)
 
-# --- REMOVED THIS LINE ---
-schema_manager = SchemaManager() 
+# Create the singleton instance for the application to import and use.
+# This makes it easy to access the single instance from anywhere in the app.
+schema_manager = SchemaManager()

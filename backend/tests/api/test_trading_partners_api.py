@@ -18,7 +18,6 @@ def partner_manager_user():
         sub="mock-user-id-123",
         preferred_username="test-partner-manager",
         groups=["tenant-a"],
-        # --- THIS IS THE FIX ---
         realm_access=RealmAccess(roles=["trading-partners:create", "trading-partners:read", "trading-partners:update", "trading-partners:delete"])
     )
 

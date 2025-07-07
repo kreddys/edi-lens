@@ -4,8 +4,8 @@ from typing import AsyncGenerator
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-import logging # <-- ADD THIS
-import sys # <-- ADD THIS
+import logging 
+import sys 
 
 from src.main import app
 from src.core.database import get_db, Base
@@ -61,15 +61,23 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 
 @pytest_asyncio.fixture(scope="function")
 async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    """Provide a clean test client for each test function, with DB dependency overridden."""
+    """
+    Provide a clean test client for each test function, with DB dependency 
+    overridden and lifespan events managed.
+    """
     
     async def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
+    # --- THIS IS THE FIX ---
+    # Manually manage the application's lifespan events.
+    # This ensures that startup events (like loading schemas) are run before tests,
+    # and shutdown events are run after.
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            yield client
 
     app.dependency_overrides.clear()

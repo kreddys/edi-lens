@@ -1,3 +1,4 @@
+# backend/tests/core/test_auth_logic.py
 import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
@@ -8,7 +9,7 @@ from jose import jwt
 from src.core.auth import get_current_user
 from tests.utils.jwt_forge import forge_jwt, TEST_PUBLIC_KEY # Updated import path
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.unit]
 
 @pytest.fixture(autouse=True)
 def mock_get_public_key(mocker):

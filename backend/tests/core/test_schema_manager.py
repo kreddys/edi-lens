@@ -1,9 +1,12 @@
+# backend/tests/core/test_schema_manager.py
 import pytest
 from pathlib import Path
 import json
 
 from src.core.schema_manager import SchemaManager
 from src.edi_schemas.edi_guide import ImplementationGuideSchema
+
+pytestmark = pytest.mark.unit
 
 # Create a temporary directory structure for tests
 @pytest.fixture

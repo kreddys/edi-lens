@@ -1,3 +1,4 @@
+# backend/tests/core/test_audit_helpers.py
 from unittest.mock import Mock, MagicMock
 import pytest
 from enum import Enum
@@ -7,6 +8,7 @@ from src.core.audit import _get_changed_data, _get_full_data, _serialize_value
 # Import the real RelationshipProperty to use with isinstance
 from sqlalchemy.orm import RelationshipProperty
 
+pytestmark = pytest.mark.unit
 
 class MockStatus(Enum):
     ACTIVE = "active"
@@ -26,7 +28,6 @@ def test_get_full_data():
     mock_obj.status = MockStatus.INACTIVE
 
     mock_obj.__table__ = Mock()
-    # --- THIS IS THE FIX ---
     # Configure the mock columns so that their .name attribute returns a string.
     mock_id_col = Mock()
     mock_id_col.name = 'id'
@@ -67,7 +68,6 @@ def test_get_changed_data(mocker):
     mock_obj = Mock()
     mock_obj.__mapper__ = Mock()
 
-    # --- THIS IS THE FIX ---
     # Create a mock that will pass an `isinstance` check against the real RelationshipProperty.
     # We don't need to patch the class itself.
     mock_relationship_attr = Mock(spec=RelationshipProperty)
