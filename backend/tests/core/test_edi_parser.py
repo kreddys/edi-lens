@@ -5,6 +5,9 @@ from pathlib import Path
 from src.core.edi_parser import EdiParser
 from src.edi_schemas.edi_guide import ImplementationGuideSchema
 
+# --- THIS IS THE FIX ---
+# Added the mandatory LX*1~ segment before SV1~
+# Updated the segment count in SE from 10 to 11
 SIMPLE_837P_EDI = """ISA*00*          *00*          *ZZ*SENDERID       *ZZ*RECEIVERID     *240715*1200*^*00501*000000001*0*P*>~
 GS*HC*SENDER*RECEIVER*20240715*1200*1*X*005010X222A1~
 ST*837*0001*005010X222A1~
@@ -15,8 +18,9 @@ HL*2*1*22*0~
 SBR*P*18*GRP123~
 NM1*IL*1*DOE*JOHN****MI*SUBID123~
 CLM*PATCTRL123*500***11:B:1*Y*A*Y*Y~
+LX*1~
 SV1*HC:V2020:G4*125*UN*1~
-SE*10*0001~
+SE*11*0001~
 GE*1*1~
 IEA*1*000000001~
 """.strip()
@@ -64,6 +68,6 @@ def test_parser_handles_incomplete_edi_gracefully(x222a1_schema: ImplementationG
     with pytest.raises(ValueError, match="ST segment not found."):
         EdiParser(edi_string=incomplete_edi, schema=x222a1_schema).parse()
         
-    edi_missing_se = SIMPLE_837P_EDI.replace("SE*10*0001~", "")
+    edi_missing_se = SIMPLE_837P_EDI.replace("SE*11*0001~", "")
     with pytest.raises(ValueError, match="SE segment not found at end of transaction."):
         EdiParser(edi_string=edi_missing_se, schema=x222a1_schema).parse()
