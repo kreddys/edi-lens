@@ -118,12 +118,12 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
 
     useEffect(() => {
         logger.groupCollapsed("--- useEffect [form population] ---");
-        if (selectedNode && segmentDefinition) {
+        if (isEditing && selectedNode && segmentDefinition) {
             logger.debug("1. Received selectedNode:", JSON.parse(JSON.stringify(selectedNode)));
             logger.debug(`2. Calculated definitionId to use: '${definitionId}'`);
             
             const valuesToSet = {
-                key: selectedNode.key, // Add key to form values
+                key: selectedNode.key,
                 structure_name: selectedNode.name,
                 definition_name: segmentDefinition.name,
                 usage: selectedNode.usage,
@@ -134,7 +134,7 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
             logger.debug("3. Final values being set to form:", JSON.parse(JSON.stringify(valuesToSet)));
             form.setFieldsValue(valuesToSet);
         } else {
-            logger.debug("No selected node or definition, resetting form.");
+            logger.debug("Not in edit mode or no selected node/definition, resetting form.");
             form.resetFields();
         }
         logger.groupEnd();
@@ -175,6 +175,7 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
 
     return (
         <>
+            <Form.Item name="key" hidden />
             <Title level={5}>Edit Node: {selectedNode.name} ({selectedNode.xid})</Title>
             <Card title="Structure Properties" size="small" style={{ marginBottom: 16 }}>
                 <Form.Item name="structure_name" label="Display Name (in tree)"><Input /></Form.Item>

@@ -284,7 +284,6 @@ export const SchemaEditorList: React.FC = () => {
     const handleSave = async () => {
         logger.groupCollapsed(`[SAVE]`);
         try {
-            // No need to validate here anymore, as data is always up-to-date in draftContent
             if (!selectedSchema || !draftContent) {
                 throw new Error("Save aborted due to missing state. Please re-select the schema.");
             }
@@ -325,49 +324,6 @@ export const SchemaEditorList: React.FC = () => {
         }
     };
     
-    // --- THIS IS THE NEW FUNCTION TO HANDLE REAL-TIME UPDATES ---
-    const onFormValuesChange = (changedValues: any, allValues: any) => {
-        if (!isPageInEditMode || !draftContent || !selectedNode) return;
-        
-        logger.groupCollapsed('[FORM CHANGE]');
-        logger.debug("Changed values:", changedValues);
-
-        const keyToUpdate = selectedNode.key!;
-        const newDraft = JSON.parse(JSON.stringify(draftContent));
-        const nodeInTree = findNodeByKey(newDraft.structure, keyToUpdate);
-        
-        if (!nodeInTree) {
-            logger.error(`Could not find node with key ${keyToUpdate} to apply changes.`);
-            logger.groupEnd();
-            return;
-        }
-
-        const definitionIdToUpdate = getEffectiveDefinitionId(nodeInTree, newDraft);
-
-        // Update definition properties
-        const segmentDef = newDraft.segmentDefinitions[definitionIdToUpdate];
-        if (segmentDef) {
-            if ('definition_name' in changedValues) {
-                segmentDef.name = changedValues.definition_name;
-            }
-            if ('elements' in changedValues) {
-                segmentDef.elements = allValues.elements;
-                segmentDef.elementsByXid = (allValues.elements || []).reduce((acc: any, el: any) => { acc[el.xid] = el; return acc; }, {});
-            }
-        }
-
-        // Update structure properties
-        if('structure_name' in changedValues) nodeInTree.name = changedValues.structure_name;
-        if('usage' in changedValues) nodeInTree.usage = changedValues.usage;
-        if('repeat' in changedValues) nodeInTree.repeat = changedValues.repeat;
-        if('max_use' in changedValues) nodeInTree.max_use = changedValues.max_use;
-
-        setDraftContent(newDraft);
-        logger.debug("Updated draft content:", newDraft);
-        logger.groupEnd();
-    };
-    
-    // --- THIS IS THE FINAL, CORRECTED DRAG-AND-DROP HANDLER ---
     const handleDrop: TreeProps<SchemaTreeDataNode>['onDrop'] = (info) => {
         const { dragNode, node: dropTargetNode, dropToGap } = info;
     
@@ -387,7 +343,7 @@ export const SchemaEditorList: React.FC = () => {
                     [dragObj] = nodes.splice(i, 1);
                     return true;
                 }
-                // --- FIX: Add guard clause before recursion ---
+                // --- FIX: Add non-null assertion `!` after guard clause ---
                 if (nodes[i].children && findAndRemove(nodes[i].children!, key)) {
                     return true;
                 }
@@ -398,7 +354,7 @@ export const SchemaEditorList: React.FC = () => {
         findAndRemove(data, dragNode.key);
     
         if (dragObj) {
-            let ar: SchemaTreeDataNode[] | undefined;
+            let ar: SchemaTreeDataNode[] = [];
             let i: number = -1;
     
             const findAndInsert = (nodes: SchemaTreeDataNode[], key: React.Key) => {
@@ -408,7 +364,7 @@ export const SchemaEditorList: React.FC = () => {
                         i = j;
                         return;
                     }
-                    // --- FIX: Add guard clause before recursion ---
+                    // --- FIX: Add non-null assertion `!` after guard clause ---
                     if (nodes[j].children) {
                         findAndInsert(nodes[j].children!, key);
                     }
@@ -452,6 +408,51 @@ export const SchemaEditorList: React.FC = () => {
         setDraftContent({
             ...draftContent,
             structure: convertTreeToSchema(data),
+        });
+    };
+
+    const onFormValuesChange = (changedValues: any, allValues: any) => {
+        if (!isPageInEditMode || !draftContent) return;
+        
+        const keyToUpdate = allValues.key;
+        if (!keyToUpdate) return;
+
+        logger.groupCollapsed('[FORM CHANGE]');
+        logger.debug("Key to update:", keyToUpdate);
+        logger.debug("Changed values:", changedValues);
+
+        setDraftContent(currentDraft => {
+            if (!currentDraft) return null;
+            
+            const newDraft = JSON.parse(JSON.stringify(currentDraft));
+            const nodeInTree = findNodeByKey(newDraft.structure, keyToUpdate);
+            
+            if (!nodeInTree) {
+                logger.error(`Could not find node with key ${keyToUpdate} to apply changes.`);
+                return newDraft;
+            }
+    
+            const definitionIdToUpdate = getEffectiveDefinitionId(nodeInTree, newDraft);
+            const segmentDef = newDraft.segmentDefinitions[definitionIdToUpdate];
+    
+            if (segmentDef) {
+                segmentDef.name = allValues.definition_name;
+                segmentDef.elements = allValues.elements;
+                segmentDef.elementsByXid = (allValues.elements || []).reduce((acc: any, el: any) => { acc[el.xid] = el; return acc; }, {});
+            }
+    
+            const structuralNodeUpdate = {
+                name: allValues.structure_name,
+                usage: allValues.usage,
+                repeat: allValues.repeat,
+                max_use: allValues.max_use,
+            };
+    
+            const finalStructure = updateNodeByKey(newDraft.structure, keyToUpdate, structuralNodeUpdate);
+            logger.debug("Updated draft content:", { ...newDraft, structure: finalStructure });
+            logger.groupEnd();
+
+            return { ...newDraft, structure: finalStructure };
         });
     };
 
@@ -517,20 +518,22 @@ export const SchemaEditorList: React.FC = () => {
                     {!isTreeLoading && !selectedSchema && <Empty description="No schema selected" />}
                 </Sider>
                 <Content style={{ padding: "0 24px", minHeight: 280 }}>
-                    {selectedNode && contentToShow ? (
-                        <EditableNodeDetails
-                            form={form}
-                            isEditing={isPageInEditMode}
-                            selectedNode={selectedNode}
-                            schemaContent={contentToShow}
-                            onSpecialize={handleSpecialize}
-                            isShared={isShared}
-                            isSharedEditingEnabled={isSharedEditingEnabled}
-                            onEnableSharedEditing={() => setIsSharedEditingEnabled(true)}
-                        />
-                    ) : (
-                        <Empty description="Select a node from the tree to see details." style={{ marginTop: 40 }} />
-                    )}
+                    <Form form={form} layout="vertical" onValuesChange={onFormValuesChange}>
+                        {selectedNode && contentToShow ? (
+                            <EditableNodeDetails
+                                form={form}
+                                isEditing={isPageInEditMode}
+                                selectedNode={selectedNode}
+                                schemaContent={contentToShow}
+                                onSpecialize={handleSpecialize}
+                                isShared={isShared}
+                                isSharedEditingEnabled={isSharedEditingEnabled}
+                                onEnableSharedEditing={() => setIsSharedEditingEnabled(true)}
+                            />
+                        ) : (
+                            <Empty description={ isPageInEditMode ? "Select a node to edit its properties." : "Select a node to see details."} style={{ marginTop: 40 }} />
+                        )}
+                    </Form>
                 </Content>
             </Layout>
         </Card>
