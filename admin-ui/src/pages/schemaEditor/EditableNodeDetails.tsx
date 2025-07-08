@@ -1,87 +1,157 @@
 import React, { useEffect } from "react";
-import { Form, Input, Select, InputNumber, Typography, Alert, Card, Button } from "antd";
+import { Form, Input, Select, InputNumber, Typography, Alert, Card, Button, Table, Descriptions, Tag, Divider, Space } from "antd";
+import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
 import type { FormInstance } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 
 const { Title } = Typography;
 
 interface EditableNodeDetailsProps {
-    structureForm: FormInstance;
-    definitionForm: FormInstance;
+    form: FormInstance;
     selectedNode: any;
     schemaContent: any;
-    onStructureValuesChange: (changedValues: any) => void;
-    onDefinitionValuesChange: (changedValues: any) => void;
     onSpecialize: () => void;
+    onEnableSharedEditing: () => void;
     isShared: boolean;
+    isSharedEditingEnabled: boolean;
+    isEditing: boolean;
 }
 
+const ReadOnlyElementTable: React.FC<{ elements: any[] }> = ({ elements }) => {
+    const columns: ColumnsType<any> = [
+        { title: 'Seq', dataIndex: 'seq', key: 'seq', width: '10%' },
+        { title: 'Element ID', dataIndex: 'xid', key: 'xid', width: '20%' },
+        { title: 'Name', dataIndex: 'name', key: 'name' },
+        {
+            title: 'Usage', dataIndex: 'usage', key: 'usage', width: '15%',
+            render: (usage: string) => <Tag color={usage === 'R' ? 'red' : usage === 'S' ? 'blue' : 'grey'}>{usage}</Tag>
+        },
+        {
+            title: 'Valid Codes',
+            dataIndex: ['valid_codes', 'code'],
+            key: 'valid_codes',
+            render: (codes: (string | number)[]) => (
+                <Space size={[0, 8]} wrap>
+                    {codes && codes.length > 0 ? codes.map((code) => <Tag key={code}>{code}</Tag>) : 'N/A'}
+                </Space>
+            )
+        },
+    ];
+    return <Table columns={columns} dataSource={elements.map(el => ({ ...el, key: el.xid }))} pagination={false} size="small" />;
+};
+
+
 export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
-    structureForm,
-    definitionForm,
+    form,
     selectedNode,
     schemaContent,
-    onStructureValuesChange,
-    onDefinitionValuesChange,
     onSpecialize,
+    onEnableSharedEditing,
     isShared,
+    isSharedEditingEnabled,
+    isEditing,
 }) => {
-    
     const definitionId = selectedNode.definitionId || selectedNode.xid;
     const segmentDefinition = schemaContent.segmentDefinitions[definitionId];
+    const isDefinitionEditingDisabled = isShared && !isSharedEditingEnabled;
 
     useEffect(() => {
         if (selectedNode) {
-            structureForm.setFieldsValue(selectedNode);
-            if (segmentDefinition) {
-                definitionForm.setFieldsValue(segmentDefinition);
-            }
+            const definitionWithDefaults = {
+                ...segmentDefinition,
+                elements: segmentDefinition?.elements?.map((el: any) => ({ ...el, valid_codes: { code: el.valid_codes?.code || [] } })) || []
+            };
+            // --- THIS IS THE FIX ---
+            // Spread the definition first, then the specific node properties.
+            // This ensures the node's `name`, `usage`, etc., overwrite the defaults.
+            form.setFieldsValue({
+                ...definitionWithDefaults,
+                ...selectedNode,
+            });
         } else {
-            structureForm.resetFields();
-            definitionForm.resetFields();
+            form.resetFields();
         }
-    }, [selectedNode, segmentDefinition, structureForm, definitionForm]);
+    }, [selectedNode, segmentDefinition, form, isEditing]);
 
-    if (!selectedNode) return null;
-
-    return (
-        <div>
-            <Title level={5}>Edit Node: {selectedNode.name} ({selectedNode.xid})</Title>
-            
-            <Form form={structureForm} layout="vertical" onValuesChange={onStructureValuesChange} key={`${selectedNode.key}-struct`}>
+    if (!isEditing) {
+        return (
+             <div>
+                <Title level={5} style={{ marginBottom: 24 }}>Node Details: {selectedNode.name} ({selectedNode.xid})</Title>
                 <Card title="Structure Properties" size="small" style={{ marginBottom: 16 }}>
-                    <Form.Item name="name" label="Display Name (in tree)"><Input /></Form.Item>
-                    <Form.Item name="usage" label="Usage">
-                        <Select options={[{ value: "R", label: "Required" }, { value: "S", label: "Situational" }, { value: "N", label: "Not Used" }]}/>
-                    </Form.Item>
-                    {selectedNode.type === "loop" && <Form.Item name="repeat" label="Repeat Count"><Input placeholder="e.g., >1, 99" /></Form.Item>}
-                    {selectedNode.type === "segment" && <Form.Item name="max_use" label="Max Use"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item>}
+                    <Descriptions bordered column={1} size="small" labelStyle={{ width: '200px' }}>
+                        <Descriptions.Item label="Display Name">{selectedNode.name}</Descriptions.Item>
+                        <Descriptions.Item label="Usage">{selectedNode.usage}</Descriptions.Item>
+                        {selectedNode.type === 'loop' && <Descriptions.Item label="Repeat">{selectedNode.repeat}</Descriptions.Item>}
+                        {selectedNode.type === 'segment' && <Descriptions.Item label="Max Use">{selectedNode.max_use}</Descriptions.Item>}
+                    </Descriptions>
                 </Card>
-            </Form>
-
-            {selectedNode.type === "segment" && (
-                <Form form={definitionForm} layout="vertical" onValuesChange={onDefinitionValuesChange} key={`${selectedNode.key}-def`}>
+                {selectedNode.type === "segment" && (
                     <Card title="Segment Definition Properties" size="small">
                         {segmentDefinition ? (
                             <>
-                                {isShared && (
-                                    <Alert
-                                        message="This is a shared definition."
-                                        description={<Button type="link" onClick={onSpecialize} style={{padding:0}}>Create a specialized definition to edit independently.</Button>}
-                                        type="info"
-                                        showIcon
-                                        style={{ marginBottom: 16 }}
-                                    />
-                                )}
-                                <Form.Item name="name" label="Definition Name">
-                                    <Input disabled={isShared} />
-                                </Form.Item>
+                                {isShared && <Alert message="This is a shared segment definition." type="info" showIcon style={{ marginBottom: 16 }} />}
+                                <Descriptions bordered column={1} size="small" labelStyle={{ width: '200px' }}>
+                                    <Descriptions.Item label="Definition ID">{definitionId}</Descriptions.Item>
+                                    <Descriptions.Item label="Definition Name">{segmentDefinition.name}</Descriptions.Item>
+                                </Descriptions>
+                                <Title level={5} style={{ marginTop: 24, marginBottom: 16 }}>Elements</Title>
+                                <ReadOnlyElementTable elements={segmentDefinition.elements} />
                             </>
                         ) : (
                             <Alert message="Unlinked Segment" type="warning" showIcon />
                         )}
                     </Card>
-                </Form>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <Form form={form} layout="vertical" key={selectedNode.key}>
+            <Title level={5}>Edit Node: {selectedNode.name} ({selectedNode.xid})</Title>
+            <Card title="Structure Properties" size="small" style={{ marginBottom: 16 }}>
+                <Form.Item name="name" label="Display Name (in tree)"><Input /></Form.Item>
+                <Form.Item name="usage" label="Usage"><Select options={[{ value: "R", label: "Required" }, { value: "S", label: "Situational" }, { value: "N", label: "Not Used" }]} /></Form.Item>
+                {selectedNode.type === "loop" && <Form.Item name="repeat" label="Repeat Count"><Input placeholder="e.g., >1, 99" /></Form.Item>}
+                {selectedNode.type === "segment" && <Form.Item name="max_use" label="Max Use"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item>}
+            </Card>
+
+            {selectedNode.type === "segment" && segmentDefinition && (
+                <Card title="Segment Definition Properties" size="small">
+                    {isShared && (
+                        <Alert 
+                            type={isSharedEditingEnabled ? "warning" : "info"}
+                            message={isSharedEditingEnabled ? "SHARED EDITING ENABLED" : "This is a shared definition"}
+                            description={
+                                <Space>
+                                    <Button size="small" onClick={onSpecialize}>Create Specialized Version</Button>
+                                    {!isSharedEditingEnabled && <><Divider type="vertical" /> <Button size="small" onClick={onEnableSharedEditing}>Edit All Shared Instances</Button></>}
+                                </Space>
+                            }
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                        />
+                    )}
+                    <Form.Item name="name" label="Definition Name"><Input disabled={isDefinitionEditingDisabled} /></Form.Item>
+                    <Divider orientation="left" plain>Elements</Divider>
+                    <Form.List name="elements">
+                        {(fields, { add, remove }) => (
+                            <div style={{ display: 'flex', flexDirection: 'column', rowGap: 16 }}>
+                                {fields.map(({ key, name, ...restField }) => (
+                                    <Card size="small" key={key} title={`Element: ${form.getFieldValue(['elements', name, 'xid'])}`} extra={<MinusCircleOutlined onClick={() => !isDefinitionEditingDisabled && remove(name)} />}>
+                                        <Form.Item {...restField} name={[name, 'name']} label="Name"><Input placeholder="Element Name" disabled={isDefinitionEditingDisabled} /></Form.Item>
+                                        <Form.Item {...restField} name={[name, 'usage']} label="Usage"><Select placeholder="Usage" style={{ width: 100 }} options={[{ value: "R" }, { value: "S" }, { value: "N" }]} disabled={isDefinitionEditingDisabled}/></Form.Item>
+                                        <Form.Item {...restField} name={[name, 'valid_codes', 'code']} label="Valid Codes">
+                                             <Select mode="tags" style={{ width: '100%' }} tokenSeparators={[',']} placeholder="Type codes and press Enter" disabled={isDefinitionEditingDisabled} />
+                                        </Form.Item>
+                                    </Card>
+                                ))}
+                                <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />} disabled={isDefinitionEditingDisabled}>Add Element</Button>
+                            </div>
+                        )}
+                    </Form.List>
+                </Card>
             )}
-        </div>
+        </Form>
     );
 };

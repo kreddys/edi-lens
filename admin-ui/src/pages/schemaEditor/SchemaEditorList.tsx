@@ -22,16 +22,16 @@ import {
 } from "@ant-design/icons";
 import type { TreeDataNode } from 'antd';
 import { EditableNodeDetails } from "./EditableNodeDetails";
-import { ReadOnlyNodeDetails } from "./ReadOnlyNodeDetails";
 
 const { Content, Sider } = Layout;
 const { Title, Text } = Typography;
 
+// ... (interfaces and helper functions remain the same) ...
 interface SchemaNode {
     type: 'loop' | 'segment';
     xid: string;
     name: string;
-    key?: string; // --- FIX: Mark key as optional ---
+    key?: string; 
     definitionId?: string;
     children?: SchemaNode[];
     [key: string]: any;
@@ -46,7 +46,7 @@ interface SchemaFile {
 const getAllKeys = (nodes: TreeDataNode[]): React.Key[] => {
     let keys: React.Key[] = [];
     for (const node of nodes) {
-        if(node.key) keys.push(node.key); // Ensure key exists
+        if(node.key) keys.push(node.key);
         if (node.children) {
             keys = keys.concat(getAllKeys(node.children));
         }
@@ -79,7 +79,8 @@ const transformToTreeData = (nodes: SchemaNode[], parentKey: string = 'root'): T
 const updateNodeByKey = (nodes: SchemaNode[], key: string, newValues: any): SchemaNode[] => {
     return nodes.map(node => {
         if (node.key === key) {
-            return { ...node, ...newValues };
+            const { elements, ...restValues } = newValues;
+            return { ...node, ...restValues };
         }
         if (node.children) {
             return { ...node, children: updateNodeByKey(node.children, key, newValues) };
@@ -102,21 +103,21 @@ const countXidInTree = (nodes: SchemaNode[], xid: string): number => {
 };
 
 export const SchemaEditorList: React.FC = () => {
-    const [structureForm] = Form.useForm();
-    const [definitionForm] = Form.useForm();
+    const [form] = Form.useForm();
     const apiUrl = useApiUrl();
     const [selectedSchema, setSelectedSchema] = useState<string | null>(null);
     const [schemaContent, setSchemaContent] = useState<SchemaFile | null>(null);
     const [selectedNode, setSelectedNode] = useState<SchemaNode | null>(null);
     const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
     const [isEditing, setIsEditing] = useState(false);
+    const [isSharedEditingEnabled, setIsSharedEditingEnabled] = useState(false);
 
     const { data: schemaFilesData, isLoading: isLoadingFiles } = useCustom<string[]>({
         url: `${apiUrl}/schemas`,
         method: 'get',
     });
 
-    const { data: schemaFileData, isLoading: isLoadingContent } = useCustom<SchemaFile>({
+    const { data: schemaFileData, isLoading: isLoadingContent, refetch } = useCustom<SchemaFile>({
         url: `${apiUrl}/schemas/${selectedSchema}`,
         method: "get",
         queryOptions: { enabled: !!selectedSchema },
@@ -152,99 +153,97 @@ export const SchemaEditorList: React.FC = () => {
     useEffect(() => {
         setSelectedNode(null);
         setIsEditing(false);
-        // --- FIX: Use the correct form instance names ---
-        structureForm.resetFields();
-        definitionForm.resetFields();
-    }, [selectedSchema, structureForm, definitionForm]);
+        setIsSharedEditingEnabled(false);
+        form.resetFields();
+    }, [selectedSchema, form]);
 
     const onExpand = (keys: React.Key[]) => setExpandedKeys(keys);
 
     const handleSelect = (selectedKeys: React.Key[], info: any) => {
         if (selectedKeys.length > 0 && info.node.data) {
-            if (selectedNode?.key !== info.node.key) {
+            if (selectedNode?.key !== info.node.data.key) {
                 setIsEditing(false);
+                setIsSharedEditingEnabled(false);
                 setSelectedNode(info.node.data);
             }
         } else {
             setSelectedNode(null);
             setIsEditing(false);
+            setIsSharedEditingEnabled(false);
         }
     };
-
-    const handleStructureUpdate = (changedValues: any) => {
-        if (!schemaContent || !selectedNode) return;
-        setSchemaContent(current => {
-            if (!current) return null;
-            // --- FIX: Return the full SchemaFile object ---
-            return {
-                ...current,
-                structure: updateNodeByKey(current.structure, selectedNode.key!, changedValues)
-            };
-        });
-    };
     
-    const handleDefinitionUpdate = (changedValues: any) => {
-        if (!schemaContent || !selectedNode) return;
-        const definitionId = selectedNode.definitionId || selectedNode.xid;
-        setSchemaContent(current => ({
-            ...current!,
-            segmentDefinitions: {
-                ...current!.segmentDefinitions,
-                [definitionId]: {
-                    ...current!.segmentDefinitions[definitionId],
-                    ...changedValues
-                }
-            }
-        }));
-    };
-
     const handleSpecialize = () => {
         if (!schemaContent || !selectedNode || !selectedNode.key) return;
         
         const originalDefId = selectedNode.definitionId || selectedNode.xid;
         const newDefId = `${originalDefId}_${selectedNode.key.replace(/-/g, '_')}`;
 
-        setSchemaContent(current => {
-            const newContent = JSON.parse(JSON.stringify(current!));
-            
-            newContent.segmentDefinitions[newDefId] = newContent.segmentDefinitions[originalDefId];
-            
-            const updateInStructure = (nodes: SchemaNode[]): SchemaNode[] => {
-                return nodes.map(n => {
-                    if (n.key === selectedNode.key) {
-                        return { ...n, definitionId: newDefId };
-                    }
-                    if (n.children) {
-                        return { ...n, children: updateInStructure(n.children) };
-                    }
-                    return n;
-                });
-            };
-            newContent.structure = updateInStructure(newContent.structure);
+        const newContent = JSON.parse(JSON.stringify(schemaContent!));
+        newContent.segmentDefinitions[newDefId] = { ...newContent.segmentDefinitions[originalDefId] };
+        
+        const updateInStructure = (nodes: SchemaNode[]): SchemaNode[] => {
+            return nodes.map(n => {
+                if (n.key === selectedNode.key) { return { ...n, definitionId: newDefId }; }
+                if (n.children) { return { ...n, children: updateInStructure(n.children) }; }
+                return n;
+            });
+        };
+        newContent.structure = updateInStructure(newContent.structure);
+        
+        setSchemaContent(newContent);
+        
+        const newNode = {...selectedNode, definitionId: newDefId };
+        setSelectedNode(newNode);
+        setIsSharedEditingEnabled(false);
+    };
 
-            setSelectedNode(prev => ({...prev!, definitionId: newDefId}));
-            return newContent;
-        });
+    const handleCancelEditing = () => {
+        setIsEditing(false);
+        setIsSharedEditingEnabled(false);
+        refetch();
     };
 
     const handleSave = () => {
-        if (selectedSchema && schemaContent) {
-            const contentToSave = JSON.parse(JSON.stringify(schemaContent));
-            const cleanStructure = (nodes: SchemaNode[]) => {
-                nodes.forEach(n => {
-                    delete n.key;
-                    if(n.children) cleanStructure(n.children);
-                });
-            };
-            cleanStructure(contentToSave.structure);
+        form.validateFields().then((formValues) => {
+            if (selectedSchema && schemaContent && selectedNode) {
+                
+                const newContent = JSON.parse(JSON.stringify(schemaContent));
+                
+                newContent.structure = updateNodeByKey(newContent.structure, selectedNode.key!, formValues);
+                
+                const definitionId = selectedNode.definitionId || selectedNode.xid;
+                const segmentDef = newContent.segmentDefinitions[definitionId];
+                if (segmentDef) {
+                    segmentDef.name = formValues.name; 
+                    if (formValues.elements) {
+                        segmentDef.elements = formValues.elements;
+                    }
+                }
 
-            updateSchema({
-                resource: "schemas", id: selectedSchema, values: contentToSave,
-                successNotification: () => ({ message: "Schema saved successfully!", type: "success" }),
-                errorNotification: (error?: HttpError) => ({ message: `Save failed: ${error?.message || 'Unknown error'}`, type: "error" }),
-                meta: { onSuccess: () => setIsEditing(false) }
-            });
-        }
+                const contentToSave = newContent;
+                const cleanStructure = (nodes: SchemaNode[]) => {
+                    nodes.forEach(n => {
+                        delete n.key;
+                        if (n.children) cleanStructure(n.children);
+                    });
+                };
+                cleanStructure(contentToSave.structure);
+    
+                updateSchema({
+                    resource: "schemas", id: selectedSchema, values: contentToSave,
+                    successNotification: () => ({ message: "Schema saved successfully!", type: "success" }),
+                    errorNotification: (error?: HttpError) => ({ message: `Save failed: ${error?.message || 'Unknown error'}`, type: "error" }),
+                    meta: { 
+                        onSuccess: () => {
+                            setIsEditing(false);
+                            setIsSharedEditingEnabled(false);
+                            refetch();
+                        } 
+                    }
+                });
+            }
+        });
     };
 
     const isTreeLoading = selectedSchema && isLoadingContent;
@@ -270,13 +269,7 @@ export const SchemaEditorList: React.FC = () => {
                     </Space>
                     {isTreeLoading && <Spin />}
                     {!isTreeLoading && treeData.length > 0 && (
-                        <Tree
-                            showLine
-                            onExpand={onExpand}
-                            expandedKeys={expandedKeys}
-                            treeData={treeData}
-                            onSelect={handleSelect}
-                        />
+                        <Tree showLine onExpand={onExpand} expandedKeys={expandedKeys} treeData={treeData} onSelect={handleSelect} />
                     )}
                     {!isTreeLoading && !selectedSchema && <Empty description="No schema selected" />}
                 </Sider>
@@ -285,31 +278,25 @@ export const SchemaEditorList: React.FC = () => {
                         {selectedNode && !isEditing && <Button icon={<EditOutlined />} onClick={() => setIsEditing(true)}>Edit</Button>}
                         {selectedNode && isEditing && (
                             <Space>
-                                <Button icon={<CloseCircleOutlined />} onClick={() => { setIsEditing(false); structureForm.resetFields(); definitionForm.resetFields(); }}>Cancel</Button>
+                                <Button icon={<CloseCircleOutlined />} onClick={handleCancelEditing}>Cancel</Button>
                                 <Button type="primary" icon={<SaveOutlined />} onClick={handleSave} loading={isSaving}>Save</Button>
                             </Space>
                         )}
                     </div>
 
-                    {selectedNode ? (
-                        isEditing ? (
-                            <EditableNodeDetails 
-                                structureForm={structureForm}
-                                definitionForm={definitionForm}
-                                selectedNode={selectedNode}
-                                schemaContent={schemaContent}
-                                onStructureValuesChange={handleStructureUpdate}
-                                onDefinitionValuesChange={handleDefinitionUpdate}
-                                onSpecialize={handleSpecialize}
-                                isShared={isShared}
-                            />
-                        ) : (
-                            <ReadOnlyNodeDetails
-                                selectedNode={selectedNode}
-                                schemaContent={schemaContent}
-                                isShared={isShared}
-                            />
-                        )
+                    {selectedNode && schemaContent ? (
+                        // --- THIS IS THE FIX ---
+                        // The onValuesChange prop is now completely removed.
+                        <EditableNodeDetails 
+                            form={form}
+                            isEditing={isEditing}
+                            selectedNode={selectedNode}
+                            schemaContent={schemaContent}
+                            onSpecialize={handleSpecialize}
+                            isShared={isShared}
+                            isSharedEditingEnabled={isSharedEditingEnabled}
+                            onEnableSharedEditing={() => setIsSharedEditingEnabled(true)}
+                        />
                     ) : (
                         <Empty description="Select a node from the tree to see details." style={{marginTop: 40}}/>
                     )}
