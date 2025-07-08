@@ -46,6 +46,7 @@ class StructureSegmentDefinition(BaseModel):
     usage: str
     max_use: int = Field(..., alias='max_use')
     name: str
+    definitionId: Optional[str] = None
 
 StructureChild = Annotated[
     Union[StructureLoopDefinition, StructureSegmentDefinition],

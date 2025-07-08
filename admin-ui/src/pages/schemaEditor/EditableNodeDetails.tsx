@@ -3,7 +3,9 @@ import { Form, Input, Select, InputNumber, Typography, Alert, Card, Button, Tabl
 import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
 import type { FormInstance } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { getLogger } from "../../utils";
 
+const logger = getLogger("SchemaDetails");
 const { Title } = Typography;
 
 interface EditableNodeDetailsProps {
@@ -37,7 +39,29 @@ const ReadOnlyElementTable: React.FC<{ elements: any[] }> = ({ elements }) => {
             )
         },
     ];
-    return <Table columns={columns} dataSource={elements.map(el => ({ ...el, key: el.xid }))} pagination={false} size="small" />;
+    return <Table columns={columns} dataSource={elements?.map(el => ({ ...el, key: el.xid }))} pagination={false} size="small" />;
+};
+
+
+// --- THIS IS THE FIX ---
+// This new helper function implements the user's requested logic.
+// It checks for a specialized definition and falls back to the base xid if not found.
+const getEffectiveDefinitionId = (node: any, schema: any): string => {
+    if (!node || !schema || node.type !== 'segment') {
+        return node?.xid;
+    }
+
+    // Construct the potential specialized ID from the node's key,
+    // e.g., "NM1_root_loop_..._segment_NM1_0"
+    const potentialSpecializedId = `${node.xid}_${node.key.replace(/-/g, '_')}`;
+
+    // Check if this specialized definition exists in the main schema content
+    if (schema.segmentDefinitions && schema.segmentDefinitions[potentialSpecializedId]) {
+        return potentialSpecializedId;
+    }
+
+    // If not, fall back to the base segment ID (xid)
+    return node.xid;
 };
 
 
@@ -51,26 +75,35 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
     isSharedEditingEnabled,
     isEditing,
 }) => {
-    const definitionId = selectedNode.definitionId || selectedNode.xid;
+    logger.debug("--- EditableNodeDetails RENDER ---", { isEditing, isShared });
+    
+    // The definitionId is now determined by our new helper function.
+    const definitionId = getEffectiveDefinitionId(selectedNode, schemaContent);
     const segmentDefinition = schemaContent.segmentDefinitions[definitionId];
     const isDefinitionEditingDisabled = isShared && !isSharedEditingEnabled;
 
     useEffect(() => {
+        logger.groupCollapsed("--- useEffect [form population] ---");
         if (selectedNode) {
-            const definitionWithDefaults = {
-                ...segmentDefinition,
-                elements: segmentDefinition?.elements?.map((el: any) => ({ ...el, valid_codes: { code: el.valid_codes?.code || [] } })) || []
-            };
-            // --- THIS IS THE FIX ---
-            // Spread the definition first, then the specific node properties.
-            // This ensures the node's `name`, `usage`, etc., overwrite the defaults.
-            form.setFieldsValue({
-                ...definitionWithDefaults,
+            logger.debug("1. Received selectedNode:", JSON.parse(JSON.stringify(selectedNode)));
+            logger.debug(`2. Calculated definitionId to use: '${definitionId}'`);
+            logger.debug("3. Found segmentDefinition in schemaContent:", !!segmentDefinition);
+
+            const valuesToSet = {
+                ...(segmentDefinition || {}),
                 ...selectedNode,
-            });
+                elements: segmentDefinition?.elements?.map((el: any) => ({
+                    ...el,
+                    valid_codes: { code: el.valid_codes?.code || [] },
+                })) || [],
+            };
+            logger.debug("4. Final values being set to form:", JSON.parse(JSON.stringify(valuesToSet)));
+            form.setFieldsValue(valuesToSet);
         } else {
+            logger.debug("No selected node, resetting form.");
             form.resetFields();
         }
+        logger.groupEnd();
     }, [selectedNode, segmentDefinition, form, isEditing]);
 
     if (!isEditing) {
@@ -78,7 +111,7 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
              <div>
                 <Title level={5} style={{ marginBottom: 24 }}>Node Details: {selectedNode.name} ({selectedNode.xid})</Title>
                 <Card title="Structure Properties" size="small" style={{ marginBottom: 16 }}>
-                    <Descriptions bordered column={1} size="small" labelStyle={{ width: '200px' }}>
+                    <Descriptions bordered column={1}>
                         <Descriptions.Item label="Display Name">{selectedNode.name}</Descriptions.Item>
                         <Descriptions.Item label="Usage">{selectedNode.usage}</Descriptions.Item>
                         {selectedNode.type === 'loop' && <Descriptions.Item label="Repeat">{selectedNode.repeat}</Descriptions.Item>}
@@ -90,7 +123,7 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
                         {segmentDefinition ? (
                             <>
                                 {isShared && <Alert message="This is a shared segment definition." type="info" showIcon style={{ marginBottom: 16 }} />}
-                                <Descriptions bordered column={1} size="small" labelStyle={{ width: '200px' }}>
+                                <Descriptions bordered column={1}>
                                     <Descriptions.Item label="Definition ID">{definitionId}</Descriptions.Item>
                                     <Descriptions.Item label="Definition Name">{segmentDefinition.name}</Descriptions.Item>
                                 </Descriptions>

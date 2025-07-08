@@ -17,5 +17,19 @@ export const getLogger = (scope: string) => {
                 console.log(`%c${prefix}`, 'color: blue;', ...args);
             }
         },
+        // --- THIS IS THE FIX ---
+        // Add the group methods to the logger utility.
+        // We will only execute them if debug mode is enabled for the scope.
+        groupCollapsed: (...args: any[]) => {
+            if (isDebugMode(scope)) {
+                console.groupCollapsed(`%c${prefix}`, 'color: blue;', ...args);
+            }
+        },
+        groupEnd: () => {
+            if (isDebugMode(scope)) {
+                console.groupEnd();
+            }
+        },
+        // --- END OF FIX ---
     };
 };

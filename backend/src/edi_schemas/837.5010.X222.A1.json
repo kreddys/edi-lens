@@ -10116,6 +10116,272 @@
           "seq": "05"
         }
       }
+    },
+    "NM1_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_HEADER_1_loop_1000B_2_segment_NM1_0": {
+      "name": "Receiver Name",
+      "usage": "R",
+      "pos": "200",
+      "max_use": 1,
+      "syntax": [
+        "P0809",
+        "C1110"
+      ],
+      "elements": [
+        {
+          "xid": "NM101",
+          "data_ele": 98,
+          "name": "Entity Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "40"
+            ]
+          }
+        },
+        {
+          "xid": "NM102",
+          "data_ele": 1065,
+          "name": "Entity Type Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              2
+            ]
+          }
+        },
+        {
+          "xid": "NM103",
+          "data_ele": 1035,
+          "name": "Submitter Last or Organization Name",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM104",
+          "data_ele": 1036,
+          "name": "Submitter First Name",
+          "usage": "S",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM105",
+          "data_ele": 1037,
+          "name": "Submitter Middle Name",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM106",
+          "data_ele": 1038,
+          "name": "Name Prefix",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM107",
+          "data_ele": 1039,
+          "name": "Name Suffix",
+          "usage": "N",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM108",
+          "data_ele": 66,
+          "name": "Identification Code Qualifier",
+          "usage": "R",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              46
+            ]
+          }
+        },
+        {
+          "xid": "NM109",
+          "data_ele": 67,
+          "name": "Submitter Identifier",
+          "usage": "R",
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM110",
+          "data_ele": 706,
+          "name": "Entity Relationship Code",
+          "usage": "N",
+          "seq": "10",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM111",
+          "data_ele": 98,
+          "name": "Entity Identifier Code",
+          "usage": "N",
+          "seq": "11",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM112",
+          "data_ele": 1035,
+          "name": "Name Last or Organization Name",
+          "usage": "N",
+          "seq": "12",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "NM101": {
+          "xid": "NM101",
+          "data_ele": 98,
+          "name": "Entity Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "40"
+            ]
+          }
+        },
+        "NM102": {
+          "xid": "NM102",
+          "data_ele": 1065,
+          "name": "Entity Type Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              2
+            ]
+          }
+        },
+        "NM103": {
+          "xid": "NM103",
+          "data_ele": 1035,
+          "name": "Submitter Last or Organization Name",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM104": {
+          "xid": "NM104",
+          "data_ele": 1036,
+          "name": "Submitter First Name",
+          "usage": "S",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM105": {
+          "xid": "NM105",
+          "data_ele": 1037,
+          "name": "Submitter Middle Name",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM106": {
+          "xid": "NM106",
+          "data_ele": 1038,
+          "name": "Name Prefix",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM107": {
+          "xid": "NM107",
+          "data_ele": 1039,
+          "name": "Name Suffix",
+          "usage": "N",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM108": {
+          "xid": "NM108",
+          "data_ele": 66,
+          "name": "Identification Code Qualifier",
+          "usage": "R",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              46
+            ]
+          }
+        },
+        "NM109": {
+          "xid": "NM109",
+          "data_ele": 67,
+          "name": "Submitter Identifier",
+          "usage": "R",
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM110": {
+          "xid": "NM110",
+          "data_ele": 706,
+          "name": "Entity Relationship Code",
+          "usage": "N",
+          "seq": "10",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM111": {
+          "xid": "NM111",
+          "data_ele": 98,
+          "name": "Entity Identifier Code",
+          "usage": "N",
+          "seq": "11",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM112": {
+          "xid": "NM112",
+          "data_ele": 1035,
+          "name": "Name Last or Organization Name",
+          "usage": "N",
+          "seq": "12",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
     }
   },
   "structure": [
