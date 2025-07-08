@@ -308,8 +308,10 @@ export const SchemaEditorList: React.FC = () => {
                 errorNotification: (error?: HttpError) => ({ message: `Save failed: ${error?.message || "Unknown error"}`, type: "error" }),
                 meta: {
                     onSuccess: () => {
+                        // --- THIS IS THE FIX ---
                         setIsPageInEditMode(false);
                         setDraftContent(null);
+                        setSelectedNode(null); // Deselect node after save
                         refetch(); 
                     },
                 },
@@ -489,7 +491,16 @@ export const SchemaEditorList: React.FC = () => {
             {isPageInEditMode && <Alert message="Edit Mode" type="info" showIcon style={{ marginBottom: 16 }} description="You are in edit mode. All changes to structure and properties will be saved when you click 'Save Schema'." />}
 
             <Layout style={{ background: "#fff" }}>
-                <Sider width={500} style={{ background: "#fff", padding: "0 16px", borderRight: "1px solid #f0f0f0" }}>
+                <Sider 
+                    width={500} 
+                    style={{ 
+                        background: "#fff", 
+                        padding: "0 16px", 
+                        borderRight: "1px solid #f0f0f0",
+                        overflow: 'auto', 
+                        maxHeight: 'calc(100vh - 280px)' 
+                    }}
+                >
                     <Space style={{ marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
                         <Title level={5} style={{ margin: 0 }}>
                             Schema Structure
@@ -517,7 +528,13 @@ export const SchemaEditorList: React.FC = () => {
                     }
                     {!isTreeLoading && !selectedSchema && <Empty description="No schema selected" />}
                 </Sider>
-                <Content style={{ padding: "0 24px", minHeight: 280 }}>
+                <Content 
+                    style={{ 
+                        padding: "0 24px", 
+                        overflow: 'auto', 
+                        maxHeight: 'calc(100vh - 280px)' 
+                    }}
+                >
                     <Form form={form} layout="vertical" onValuesChange={onFormValuesChange}>
                         {selectedNode && contentToShow ? (
                             <EditableNodeDetails

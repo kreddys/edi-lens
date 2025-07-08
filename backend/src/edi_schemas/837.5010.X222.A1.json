@@ -15007,6 +15007,1184 @@
           }
         }
       }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_2": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "453"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "453"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_3": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "435"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "435"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_4": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "090",
+              "091"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "090",
+              "091"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_5": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "296"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "296"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_6": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "314",
+              "360",
+              "361"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8",
+              "RD8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "314",
+              "360",
+              "361"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8",
+              "RD8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_7": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "096"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "096"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_8": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "471"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "471"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_9": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "484"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "484"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_10": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              431
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              431
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_11": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "454"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "454"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_12": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "304"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "304"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_13": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "297"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "297"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_14": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "455"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "455"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_15": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "444"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "444"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_16": {
+      "name": "Date",
+      "usage": "S",
+      "pos": "1350",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "050"
+            ]
+          }
+        },
+        {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DTP01": {
+          "xid": "DTP01",
+          "data_ele": 374,
+          "name": "Date Time Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "050"
+            ]
+          }
+        },
+        "DTP02": {
+          "xid": "DTP02",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DTP03": {
+          "xid": "DTP03",
+          "data_ele": 1251,
+          "name": "Onset of Current Illness or Injury Date",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
     }
   },
   "structure": [
@@ -15516,7 +16694,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Acute Manifestation"
+                                  "name": "Date - Acute Manifestation",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_2"
                                 },
                                 {
                                   "type": "segment",
@@ -15524,7 +16703,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Admission"
+                                  "name": "Date - Admission",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_3"
                                 },
                                 {
                                   "type": "segment",
@@ -15532,7 +16712,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 2,
-                                  "name": "Date - Assumed and Relinquished Care Dates"
+                                  "name": "Date - Assumed and Relinquished Care Dates",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_4"
                                 },
                                 {
                                   "type": "segment",
@@ -15540,7 +16721,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Authorized Return to Work"
+                                  "name": "Date - Authorized Return to Work",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_5"
                                 },
                                 {
                                   "type": "segment",
@@ -15548,7 +16730,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Disability Dates"
+                                  "name": "Date - Disability Dates",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_6"
                                 },
                                 {
                                   "type": "segment",
@@ -15556,7 +16739,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Discharge"
+                                  "name": "Date - Discharge",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_7"
                                 },
                                 {
                                   "type": "segment",
@@ -15564,7 +16748,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Hearing and Vision Prescription Date"
+                                  "name": "Date - Hearing and Vision Prescription Date",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_8"
                                 },
                                 {
                                   "type": "segment",
@@ -15572,7 +16757,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Last Menstrual Period"
+                                  "name": "Date - Last Menstrual Period",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_9"
                                 },
                                 {
                                   "type": "segment",
@@ -15580,7 +16766,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Onset of Current Illness or Symptom"
+                                  "name": "Date - Onset of Current Illness or Symptom",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_10"
                                 },
                                 {
                                   "type": "segment",
@@ -15588,7 +16775,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Initial Treatment Date"
+                                  "name": "Date - Initial Treatment Date",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_11"
                                 },
                                 {
                                   "type": "segment",
@@ -15596,7 +16784,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Last Seen Date"
+                                  "name": "Date - Last Seen Date",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_12"
                                 },
                                 {
                                   "type": "segment",
@@ -15604,7 +16793,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Last Worked"
+                                  "name": "Date - Last Worked",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_13"
                                 },
                                 {
                                   "type": "segment",
@@ -15612,7 +16802,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Last X-ray Date"
+                                  "name": "Date - Last X-ray Date",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_14"
                                 },
                                 {
                                   "type": "segment",
@@ -15620,7 +16811,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Property and Casualty Date of First Contact"
+                                  "name": "Date - Property and Casualty Date of First Contact",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_15"
                                 },
                                 {
                                   "type": "segment",
@@ -15628,7 +16820,8 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Repricer Received Date"
+                                  "name": "Date - Repricer Received Date",
+                                  "definitionId": "DTP_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2300_5_segment_DTP_16"
                                 },
                                 {
                                   "type": "segment",
