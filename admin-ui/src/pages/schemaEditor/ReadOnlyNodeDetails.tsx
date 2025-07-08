@@ -1,5 +1,5 @@
 import React from "react";
-import { Descriptions, Typography, Alert, Divider } from "antd";
+import { Descriptions, Typography, Alert, Card } from "antd";
 
 const { Title } = Typography;
 
@@ -16,24 +16,25 @@ export const ReadOnlyNodeDetails: React.FC<ReadOnlyNodeDetailsProps> = ({
 }) => {
     if (!selectedNode) return null;
 
-    const segmentDefinition = schemaContent.segmentDefinitions[selectedNode.xid];
+    // Use definitionId for lookup, fallback to xid for compatibility
+    const definitionId = selectedNode.definitionId || selectedNode.xid;
+    const segmentDefinition = schemaContent.segmentDefinitions[definitionId];
 
     return (
         <div>
             <Title level={5} style={{ marginBottom: 24 }}>Node Details: {selectedNode.name} ({selectedNode.xid})</Title>
             
-            <Divider orientation="left" plain>Structure Properties</Divider>
-            {/* --- FIX: Added column prop for alignment --- */}
-            <Descriptions bordered column={1} size="small" labelStyle={{ width: '200px' }}>
-                <Descriptions.Item label="Display Name">{selectedNode.name}</Descriptions.Item>
-                <Descriptions.Item label="Usage">{selectedNode.usage}</Descriptions.Item>
-                {selectedNode.type === 'loop' && <Descriptions.Item label="Repeat">{selectedNode.repeat}</Descriptions.Item>}
-                {selectedNode.type === 'segment' && <Descriptions.Item label="Max Use">{selectedNode.max_use}</Descriptions.Item>}
-            </Descriptions>
+            <Card title="Structure Properties" size="small" style={{ marginBottom: 16 }}>
+                <Descriptions bordered column={1} size="small" labelStyle={{ width: '200px' }}>
+                    <Descriptions.Item label="Display Name">{selectedNode.name}</Descriptions.Item>
+                    <Descriptions.Item label="Usage">{selectedNode.usage}</Descriptions.Item>
+                    {selectedNode.type === 'loop' && <Descriptions.Item label="Repeat">{selectedNode.repeat}</Descriptions.Item>}
+                    {selectedNode.type === 'segment' && <Descriptions.Item label="Max Use">{selectedNode.max_use}</Descriptions.Item>}
+                </Descriptions>
+            </Card>
 
             {selectedNode.type === "segment" && (
-                <>
-                    <Divider orientation="left" plain>Segment Definition</Divider>
+                <Card title="Segment Definition Properties" size="small">
                     {segmentDefinition ? (
                         <>
                             {isShared && (
@@ -45,6 +46,7 @@ export const ReadOnlyNodeDetails: React.FC<ReadOnlyNodeDetailsProps> = ({
                                 />
                             )}
                             <Descriptions bordered column={1} size="small" labelStyle={{ width: '200px' }}>
+                                <Descriptions.Item label="Definition ID">{definitionId}</Descriptions.Item>
                                 <Descriptions.Item label="Definition Name">{segmentDefinition.name}</Descriptions.Item>
                             </Descriptions>
                         </>
@@ -56,7 +58,7 @@ export const ReadOnlyNodeDetails: React.FC<ReadOnlyNodeDetailsProps> = ({
                             showIcon 
                         />
                     )}
-                </>
+                </Card>
             )}
         </div>
     );

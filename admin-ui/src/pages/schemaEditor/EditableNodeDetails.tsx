@@ -1,99 +1,87 @@
 import React, { useEffect } from "react";
-import { Form, Input, Select, InputNumber, Typography, Alert, Card } from "antd";
+import { Form, Input, Select, InputNumber, Typography, Alert, Card, Button } from "antd";
 import type { FormInstance } from 'antd';
 
 const { Title } = Typography;
 
 interface EditableNodeDetailsProps {
-    form: FormInstance;
+    structureForm: FormInstance;
+    definitionForm: FormInstance;
     selectedNode: any;
     schemaContent: any;
-    onValuesChange: (changedValues: any, allValues: any) => void;
+    onStructureValuesChange: (changedValues: any) => void;
+    onDefinitionValuesChange: (changedValues: any) => void;
+    onSpecialize: () => void;
     isShared: boolean;
 }
 
 export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
-    form,
+    structureForm,
+    definitionForm,
     selectedNode,
     schemaContent,
-    onValuesChange,
+    onStructureValuesChange,
+    onDefinitionValuesChange,
+    onSpecialize,
     isShared,
 }) => {
+    
+    const definitionId = selectedNode.definitionId || selectedNode.xid;
+    const segmentDefinition = schemaContent.segmentDefinitions[definitionId];
+
     useEffect(() => {
         if (selectedNode) {
-            form.setFieldsValue({
-                ...selectedNode,
-                ...schemaContent.segmentDefinitions[selectedNode.xid],
-            });
+            structureForm.setFieldsValue(selectedNode);
+            if (segmentDefinition) {
+                definitionForm.setFieldsValue(segmentDefinition);
+            }
         } else {
-            form.resetFields();
+            structureForm.resetFields();
+            definitionForm.resetFields();
         }
-    }, [selectedNode, schemaContent, form]);
+    }, [selectedNode, segmentDefinition, structureForm, definitionForm]);
 
     if (!selectedNode) return null;
 
-    const segmentDefinition = schemaContent.segmentDefinitions[selectedNode.xid];
-
     return (
-        <Form
-            form={form}
-            layout="vertical"
-            onValuesChange={onValuesChange}
-            key={selectedNode.key}
-        >
+        <div>
             <Title level={5}>Edit Node: {selectedNode.name} ({selectedNode.xid})</Title>
-            <Card title="Structure Properties" size="small" style={{ marginBottom: 16 }}>
-                <Form.Item name="name" label="Display Name (in tree)">
-                    <Input />
-                </Form.Item>
-                <Form.Item name="usage" label="Usage">
-                    <Select
-                        options={[
-                            { value: "R", label: "Required" },
-                            { value: "S", label: "Situational" },
-                            { value: "N", label: "Not Used" },
-                        ]}
-                    />
-                </Form.Item>
-
-                {selectedNode.type === "loop" && (
-                    <Form.Item name="repeat" label="Repeat Count">
-                        <Input placeholder="e.g., >1, 99" />
+            
+            <Form form={structureForm} layout="vertical" onValuesChange={onStructureValuesChange} key={`${selectedNode.key}-struct`}>
+                <Card title="Structure Properties" size="small" style={{ marginBottom: 16 }}>
+                    <Form.Item name="name" label="Display Name (in tree)"><Input /></Form.Item>
+                    <Form.Item name="usage" label="Usage">
+                        <Select options={[{ value: "R", label: "Required" }, { value: "S", label: "Situational" }, { value: "N", label: "Not Used" }]}/>
                     </Form.Item>
-                )}
-
-                {selectedNode.type === "segment" && (
-                    <Form.Item name="max_use" label="Max Use">
-                        <InputNumber min={0} style={{ width: '100%' }} />
-                    </Form.Item>
-                )}
-            </Card>
-
-            {selectedNode.type === "segment" && segmentDefinition && (
-                <Card title="Segment Definition Properties" size="small">
-                    {isShared && (
-                        // --- FIX: Removed description to make it single-line ---
-                        <Alert 
-                            message="You are editing a shared segment definition."
-                            type="info" 
-                            showIcon
-                            style={{ marginBottom: 16 }}
-                        />
-                    )}
-                    <Form.Item name="name" label="Segment Definition Name">
-                        <Input />
-                    </Form.Item>
+                    {selectedNode.type === "loop" && <Form.Item name="repeat" label="Repeat Count"><Input placeholder="e.g., >1, 99" /></Form.Item>}
+                    {selectedNode.type === "segment" && <Form.Item name="max_use" label="Max Use"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item>}
                 </Card>
-            )}
+            </Form>
 
-            {selectedNode.type === "segment" && !segmentDefinition && (
-                 <Alert 
-                    message="Unlinked Segment"
-                    description="This segment is not linked to a definition."
-                    type="warning" 
-                    showIcon 
-                />
+            {selectedNode.type === "segment" && (
+                <Form form={definitionForm} layout="vertical" onValuesChange={onDefinitionValuesChange} key={`${selectedNode.key}-def`}>
+                    <Card title="Segment Definition Properties" size="small">
+                        {segmentDefinition ? (
+                            <>
+                                {isShared && (
+                                    <Alert
+                                        message="This is a shared definition."
+                                        description={<Button type="link" onClick={onSpecialize} style={{padding:0}}>Create a specialized definition to edit independently.</Button>}
+                                        type="info"
+                                        showIcon
+                                        style={{ marginBottom: 16 }}
+                                    />
+                                )}
+                                <Form.Item name="name" label="Definition Name">
+                                    <Input disabled={isShared} />
+                                </Form.Item>
+                            </>
+                        ) : (
+                            <Alert message="Unlinked Segment" type="warning" showIcon />
+                        )}
+                    </Card>
+                </Form>
             )}
-        </Form>
+        </div>
     );
 };

@@ -27,12 +27,12 @@ import { ReadOnlyNodeDetails } from "./ReadOnlyNodeDetails";
 const { Content, Sider } = Layout;
 const { Title, Text } = Typography;
 
-// ... (interfaces and helper functions remain the same) ...
 interface SchemaNode {
     type: 'loop' | 'segment';
     xid: string;
     name: string;
-    key: string; 
+    key?: string; // --- FIX: Mark key as optional ---
+    definitionId?: string;
     children?: SchemaNode[];
     [key: string]: any;
 }
@@ -46,7 +46,7 @@ interface SchemaFile {
 const getAllKeys = (nodes: TreeDataNode[]): React.Key[] => {
     let keys: React.Key[] = [];
     for (const node of nodes) {
-        keys.push(node.key);
+        if(node.key) keys.push(node.key); // Ensure key exists
         if (node.children) {
             keys = keys.concat(getAllKeys(node.children));
         }
@@ -57,7 +57,10 @@ const getAllKeys = (nodes: TreeDataNode[]): React.Key[] => {
 const transformToTreeData = (nodes: SchemaNode[], parentKey: string = 'root'): TreeDataNode[] => {
     return nodes.map((node, index) => {
         const key = `${parentKey}-${node.type}-${node.xid}-${index}`;
-        node.key = key;
+        node.key = key; 
+        if(node.type === 'segment' && !node.definitionId) {
+            node.definitionId = node.xid;
+        }
         return {
             title: (
                 <Text>
@@ -71,6 +74,7 @@ const transformToTreeData = (nodes: SchemaNode[], parentKey: string = 'root'): T
         };
     });
 };
+
 
 const updateNodeByKey = (nodes: SchemaNode[], key: string, newValues: any): SchemaNode[] => {
     return nodes.map(node => {
@@ -87,7 +91,7 @@ const updateNodeByKey = (nodes: SchemaNode[], key: string, newValues: any): Sche
 const countXidInTree = (nodes: SchemaNode[], xid: string): number => {
     let count = 0;
     for (const node of nodes) {
-        if (node.type === 'segment' && node.xid === xid) {
+        if (node.type === 'segment' && (node.definitionId || node.xid) === xid) {
             count++;
         }
         if (node.children) {
@@ -98,7 +102,8 @@ const countXidInTree = (nodes: SchemaNode[], xid: string): number => {
 };
 
 export const SchemaEditorList: React.FC = () => {
-    const [form] = Form.useForm();
+    const [structureForm] = Form.useForm();
+    const [definitionForm] = Form.useForm();
     const apiUrl = useApiUrl();
     const [selectedSchema, setSelectedSchema] = useState<string | null>(null);
     const [schemaContent, setSchemaContent] = useState<SchemaFile | null>(null);
@@ -127,15 +132,15 @@ export const SchemaEditorList: React.FC = () => {
     
     const isShared = useMemo(() => {
         if (!selectedNode || !schemaContent || selectedNode.type !== 'segment') return false;
-        return countXidInTree(schemaContent.structure, selectedNode.xid) > 1;
+        const definitionId = selectedNode.definitionId || selectedNode.xid;
+        return countXidInTree(schemaContent.structure, definitionId) > 1;
     }, [selectedNode, schemaContent]);
     
     useEffect(() => {
         if (schemaFileData?.data) {
             setSchemaContent(schemaFileData.data);
-            // --- FIX: Only expand the top-level loop by default ---
-            const topLevelTreeData = transformToTreeData(schemaFileData.data.structure);
-            if (topLevelTreeData.length > 0) {
+            const topLevelTreeData = transformToTreeData(JSON.parse(JSON.stringify(schemaFileData.data.structure)));
+            if (topLevelTreeData.length > 0 && topLevelTreeData[0].key) {
                 setExpandedKeys([topLevelTreeData[0].key]);
             }
         } else {
@@ -147,8 +152,10 @@ export const SchemaEditorList: React.FC = () => {
     useEffect(() => {
         setSelectedNode(null);
         setIsEditing(false);
-        form.resetFields();
-    }, [selectedSchema, form]);
+        // --- FIX: Use the correct form instance names ---
+        structureForm.resetFields();
+        definitionForm.resetFields();
+    }, [selectedSchema, structureForm, definitionForm]);
 
     const onExpand = (keys: React.Key[]) => setExpandedKeys(keys);
 
@@ -164,29 +171,75 @@ export const SchemaEditorList: React.FC = () => {
         }
     };
 
-    const handleNodeUpdate = (changedValues: any) => {
+    const handleStructureUpdate = (changedValues: any) => {
         if (!schemaContent || !selectedNode) return;
-
-        setSchemaContent(currentContent => {
-            if (!currentContent) return null;
-            
-            const newContent = JSON.parse(JSON.stringify(currentContent));
-            const newStructure = updateNodeByKey(newContent.structure, selectedNode.key, changedValues);
-            newContent.structure = newStructure;
-            
-            const segmentDef = newContent.segmentDefinitions[selectedNode.xid];
-            if (segmentDef) {
-                 const newDef = { ...segmentDef, ...changedValues };
-                 newContent.segmentDefinitions[selectedNode.xid] = newDef;
+        setSchemaContent(current => {
+            if (!current) return null;
+            // --- FIX: Return the full SchemaFile object ---
+            return {
+                ...current,
+                structure: updateNodeByKey(current.structure, selectedNode.key!, changedValues)
+            };
+        });
+    };
+    
+    const handleDefinitionUpdate = (changedValues: any) => {
+        if (!schemaContent || !selectedNode) return;
+        const definitionId = selectedNode.definitionId || selectedNode.xid;
+        setSchemaContent(current => ({
+            ...current!,
+            segmentDefinitions: {
+                ...current!.segmentDefinitions,
+                [definitionId]: {
+                    ...current!.segmentDefinitions[definitionId],
+                    ...changedValues
+                }
             }
+        }));
+    };
+
+    const handleSpecialize = () => {
+        if (!schemaContent || !selectedNode || !selectedNode.key) return;
+        
+        const originalDefId = selectedNode.definitionId || selectedNode.xid;
+        const newDefId = `${originalDefId}_${selectedNode.key.replace(/-/g, '_')}`;
+
+        setSchemaContent(current => {
+            const newContent = JSON.parse(JSON.stringify(current!));
+            
+            newContent.segmentDefinitions[newDefId] = newContent.segmentDefinitions[originalDefId];
+            
+            const updateInStructure = (nodes: SchemaNode[]): SchemaNode[] => {
+                return nodes.map(n => {
+                    if (n.key === selectedNode.key) {
+                        return { ...n, definitionId: newDefId };
+                    }
+                    if (n.children) {
+                        return { ...n, children: updateInStructure(n.children) };
+                    }
+                    return n;
+                });
+            };
+            newContent.structure = updateInStructure(newContent.structure);
+
+            setSelectedNode(prev => ({...prev!, definitionId: newDefId}));
             return newContent;
         });
     };
 
     const handleSave = () => {
         if (selectedSchema && schemaContent) {
+            const contentToSave = JSON.parse(JSON.stringify(schemaContent));
+            const cleanStructure = (nodes: SchemaNode[]) => {
+                nodes.forEach(n => {
+                    delete n.key;
+                    if(n.children) cleanStructure(n.children);
+                });
+            };
+            cleanStructure(contentToSave.structure);
+
             updateSchema({
-                resource: "schemas", id: selectedSchema, values: schemaContent,
+                resource: "schemas", id: selectedSchema, values: contentToSave,
                 successNotification: () => ({ message: "Schema saved successfully!", type: "success" }),
                 errorNotification: (error?: HttpError) => ({ message: `Save failed: ${error?.message || 'Unknown error'}`, type: "error" }),
                 meta: { onSuccess: () => setIsEditing(false) }
@@ -228,12 +281,11 @@ export const SchemaEditorList: React.FC = () => {
                     {!isTreeLoading && !selectedSchema && <Empty description="No schema selected" />}
                 </Sider>
                 <Content style={{ padding: '0 24px', minHeight: 280 }}>
-                    {/* --- FIX: New Action Bar Layout --- */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: isEditing ? 16 : 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 16, height: '32px' }}>
                         {selectedNode && !isEditing && <Button icon={<EditOutlined />} onClick={() => setIsEditing(true)}>Edit</Button>}
                         {selectedNode && isEditing && (
                             <Space>
-                                <Button icon={<CloseCircleOutlined />} onClick={() => { setIsEditing(false); form.resetFields(); }}>Cancel</Button>
+                                <Button icon={<CloseCircleOutlined />} onClick={() => { setIsEditing(false); structureForm.resetFields(); definitionForm.resetFields(); }}>Cancel</Button>
                                 <Button type="primary" icon={<SaveOutlined />} onClick={handleSave} loading={isSaving}>Save</Button>
                             </Space>
                         )}
@@ -242,10 +294,13 @@ export const SchemaEditorList: React.FC = () => {
                     {selectedNode ? (
                         isEditing ? (
                             <EditableNodeDetails 
-                                form={form}
+                                structureForm={structureForm}
+                                definitionForm={definitionForm}
                                 selectedNode={selectedNode}
                                 schemaContent={schemaContent}
-                                onValuesChange={handleNodeUpdate}
+                                onStructureValuesChange={handleStructureUpdate}
+                                onDefinitionValuesChange={handleDefinitionUpdate}
+                                onSpecialize={handleSpecialize}
                                 isShared={isShared}
                             />
                         ) : (
