@@ -74,7 +74,6 @@ const transformToTreeData = (nodes: SchemaNode[], parentKey: string = "root"): T
     });
 };
 
-// --- THIS IS THE CORRECTED HELPER FUNCTION ---
 const updateNodeByKey = (
     nodes: SchemaNode[],
     keyToUpdate: string,
@@ -125,7 +124,6 @@ const countUnspecializedXidInTree = (
     return count;
 };
 
-// --- THIS IS THE CORRECTED HELPER FUNCTION ---
 const findNodeByKey = (
     nodes: SchemaNode[], 
     keyToFind: string, 
@@ -284,7 +282,13 @@ export const SchemaEditorList: React.FC = () => {
         if (selectedNode && schemaContent) {
             const definitionId = getEffectiveDefinitionId(selectedNode, schemaContent);
             const segmentDefinition = schemaContent.segmentDefinitions[definitionId];
-            form.setFieldsValue({ ...segmentDefinition, ...selectedNode });
+            form.setFieldsValue({
+                ...selectedNode,
+                structure_name: selectedNode.name,
+                ...(segmentDefinition || {}),
+                definition_name: segmentDefinition?.name,
+                elements: segmentDefinition?.elements,
+            });
         }
     };
 
@@ -316,7 +320,8 @@ export const SchemaEditorList: React.FC = () => {
             
             const segmentDef = newContent.segmentDefinitions[definitionIdToUpdate];
             if (segmentDef) {
-                segmentDef.name = formValues.name; 
+                // --- THIS IS THE FIX ---
+                segmentDef.name = formValues.definition_name; 
                 if (formValues.elements) {
                     segmentDef.elements = formValues.elements;
                     segmentDef.elementsByXid = (formValues.elements || []).reduce((acc: any, el: any) => { acc[el.xid] = el; return acc; }, {});
@@ -326,11 +331,15 @@ export const SchemaEditorList: React.FC = () => {
             }
     
             const structuralNodeUpdate = {
-                name: formValues.name,
+                // --- THIS IS THE FIX ---
+                name: formValues.structure_name,
                 usage: formValues.usage,
                 repeat: nodeInTree.type === "loop" ? formValues.repeat : undefined,
                 max_use: nodeInTree.type === "segment" ? formValues.max_use : undefined,
+                ...(nodeInTree.definitionId ? { definitionId: nodeInTree.definitionId } : {}),
             };
+            
+            logger.debug("3. Structural update object:", structuralNodeUpdate);
             
             newContent.structure = updateNodeByKey(newContent.structure, keyToUpdate, structuralNodeUpdate);
             
@@ -342,7 +351,7 @@ export const SchemaEditorList: React.FC = () => {
             };
     
             const contentToSave = { ...newContent, structure: cleanStructureForSave(newContent.structure) };
-            logger.debug("3. Final payload being sent to API:", JSON.parse(JSON.stringify(contentToSave)));
+            logger.debug("4. Final payload being sent to API:", JSON.parse(JSON.stringify(contentToSave)));
             
             updateSchema({
                 resource: "schemas",

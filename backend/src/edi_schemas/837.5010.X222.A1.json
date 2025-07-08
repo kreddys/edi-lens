@@ -978,7 +978,7 @@
       }
     },
     "NM1": {
-      "name": "Submitter Name",
+      "name": "Name",
       "usage": "R",
       "pos": "200",
       "max_use": 1,
@@ -1017,35 +1017,50 @@
           "data_ele": 1035,
           "name": "Submitter Last or Organization Name",
           "usage": "R",
-          "seq": "03"
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "NM104",
           "data_ele": 1036,
           "name": "Submitter First Name",
           "usage": "S",
-          "seq": "04"
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "NM105",
           "data_ele": 1037,
           "name": "Submitter Middle Name",
           "usage": "S",
-          "seq": "05"
+          "seq": "05",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "NM106",
           "data_ele": 1038,
           "name": "Name Prefix",
           "usage": "N",
-          "seq": "06"
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "NM107",
           "data_ele": 1039,
           "name": "Name Suffix",
           "usage": "N",
-          "seq": "07"
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "NM108",
@@ -1064,28 +1079,40 @@
           "data_ele": 67,
           "name": "Submitter Identifier",
           "usage": "R",
-          "seq": "09"
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "NM110",
           "data_ele": 706,
           "name": "Entity Relationship Code",
           "usage": "N",
-          "seq": "10"
+          "seq": "10",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "NM111",
           "data_ele": 98,
           "name": "Entity Identifier Code",
           "usage": "N",
-          "seq": "11"
+          "seq": "11",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "NM112",
           "data_ele": 1035,
           "name": "Name Last or Organization Name",
           "usage": "N",
-          "seq": "12"
+          "seq": "12",
+          "valid_codes": {
+            "code": []
+          }
         }
       ],
       "elementsByXid": {
@@ -1119,35 +1146,50 @@
           "data_ele": 1035,
           "name": "Submitter Last or Organization Name",
           "usage": "R",
-          "seq": "03"
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
         },
         "NM104": {
           "xid": "NM104",
           "data_ele": 1036,
           "name": "Submitter First Name",
           "usage": "S",
-          "seq": "04"
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
         },
         "NM105": {
           "xid": "NM105",
           "data_ele": 1037,
           "name": "Submitter Middle Name",
           "usage": "S",
-          "seq": "05"
+          "seq": "05",
+          "valid_codes": {
+            "code": []
+          }
         },
         "NM106": {
           "xid": "NM106",
           "data_ele": 1038,
           "name": "Name Prefix",
           "usage": "N",
-          "seq": "06"
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
         },
         "NM107": {
           "xid": "NM107",
           "data_ele": 1039,
           "name": "Name Suffix",
           "usage": "N",
-          "seq": "07"
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
         },
         "NM108": {
           "xid": "NM108",
@@ -1166,33 +1208,45 @@
           "data_ele": 67,
           "name": "Submitter Identifier",
           "usage": "R",
-          "seq": "09"
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
         },
         "NM110": {
           "xid": "NM110",
           "data_ele": 706,
           "name": "Entity Relationship Code",
           "usage": "N",
-          "seq": "10"
+          "seq": "10",
+          "valid_codes": {
+            "code": []
+          }
         },
         "NM111": {
           "xid": "NM111",
           "data_ele": 98,
           "name": "Entity Identifier Code",
           "usage": "N",
-          "seq": "11"
+          "seq": "11",
+          "valid_codes": {
+            "code": []
+          }
         },
         "NM112": {
           "xid": "NM112",
           "data_ele": 1035,
           "name": "Name Last or Organization Name",
           "usage": "N",
-          "seq": "12"
+          "seq": "12",
+          "valid_codes": {
+            "code": []
+          }
         }
       }
     },
     "PER": {
-      "name": "Submitter EDI Contact Information",
+      "name": "EDI Contact Information",
       "usage": "R",
       "pos": "450",
       "max_use": 2,
@@ -1219,7 +1273,10 @@
           "data_ele": 93,
           "name": "Submitter Contact Name",
           "usage": "S",
-          "seq": "02"
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "PER03",
@@ -1241,7 +1298,10 @@
           "data_ele": 364,
           "name": "Communication Number",
           "usage": "R",
-          "seq": "04"
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "PER05",
@@ -1264,7 +1324,10 @@
           "data_ele": 364,
           "name": "Communication Number",
           "usage": "S",
-          "seq": "06"
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "PER07",
@@ -1287,14 +1350,20 @@
           "data_ele": 364,
           "name": "Communication Number",
           "usage": "S",
-          "seq": "08"
+          "seq": "08",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "PER09",
           "data_ele": 443,
           "name": "Contact Inquiry Reference",
           "usage": "N",
-          "seq": "09"
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
         }
       ],
       "elementsByXid": {
@@ -1315,7 +1384,10 @@
           "data_ele": 93,
           "name": "Submitter Contact Name",
           "usage": "S",
-          "seq": "02"
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
         },
         "PER03": {
           "xid": "PER03",
@@ -1337,7 +1409,10 @@
           "data_ele": 364,
           "name": "Communication Number",
           "usage": "R",
-          "seq": "04"
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
         },
         "PER05": {
           "xid": "PER05",
@@ -1360,7 +1435,10 @@
           "data_ele": 364,
           "name": "Communication Number",
           "usage": "S",
-          "seq": "06"
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
         },
         "PER07": {
           "xid": "PER07",
@@ -1383,19 +1461,25 @@
           "data_ele": 364,
           "name": "Communication Number",
           "usage": "S",
-          "seq": "08"
+          "seq": "08",
+          "valid_codes": {
+            "code": []
+          }
         },
         "PER09": {
           "xid": "PER09",
           "data_ele": 443,
           "name": "Contact Inquiry Reference",
           "usage": "N",
-          "seq": "09"
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
         }
       }
     },
     "HL": {
-      "name": "Billing Provider Hierarchical Level",
+      "name": "Hierarchical Level",
       "usage": "R",
       "pos": "10",
       "max_use": 1,
@@ -1405,14 +1489,20 @@
           "data_ele": 628,
           "name": "Hierarchical ID Number",
           "usage": "R",
-          "seq": "01"
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "HL02",
           "data_ele": 734,
           "name": "Hierarchical Parent ID Number",
           "usage": "N",
-          "seq": "02"
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "HL03",
@@ -1445,14 +1535,20 @@
           "data_ele": 628,
           "name": "Hierarchical ID Number",
           "usage": "R",
-          "seq": "01"
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
         },
         "HL02": {
           "xid": "HL02",
           "data_ele": 734,
           "name": "Hierarchical Parent ID Number",
           "usage": "N",
-          "seq": "02"
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
         },
         "HL03": {
           "xid": "HL03",
@@ -1481,7 +1577,7 @@
       }
     },
     "PRV": {
-      "name": "Billing Provider Specialty Information",
+      "name": "Provider Specialty Information",
       "usage": "S",
       "pos": "30",
       "max_use": 1,
@@ -1518,14 +1614,20 @@
           "data_ele": 127,
           "name": "Provider Taxonomy Code",
           "usage": "R",
-          "seq": "03"
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "PRV04",
           "data_ele": 156,
           "name": "State or Province Code",
           "usage": "N",
-          "seq": "04"
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "PRV05",
@@ -1533,14 +1635,20 @@
           "name": "Provider Specialty Information",
           "usage": "N",
           "seq": "05",
-          "elements": []
+          "elements": [],
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "PRV06",
           "data_ele": 1223,
           "name": "Provider Organization Code",
           "usage": "N",
-          "seq": "06"
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
         }
       ],
       "elementsByXid": {
@@ -1573,21 +1681,20 @@
           "data_ele": 127,
           "name": "Provider Taxonomy Code",
           "usage": "R",
-          "seq": "03"
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
         },
         "PRV04": {
           "xid": "PRV04",
           "data_ele": 156,
           "name": "State or Province Code",
           "usage": "N",
-          "seq": "04"
-        },
-        "PRV06": {
-          "xid": "PRV06",
-          "data_ele": 1223,
-          "name": "Provider Organization Code",
-          "usage": "N",
-          "seq": "06"
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
         },
         "PRV05": {
           "xid": "PRV05",
@@ -1595,7 +1702,20 @@
           "name": "Provider Specialty Information",
           "usage": "N",
           "seq": "05",
-          "elements": []
+          "elements": [],
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PRV06": {
+          "xid": "PRV06",
+          "data_ele": 1223,
+          "name": "Provider Organization Code",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
         }
       }
     },
@@ -2135,7 +2255,7 @@
       }
     },
     "REF": {
-      "name": "Billing Provider Tax Identification",
+      "name": "Identification",
       "usage": "R",
       "pos": "350",
       "max_use": 1,
@@ -2159,16 +2279,22 @@
         {
           "xid": "REF02",
           "data_ele": 127,
-          "name": "Billing Provider Tax Identification Number",
+          "name": "Identification Number",
           "usage": "R",
-          "seq": "02"
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "REF03",
           "data_ele": 352,
           "name": "Description",
           "usage": "N",
-          "seq": "03"
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "REF04",
@@ -2176,7 +2302,10 @@
           "name": "Reference Identifier",
           "usage": "N",
           "seq": "04",
-          "elements": []
+          "elements": [],
+          "valid_codes": {
+            "code": []
+          }
         }
       ],
       "elementsByXid": {
@@ -2196,16 +2325,22 @@
         "REF02": {
           "xid": "REF02",
           "data_ele": 127,
-          "name": "Billing Provider Tax Identification Number",
+          "name": "Identification Number",
           "usage": "R",
-          "seq": "02"
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
         },
         "REF03": {
           "xid": "REF03",
           "data_ele": 352,
           "name": "Description",
           "usage": "N",
-          "seq": "03"
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
         },
         "REF04": {
           "xid": "REF04",
@@ -2213,7 +2348,10 @@
           "name": "Reference Identifier",
           "usage": "N",
           "seq": "04",
-          "elements": []
+          "elements": [],
+          "valid_codes": {
+            "code": []
+          }
         }
       }
     },
@@ -2646,7 +2784,7 @@
       }
     },
     "DMG": {
-      "name": "Subscriber Demographic Information",
+      "name": "Demographic Information",
       "usage": "S",
       "pos": "320",
       "max_use": 1,
@@ -2671,14 +2809,17 @@
         {
           "xid": "DMG02",
           "data_ele": 1251,
-          "name": "Subscriber Birth Date",
+          "name": "Birth Date",
           "usage": "R",
-          "seq": "02"
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "DMG03",
           "data_ele": 1068,
-          "name": "Subscriber Gender Code",
+          "name": "Gender Code",
           "usage": "R",
           "seq": "03",
           "valid_codes": {
@@ -2694,7 +2835,10 @@
           "data_ele": 1067,
           "name": "Marital Status Code",
           "usage": "N",
-          "seq": "04"
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "DMG05",
@@ -2703,49 +2847,70 @@
           "usage": "N",
           "seq": "05",
           "elements": [],
-          "repeat": 10
+          "repeat": 10,
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "DMG06",
           "data_ele": 1066,
           "name": "Citizenship Status Code",
           "usage": "N",
-          "seq": "06"
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "DMG07",
           "data_ele": 26,
           "name": "Country Code",
           "usage": "N",
-          "seq": "07"
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "DMG08",
           "data_ele": 659,
           "name": "Basis of Verification Code",
           "usage": "N",
-          "seq": "08"
+          "seq": "08",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "DMG09",
           "data_ele": 380,
           "name": "Quantity",
           "usage": "N",
-          "seq": "09"
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "DMG10",
           "data_ele": 1270,
           "name": "Code List Qualifier Code",
           "usage": "N",
-          "seq": "10"
+          "seq": "10",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "DMG11",
           "data_ele": 1271,
           "name": "Industry Code",
           "usage": "N",
-          "seq": "11"
+          "seq": "11",
+          "valid_codes": {
+            "code": []
+          }
         }
       ],
       "elementsByXid": {
@@ -2764,14 +2929,17 @@
         "DMG02": {
           "xid": "DMG02",
           "data_ele": 1251,
-          "name": "Subscriber Birth Date",
+          "name": "Birth Date",
           "usage": "R",
-          "seq": "02"
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
         },
         "DMG03": {
           "xid": "DMG03",
           "data_ele": 1068,
-          "name": "Subscriber Gender Code",
+          "name": "Gender Code",
           "usage": "R",
           "seq": "03",
           "valid_codes": {
@@ -2787,49 +2955,10 @@
           "data_ele": 1067,
           "name": "Marital Status Code",
           "usage": "N",
-          "seq": "04"
-        },
-        "DMG06": {
-          "xid": "DMG06",
-          "data_ele": 1066,
-          "name": "Citizenship Status Code",
-          "usage": "N",
-          "seq": "06"
-        },
-        "DMG07": {
-          "xid": "DMG07",
-          "data_ele": 26,
-          "name": "Country Code",
-          "usage": "N",
-          "seq": "07"
-        },
-        "DMG08": {
-          "xid": "DMG08",
-          "data_ele": 659,
-          "name": "Basis of Verification Code",
-          "usage": "N",
-          "seq": "08"
-        },
-        "DMG09": {
-          "xid": "DMG09",
-          "data_ele": 380,
-          "name": "Quantity",
-          "usage": "N",
-          "seq": "09"
-        },
-        "DMG10": {
-          "xid": "DMG10",
-          "data_ele": 1270,
-          "name": "Code List Qualifier Code",
-          "usage": "N",
-          "seq": "10"
-        },
-        "DMG11": {
-          "xid": "DMG11",
-          "data_ele": 1271,
-          "name": "Industry Code",
-          "usage": "N",
-          "seq": "11"
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
         },
         "DMG05": {
           "xid": "DMG05",
@@ -2838,7 +2967,70 @@
           "usage": "N",
           "seq": "05",
           "elements": [],
-          "repeat": 10
+          "repeat": 10,
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "DMG06": {
+          "xid": "DMG06",
+          "data_ele": 1066,
+          "name": "Citizenship Status Code",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "DMG07": {
+          "xid": "DMG07",
+          "data_ele": 26,
+          "name": "Country Code",
+          "usage": "N",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "DMG08": {
+          "xid": "DMG08",
+          "data_ele": 659,
+          "name": "Basis of Verification Code",
+          "usage": "N",
+          "seq": "08",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "DMG09": {
+          "xid": "DMG09",
+          "data_ele": 380,
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "DMG10": {
+          "xid": "DMG10",
+          "data_ele": 1270,
+          "name": "Code List Qualifier Code",
+          "usage": "N",
+          "seq": "10",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "DMG11": {
+          "xid": "DMG11",
+          "data_ele": 1271,
+          "name": "Industry Code",
+          "usage": "N",
+          "seq": "11",
+          "valid_codes": {
+            "code": []
+          }
         }
       }
     },
@@ -12374,6 +12566,2363 @@
           }
         }
       }
+    },
+    "HL_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_segment_HL_0": {
+      "name": "Hierarchical Level",
+      "usage": "R",
+      "pos": "10",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "HL01",
+          "data_ele": 628,
+          "name": "Hierarchical ID Number",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "HL02",
+          "data_ele": 734,
+          "name": "Hierarchical Parent ID Number",
+          "usage": "N",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "HL03",
+          "data_ele": 735,
+          "name": "Hierarchical Level Code",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              20
+            ]
+          }
+        },
+        {
+          "xid": "HL04",
+          "data_ele": 736,
+          "name": "Hierarchical Child Code",
+          "usage": "R",
+          "seq": "04",
+          "valid_codes": {
+            "code": [
+              1
+            ]
+          }
+        }
+      ],
+      "elementsByXid": {
+        "HL01": {
+          "xid": "HL01",
+          "data_ele": 628,
+          "name": "Hierarchical ID Number",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "HL02": {
+          "xid": "HL02",
+          "data_ele": 734,
+          "name": "Hierarchical Parent ID Number",
+          "usage": "N",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "HL03": {
+          "xid": "HL03",
+          "data_ele": 735,
+          "name": "Hierarchical Level Code",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              20
+            ]
+          }
+        },
+        "HL04": {
+          "xid": "HL04",
+          "data_ele": 736,
+          "name": "Hierarchical Child Code",
+          "usage": "R",
+          "seq": "04",
+          "valid_codes": {
+            "code": [
+              1
+            ]
+          }
+        }
+      }
+    },
+    "PRV_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_segment_PRV_1": {
+      "name": "Provider Specialty Information",
+      "usage": "S",
+      "pos": "30",
+      "max_use": 1,
+      "syntax": [
+        "P0203"
+      ],
+      "elements": [
+        {
+          "xid": "PRV01",
+          "data_ele": 1221,
+          "name": "Provider Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "BI"
+            ]
+          }
+        },
+        {
+          "xid": "PRV02",
+          "data_ele": 128,
+          "name": "Reference Identification Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "PXC"
+            ]
+          }
+        },
+        {
+          "xid": "PRV03",
+          "data_ele": 127,
+          "name": "Provider Taxonomy Code",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PRV04",
+          "data_ele": 156,
+          "name": "State or Province Code",
+          "usage": "N",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PRV05",
+          "data_ele": "C035",
+          "name": "Provider Specialty Information",
+          "usage": "N",
+          "seq": "05",
+          "elements": [],
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PRV06",
+          "data_ele": 1223,
+          "name": "Provider Organization Code",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "PRV01": {
+          "xid": "PRV01",
+          "data_ele": 1221,
+          "name": "Provider Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "BI"
+            ]
+          }
+        },
+        "PRV02": {
+          "xid": "PRV02",
+          "data_ele": 128,
+          "name": "Reference Identification Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              "PXC"
+            ]
+          }
+        },
+        "PRV03": {
+          "xid": "PRV03",
+          "data_ele": 127,
+          "name": "Provider Taxonomy Code",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PRV04": {
+          "xid": "PRV04",
+          "data_ele": 156,
+          "name": "State or Province Code",
+          "usage": "N",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PRV05": {
+          "xid": "PRV05",
+          "data_ele": "C035",
+          "name": "Provider Specialty Information",
+          "usage": "N",
+          "seq": "05",
+          "elements": [],
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PRV06": {
+          "xid": "PRV06",
+          "data_ele": 1223,
+          "name": "Provider Organization Code",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "N3_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2010AA_3_segment_N3_1": {
+      "name": "Address",
+      "usage": "R",
+      "pos": "250",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "N301",
+          "data_ele": 166,
+          "name": "Address Line",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "N302",
+          "data_ele": 166,
+          "name": "Address Line",
+          "usage": "S",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "N301": {
+          "xid": "N301",
+          "data_ele": 166,
+          "name": "Address Line",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "N302": {
+          "xid": "N302",
+          "data_ele": 166,
+          "name": "Address Line",
+          "usage": "S",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "N4_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2010AA_3_segment_N4_2": {
+      "name": "City, State, ZIP Code",
+      "usage": "R",
+      "pos": "300",
+      "max_use": 1,
+      "syntax": [
+        null,
+        "C0605",
+        "C0704"
+      ],
+      "elements": [
+        {
+          "xid": "N401",
+          "data_ele": 19,
+          "name": "City Name",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "N402",
+          "data_ele": 156,
+          "name": "State or Province Code",
+          "usage": "S",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "N403",
+          "data_ele": 116,
+          "name": "Postal Zone or ZIP Code",
+          "usage": "S",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "N404",
+          "data_ele": 26,
+          "name": "Country Code",
+          "usage": "S",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "N405",
+          "data_ele": 309,
+          "name": "Location Qualifier",
+          "usage": "N",
+          "seq": "05",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "N406",
+          "data_ele": 310,
+          "name": "Location Identifier",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "N407",
+          "data_ele": 1715,
+          "name": "Country Subdivision Code",
+          "usage": "S",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "N401": {
+          "xid": "N401",
+          "data_ele": 19,
+          "name": "City Name",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "N402": {
+          "xid": "N402",
+          "data_ele": 156,
+          "name": "State or Province Code",
+          "usage": "S",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "N403": {
+          "xid": "N403",
+          "data_ele": 116,
+          "name": "Postal Zone or ZIP Code",
+          "usage": "S",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "N404": {
+          "xid": "N404",
+          "data_ele": 26,
+          "name": "Country Code",
+          "usage": "S",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "N405": {
+          "xid": "N405",
+          "data_ele": 309,
+          "name": "Location Qualifier",
+          "usage": "N",
+          "seq": "05",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "N406": {
+          "xid": "N406",
+          "data_ele": 310,
+          "name": "Location Identifier",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "N407": {
+          "xid": "N407",
+          "data_ele": 1715,
+          "name": "Country Subdivision Code",
+          "usage": "S",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "HL_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_segment_HL_0": {
+      "name": "Hierarchical Level",
+      "usage": "R",
+      "pos": "10",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "HL01",
+          "data_ele": 628,
+          "name": "Hierarchical ID Number",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "HL02",
+          "data_ele": 734,
+          "name": "Hierarchical Parent ID Number",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "HL03",
+          "data_ele": 735,
+          "name": "Hierarchical Level Code",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "22"
+            ]
+          }
+        },
+        {
+          "xid": "HL04",
+          "data_ele": 736,
+          "name": "Hierarchical Child Code",
+          "usage": "S",
+          "seq": "04",
+          "valid_codes": {
+            "code": [
+              1,
+              "0"
+            ]
+          }
+        }
+      ],
+      "elementsByXid": {
+        "HL01": {
+          "xid": "HL01",
+          "data_ele": 628,
+          "name": "Hierarchical ID Number",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "HL02": {
+          "xid": "HL02",
+          "data_ele": 734,
+          "name": "Hierarchical Parent ID Number",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "HL03": {
+          "xid": "HL03",
+          "data_ele": 735,
+          "name": "Hierarchical Level Code",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "22"
+            ]
+          }
+        },
+        "HL04": {
+          "xid": "HL04",
+          "data_ele": 736,
+          "name": "Hierarchical Child Code",
+          "usage": "S",
+          "seq": "04",
+          "valid_codes": {
+            "code": [
+              1,
+              "0"
+            ]
+          }
+        }
+      }
+    },
+    "PAT_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_segment_PAT_2": {
+      "name": "Patient Information",
+      "usage": "S",
+      "pos": "70",
+      "max_use": 1,
+      "syntax": [
+        "P0506",
+        "P0708"
+      ],
+      "elements": [
+        {
+          "xid": "PAT01",
+          "data_ele": 1069,
+          "name": "Individual Relationship Code",
+          "usage": "N",
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PAT02",
+          "data_ele": 1384,
+          "name": "Patient Location Code",
+          "usage": "N",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PAT03",
+          "data_ele": 584,
+          "name": "Employment Status Code",
+          "usage": "N",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PAT04",
+          "data_ele": 1220,
+          "name": "Student Status Code",
+          "usage": "N",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PAT05",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "PAT06",
+          "data_ele": 1251,
+          "name": "Patient Death Date",
+          "usage": "S",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PAT07",
+          "data_ele": 355,
+          "name": "Unit or Basis for Measurement Code",
+          "usage": "S",
+          "seq": "07",
+          "valid_codes": {
+            "code": [
+              1
+            ]
+          }
+        },
+        {
+          "xid": "PAT08",
+          "data_ele": 81,
+          "name": "Patient Weight",
+          "usage": "S",
+          "seq": "08",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PAT09",
+          "data_ele": 1073,
+          "name": "Pregnancy Indicator",
+          "usage": "S",
+          "seq": "09",
+          "valid_codes": {
+            "code": [
+              "Y"
+            ]
+          }
+        }
+      ],
+      "elementsByXid": {
+        "PAT01": {
+          "xid": "PAT01",
+          "data_ele": 1069,
+          "name": "Individual Relationship Code",
+          "usage": "N",
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PAT02": {
+          "xid": "PAT02",
+          "data_ele": 1384,
+          "name": "Patient Location Code",
+          "usage": "N",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PAT03": {
+          "xid": "PAT03",
+          "data_ele": 584,
+          "name": "Employment Status Code",
+          "usage": "N",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PAT04": {
+          "xid": "PAT04",
+          "data_ele": 1220,
+          "name": "Student Status Code",
+          "usage": "N",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PAT05": {
+          "xid": "PAT05",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "PAT06": {
+          "xid": "PAT06",
+          "data_ele": 1251,
+          "name": "Patient Death Date",
+          "usage": "S",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PAT07": {
+          "xid": "PAT07",
+          "data_ele": 355,
+          "name": "Unit or Basis for Measurement Code",
+          "usage": "S",
+          "seq": "07",
+          "valid_codes": {
+            "code": [
+              1
+            ]
+          }
+        },
+        "PAT08": {
+          "xid": "PAT08",
+          "data_ele": 81,
+          "name": "Patient Weight",
+          "usage": "S",
+          "seq": "08",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PAT09": {
+          "xid": "PAT09",
+          "data_ele": 1073,
+          "name": "Pregnancy Indicator",
+          "usage": "S",
+          "seq": "09",
+          "valid_codes": {
+            "code": [
+              "Y"
+            ]
+          }
+        }
+      }
+    },
+    "NM1_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BA_3_segment_NM1_0": {
+      "name": "Subscriber Name",
+      "usage": "R",
+      "pos": "200",
+      "max_use": 1,
+      "syntax": [
+        "P0809",
+        "C1110"
+      ],
+      "elements": [
+        {
+          "xid": "NM101",
+          "data_ele": 98,
+          "name": "Entity Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "IL"
+            ]
+          }
+        },
+        {
+          "xid": "NM102",
+          "data_ele": 1065,
+          "name": "Entity Type Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              1,
+              2
+            ]
+          }
+        },
+        {
+          "xid": "NM103",
+          "data_ele": 1035,
+          "name": "Submitter Last or Organization Name",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM104",
+          "data_ele": 1036,
+          "name": "Submitter First Name",
+          "usage": "S",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM105",
+          "data_ele": 1037,
+          "name": "Submitter Middle Name",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM106",
+          "data_ele": 1038,
+          "name": "Name Prefix",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM107",
+          "data_ele": 1039,
+          "name": "Name Suffix",
+          "usage": "N",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM108",
+          "data_ele": 66,
+          "name": "Identification Code Qualifier",
+          "usage": "R",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              "II",
+              "MI"
+            ]
+          }
+        },
+        {
+          "xid": "NM109",
+          "data_ele": 67,
+          "name": "Submitter Identifier",
+          "usage": "R",
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM110",
+          "data_ele": 706,
+          "name": "Entity Relationship Code",
+          "usage": "N",
+          "seq": "10",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM111",
+          "data_ele": 98,
+          "name": "Entity Identifier Code",
+          "usage": "N",
+          "seq": "11",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM112",
+          "data_ele": 1035,
+          "name": "Name Last or Organization Name",
+          "usage": "N",
+          "seq": "12",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "NM101": {
+          "xid": "NM101",
+          "data_ele": 98,
+          "name": "Entity Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "IL"
+            ]
+          }
+        },
+        "NM102": {
+          "xid": "NM102",
+          "data_ele": 1065,
+          "name": "Entity Type Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              1,
+              2
+            ]
+          }
+        },
+        "NM103": {
+          "xid": "NM103",
+          "data_ele": 1035,
+          "name": "Submitter Last or Organization Name",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM104": {
+          "xid": "NM104",
+          "data_ele": 1036,
+          "name": "Submitter First Name",
+          "usage": "S",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM105": {
+          "xid": "NM105",
+          "data_ele": 1037,
+          "name": "Submitter Middle Name",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM106": {
+          "xid": "NM106",
+          "data_ele": 1038,
+          "name": "Name Prefix",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM107": {
+          "xid": "NM107",
+          "data_ele": 1039,
+          "name": "Name Suffix",
+          "usage": "N",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM108": {
+          "xid": "NM108",
+          "data_ele": 66,
+          "name": "Identification Code Qualifier",
+          "usage": "R",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              "II",
+              "MI"
+            ]
+          }
+        },
+        "NM109": {
+          "xid": "NM109",
+          "data_ele": 67,
+          "name": "Submitter Identifier",
+          "usage": "R",
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM110": {
+          "xid": "NM110",
+          "data_ele": 706,
+          "name": "Entity Relationship Code",
+          "usage": "N",
+          "seq": "10",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM111": {
+          "xid": "NM111",
+          "data_ele": 98,
+          "name": "Entity Identifier Code",
+          "usage": "N",
+          "seq": "11",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM112": {
+          "xid": "NM112",
+          "data_ele": 1035,
+          "name": "Name Last or Organization Name",
+          "usage": "N",
+          "seq": "12",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "N3_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BA_3_segment_N3_1": {
+      "name": "Address",
+      "usage": "R",
+      "pos": "250",
+      "max_use": 1,
+      "elements": [
+        {
+          "xid": "N301",
+          "data_ele": 166,
+          "name": "Address Line",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "N302",
+          "data_ele": 166,
+          "name": "Address Line",
+          "usage": "S",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "N301": {
+          "xid": "N301",
+          "data_ele": 166,
+          "name": "Address Line",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "N302": {
+          "xid": "N302",
+          "data_ele": 166,
+          "name": "Address Line",
+          "usage": "S",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "N4_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BA_3_segment_N4_2": {
+      "name": "City, State, ZIP Code",
+      "usage": "R",
+      "pos": "300",
+      "max_use": 1,
+      "syntax": [
+        null,
+        "C0605",
+        "C0704"
+      ],
+      "elements": [
+        {
+          "xid": "N401",
+          "data_ele": 19,
+          "name": "City Name",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "N402",
+          "data_ele": 156,
+          "name": "State or Province Code",
+          "usage": "S",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "N403",
+          "data_ele": 116,
+          "name": "Postal Zone or ZIP Code",
+          "usage": "S",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "N404",
+          "data_ele": 26,
+          "name": "Country Code",
+          "usage": "S",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "N405",
+          "data_ele": 309,
+          "name": "Location Qualifier",
+          "usage": "N",
+          "seq": "05",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "N406",
+          "data_ele": 310,
+          "name": "Location Identifier",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "N407",
+          "data_ele": 1715,
+          "name": "Country Subdivision Code",
+          "usage": "S",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "N401": {
+          "xid": "N401",
+          "data_ele": 19,
+          "name": "City Name",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "N402": {
+          "xid": "N402",
+          "data_ele": 156,
+          "name": "State or Province Code",
+          "usage": "S",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "N403": {
+          "xid": "N403",
+          "data_ele": 116,
+          "name": "Postal Zone or ZIP Code",
+          "usage": "S",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "N404": {
+          "xid": "N404",
+          "data_ele": 26,
+          "name": "Country Code",
+          "usage": "S",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "N405": {
+          "xid": "N405",
+          "data_ele": 309,
+          "name": "Location Qualifier",
+          "usage": "N",
+          "seq": "05",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "N406": {
+          "xid": "N406",
+          "data_ele": 310,
+          "name": "Location Identifier",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "N407": {
+          "xid": "N407",
+          "data_ele": 1715,
+          "name": "Country Subdivision Code",
+          "usage": "S",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "DMG_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BA_3_segment_DMG_3": {
+      "name": "Demographic Information",
+      "usage": "S",
+      "pos": "320",
+      "max_use": 1,
+      "syntax": [
+        "P0102",
+        "P1011",
+        "C1105"
+      ],
+      "elements": [
+        {
+          "xid": "DMG01",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        {
+          "xid": "DMG02",
+          "data_ele": 1251,
+          "name": "Birth Date",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "DMG03",
+          "data_ele": 1068,
+          "name": "Gender Code",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "F",
+              "M",
+              "U"
+            ]
+          }
+        },
+        {
+          "xid": "DMG04",
+          "data_ele": 1067,
+          "name": "Marital Status Code",
+          "usage": "N",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "DMG05",
+          "data_ele": "C056",
+          "name": "Composite Race or Ethnicity Information",
+          "usage": "N",
+          "seq": "05",
+          "elements": [],
+          "repeat": 10,
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "DMG06",
+          "data_ele": 1066,
+          "name": "Citizenship Status Code",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "DMG07",
+          "data_ele": 26,
+          "name": "Country Code",
+          "usage": "N",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "DMG08",
+          "data_ele": 659,
+          "name": "Basis of Verification Code",
+          "usage": "N",
+          "seq": "08",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "DMG09",
+          "data_ele": 380,
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "DMG10",
+          "data_ele": 1270,
+          "name": "Code List Qualifier Code",
+          "usage": "N",
+          "seq": "10",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "DMG11",
+          "data_ele": 1271,
+          "name": "Industry Code",
+          "usage": "N",
+          "seq": "11",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "DMG01": {
+          "xid": "DMG01",
+          "data_ele": 1250,
+          "name": "Date Time Period Format Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "D8"
+            ]
+          }
+        },
+        "DMG02": {
+          "xid": "DMG02",
+          "data_ele": 1251,
+          "name": "Birth Date",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "DMG03": {
+          "xid": "DMG03",
+          "data_ele": 1068,
+          "name": "Gender Code",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "F",
+              "M",
+              "U"
+            ]
+          }
+        },
+        "DMG04": {
+          "xid": "DMG04",
+          "data_ele": 1067,
+          "name": "Marital Status Code",
+          "usage": "N",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "DMG05": {
+          "xid": "DMG05",
+          "data_ele": "C056",
+          "name": "Composite Race or Ethnicity Information",
+          "usage": "N",
+          "seq": "05",
+          "elements": [],
+          "repeat": 10,
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "DMG06": {
+          "xid": "DMG06",
+          "data_ele": 1066,
+          "name": "Citizenship Status Code",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "DMG07": {
+          "xid": "DMG07",
+          "data_ele": 26,
+          "name": "Country Code",
+          "usage": "N",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "DMG08": {
+          "xid": "DMG08",
+          "data_ele": 659,
+          "name": "Basis of Verification Code",
+          "usage": "N",
+          "seq": "08",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "DMG09": {
+          "xid": "DMG09",
+          "data_ele": 380,
+          "name": "Quantity",
+          "usage": "N",
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "DMG10": {
+          "xid": "DMG10",
+          "data_ele": 1270,
+          "name": "Code List Qualifier Code",
+          "usage": "N",
+          "seq": "10",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "DMG11": {
+          "xid": "DMG11",
+          "data_ele": 1271,
+          "name": "Industry Code",
+          "usage": "N",
+          "seq": "11",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "REF_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BA_3_segment_REF_4": {
+      "name": "Identification",
+      "usage": "R",
+      "pos": "350",
+      "max_use": 1,
+      "syntax": [
+        "R0203"
+      ],
+      "elements": [
+        {
+          "xid": "REF01",
+          "data_ele": 128,
+          "name": "Reference Identification Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "SY"
+            ]
+          }
+        },
+        {
+          "xid": "REF02",
+          "data_ele": 127,
+          "name": "Identification Number",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "REF03",
+          "data_ele": 352,
+          "name": "Description",
+          "usage": "N",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "REF04",
+          "data_ele": "C040",
+          "name": "Reference Identifier",
+          "usage": "N",
+          "seq": "04",
+          "elements": [],
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "REF01": {
+          "xid": "REF01",
+          "data_ele": 128,
+          "name": "Reference Identification Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "SY"
+            ]
+          }
+        },
+        "REF02": {
+          "xid": "REF02",
+          "data_ele": 127,
+          "name": "Identification Number",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "REF03": {
+          "xid": "REF03",
+          "data_ele": 352,
+          "name": "Description",
+          "usage": "N",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "REF04": {
+          "xid": "REF04",
+          "data_ele": "C040",
+          "name": "Reference Identifier",
+          "usage": "N",
+          "seq": "04",
+          "elements": [],
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "REF_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BA_3_segment_REF_5": {
+      "name": "Identification",
+      "usage": "R",
+      "pos": "350",
+      "max_use": 1,
+      "syntax": [
+        "R0203"
+      ],
+      "elements": [
+        {
+          "xid": "REF01",
+          "data_ele": 128,
+          "name": "Reference Identification Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "Y4"
+            ]
+          }
+        },
+        {
+          "xid": "REF02",
+          "data_ele": 127,
+          "name": "Identification Number",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "REF03",
+          "data_ele": 352,
+          "name": "Description",
+          "usage": "N",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "REF04",
+          "data_ele": "C040",
+          "name": "Reference Identifier",
+          "usage": "N",
+          "seq": "04",
+          "elements": [],
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "REF01": {
+          "xid": "REF01",
+          "data_ele": 128,
+          "name": "Reference Identification Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "Y4"
+            ]
+          }
+        },
+        "REF02": {
+          "xid": "REF02",
+          "data_ele": 127,
+          "name": "Identification Number",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "REF03": {
+          "xid": "REF03",
+          "data_ele": 352,
+          "name": "Description",
+          "usage": "N",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "REF04": {
+          "xid": "REF04",
+          "data_ele": "C040",
+          "name": "Reference Identifier",
+          "usage": "N",
+          "seq": "04",
+          "elements": [],
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "PER_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BA_3_segment_PER_6": {
+      "name": "EDI Contact Information",
+      "usage": "R",
+      "pos": "450",
+      "max_use": 2,
+      "syntax": [
+        "P0304",
+        "P0506",
+        "P0708"
+      ],
+      "elements": [
+        {
+          "xid": "PER01",
+          "data_ele": 366,
+          "name": "Contact Function Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "IC"
+            ]
+          }
+        },
+        {
+          "xid": "PER02",
+          "data_ele": 93,
+          "name": "Submitter Contact Name",
+          "usage": "S",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PER03",
+          "data_ele": 365,
+          "name": "Communication Number Qualifier",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "TE"
+            ]
+          }
+        },
+        {
+          "xid": "PER04",
+          "data_ele": 364,
+          "name": "Communication Number",
+          "usage": "R",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PER05",
+          "data_ele": 365,
+          "name": "Communication Number Qualifier",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "EX"
+            ]
+          }
+        },
+        {
+          "xid": "PER06",
+          "data_ele": 364,
+          "name": "Communication Number",
+          "usage": "S",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PER07",
+          "data_ele": 365,
+          "name": "Communication Number Qualifier",
+          "usage": "S",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PER08",
+          "data_ele": 364,
+          "name": "Communication Number",
+          "usage": "S",
+          "seq": "08",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PER09",
+          "data_ele": 443,
+          "name": "Contact Inquiry Reference",
+          "usage": "N",
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "PER01": {
+          "xid": "PER01",
+          "data_ele": 366,
+          "name": "Contact Function Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "IC"
+            ]
+          }
+        },
+        "PER02": {
+          "xid": "PER02",
+          "data_ele": 93,
+          "name": "Submitter Contact Name",
+          "usage": "S",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PER03": {
+          "xid": "PER03",
+          "data_ele": 365,
+          "name": "Communication Number Qualifier",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "TE"
+            ]
+          }
+        },
+        "PER04": {
+          "xid": "PER04",
+          "data_ele": 364,
+          "name": "Communication Number",
+          "usage": "R",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PER05": {
+          "xid": "PER05",
+          "data_ele": 365,
+          "name": "Communication Number Qualifier",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "EX"
+            ]
+          }
+        },
+        "PER06": {
+          "xid": "PER06",
+          "data_ele": 364,
+          "name": "Communication Number",
+          "usage": "S",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PER07": {
+          "xid": "PER07",
+          "data_ele": 365,
+          "name": "Communication Number Qualifier",
+          "usage": "S",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PER08": {
+          "xid": "PER08",
+          "data_ele": 364,
+          "name": "Communication Number",
+          "usage": "S",
+          "seq": "08",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PER09": {
+          "xid": "PER09",
+          "data_ele": 443,
+          "name": "Contact Inquiry Reference",
+          "usage": "N",
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "NM1_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BB_4_segment_NM1_0": {
+      "name": "Name",
+      "usage": "R",
+      "pos": "200",
+      "max_use": 1,
+      "syntax": [
+        "P0809",
+        "C1110"
+      ],
+      "elements": [
+        {
+          "xid": "NM101",
+          "data_ele": 98,
+          "name": "Entity Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "PR"
+            ]
+          }
+        },
+        {
+          "xid": "NM102",
+          "data_ele": 1065,
+          "name": "Entity Type Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              2
+            ]
+          }
+        },
+        {
+          "xid": "NM103",
+          "data_ele": 1035,
+          "name": "Submitter Last or Organization Name",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM104",
+          "data_ele": 1036,
+          "name": "Submitter First Name",
+          "usage": "S",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM105",
+          "data_ele": 1037,
+          "name": "Submitter Middle Name",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM106",
+          "data_ele": 1038,
+          "name": "Name Prefix",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM107",
+          "data_ele": 1039,
+          "name": "Name Suffix",
+          "usage": "N",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM108",
+          "data_ele": 66,
+          "name": "Identification Code Qualifier",
+          "usage": "R",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              "PI",
+              "XV"
+            ]
+          }
+        },
+        {
+          "xid": "NM109",
+          "data_ele": 67,
+          "name": "Submitter Identifier",
+          "usage": "R",
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM110",
+          "data_ele": 706,
+          "name": "Entity Relationship Code",
+          "usage": "N",
+          "seq": "10",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM111",
+          "data_ele": 98,
+          "name": "Entity Identifier Code",
+          "usage": "N",
+          "seq": "11",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "NM112",
+          "data_ele": 1035,
+          "name": "Name Last or Organization Name",
+          "usage": "N",
+          "seq": "12",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "NM101": {
+          "xid": "NM101",
+          "data_ele": 98,
+          "name": "Entity Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "PR"
+            ]
+          }
+        },
+        "NM102": {
+          "xid": "NM102",
+          "data_ele": 1065,
+          "name": "Entity Type Qualifier",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": [
+              2
+            ]
+          }
+        },
+        "NM103": {
+          "xid": "NM103",
+          "data_ele": 1035,
+          "name": "Submitter Last or Organization Name",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM104": {
+          "xid": "NM104",
+          "data_ele": 1036,
+          "name": "Submitter First Name",
+          "usage": "S",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM105": {
+          "xid": "NM105",
+          "data_ele": 1037,
+          "name": "Submitter Middle Name",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM106": {
+          "xid": "NM106",
+          "data_ele": 1038,
+          "name": "Name Prefix",
+          "usage": "N",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM107": {
+          "xid": "NM107",
+          "data_ele": 1039,
+          "name": "Name Suffix",
+          "usage": "N",
+          "seq": "07",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM108": {
+          "xid": "NM108",
+          "data_ele": 66,
+          "name": "Identification Code Qualifier",
+          "usage": "R",
+          "seq": "08",
+          "valid_codes": {
+            "code": [
+              "PI",
+              "XV"
+            ]
+          }
+        },
+        "NM109": {
+          "xid": "NM109",
+          "data_ele": 67,
+          "name": "Submitter Identifier",
+          "usage": "R",
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM110": {
+          "xid": "NM110",
+          "data_ele": 706,
+          "name": "Entity Relationship Code",
+          "usage": "N",
+          "seq": "10",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM111": {
+          "xid": "NM111",
+          "data_ele": 98,
+          "name": "Entity Identifier Code",
+          "usage": "N",
+          "seq": "11",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "NM112": {
+          "xid": "NM112",
+          "data_ele": 1035,
+          "name": "Name Last or Organization Name",
+          "usage": "N",
+          "seq": "12",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "REF_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BB_4_segment_REF_3": {
+      "name": "Identification",
+      "usage": "R",
+      "pos": "350",
+      "max_use": 1,
+      "syntax": [
+        "R0203"
+      ],
+      "elements": [
+        {
+          "xid": "REF01",
+          "data_ele": 128,
+          "name": "Reference Identification Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "2U",
+              "EI",
+              "FY",
+              "NF"
+            ]
+          }
+        },
+        {
+          "xid": "REF02",
+          "data_ele": 127,
+          "name": "Identification Number",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "REF03",
+          "data_ele": 352,
+          "name": "Description",
+          "usage": "N",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "REF04",
+          "data_ele": "C040",
+          "name": "Reference Identifier",
+          "usage": "N",
+          "seq": "04",
+          "elements": [],
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "REF01": {
+          "xid": "REF01",
+          "data_ele": 128,
+          "name": "Reference Identification Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "2U",
+              "EI",
+              "FY",
+              "NF"
+            ]
+          }
+        },
+        "REF02": {
+          "xid": "REF02",
+          "data_ele": 127,
+          "name": "Identification Number",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "REF03": {
+          "xid": "REF03",
+          "data_ele": 352,
+          "name": "Description",
+          "usage": "N",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "REF04": {
+          "xid": "REF04",
+          "data_ele": "C040",
+          "name": "Reference Identifier",
+          "usage": "N",
+          "seq": "04",
+          "elements": [],
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "REF_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BB_4_segment_REF_4": {
+      "name": "Identification",
+      "usage": "R",
+      "pos": "350",
+      "max_use": 1,
+      "syntax": [
+        "R0203"
+      ],
+      "elements": [
+        {
+          "xid": "REF01",
+          "data_ele": 128,
+          "name": "Reference Identification Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "G2",
+              "LU"
+            ]
+          }
+        },
+        {
+          "xid": "REF02",
+          "data_ele": 127,
+          "name": "Identification Number",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "REF03",
+          "data_ele": 352,
+          "name": "Description",
+          "usage": "N",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "REF04",
+          "data_ele": "C040",
+          "name": "Reference Identifier",
+          "usage": "N",
+          "seq": "04",
+          "elements": [],
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "REF01": {
+          "xid": "REF01",
+          "data_ele": 128,
+          "name": "Reference Identification Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "G2",
+              "LU"
+            ]
+          }
+        },
+        "REF02": {
+          "xid": "REF02",
+          "data_ele": 127,
+          "name": "Identification Number",
+          "usage": "R",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "REF03": {
+          "xid": "REF03",
+          "data_ele": 352,
+          "name": "Description",
+          "usage": "N",
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "REF04": {
+          "xid": "REF04",
+          "data_ele": "C040",
+          "name": "Reference Identifier",
+          "usage": "N",
+          "seq": "04",
+          "elements": [],
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
     }
   },
   "structure": [
@@ -12520,7 +15069,8 @@
                           "pos": "10",
                           "usage": "R",
                           "max_use": 1,
-                          "name": "Billing Provider Hierarchical Level"
+                          "name": "Billing Provider Hierarchical Level",
+                          "definitionId": "HL_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_segment_HL_0"
                         },
                         {
                           "type": "segment",
@@ -12528,7 +15078,8 @@
                           "pos": "30",
                           "usage": "S",
                           "max_use": 1,
-                          "name": "Billing Provider Specialty Information"
+                          "name": "Billing Provider Specialty Information",
+                          "definitionId": "PRV_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_segment_PRV_1"
                         },
                         {
                           "type": "segment",
@@ -12561,7 +15112,8 @@
                               "pos": "250",
                               "usage": "R",
                               "max_use": 1,
-                              "name": "Address"
+                              "name": "Billing Provider Address",
+                              "definitionId": "N3_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2010AA_3_segment_N3_1"
                             },
                             {
                               "type": "segment",
@@ -12569,7 +15121,8 @@
                               "pos": "300",
                               "usage": "R",
                               "max_use": 1,
-                              "name": "City, State, ZIP Code"
+                              "name": "Billing Provider City, State, ZIP Code",
+                              "definitionId": "N4_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2010AA_3_segment_N4_2"
                             },
                             {
                               "type": "segment",
@@ -12702,7 +15255,8 @@
                               "pos": "10",
                               "usage": "R",
                               "max_use": 1,
-                              "name": "Subscriber Hierarchical Level"
+                              "name": "Subscriber Hierarchical Level",
+                              "definitionId": "HL_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_segment_HL_0"
                             },
                             {
                               "type": "segment",
@@ -12718,7 +15272,8 @@
                               "pos": "70",
                               "usage": "S",
                               "max_use": 1,
-                              "name": "Patient Information"
+                              "name": "Patient Information",
+                              "definitionId": "PAT_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_segment_PAT_2"
                             },
                             {
                               "type": "loop",
@@ -12734,7 +15289,8 @@
                                   "pos": "150",
                                   "usage": "R",
                                   "max_use": 1,
-                                  "name": "Subscriber Name"
+                                  "name": "Subscriber Name",
+                                  "definitionId": "NM1_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BA_3_segment_NM1_0"
                                 },
                                 {
                                   "type": "segment",
@@ -12742,15 +15298,17 @@
                                   "pos": "250",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Subscriber Address"
+                                  "name": "Subscriber Address",
+                                  "definitionId": "N3_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BA_3_segment_N3_1"
                                 },
                                 {
                                   "type": "segment",
                                   "xid": "N4",
                                   "pos": "300",
-                                  "usage": "S",
+                                  "usage": "R",
                                   "max_use": 1,
-                                  "name": "Subscriber City, State, ZIP Code"
+                                  "name": "Subscriber City, State, ZIP Code",
+                                  "definitionId": "N4_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BA_3_segment_N4_2"
                                 },
                                 {
                                   "type": "segment",
@@ -12758,31 +15316,35 @@
                                   "pos": "320",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Subscriber Demographic Information"
+                                  "name": "Subscriber Demographic Information",
+                                  "definitionId": "DMG_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BA_3_segment_DMG_3"
                                 },
                                 {
                                   "type": "segment",
                                   "xid": "REF",
                                   "pos": "350",
-                                  "usage": "S",
+                                  "usage": "R",
                                   "max_use": 1,
-                                  "name": "Subscriber Secondary Identification"
+                                  "name": "Subscriber Secondary Identification",
+                                  "definitionId": "REF_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BA_3_segment_REF_4"
                                 },
                                 {
                                   "type": "segment",
                                   "xid": "REF",
                                   "pos": "350",
-                                  "usage": "S",
+                                  "usage": "R",
                                   "max_use": 1,
-                                  "name": "Property and Casualty Claim Number"
+                                  "name": "Property and Casualty Claim Number",
+                                  "definitionId": "REF_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BA_3_segment_REF_5"
                                 },
                                 {
                                   "type": "segment",
                                   "xid": "PER",
                                   "pos": "400",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "name": "Property and Casualty Subscriber Contact Information"
+                                  "usage": "R",
+                                  "max_use": 2,
+                                  "name": "Property and Casualty Subscriber Contact Information",
+                                  "definitionId": "PER_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BA_3_segment_PER_6"
                                 }
                               ]
                             },
@@ -12800,7 +15362,8 @@
                                   "pos": "150",
                                   "usage": "R",
                                   "max_use": 1,
-                                  "name": "Payer Name"
+                                  "name": "Payer Name",
+                                  "definitionId": "NM1_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BB_4_segment_NM1_0"
                                 },
                                 {
                                   "type": "segment",
@@ -12822,17 +15385,19 @@
                                   "type": "segment",
                                   "xid": "REF",
                                   "pos": "350",
-                                  "usage": "S",
-                                  "max_use": 3,
-                                  "name": "Payer Secondary Identification"
+                                  "usage": "R",
+                                  "max_use": 1,
+                                  "name": "Payer Secondary Identification",
+                                  "definitionId": "REF_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BB_4_segment_REF_3"
                                 },
                                 {
                                   "type": "segment",
                                   "xid": "REF",
                                   "pos": "350",
-                                  "usage": "S",
-                                  "max_use": 2,
-                                  "name": "Billing Provider Secondary Identification"
+                                  "usage": "R",
+                                  "max_use": 1,
+                                  "name": "Billing Provider Secondary Identification",
+                                  "definitionId": "REF_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_DETAIL_2_loop_2000A_0_loop_2000B_6_loop_2010BB_4_segment_REF_4"
                                 }
                               ]
                             },

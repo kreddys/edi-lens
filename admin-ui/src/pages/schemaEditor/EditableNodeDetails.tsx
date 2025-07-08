@@ -43,28 +43,6 @@ const ReadOnlyElementTable: React.FC<{ elements: any[] }> = ({ elements }) => {
 };
 
 
-// --- THIS IS THE FIX ---
-// This new helper function implements the user's requested logic.
-// It checks for a specialized definition and falls back to the base xid if not found.
-const getEffectiveDefinitionId = (node: any, schema: any): string => {
-    if (!node || !schema || node.type !== 'segment') {
-        return node?.xid;
-    }
-
-    // Construct the potential specialized ID from the node's key,
-    // e.g., "NM1_root_loop_..._segment_NM1_0"
-    const potentialSpecializedId = `${node.xid}_${node.key.replace(/-/g, '_')}`;
-
-    // Check if this specialized definition exists in the main schema content
-    if (schema.segmentDefinitions && schema.segmentDefinitions[potentialSpecializedId]) {
-        return potentialSpecializedId;
-    }
-
-    // If not, fall back to the base segment ID (xid)
-    return node.xid;
-};
-
-
 export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
     form,
     selectedNode,
@@ -77,8 +55,10 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
 }) => {
     logger.debug("--- EditableNodeDetails RENDER ---", { isEditing, isShared });
     
-    // The definitionId is now determined by our new helper function.
-    const definitionId = getEffectiveDefinitionId(selectedNode, schemaContent);
+    // Determine the correct ID to use for looking up the segment's properties.
+    // Prioritize the `definitionId` if it exists (for specialized segments),
+    // otherwise fall back to the base `xid`.
+    const definitionId = selectedNode.definitionId || selectedNode.xid;
     const segmentDefinition = schemaContent.segmentDefinitions[definitionId];
     const isDefinitionEditingDisabled = isShared && !isSharedEditingEnabled;
 
@@ -90,8 +70,10 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
             logger.debug("3. Found segmentDefinition in schemaContent:", !!segmentDefinition);
 
             const valuesToSet = {
-                ...(segmentDefinition || {}),
                 ...selectedNode,
+                structure_name: selectedNode.name,
+                ...(segmentDefinition || {}),
+                definition_name: segmentDefinition?.name,
                 elements: segmentDefinition?.elements?.map((el: any) => ({
                     ...el,
                     valid_codes: { code: el.valid_codes?.code || [] },
@@ -143,7 +125,7 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
         <Form form={form} layout="vertical" key={selectedNode.key}>
             <Title level={5}>Edit Node: {selectedNode.name} ({selectedNode.xid})</Title>
             <Card title="Structure Properties" size="small" style={{ marginBottom: 16 }}>
-                <Form.Item name="name" label="Display Name (in tree)"><Input /></Form.Item>
+                <Form.Item name="structure_name" label="Display Name (in tree)"><Input /></Form.Item>
                 <Form.Item name="usage" label="Usage"><Select options={[{ value: "R", label: "Required" }, { value: "S", label: "Situational" }, { value: "N", label: "Not Used" }]} /></Form.Item>
                 {selectedNode.type === "loop" && <Form.Item name="repeat" label="Repeat Count"><Input placeholder="e.g., >1, 99" /></Form.Item>}
                 {selectedNode.type === "segment" && <Form.Item name="max_use" label="Max Use"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item>}
@@ -165,7 +147,7 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
                             style={{ marginBottom: 16 }}
                         />
                     )}
-                    <Form.Item name="name" label="Definition Name"><Input disabled={isDefinitionEditingDisabled} /></Form.Item>
+                    <Form.Item name="definition_name" label="Definition Name"><Input disabled={isDefinitionEditingDisabled} /></Form.Item>
                     <Divider orientation="left" plain>Elements</Divider>
                     <Form.List name="elements">
                         {(fields, { add, remove }) => (
