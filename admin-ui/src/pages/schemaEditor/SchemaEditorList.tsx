@@ -73,28 +73,29 @@ const transformToTreeData = (nodes: SchemaNode[], parentKey: string = "root"): T
     });
 };
 
-const updateNodeByKey = (nodes: SchemaNode[], key: string, newValues: Partial<SchemaNode>): SchemaNode[] => {
-    return nodes.map((node) => {
-        if (node.key === key) {
-            logger.debug("updateNodeByKey - Found matching node:", { 
-                nodeKey: node.key, 
-                originalNode: JSON.parse(JSON.stringify(node)), 
-                newValues: JSON.parse(JSON.stringify(newValues)) 
-            });
-            const updatedNode = { ...node, ...newValues };
-            logger.debug("updateNodeByKey - Updated node:", JSON.parse(JSON.stringify(updatedNode)));
-            return updatedNode;
-        }
+// --- THIS IS THE FIX ---
+const updateNodeByKey = (
+    nodes: SchemaNode[],
+    keyToUpdate: string,
+    newValues: Partial<SchemaNode>,
+    parentKey: string = 'root'
+): SchemaNode[] => {
+    return nodes.map((node, index) => {
+        const currentKey = `${parentKey}-${node.type}-${node.xid}-${index}`;
+        
+        let newChildren = node.children;
         if (node.children) {
-            return { ...node, children: updateNodeByKey(node.children, key, newValues) };
+            newChildren = updateNodeByKey(node.children, keyToUpdate, newValues, currentKey);
         }
-        return node;
+
+        if (currentKey === keyToUpdate) {
+            return { ...node, ...newValues, children: newChildren };
+        }
+
+        return { ...node, children: newChildren };
     });
 };
 
-// --- THIS IS THE FIX ---
-// This function now generates the key for each node internally,
-// matching the logic from `transformToTreeData`, to avoid the error.
 const countUnspecializedXidInTree = (
     nodes: SchemaNode[],
     xidToCount: string,
@@ -106,18 +107,16 @@ const countUnspecializedXidInTree = (
     let count = 0;
 
     for (const [index, node] of nodes.entries()) {
-        // Generate the key on-the-fly for the current node
         const key = `${parentKey}-${node.type}-${node.xid}-${index}`;
 
         if (node.type === 'segment' && !node.definitionId && node.xid === xidToCount) {
             const potentialSpecializedId = `${node.xid}_${key.replace(/-/g, '_')}`;
             if (!schemaContent.segmentDefinitions[potentialSpecializedId]) {
-                count++;
+                 count++;
             }
         }
 
         if (node.children) {
-            // Recurse, passing the current node's generated key as the new parentKey
             count += countUnspecializedXidInTree(node.children, xidToCount, schemaContent, key);
         }
     }
@@ -125,18 +124,40 @@ const countUnspecializedXidInTree = (
     return count;
 };
 
-const findNodeByKey = (nodes: SchemaNode[], key: string): SchemaNode | null => {
-    for (const node of nodes) {
-        if (node.key === key) {
-            return node;
+// --- THIS IS THE FIX ---
+const findNodeByKey = (
+    nodes: SchemaNode[], 
+    keyToFind: string, 
+    parentKey: string = 'root'
+): SchemaNode | null => {
+    for (const [index, node] of nodes.entries()) {
+        const currentKey = `${parentKey}-${node.type}-${node.xid}-${index}`;
+        if (currentKey === keyToFind) {
+            return { ...node, key: currentKey };
         }
         if (node.children) {
-            const found = findNodeByKey(node.children, key);
+            const found = findNodeByKey(node.children, keyToFind, currentKey);
             if (found) return found;
         }
     }
     return null;
 }
+
+const getEffectiveDefinitionId = (node: SchemaNode, schema: SchemaFile): string => {
+    if (node.type !== 'segment') return node.xid;
+    
+    if (node.definitionId) {
+        return node.definitionId;
+    }
+    
+    const potentialSpecializedId = `${node.xid}_${node.key!.replace(/-/g, '_')}`;
+    if (schema.segmentDefinitions && schema.segmentDefinitions[potentialSpecializedId]) {
+        return potentialSpecializedId;
+    }
+
+    return node.xid;
+};
+
 
 export const SchemaEditorList: React.FC = () => {
     const [form] = Form.useForm();
@@ -181,7 +202,6 @@ export const SchemaEditorList: React.FC = () => {
             return false;
         }
 
-        // The call is now correct as the helper function handles key generation internally.
         return countUnspecializedXidInTree(schemaContent.structure, selectedNode.xid, schemaContent) > 1;
 
     }, [selectedNode, schemaContent]);
@@ -250,91 +270,97 @@ export const SchemaEditorList: React.FC = () => {
         }
     };
 
-const handleSave = () => {
-    form.validateFields().then((formValues) => {
-        setSchemaContent(currentContent => {
-            if (!selectedSchema || !currentContent || !selectedNode || !selectedNode.key) {
-                logger.error("Save aborted due to missing state.", { selectedSchema, currentContent, selectedNode });
-                return currentContent;
-            }
-            
-            logger.groupCollapsed(`[SAVE] Saving Node: ${selectedNode.key}`);
-
-            const newContent = JSON.parse(JSON.stringify(currentContent));
-            const definitionId = selectedNode.definitionId || selectedNode.xid;
-            
-            logger.debug("1. State at start of save:", {
-                selectedNode: JSON.parse(JSON.stringify(selectedNode)),
-                formValues: JSON.parse(JSON.stringify(formValues)),
-                definitionIdUsed: definitionId,
-            });
-
-            // Update segment definition
-            const segmentDef = newContent.segmentDefinitions[definitionId];
-            if (segmentDef) {
-                segmentDef.name = formValues.name;
-                if (formValues.elements) {
-                    segmentDef.elements = formValues.elements;
-                    segmentDef.elementsByXid = (formValues.elements || []).reduce((acc: any, el: any) => { acc[el.xid] = el; return acc; }, {});
+    const handleSave = () => {
+        form.validateFields().then((formValues) => {
+            setSchemaContent(currentContent => {
+                if (!selectedSchema || !currentContent || !selectedNode || !selectedNode.key) {
+                    logger.error("Save aborted due to missing state.");
+                    return currentContent;
                 }
-            }
-
-            // Update structural node - IMPORTANT: Only include definitionId if it exists
-            const structuralNodeUpdate = {
-                name: formValues.name,
-                usage: formValues.usage,
-                repeat: selectedNode.type === "loop" ? formValues.repeat : undefined,
-                max_use: selectedNode.type === "segment" ? formValues.max_use : undefined,
-                ...(selectedNode.definitionId ? { definitionId: selectedNode.definitionId } : {}),
-            };
-            
-            logger.debug("2. Structural update object:", structuralNodeUpdate);
-            
-            // Update the structure
-            logger.debug("3. Structure before updateNodeByKey:", JSON.stringify(newContent.structure, null, 2));
-            newContent.structure = updateNodeByKey(newContent.structure, selectedNode.key, structuralNodeUpdate);
-            logger.debug("4. Structure after updateNodeByKey:", JSON.stringify(newContent.structure, null, 2));
-
-            // Clean structure for save - remove keys but preserve definitionId
-            const cleanStructureForSave = (nodes: SchemaNode[]): SchemaNode[] => {
-                const deepCloneWithoutKey = (node: SchemaNode): SchemaNode => {
-                    const { key, ...rest } = node;
-                    return {
-                        ...rest,
-                        children: node.children ? node.children.map(deepCloneWithoutKey) : undefined,
-                    };
+                
+                logger.groupCollapsed(`[SAVE] Saving Node: ${selectedNode.key}`);
+    
+                const nodeInTree = findNodeByKey(currentContent.structure, selectedNode.key);
+                if (!nodeInTree) {
+                    logger.error(`Could not find node with key ${selectedNode.key} in the current schema structure.`);
+                    logger.groupEnd();
+                    return currentContent;
+                }
+    
+                const definitionIdToUpdate = getEffectiveDefinitionId(nodeInTree, currentContent);
+    
+                const newContent = JSON.parse(JSON.stringify(currentContent));
+                
+                logger.debug("1. State at start of save:", {
+                    nodeInTree: JSON.parse(JSON.stringify(nodeInTree)),
+                    formValues: JSON.parse(JSON.stringify(formValues)),
+                    definitionIdToUpdate: definitionIdToUpdate,
+                });
+    
+                const segmentDef = newContent.segmentDefinitions[definitionIdToUpdate];
+                if (segmentDef) {
+                    segmentDef.name = formValues.name; 
+                    if (formValues.elements) {
+                        segmentDef.elements = formValues.elements;
+                        segmentDef.elementsByXid = (formValues.elements || []).reduce((acc: any, el: any) => { acc[el.xid] = el; return acc; }, {});
+                    }
+                } else {
+                     logger.error(`Could not find segment definition for ID: ${definitionIdToUpdate}`);
+                     logger.groupEnd();
+                     return currentContent;
+                }
+    
+                const structuralNodeUpdate = {
+                    name: formValues.name,
+                    usage: formValues.usage,
+                    repeat: nodeInTree.type === "loop" ? formValues.repeat : undefined,
+                    max_use: nodeInTree.type === "segment" ? formValues.max_use : undefined,
+                    ...(nodeInTree.definitionId ? { definitionId: nodeInTree.definitionId } : {}),
                 };
-                return nodes.map(deepCloneWithoutKey);
-            };
-
-            const contentToSave = {
-                ...newContent,
-                structure: cleanStructureForSave(newContent.structure),
-            };
-
-            logger.debug("5. Final payload being sent to API:", contentToSave);
-            logger.debug("5.1 Structure node before API send:", JSON.stringify(contentToSave.structure, null, 2));
-            logger.groupEnd();
-            
-            updateSchema({
-                resource: "schemas",
-                id: selectedSchema,
-                values: contentToSave,
-                successNotification: () => ({ message: "Schema saved successfully!", type: "success" }),
-                errorNotification: (error?: HttpError) => ({ message: `Save failed: ${error?.message || "Unknown error"}`, type: "error" }),
-                meta: {
-                    onSuccess: () => {
-                        setIsEditing(false);
-                        setIsSharedEditingEnabled(false);
-                        refetch();
+                
+                logger.debug("2. Structural update object:", structuralNodeUpdate);
+                
+                newContent.structure = updateNodeByKey(newContent.structure, nodeInTree.key!, structuralNodeUpdate);
+    
+                const cleanStructureForSave = (nodes: SchemaNode[]): SchemaNode[] => {
+                    const deepCloneWithoutKey = (node: SchemaNode): SchemaNode => {
+                        const { key, ...rest } = node;
+                        return {
+                            ...rest,
+                            children: node.children ? node.children.map(deepCloneWithoutKey) : undefined,
+                        };
+                    };
+                    return nodes.map(deepCloneWithoutKey);
+                };
+    
+                const contentToSave = {
+                    ...newContent,
+                    structure: cleanStructureForSave(newContent.structure),
+                };
+    
+                logger.debug("3. Final payload being sent to API:", JSON.parse(JSON.stringify(contentToSave)));
+                logger.groupEnd();
+                
+                updateSchema({
+                    resource: "schemas",
+                    id: selectedSchema,
+                    values: contentToSave,
+                    successNotification: () => ({ message: "Schema saved successfully!", type: "success" }),
+                    errorNotification: (error?: HttpError) => ({ message: `Save failed: ${error?.message || "Unknown error"}`, type: "error" }),
+                    meta: {
+                        onSuccess: () => {
+                            setIsEditing(false);
+                            setIsSharedEditingEnabled(false);
+                            refetch();
+                        },
                     },
-                },
+                });
+    
+                return currentContent; 
             });
-
-            return currentContent;
         });
-    });
-};
+    };
+    
 
     const isTreeLoading = selectedSchema && isLoadingContent;
 
