@@ -19,6 +19,7 @@ interface EditableNodeDetailsProps {
     isEditing: boolean;
 }
 
+// --- THIS COMPONENT IS NOW UPDATED TO BE EXPANDABLE ---
 const ReadOnlyElementTable: React.FC<{ elements: any[] }> = ({ elements }) => {
     const columns: ColumnsType<any> = [
         { title: 'Seq', dataIndex: 'seq', key: 'seq', width: '10%' },
@@ -32,16 +33,60 @@ const ReadOnlyElementTable: React.FC<{ elements: any[] }> = ({ elements }) => {
             title: 'Valid Codes',
             dataIndex: ['valid_codes', 'code'],
             key: 'valid_codes',
-            render: (codes: (string | number)[]) => (
-                <Space size={[0, 8]} wrap>
-                    {codes && codes.length > 0 ? codes.map((code) => <Tag key={code}>{code}</Tag>) : 'N/A'}
-                </Space>
-            )
+            render: (codes: (string | number)[], record: any) => {
+                // Do not show valid codes for composite elements, as they are defined in sub-elements.
+                if (record.elements && record.elements.length > 0) {
+                    return <Tag>Composite</Tag>;
+                }
+                return (
+                    <Space size={[0, 8]} wrap>
+                        {codes && codes.length > 0 ? codes.map((code) => <Tag key={code}>{code}</Tag>) : 'N/A'}
+                    </Space>
+                )
+            }
         },
     ];
-    return <Table columns={columns} dataSource={elements?.map(el => ({ ...el, key: el.xid }))} pagination={false} size="small" />;
+
+    return (
+        <Table
+            columns={columns}
+            dataSource={elements?.map(el => ({ ...el, key: el.xid }))}
+            pagination={false}
+            size="small"
+            expandable={{
+                expandedRowRender: (record) => {
+                    if (!record.elements || record.elements.length === 0) {
+                        return null;
+                    }
+                    return (
+                        <Table
+                            columns={columns}
+                            dataSource={record.elements.map((subEl: any) => ({ ...subEl, key: subEl.xid }))}
+                            pagination={false}
+                            size="small"
+                        />
+                    );
+                },
+                rowExpandable: (record) => record.elements && record.elements.length > 0,
+            }}
+        />
+    );
 };
 
+// --- NEW RECURSIVE HELPER TO PREPARE FORM DATA ---
+const prepareElementsForForm = (elements: any[]): any[] => {
+    if (!elements) return [];
+    return elements.map(el => {
+        const preparedEl = {
+            ...el,
+            valid_codes: { code: el.valid_codes?.code || [] },
+        };
+        if (el.elements && Array.isArray(el.elements)) {
+            preparedEl.elements = prepareElementsForForm(el.elements);
+        }
+        return preparedEl;
+    });
+};
 
 export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
     form,
@@ -55,34 +100,26 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
 }) => {
     logger.debug("--- EditableNodeDetails RENDER ---", { isEditing, isShared });
     
-    // Determine the correct ID to use for looking up the segment's properties.
-    // Prioritize the `definitionId` if it exists (for specialized segments),
-    // otherwise fall back to the base `xid`.
     const definitionId = selectedNode.definitionId || selectedNode.xid;
     const segmentDefinition = schemaContent.segmentDefinitions[definitionId];
     const isDefinitionEditingDisabled = isShared && !isSharedEditingEnabled;
 
     useEffect(() => {
         logger.groupCollapsed("--- useEffect [form population] ---");
-        if (selectedNode) {
+        if (selectedNode && segmentDefinition) {
             logger.debug("1. Received selectedNode:", JSON.parse(JSON.stringify(selectedNode)));
             logger.debug(`2. Calculated definitionId to use: '${definitionId}'`);
-            logger.debug("3. Found segmentDefinition in schemaContent:", !!segmentDefinition);
-
+            
             const valuesToSet = {
                 ...selectedNode,
                 structure_name: selectedNode.name,
-                ...(segmentDefinition || {}),
-                definition_name: segmentDefinition?.name,
-                elements: segmentDefinition?.elements?.map((el: any) => ({
-                    ...el,
-                    valid_codes: { code: el.valid_codes?.code || [] },
-                })) || [],
+                definition_name: segmentDefinition.name,
+                elements: prepareElementsForForm(segmentDefinition.elements),
             };
-            logger.debug("4. Final values being set to form:", JSON.parse(JSON.stringify(valuesToSet)));
+            logger.debug("3. Final values being set to form:", JSON.parse(JSON.stringify(valuesToSet)));
             form.setFieldsValue(valuesToSet);
         } else {
-            logger.debug("No selected node, resetting form.");
+            logger.debug("No selected node or definition, resetting form.");
             form.resetFields();
         }
         logger.groupEnd();
@@ -149,6 +186,7 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
                     )}
                     <Form.Item name="definition_name" label="Definition Name"><Input disabled={isDefinitionEditingDisabled} /></Form.Item>
                     <Divider orientation="left" plain>Elements</Divider>
+                    {/* --- THIS IS THE UPDATED FORM LIST WITH NESTING SUPPORT --- */}
                     <Form.List name="elements">
                         {(fields, { add, remove }) => (
                             <div style={{ display: 'flex', flexDirection: 'column', rowGap: 16 }}>
@@ -156,8 +194,41 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
                                     <Card size="small" key={key} title={`Element: ${form.getFieldValue(['elements', name, 'xid'])}`} extra={<MinusCircleOutlined onClick={() => !isDefinitionEditingDisabled && remove(name)} />}>
                                         <Form.Item {...restField} name={[name, 'name']} label="Name"><Input placeholder="Element Name" disabled={isDefinitionEditingDisabled} /></Form.Item>
                                         <Form.Item {...restField} name={[name, 'usage']} label="Usage"><Select placeholder="Usage" style={{ width: 100 }} options={[{ value: "R" }, { value: "S" }, { value: "N" }]} disabled={isDefinitionEditingDisabled}/></Form.Item>
-                                        <Form.Item {...restField} name={[name, 'valid_codes', 'code']} label="Valid Codes">
-                                             <Select mode="tags" style={{ width: '100%' }} tokenSeparators={[',']} placeholder="Type codes and press Enter" disabled={isDefinitionEditingDisabled} />
+                                        
+                                        <Form.Item shouldUpdate noStyle>
+                                            {() => {
+                                                const subElements = form.getFieldValue(['elements', name, 'elements']);
+                                                if (Array.isArray(subElements)) {
+                                                    return (
+                                                        <>
+                                                            <Divider orientation="left" plain>Sub-Elements</Divider>
+                                                            <div style={{ marginLeft: 24, display: 'flex', flexDirection: 'column', rowGap: 16 }}>
+                                                                <Form.List name={[name, 'elements']}>
+                                                                    {(subFields, { add: addSub, remove: removeSub }) => (
+                                                                        <>
+                                                                            {subFields.map(({ key: subKey, name: subName, ...restSubField }) => (
+                                                                                <Card size="small" key={subKey} title={`Sub: ${form.getFieldValue(['elements', name, 'elements', subName, 'xid'])}`} extra={<MinusCircleOutlined onClick={() => !isDefinitionEditingDisabled && removeSub(subName)} />}>
+                                                                                    <Form.Item {...restSubField} name={[subName, 'name']} label="Name"><Input placeholder="Sub-Element Name" disabled={isDefinitionEditingDisabled} /></Form.Item>
+                                                                                    <Form.Item {...restSubField} name={[subName, 'usage']} label="Usage"><Select placeholder="Usage" style={{ width: 100 }} options={[{ value: "R" }, { value: "S" }, { value: "N" }]} disabled={isDefinitionEditingDisabled}/></Form.Item>
+                                                                                    <Form.Item {...restSubField} name={[subName, 'valid_codes', 'code']} label="Valid Codes">
+                                                                                        <Select mode="tags" style={{ width: '100%' }} tokenSeparators={[',']} placeholder="Type codes and press Enter" disabled={isDefinitionEditingDisabled} />
+                                                                                    </Form.Item>
+                                                                                </Card>
+                                                                            ))}
+                                                                            <Button type="dashed" onClick={() => addSub()} block icon={<PlusOutlined />} disabled={isDefinitionEditingDisabled}>Add Sub-Element</Button>
+                                                                        </>
+                                                                    )}
+                                                                </Form.List>
+                                                            </div>
+                                                        </>
+                                                    );
+                                                }
+                                                return (
+                                                    <Form.Item {...restField} name={[name, 'valid_codes', 'code']} label="Valid Codes">
+                                                         <Select mode="tags" style={{ width: '100%' }} tokenSeparators={[',']} placeholder="Type codes and press Enter" disabled={isDefinitionEditingDisabled} />
+                                                    </Form.Item>
+                                                );
+                                            }}
                                         </Form.Item>
                                     </Card>
                                 ))}
