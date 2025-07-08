@@ -15423,6 +15423,78 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
+                                  "name": "Date - Accident"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "DTP",
+                                  "pos": "1350",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "name": "Date - Acute Manifestation"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "DTP",
+                                  "pos": "1350",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "name": "Date - Admission"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "DTP",
+                                  "pos": "1350",
+                                  "usage": "S",
+                                  "max_use": 2,
+                                  "name": "Date - Assumed and Relinquished Care Dates"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "DTP",
+                                  "pos": "1350",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "name": "Date - Authorized Return to Work"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "DTP",
+                                  "pos": "1350",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "name": "Date - Disability Dates"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "DTP",
+                                  "pos": "1350",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "name": "Date - Discharge"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "DTP",
+                                  "pos": "1350",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "name": "Date - Hearing and Vision Prescription Date"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "DTP",
+                                  "pos": "1350",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "name": "Date - Last Menstrual Period"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "DTP",
+                                  "pos": "1350",
+                                  "usage": "S",
+                                  "max_use": 1,
                                   "name": "Date - Onset of Current Illness or Symptom"
                                 },
                                 {
@@ -15447,54 +15519,6 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Acute Manifestation"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "DTP",
-                                  "pos": "1350",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "name": "Date - Accident"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "DTP",
-                                  "pos": "1350",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "name": "Date - Last Menstrual Period"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "DTP",
-                                  "pos": "1350",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "name": "Date - Last X-ray Date"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "DTP",
-                                  "pos": "1350",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "name": "Date - Hearing and Vision Prescription Date"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "DTP",
-                                  "pos": "1350",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "name": "Date - Disability Dates"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "DTP",
-                                  "pos": "1350",
-                                  "usage": "S",
-                                  "max_use": 1,
                                   "name": "Date - Last Worked"
                                 },
                                 {
@@ -15503,31 +15527,7 @@
                                   "pos": "1350",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "name": "Date - Authorized Return to Work"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "DTP",
-                                  "pos": "1350",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "name": "Date - Admission"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "DTP",
-                                  "pos": "1350",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "name": "Date - Discharge"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "DTP",
-                                  "pos": "1350",
-                                  "usage": "S",
-                                  "max_use": 2,
-                                  "name": "Date - Assumed and Relinquished Care Dates"
+                                  "name": "Date - Last X-ray Date"
                                 },
                                 {
                                   "type": "segment",
@@ -18717,8 +18717,7 @@
                   "name": "Table 3 - Footer",
                   "usage": "N",
                   "pos": "300",
-                  "repeat": 1,
-                  "children": []
+                  "repeat": 1
                 },
                 {
                   "type": "segment",

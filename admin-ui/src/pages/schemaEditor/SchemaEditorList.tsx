@@ -13,6 +13,7 @@ import {
     Form,
     Tooltip,
     notification,
+    Alert,
 } from "antd";
 import {
     SaveOutlined,
@@ -21,8 +22,8 @@ import {
     EditOutlined,
     CloseCircleOutlined,
 } from "@ant-design/icons";
-import type { TreeDataNode } from "antd";
-import { EditableNodeDetails } from "./EditableNodeDetails";
+import type { TreeDataNode, TreeProps } from "antd";
+import { EditableNodeDetails, getEffectiveDefinitionId } from "./EditableNodeDetails";
 import { getLogger } from "../../utils";
 
 const logger = getLogger("SchemaEditor");
@@ -37,6 +38,11 @@ interface SchemaNode {
     definitionId?: string;
     children?: SchemaNode[];
     [key: string]: any;
+}
+
+interface SchemaTreeDataNode extends TreeDataNode {
+    data: SchemaNode;
+    children?: SchemaTreeDataNode[];
 }
 
 interface SchemaFile {
@@ -56,7 +62,7 @@ const getAllKeys = (nodes: TreeDataNode[]): React.Key[] => {
     return keys;
 };
 
-const transformToTreeData = (nodes: SchemaNode[], parentKey: string = "root"): TreeDataNode[] => {
+const transformToTreeData = (nodes: SchemaNode[], parentKey: string = "root"): SchemaTreeDataNode[] => {
     return nodes.map((node, index) => {
         const key = `${parentKey}-${node.type}-${node.xid}-${index}`;
         const dataNode = { ...node, key };
@@ -142,30 +148,15 @@ const findNodeByKey = (
     return null;
 }
 
-const getEffectiveDefinitionId = (node: SchemaNode, schema: SchemaFile): string => {
-    if (node.type !== 'segment' || !node.key) return node.xid;
-    
-    if (node.definitionId) {
-        return node.definitionId;
-    }
-    
-    const potentialSpecializedId = `${node.xid}_${node.key.replace(/-/g, '_')}`;
-    if (schema.segmentDefinitions && schema.segmentDefinitions[potentialSpecializedId]) {
-        return potentialSpecializedId;
-    }
-
-    return node.xid;
-};
-
-
 export const SchemaEditorList: React.FC = () => {
     const [form] = Form.useForm();
     const apiUrl = useApiUrl();
     const [selectedSchema, setSelectedSchema] = useState<string | null>(null);
     const [schemaContent, setSchemaContent] = useState<SchemaFile | null>(null);
+    const [draftContent, setDraftContent] = useState<SchemaFile | null>(null);
+    const [isPageInEditMode, setIsPageInEditMode] = useState(false);
     const [selectedNode, setSelectedNode] = useState<SchemaNode | null>(null);
     const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
-    const [isEditing, setIsEditing] = useState(false);
     const [isSharedEditingEnabled, setIsSharedEditingEnabled] = useState(false);
 
     const { data: schemaFilesData, isLoading: isLoadingFiles } = useCustom<string[]>({
@@ -181,14 +172,16 @@ export const SchemaEditorList: React.FC = () => {
 
     const { mutate: updateSchema, isLoading: isSaving } = useUpdate();
 
+    const contentToShow = isPageInEditMode ? draftContent : schemaContent;
+
     const treeData = useMemo(() => {
-        if (!schemaContent) return [];
-        const structureCopy = JSON.parse(JSON.stringify(schemaContent.structure));
+        if (!contentToShow) return [];
+        const structureCopy = JSON.parse(JSON.stringify(contentToShow.structure));
         return transformToTreeData(structureCopy);
-    }, [schemaContent]);
+    }, [contentToShow]);
 
     const isShared = useMemo(() => {
-        if (!selectedNode || !selectedNode.key || !schemaContent || selectedNode.type !== 'segment') {
+        if (!selectedNode || !selectedNode.key || !contentToShow || selectedNode.type !== 'segment') {
             return false;
         }
         
@@ -197,13 +190,13 @@ export const SchemaEditorList: React.FC = () => {
         }
 
         const potentialSpecializedId = `${selectedNode.xid}_${selectedNode.key.replace(/-/g, '_')}`;
-        if (schemaContent.segmentDefinitions[potentialSpecializedId]) {
+        if (contentToShow.segmentDefinitions[potentialSpecializedId]) {
             return false;
         }
 
-        return countUnspecializedXidInTree(schemaContent.structure, selectedNode.xid, schemaContent) > 1;
+        return countUnspecializedXidInTree(contentToShow.structure, selectedNode.xid, contentToShow) > 1;
 
-    }, [selectedNode, schemaContent]);
+    }, [selectedNode, contentToShow]);
 
 
     useEffect(() => {
@@ -221,10 +214,22 @@ export const SchemaEditorList: React.FC = () => {
 
     useEffect(() => {
         setSelectedNode(null);
-        setIsEditing(false);
         setIsSharedEditingEnabled(false);
         form.resetFields();
-    }, [selectedSchema, form]);
+    }, [selectedSchema, form, isPageInEditMode]);
+
+    const handleEnterEditMode = () => {
+        if (schemaContent) {
+            setDraftContent(JSON.parse(JSON.stringify(schemaContent)));
+            setIsPageInEditMode(true);
+        }
+    };
+    
+    const handleCancelEditMode = () => {
+        setDraftContent(null);
+        setIsPageInEditMode(false);
+        setSelectedNode(null);
+    };
 
     const onExpand = (keys: React.Key[]) => setExpandedKeys(keys);
 
@@ -232,12 +237,10 @@ export const SchemaEditorList: React.FC = () => {
         if (selectedKeys.length > 0 && info.node.data) {
             if (selectedNode?.key !== info.node.data.key) {
                 setSelectedNode(info.node.data);
-                setIsEditing(false);
                 setIsSharedEditingEnabled(false);
             }
         } else {
             setSelectedNode(null);
-            setIsEditing(false);
             setIsSharedEditingEnabled(false);
         }
     };
@@ -254,7 +257,7 @@ export const SchemaEditorList: React.FC = () => {
             const newDefId = `${originalDefId}_${selectedNode.key.replace(/-/g, "_")}`;
             logger.debug("New specialized definition ID:", newDefId);
 
-            setSchemaContent((currentContent) => {
+            setDraftContent((currentContent) => {
                 if (!currentContent) return null;
                 const newContent = JSON.parse(JSON.stringify(currentContent));
                 const definitionToCopy = newContent.segmentDefinitions[originalDefId];
@@ -262,10 +265,12 @@ export const SchemaEditorList: React.FC = () => {
                 newContent.segmentDefinitions[newDefId] = JSON.parse(JSON.stringify(definitionToCopy));
                 
                 newContent.structure = updateNodeByKey(newContent.structure, selectedNode.key!, { definitionId: newDefId });
+                
+                setSelectedNode((currentNode) => ({ ...currentNode!, definitionId: newDefId }));
+                
                 return newContent;
             });
 
-            setSelectedNode((currentNode) => ({ ...currentNode!, definitionId: newDefId }));
             setIsSharedEditingEnabled(false);
             notification.success({ message: "Segment specialized successfully." });
         } catch (error) {
@@ -276,72 +281,15 @@ export const SchemaEditorList: React.FC = () => {
         }
     };
 
-    const handleCancelEditing = () => {
-        setIsEditing(false);
-        setIsSharedEditingEnabled(false);
-        if (selectedNode && schemaContent) {
-            const definitionId = getEffectiveDefinitionId(selectedNode, schemaContent);
-            const segmentDefinition = schemaContent.segmentDefinitions[definitionId];
-            form.setFieldsValue({
-                ...selectedNode,
-                structure_name: selectedNode.name,
-                ...(segmentDefinition || {}),
-                definition_name: segmentDefinition?.name,
-                elements: segmentDefinition?.elements,
-            });
-        }
-    };
-
     const handleSave = async () => {
         logger.groupCollapsed(`[SAVE]`);
         try {
-            const formValues = await form.validateFields();
-    
-            if (!selectedSchema || !schemaContent || !selectedNode || !selectedNode.key) {
-                throw new Error("Save aborted due to missing state. Please re-select the node.");
+            // No need to validate here anymore, as data is always up-to-date in draftContent
+            if (!selectedSchema || !draftContent) {
+                throw new Error("Save aborted due to missing state. Please re-select the schema.");
             }
-    
-            const keyToUpdate = selectedNode.key;
-    
-            logger.debug("1. State at start of save:", {
-                keyToUpdate,
-                formValues: JSON.parse(JSON.stringify(formValues)),
-            });
-    
-            const newContent = JSON.parse(JSON.stringify(schemaContent));
-    
-            const nodeInTree = findNodeByKey(newContent.structure, keyToUpdate);
-            if (!nodeInTree) {
-                throw new Error(`Could not find node with key ${keyToUpdate} in the current schema structure.`);
-            }
-    
-            const definitionIdToUpdate = getEffectiveDefinitionId(nodeInTree, newContent);
-            logger.debug("2. Definition ID to be updated:", definitionIdToUpdate);
             
-            const segmentDef = newContent.segmentDefinitions[definitionIdToUpdate];
-            if (segmentDef) {
-                // --- THIS IS THE FIX ---
-                segmentDef.name = formValues.definition_name; 
-                if (formValues.elements) {
-                    segmentDef.elements = formValues.elements;
-                    segmentDef.elementsByXid = (formValues.elements || []).reduce((acc: any, el: any) => { acc[el.xid] = el; return acc; }, {});
-                }
-            } else {
-                throw new Error(`Could not find segment definition for ID: ${definitionIdToUpdate}`);
-            }
-    
-            const structuralNodeUpdate = {
-                // --- THIS IS THE FIX ---
-                name: formValues.structure_name,
-                usage: formValues.usage,
-                repeat: nodeInTree.type === "loop" ? formValues.repeat : undefined,
-                max_use: nodeInTree.type === "segment" ? formValues.max_use : undefined,
-                ...(nodeInTree.definitionId ? { definitionId: nodeInTree.definitionId } : {}),
-            };
-            
-            logger.debug("3. Structural update object:", structuralNodeUpdate);
-            
-            newContent.structure = updateNodeByKey(newContent.structure, keyToUpdate, structuralNodeUpdate);
+            logger.debug("1. Content at start of save:", JSON.parse(JSON.stringify(draftContent)));
             
             const cleanStructureForSave = (nodes: SchemaNode[]): SchemaNode[] => {
                 return nodes.map(({ key, ...rest }) => ({
@@ -350,8 +298,8 @@ export const SchemaEditorList: React.FC = () => {
                 }));
             };
     
-            const contentToSave = { ...newContent, structure: cleanStructureForSave(newContent.structure) };
-            logger.debug("4. Final payload being sent to API:", JSON.parse(JSON.stringify(contentToSave)));
+            const contentToSave = { ...draftContent, structure: cleanStructureForSave(draftContent.structure) };
+            logger.debug("2. Final payload being sent to API:", JSON.parse(JSON.stringify(contentToSave)));
             
             updateSchema({
                 resource: "schemas",
@@ -361,8 +309,8 @@ export const SchemaEditorList: React.FC = () => {
                 errorNotification: (error?: HttpError) => ({ message: `Save failed: ${error?.message || "Unknown error"}`, type: "error" }),
                 meta: {
                     onSuccess: () => {
-                        setIsEditing(false);
-                        setIsSharedEditingEnabled(false);
+                        setIsPageInEditMode(false);
+                        setDraftContent(null);
                         refetch(); 
                     },
                 },
@@ -377,18 +325,167 @@ export const SchemaEditorList: React.FC = () => {
         }
     };
     
+    // --- THIS IS THE NEW FUNCTION TO HANDLE REAL-TIME UPDATES ---
+    const onFormValuesChange = (changedValues: any, allValues: any) => {
+        if (!isPageInEditMode || !draftContent || !selectedNode) return;
+        
+        logger.groupCollapsed('[FORM CHANGE]');
+        logger.debug("Changed values:", changedValues);
+
+        const keyToUpdate = selectedNode.key!;
+        const newDraft = JSON.parse(JSON.stringify(draftContent));
+        const nodeInTree = findNodeByKey(newDraft.structure, keyToUpdate);
+        
+        if (!nodeInTree) {
+            logger.error(`Could not find node with key ${keyToUpdate} to apply changes.`);
+            logger.groupEnd();
+            return;
+        }
+
+        const definitionIdToUpdate = getEffectiveDefinitionId(nodeInTree, newDraft);
+
+        // Update definition properties
+        const segmentDef = newDraft.segmentDefinitions[definitionIdToUpdate];
+        if (segmentDef) {
+            if ('definition_name' in changedValues) {
+                segmentDef.name = changedValues.definition_name;
+            }
+            if ('elements' in changedValues) {
+                segmentDef.elements = allValues.elements;
+                segmentDef.elementsByXid = (allValues.elements || []).reduce((acc: any, el: any) => { acc[el.xid] = el; return acc; }, {});
+            }
+        }
+
+        // Update structure properties
+        if('structure_name' in changedValues) nodeInTree.name = changedValues.structure_name;
+        if('usage' in changedValues) nodeInTree.usage = changedValues.usage;
+        if('repeat' in changedValues) nodeInTree.repeat = changedValues.repeat;
+        if('max_use' in changedValues) nodeInTree.max_use = changedValues.max_use;
+
+        setDraftContent(newDraft);
+        logger.debug("Updated draft content:", newDraft);
+        logger.groupEnd();
+    };
+    
+    // --- THIS IS THE FINAL, CORRECTED DRAG-AND-DROP HANDLER ---
+    const handleDrop: TreeProps<SchemaTreeDataNode>['onDrop'] = (info) => {
+        const { dragNode, node: dropTargetNode, dropToGap } = info;
+    
+        if (!dropToGap) {
+            notification.warning({ message: "Dropping inside another node is not supported." });
+            return;
+        }
+        if (!draftContent) return;
+    
+        const data = [...treeData];
+    
+        let dragObj: SchemaTreeDataNode | undefined;
+    
+        const findAndRemove = (nodes: SchemaTreeDataNode[], key: React.Key): boolean => {
+            for (let i = 0; i < nodes.length; i++) {
+                if (nodes[i].key === key) {
+                    [dragObj] = nodes.splice(i, 1);
+                    return true;
+                }
+                // --- FIX: Add guard clause before recursion ---
+                if (nodes[i].children && findAndRemove(nodes[i].children!, key)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+    
+        findAndRemove(data, dragNode.key);
+    
+        if (dragObj) {
+            let ar: SchemaTreeDataNode[] | undefined;
+            let i: number = -1;
+    
+            const findAndInsert = (nodes: SchemaTreeDataNode[], key: React.Key) => {
+                for (let j = 0; j < nodes.length; j++) {
+                    if (nodes[j].key === key) {
+                        ar = nodes;
+                        i = j;
+                        return;
+                    }
+                    // --- FIX: Add guard clause before recursion ---
+                    if (nodes[j].children) {
+                        findAndInsert(nodes[j].children!, key);
+                    }
+                }
+            };
+    
+            findAndInsert(data, dropTargetNode.key);
+    
+            const dragParentPos = dragNode.pos.substring(0, dragNode.pos.lastIndexOf('-'));
+            const dropParentPos = dropTargetNode.pos.substring(0, dropTargetNode.pos.lastIndexOf('-'));
+    
+            if(dragParentPos !== dropParentPos) {
+                 notification.warning({ message: "Moving nodes between different parents is not yet supported." });
+                 return;
+            }
+    
+            if (ar && i > -1) {
+                 const dropPos = info.dropPosition - Number(dropTargetNode.pos.split('-').pop());
+                 const isBelow = dropPos > 0;
+                 if (isBelow) {
+                    ar.splice(i + 1, 0, dragObj);
+                } else {
+                    ar.splice(i, 0, dragObj);
+                }
+            }
+        }
+    
+        const convertTreeToSchema = (nodes: SchemaTreeDataNode[]): SchemaNode[] => {
+            return nodes.map(node => {
+                const schemaNode: SchemaNode = { ...node.data };
+                if (node.children && node.children.length > 0) {
+                    schemaNode.children = convertTreeToSchema(node.children as SchemaTreeDataNode[]);
+                } else {
+                    delete schemaNode.children;
+                }
+                delete schemaNode.key;
+                return schemaNode;
+            });
+        };
+    
+        setDraftContent({
+            ...draftContent,
+            structure: convertTreeToSchema(data),
+        });
+    };
 
     const isTreeLoading = selectedSchema && isLoadingContent;
 
     return (
         <Card>
-            <Select
-                placeholder="Select a schema to edit"
-                loading={isLoadingFiles}
-                options={schemaFilesData?.data.map((f: string) => ({ label: f, value: f }))}
-                onChange={(value) => setSelectedSchema(value)}
-                style={{ width: 300, marginBottom: 16 }}
-            />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <Select
+                    placeholder="Select a schema to edit"
+                    loading={isLoadingFiles}
+                    options={schemaFilesData?.data.map((f: string) => ({ label: f, value: f }))}
+                    onChange={(value) => {
+                        setSelectedSchema(value);
+                        setIsPageInEditMode(false);
+                        setDraftContent(null);
+                    }}
+                    style={{ width: 300 }}
+                />
+                {selectedSchema && (
+                    <Space>
+                        {!isPageInEditMode ? (
+                            <Button icon={<EditOutlined />} onClick={handleEnterEditMode}>Edit Schema</Button>
+                        ) : (
+                            <>
+                                <Button icon={<CloseCircleOutlined />} onClick={handleCancelEditMode}>Cancel</Button>
+                                <Button type="primary" icon={<SaveOutlined />} onClick={handleSave} loading={isSaving}>Save Schema</Button>
+                            </>
+                        )}
+                    </Space>
+                )}
+            </div>
+
+            {isPageInEditMode && <Alert message="Edit Mode" type="info" showIcon style={{ marginBottom: 16 }} description="You are in edit mode. All changes to structure and properties will be saved when you click 'Save Schema'." />}
 
             <Layout style={{ background: "#fff" }}>
                 <Sider width={500} style={{ background: "#fff", padding: "0 16px", borderRight: "1px solid #f0f0f0" }}>
@@ -406,26 +503,26 @@ export const SchemaEditorList: React.FC = () => {
                         </Space>
                     </Space>
                     {isTreeLoading && <Spin />}
-                    {!isTreeLoading && treeData.length > 0 && <Tree showLine onExpand={onExpand} expandedKeys={expandedKeys} treeData={treeData} onSelect={handleSelect} />}
+                    {!isTreeLoading && treeData.length > 0 && 
+                        <Tree 
+                            showLine 
+                            onExpand={onExpand} 
+                            expandedKeys={expandedKeys} 
+                            treeData={treeData} 
+                            onSelect={handleSelect}
+                            draggable={isPageInEditMode ? { icon: false } : false} 
+                            onDrop={handleDrop}
+                        />
+                    }
                     {!isTreeLoading && !selectedSchema && <Empty description="No schema selected" />}
                 </Sider>
                 <Content style={{ padding: "0 24px", minHeight: 280 }}>
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 16, height: "32px" }}>
-                        {selectedNode && !isEditing && <Button icon={<EditOutlined />} onClick={() => setIsEditing(true)}>Edit</Button>}
-                        {selectedNode && isEditing && (
-                            <Space>
-                                <Button icon={<CloseCircleOutlined />} onClick={handleCancelEditing}>Cancel</Button>
-                                <Button type="primary" icon={<SaveOutlined />} onClick={handleSave} loading={isSaving}>Save</Button>
-                            </Space>
-                        )}
-                    </div>
-
-                    {selectedNode && schemaContent ? (
+                    {selectedNode && contentToShow ? (
                         <EditableNodeDetails
                             form={form}
-                            isEditing={isEditing}
+                            isEditing={isPageInEditMode}
                             selectedNode={selectedNode}
-                            schemaContent={schemaContent}
+                            schemaContent={contentToShow}
                             onSpecialize={handleSpecialize}
                             isShared={isShared}
                             isSharedEditingEnabled={isSharedEditingEnabled}

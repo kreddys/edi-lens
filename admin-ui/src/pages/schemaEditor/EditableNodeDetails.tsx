@@ -19,7 +19,6 @@ interface EditableNodeDetailsProps {
     isEditing: boolean;
 }
 
-// --- THIS COMPONENT IS NOW UPDATED TO BE EXPANDABLE ---
 const ReadOnlyElementTable: React.FC<{ elements: any[] }> = ({ elements }) => {
     const columns: ColumnsType<any> = [
         { title: 'Seq', dataIndex: 'seq', key: 'seq', width: '10%' },
@@ -34,7 +33,6 @@ const ReadOnlyElementTable: React.FC<{ elements: any[] }> = ({ elements }) => {
             dataIndex: ['valid_codes', 'code'],
             key: 'valid_codes',
             render: (codes: (string | number)[], record: any) => {
-                // Do not show valid codes for composite elements, as they are defined in sub-elements.
                 if (record.elements && record.elements.length > 0) {
                     return <Tag>Composite</Tag>;
                 }
@@ -73,7 +71,6 @@ const ReadOnlyElementTable: React.FC<{ elements: any[] }> = ({ elements }) => {
     );
 };
 
-// --- NEW RECURSIVE HELPER TO PREPARE FORM DATA ---
 const prepareElementsForForm = (elements: any[]): any[] => {
     if (!elements) return [];
     return elements.map(el => {
@@ -88,6 +85,21 @@ const prepareElementsForForm = (elements: any[]): any[] => {
     });
 };
 
+export const getEffectiveDefinitionId = (node: any, schema: any): string => {
+    if (!node || node.type !== 'segment' || !node.key) return node?.xid;
+    
+    if (node.definitionId) {
+        return node.definitionId;
+    }
+    
+    const potentialSpecializedId = `${node.xid}_${node.key.replace(/-/g, '_')}`;
+    if (schema?.segmentDefinitions && schema.segmentDefinitions[potentialSpecializedId]) {
+        return potentialSpecializedId;
+    }
+
+    return node.xid;
+};
+
 export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
     form,
     selectedNode,
@@ -100,7 +112,7 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
 }) => {
     logger.debug("--- EditableNodeDetails RENDER ---", { isEditing, isShared });
     
-    const definitionId = selectedNode.definitionId || selectedNode.xid;
+    const definitionId = getEffectiveDefinitionId(selectedNode, schemaContent);
     const segmentDefinition = schemaContent.segmentDefinitions[definitionId];
     const isDefinitionEditingDisabled = isShared && !isSharedEditingEnabled;
 
@@ -111,9 +123,12 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
             logger.debug(`2. Calculated definitionId to use: '${definitionId}'`);
             
             const valuesToSet = {
-                ...selectedNode,
+                key: selectedNode.key, // Add key to form values
                 structure_name: selectedNode.name,
                 definition_name: segmentDefinition.name,
+                usage: selectedNode.usage,
+                repeat: selectedNode.repeat,
+                max_use: selectedNode.max_use,
                 elements: prepareElementsForForm(segmentDefinition.elements),
             };
             logger.debug("3. Final values being set to form:", JSON.parse(JSON.stringify(valuesToSet)));
@@ -159,7 +174,7 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
     }
 
     return (
-        <Form form={form} layout="vertical" key={selectedNode.key}>
+        <>
             <Title level={5}>Edit Node: {selectedNode.name} ({selectedNode.xid})</Title>
             <Card title="Structure Properties" size="small" style={{ marginBottom: 16 }}>
                 <Form.Item name="structure_name" label="Display Name (in tree)"><Input /></Form.Item>
@@ -186,7 +201,6 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
                     )}
                     <Form.Item name="definition_name" label="Definition Name"><Input disabled={isDefinitionEditingDisabled} /></Form.Item>
                     <Divider orientation="left" plain>Elements</Divider>
-                    {/* --- THIS IS THE UPDATED FORM LIST WITH NESTING SUPPORT --- */}
                     <Form.List name="elements">
                         {(fields, { add, remove }) => (
                             <div style={{ display: 'flex', flexDirection: 'column', rowGap: 16 }}>
@@ -238,6 +252,6 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
                     </Form.List>
                 </Card>
             )}
-        </Form>
+        </>
     );
 };
