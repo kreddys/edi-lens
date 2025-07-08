@@ -7,5 +7,12 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // Necessary for Docker
     port: 3000,
+    // --- THIS IS THE FIX ---
+    // Add this watch option to enable polling.
+    // This is often required when running Vite in a Docker container
+    // to ensure the dev server correctly detects file changes from the host machine.
+    watch: {
+      usePolling: true,
+    },
   }
 })

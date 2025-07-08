@@ -9,12 +9,8 @@ import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/layout";
 import { dataProvider, authProvider, accessControlProvider, ThemeProvider } from "./providers";
 
-// --- THIS IS THE FIX ---
-// Import each component directly from its file path.
-import { TradingPartnerList } from "./pages/tradingPartners/list";
-import { TradingPartnerCreate } from "./pages/tradingPartners/create";
-import { TradingPartnerEdit } from "./pages/tradingPartners/edit";
-import { TradingPartnerShow } from "./pages/tradingPartners/show";
+import { TradingPartnerList, TradingPartnerCreate, TradingPartnerEdit, TradingPartnerShow } from "./pages/tradingPartners";
+import { SchemaEditorList } from "./pages/schemaEditor/list"; // IMPORT THE NEW PAGE
 
 function App() {
   return (
@@ -36,6 +32,17 @@ function App() {
                   show: "/trading-partners/show/:id",
                   meta: { label: "Trading Partners" },
                 },
+                // --- THIS IS THE FIX ---
+                // Add the 'list' and 'meta.label' properties to make the resource
+                // appear in the navigation menu.
+                {
+                    name: "schemas",
+                    list: "/schema-editor",
+                    meta: { 
+                      label: "Schema Editor",
+                      canDelete: false 
+                    }
+                }
               ]}
               options={{ syncWithLocation: true, warnWhenUnsavedChanges: true }}
             >
@@ -48,6 +55,8 @@ function App() {
                     <Route path="edit/:id" element={<TradingPartnerEdit />} />
                     <Route path="show/:id" element={<TradingPartnerShow />} />
                   </Route>
+                  {/* ADD THE ROUTE FOR THE NEW PAGE */}
+                  <Route path="/schema-editor" element={<SchemaEditorList />} />
                   <Route path="*" element={<ErrorComponent />} />
                 </Route>
               </Routes>
