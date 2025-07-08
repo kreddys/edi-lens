@@ -1,0 +1,268 @@
+import pytest
+import json
+from pathlib import Path
+
+from src.core.edi_parser import EdiParser
+from src.edi_schemas.edi_guide import ImplementationGuideSchema
+
+pytestmark = pytest.mark.unit
+
+# This is the missing fixture definition. I am adding it here.
+@pytest.fixture
+def x222a1_schema() -> ImplementationGuideSchema:
+    """Loads the 837P schema for the parser."""
+    schema_path = Path(__file__).parent.parent.parent / "src/edi_schemas/837.5010.X222.A1.json"
+    with open(schema_path, 'r') as f:
+        return ImplementationGuideSchema.model_validate(json.load(f))
+
+# This is a complete, valid 837P EDI file reconstructed from the provided snippets.
+# It contains many optional loops and segments.
+FULL_837P_EDI = """
+ISA*00*          *00*          *ZZ*123456789012345*ZZ*123456789012346*061015*1705*>*00501*000010216*0*T*:~
+GS*HC*1234567890*9876543210*20061015*1705*20213*X*005010X222A1~
+ST*837*0031*005010X222~
+BHT*0019*00*0031*20061015*1023*CH~
+NM1*41*2*PREMIER BILLING SERVICE*****46*TGJ23~
+PER*IC*JERRY*TE*3055552222*EX*231~
+NM1*40*2*KEY INSURANCE COMPANY*****46*66783JJT~
+HL*1**20*1~
+PRV*BI*PXC*203BF0100Y~
+NM1*85*2*BEN KILDARE SERVICE*****XX*9876543210~
+N3*234 SEAWAY ST~
+N4*MIAMI*FL*33111~
+REF*EI*587654321~
+REF*0B*654321~
+PER*IC*JOHN SMITH*TE*5555551234*EX*123~
+NM1*87*2~
+N3*235 SEAWAY ST~
+N4*MAIMI*FL*33111~
+NM1*PE*2*PLAN TO PAY TO*****XX*PTP123~
+N3*236 SEAWAY ST~
+N4*MIAMI*FL*33111~
+REF*FY*587654321~
+HL*2*1*22*1~
+SBR*P**2222-SJ******CI~
+PAT*D8*19900201*01*176*N~
+NM1*IL*1*SMITH*JANE****MI*JS00111223333~
+N3*236 N MAIN ST~
+N4*MIAMI*FL*33413~
+DMG*D8*19430501*F~
+REF*SY*123450000~
+NM1*PR*2*KEY INSURANCECOMPANY*****PI*999996666~
+N3*P.O. BOX 569008~
+N4*MIAMI*FL*332560000~
+REF*EI*435261708~
+REF*G2*12345~
+HL*3*2*23*0~
+PAT*19****D8*19970314*01*156*N~
+NM1*QC*1*SMITH*TED~
+N3*237 N MAIN ST~
+N4*MIAMI*FL*33413~
+DMG*D8*19730501*M~
+CLM*36463774*100***11:B:1*Y*A*Y*Y**OA:AA::FL:US*05********4~
+DTP*431*D8*20180312~
+DTP*454*D8*20180301~
+DTP*304*D8*20050108~
+DTP*453*D8*20180302~
+DTP*439*D8*20050108~
+DTP*484*D8*20050108~
+DTP*455*D8*20050108~
+DTP*435*D8*20050508~
+DTP*096*D8*20050608~
+DTP*090*D8*20050608~
+DTP*091*D8*20050608~
+DTP*444*D8*20041013~
+DTP*050*D8*20051030~
+PWK*OZ*BM***AC*DMN0012~
+CN1*314*RD8*20050608-20050609~
+AMT*F5*152.45~
+REF*4N*ServiceAuthorizationExceptionCode~
+REF*F5*Unmapped-MedicareCrossoverInd~
+REF*EW*Unmapped-MammogCertNumber~
+REF*9F*ReferralNum~
+REF*G1*PriorAuth~
+REF*F8*PayerClaimControlNum~
+REF*X4*Unmapped-Clia~
+REF*9A*Repriced~
+REF*9C*AdjRepriced~
+REF*LX*Unmapped-InvDeviceExemp~
+REF*D9*ClaimIdForTransm~
+REF*EA*MedicalRecordNum~
+REF*P4*DemonstrProjectId~
+REF*1J*Unmapped-CarePlanOversight~
+NTE*ADD*SURGERY WAS UNUSUALLY LONG~
+HI*ABK:J0300*ABF:Z1159~
+HI*BP:33414~
+HI*BG:17*BG:67~
+NM1*DN*1*DOE*JONE*C***XX*5234567805~
+REF*G2*12345~
+NM1*82*1*DOE*JANE*C***XX*1234567804~
+PRV*PE*PXC*000000000X~
+REF*LU*12345~
+NM1*77*2*Service Facility*****XX*000000004~
+N3*123 FAKE STREET~
+N4*CITY*ST*123459999~
+REF*G2*12345~
+NM1*DQ*1*Sup*JONE*C***XX*SupProv~
+REF*G2*12345~
+SBR*P*18*000000*PLAN NAME*****MB~
+CAS*PR*1*21.89**2*15~
+CAS*CR*26*55.00*1*90*65.55*1*70*73.03*2*20*85.15*1*102*99.99*1*4*102.22*1~
+CAS*PI*2*25.00*1*3*25.55*1*2*33.03*2*75*45.15*1*22*59.99*1*2*62.22*1~
+AMT*D*59.19~
+AMT*EAF*14.83~
+AMT*A8*273~
+NM1*IL*1*SMITH*JOHN****MI*JS00111223999~
+N3*239 N MAIN ST~
+N4*MIAMI*FL*33415~
+NM1*PR*2*OTHER PAYER*****PI*OTP~
+N3*PO BOX 7901*DEP 2~
+N4*MADISON*MA*53707~
+DTP*573*D8*20190310~
+REF*FY*98765~
+REF*EI*987654321~
+REF*T4*Y~
+REF*F8*CLAIM99~
+REF*G1*AB333-Y5~
+REF*9F*12345~
+NM1*DN*1~
+REF*G2*12345~
+NM1*82*1~
+REF*G2*12345~
+NM1*P3*1~
+REF*G2*12345~
+NM1*77*1~
+REF*G2*12345~
+NM1*DQ*1~
+REF*G2*12345~
+NM1*85*1~
+REF*G2*12345~
+LX*1~
+SV1*HC:99299:26:27:28:29*40*UN*1*11**1:2**N**N*Y***C~
+PWK*OZ*BM***AC*Line123~
+PWK*CT*AB~
+DTP*472*RD8*20050314-20050325~
+DTP*471*D8*20050108~
+DTP*463*D8*20050112~
+DTP*304*D8*20050108~
+DTP*738*D8*20050112~
+DTP*455*D8*20050108~
+DTP*454*D8*20050108~
+QTY*PT*2~
+QTY*FL*3~
+MEA*TR*R1*113.4~
+REF*9B*Repriced~
+REF*9D*AdjRepriced~
+REF*G1*PriorAuthorization~
+REF*6R*54321~
+REF*EW*Mammog~
+REF*X4*CLIA-Amend~
+REF*F4*CLIA-Fac~
+REF*BT*Immune~
+REF*9F*ReferralNumber~
+NTE*ADD*PATIENT GOAL TO BE OFF OXYGEN BY END OF MONTH~
+NTE*TPO*STATE REGULATION 123 WAS APPLIED DURING THE PRICING OF THIS PROF CLAIM~
+PS1*PN222222*110~
+HCP*03*100*10*RPO12345~
+LIN**N4*00002143481~
+CTP****1.01*UN~
+REF*VY*123456~
+NM1*82*1*DOE LINE*JANE*C***XX*1234567804~
+NM1*QB*2******XX*1234567809~
+REF*G2*12345~
+NM1*DQ*1*Sup*JONE*C***XX*SupProv~
+REF*G2*12345~
+LQ*UT*02.03B~
+FRM*1*Y~
+FRM*2*N~
+FRM*3*N~
+FRM*4*N~
+FRM*5**8~
+LX*2~
+SV1*HC:87099*15*UN*1***1~
+DTP*472*D8*20061003~
+LX*3~
+SV1*HC:99214*35*UN*1***2~
+LX*4~
+SV1*HC:86663*10*UN*1***2~
+DTP*472*D8*20061010~
+SVD*43*55*HC:84550**3~
+CAS**N4*01234567891~
+SE*126*0031~
+GE*1*20213~
+IEA*1*000010216~
+""".strip()
+
+@pytest.fixture
+def parsed_full_837p(x222a1_schema: ImplementationGuideSchema):
+    """A fixture that parses the full 837P and returns the transaction body."""
+    parser = EdiParser(edi_string=FULL_837P_EDI, schema=x222a1_schema)
+    interchange = parser.parse()
+    # Basic validation to ensure the file is parsable
+    assert interchange is not None
+    assert len(interchange.errors) == 0
+    return interchange.functional_groups[0].transactions[0].body
+
+def test_full_837p_parses_without_errors(parsed_full_837p):
+    """This test primarily validates the fixture itself."""
+    assert parsed_full_837p is not None
+
+def test_parser_finds_pay_to_plan_loop(parsed_full_837p):
+    """
+    Checks for the optional 2010AC (Pay-To Plan) loop and verifies its data.
+    """
+    billing_provider_loop = parsed_full_837p.loops['DETAIL'][0].loops['2000A'][0]
+    assert '2010AC' in billing_provider_loop.loops
+    
+    pay_to_plan_loop = billing_provider_loop.loops['2010AC'][0]
+    nm1_pay_to_plan = next(s for s in pay_to_plan_loop.segments if s.segment_id == 'NM1')
+    assert nm1_pay_to_plan.elements[2].value == 'PLAN TO PAY TO'
+    assert nm1_pay_to_plan.elements[8].value == 'PTP123'
+    
+    ref_segment = next(s for s in pay_to_plan_loop.segments if s.segment_id == 'REF')
+    assert ref_segment.elements[0].value == 'FY'
+    assert ref_segment.elements[1].value == '587654321'
+
+def test_parser_finds_other_subscriber_info_loop(parsed_full_837p):
+    """
+    Verifies that the parser correctly identifies and processes the repeating
+    2320 loop for Other Subscriber Information.
+    """
+    claim_loop = parsed_full_837p.loops['DETAIL'][0].loops['2000A'][0].loops['2000B'][0].loops['2000C'][0].loops['2300'][0]
+    assert '2320' in claim_loop.loops
+    
+    other_subscriber_loop = claim_loop.loops['2320'][0]
+    assert other_subscriber_loop.loop_id == '2320'
+    
+    # Check SBR segment
+    sbr_segment = next(s for s in other_subscriber_loop.segments if s.segment_id == 'SBR')
+    assert sbr_segment.elements[3].value == 'PLAN NAME'
+    
+    # Check CAS segments (multiple are present)
+    cas_segments = [s for s in other_subscriber_loop.segments if s.segment_id == 'CAS']
+    assert len(cas_segments) == 3
+    assert cas_segments[0].elements[0].value == 'PR' # First CAS segment group code
+    assert cas_segments[1].elements[0].value == 'CR' # Second CAS segment group code
+
+    # Check Other Payer Name loop (2330B)
+    other_payer_loop = other_subscriber_loop.loops['2330B'][0]
+    nm1_other_payer = next(s for s in other_payer_loop.segments if s.segment_id == 'NM1')
+    assert nm1_other_payer.elements[2].value == 'OTHER PAYER'
+
+def test_parser_finds_line_adjudication_info(parsed_full_837p):
+    """
+    Verifies the parser correctly identifies the SVD and CAS segments
+    at the service line level (within the 2430 loop).
+    """
+    service_line_loop = parsed_full_837p.loops['DETAIL'][0].loops['2000A'][0].loops['2000B'][0].loops['2000C'][0].loops['2300'][0].loops['2400'][3]
+    assert '2430' in service_line_loop.loops
+    
+    adjudication_loop = service_line_loop.loops['2430'][0]
+    assert adjudication_loop.loop_id == '2430'
+    
+    svd_segment = next(s for s in adjudication_loop.segments if s.segment_id == 'SVD')
+    assert svd_segment.elements[0].value == '43' # Other Payer Primary Identifier
+    assert svd_segment.elements[1].value == '55' # Service Line Paid Amount
+    
+    cas_segment = next(s for s in adjudication_loop.segments if s.segment_id == 'CAS')
+    assert cas_segment.elements[2].value == '01234567891'
