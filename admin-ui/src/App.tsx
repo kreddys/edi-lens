@@ -1,5 +1,6 @@
 import { Refine } from "@refinedev/core";
 import { RefineKbar, RefineKbarProvider } from "@refinedev/kbar";
+// --- FIX: Removed unused 'Divider' ---
 import { ErrorComponent, useNotificationProvider } from "@refinedev/antd";
 import "@refinedev/antd/dist/reset.css";
 
@@ -10,7 +11,7 @@ import { Layout } from "./components/layout";
 import { dataProvider, authProvider, accessControlProvider, ThemeProvider } from "./providers";
 
 import { TradingPartnerList, TradingPartnerCreate, TradingPartnerEdit, TradingPartnerShow } from "./pages/tradingPartners";
-import { SchemaEditorList } from "./pages/schemaEditor/list"; // IMPORT THE NEW PAGE
+import { SchemaEditorList } from "./pages/schemaEditor/SchemaEditorList";
 
 function App() {
   return (
@@ -32,9 +33,6 @@ function App() {
                   show: "/trading-partners/show/:id",
                   meta: { label: "Trading Partners" },
                 },
-                // --- THIS IS THE FIX ---
-                // Add the 'list' and 'meta.label' properties to make the resource
-                // appear in the navigation menu.
                 {
                     name: "schemas",
                     list: "/schema-editor",
@@ -55,7 +53,6 @@ function App() {
                     <Route path="edit/:id" element={<TradingPartnerEdit />} />
                     <Route path="show/:id" element={<TradingPartnerShow />} />
                   </Route>
-                  {/* ADD THE ROUTE FOR THE NEW PAGE */}
                   <Route path="/schema-editor" element={<SchemaEditorList />} />
                   <Route path="*" element={<ErrorComponent />} />
                 </Route>
