@@ -12060,9 +12060,7 @@
           "seq": "01",
           "valid_codes": {
             "code": [
-              "2U",
-              "FY",
-              "NF"
+              "EI"
             ]
           }
         },
@@ -12107,9 +12105,7 @@
           "seq": "01",
           "valid_codes": {
             "code": [
-              "2U",
-              "FY",
-              "NF"
+              "EI"
             ]
           }
         },
@@ -12140,6 +12136,239 @@
           "usage": "N",
           "seq": "04",
           "elements": [],
+          "valid_codes": {
+            "code": []
+          }
+        }
+      }
+    },
+    "PER_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_HEADER_1_loop_1000A_1_segment_PER_1": {
+      "name": "Submitter EDI Contact Information",
+      "usage": "R",
+      "pos": "450",
+      "max_use": 2,
+      "syntax": [
+        "P0304",
+        "P0506",
+        "P0708"
+      ],
+      "elements": [
+        {
+          "xid": "PER01",
+          "data_ele": 366,
+          "name": "Contact Function Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "IC"
+            ]
+          }
+        },
+        {
+          "xid": "PER02",
+          "data_ele": 93,
+          "name": "Submitter Contact Name",
+          "usage": "S",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PER03",
+          "data_ele": 365,
+          "name": "Communication Number Qualifier",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "ED",
+              "EM",
+              "FX",
+              "TE"
+            ]
+          }
+        },
+        {
+          "xid": "PER04",
+          "data_ele": 364,
+          "name": "Communication Number",
+          "usage": "R",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PER05",
+          "data_ele": 365,
+          "name": "Communication Number Qualifier",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "ED",
+              "EM",
+              "EX",
+              "FX",
+              "TE"
+            ]
+          }
+        },
+        {
+          "xid": "PER06",
+          "data_ele": 364,
+          "name": "Communication Number",
+          "usage": "S",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PER07",
+          "data_ele": 365,
+          "name": "Communication Number Qualifier",
+          "usage": "S",
+          "seq": "07",
+          "valid_codes": {
+            "code": [
+              "ED",
+              "EM",
+              "EX",
+              "FX",
+              "TE"
+            ]
+          }
+        },
+        {
+          "xid": "PER08",
+          "data_ele": 364,
+          "name": "Communication Number",
+          "usage": "S",
+          "seq": "08",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        {
+          "xid": "PER09",
+          "data_ele": 443,
+          "name": "Contact Inquiry Reference",
+          "usage": "N",
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
+        }
+      ],
+      "elementsByXid": {
+        "PER01": {
+          "xid": "PER01",
+          "data_ele": 366,
+          "name": "Contact Function Code",
+          "usage": "R",
+          "seq": "01",
+          "valid_codes": {
+            "code": [
+              "IC"
+            ]
+          }
+        },
+        "PER02": {
+          "xid": "PER02",
+          "data_ele": 93,
+          "name": "Submitter Contact Name",
+          "usage": "S",
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PER03": {
+          "xid": "PER03",
+          "data_ele": 365,
+          "name": "Communication Number Qualifier",
+          "usage": "R",
+          "seq": "03",
+          "valid_codes": {
+            "code": [
+              "ED",
+              "EM",
+              "FX",
+              "TE"
+            ]
+          }
+        },
+        "PER04": {
+          "xid": "PER04",
+          "data_ele": 364,
+          "name": "Communication Number",
+          "usage": "R",
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PER05": {
+          "xid": "PER05",
+          "data_ele": 365,
+          "name": "Communication Number Qualifier",
+          "usage": "S",
+          "seq": "05",
+          "valid_codes": {
+            "code": [
+              "ED",
+              "EM",
+              "EX",
+              "FX",
+              "TE"
+            ]
+          }
+        },
+        "PER06": {
+          "xid": "PER06",
+          "data_ele": 364,
+          "name": "Communication Number",
+          "usage": "S",
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PER07": {
+          "xid": "PER07",
+          "data_ele": 365,
+          "name": "Communication Number Qualifier",
+          "usage": "S",
+          "seq": "07",
+          "valid_codes": {
+            "code": [
+              "ED",
+              "EM",
+              "EX",
+              "FX",
+              "TE"
+            ]
+          }
+        },
+        "PER08": {
+          "xid": "PER08",
+          "data_ele": 364,
+          "name": "Communication Number",
+          "usage": "S",
+          "seq": "08",
+          "valid_codes": {
+            "code": []
+          }
+        },
+        "PER09": {
+          "xid": "PER09",
+          "data_ele": 443,
+          "name": "Contact Inquiry Reference",
+          "usage": "N",
+          "seq": "09",
           "valid_codes": {
             "code": []
           }
@@ -12243,7 +12472,8 @@
                           "pos": "450",
                           "usage": "R",
                           "max_use": 2,
-                          "name": "Submitter EDI Contact Information"
+                          "name": "Submitter EDI Contact Information",
+                          "definitionId": "PER_root_loop_ISA_LOOP_0_loop_GS_LOOP_2_loop_ST_LOOP_1_loop_HEADER_1_loop_1000A_1_segment_PER_1"
                         }
                       ]
                     },

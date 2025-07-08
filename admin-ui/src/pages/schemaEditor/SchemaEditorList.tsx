@@ -12,6 +12,7 @@ import {
     Space,
     Form,
     Tooltip,
+    notification,
 } from "antd";
 import {
     SaveOutlined,
@@ -73,7 +74,7 @@ const transformToTreeData = (nodes: SchemaNode[], parentKey: string = "root"): T
     });
 };
 
-// --- THIS IS THE FIX ---
+// --- THIS IS THE CORRECTED HELPER FUNCTION ---
 const updateNodeByKey = (
     nodes: SchemaNode[],
     keyToUpdate: string,
@@ -124,7 +125,7 @@ const countUnspecializedXidInTree = (
     return count;
 };
 
-// --- THIS IS THE FIX ---
+// --- THIS IS THE CORRECTED HELPER FUNCTION ---
 const findNodeByKey = (
     nodes: SchemaNode[], 
     keyToFind: string, 
@@ -144,13 +145,13 @@ const findNodeByKey = (
 }
 
 const getEffectiveDefinitionId = (node: SchemaNode, schema: SchemaFile): string => {
-    if (node.type !== 'segment') return node.xid;
+    if (node.type !== 'segment' || !node.key) return node.xid;
     
     if (node.definitionId) {
         return node.definitionId;
     }
     
-    const potentialSpecializedId = `${node.xid}_${node.key!.replace(/-/g, '_')}`;
+    const potentialSpecializedId = `${node.xid}_${node.key.replace(/-/g, '_')}`;
     if (schema.segmentDefinitions && schema.segmentDefinitions[potentialSpecializedId]) {
         return potentialSpecializedId;
     }
@@ -244,121 +245,127 @@ export const SchemaEditorList: React.FC = () => {
     };
 
     const handleSpecialize = () => {
-        if (!selectedNode || !selectedNode.key) return;
-        const originalDefId = selectedNode.definitionId || selectedNode.xid;
-        const newDefId = `${originalDefId}_${selectedNode.key.replace(/-/g, "_")}`;
+        logger.groupCollapsed("[SPECIALIZE]");
+        try {
+            if (!selectedNode || !selectedNode.key) {
+                logger.error("Specialize failed: No node selected.");
+                return;
+            }
 
-        setSchemaContent((currentContent) => {
-            if (!currentContent) return null;
-            const newContent = JSON.parse(JSON.stringify(currentContent));
-            newContent.segmentDefinitions[newDefId] = { ...newContent.segmentDefinitions[originalDefId] };
-            newContent.structure = updateNodeByKey(newContent.structure, selectedNode.key!, { definitionId: newDefId });
-            return newContent;
-        });
+            const originalDefId = selectedNode.definitionId || selectedNode.xid;
+            const newDefId = `${originalDefId}_${selectedNode.key.replace(/-/g, "_")}`;
+            logger.debug("New specialized definition ID:", newDefId);
 
-        setSelectedNode((currentNode) => ({ ...currentNode!, definitionId: newDefId }));
-        setIsSharedEditingEnabled(false);
+            setSchemaContent((currentContent) => {
+                if (!currentContent) return null;
+                const newContent = JSON.parse(JSON.stringify(currentContent));
+                const definitionToCopy = newContent.segmentDefinitions[originalDefId];
+                
+                newContent.segmentDefinitions[newDefId] = JSON.parse(JSON.stringify(definitionToCopy));
+                
+                newContent.structure = updateNodeByKey(newContent.structure, selectedNode.key!, { definitionId: newDefId });
+                return newContent;
+            });
+
+            setSelectedNode((currentNode) => ({ ...currentNode!, definitionId: newDefId }));
+            setIsSharedEditingEnabled(false);
+            notification.success({ message: "Segment specialized successfully." });
+        } catch (error) {
+            logger.error("An error occurred during specialization:", error);
+            notification.error({ message: "Failed to specialize segment." });
+        } finally {
+            logger.groupEnd();
+        }
     };
 
     const handleCancelEditing = () => {
         setIsEditing(false);
         setIsSharedEditingEnabled(false);
-        if (selectedNode) {
-            const definitionId = selectedNode.definitionId || selectedNode.xid;
-            const segmentDefinition = schemaContent?.segmentDefinitions[definitionId];
+        if (selectedNode && schemaContent) {
+            const definitionId = getEffectiveDefinitionId(selectedNode, schemaContent);
+            const segmentDefinition = schemaContent.segmentDefinitions[definitionId];
             form.setFieldsValue({ ...segmentDefinition, ...selectedNode });
         }
     };
 
-    const handleSave = () => {
-        form.validateFields().then((formValues) => {
-            setSchemaContent(currentContent => {
-                if (!selectedSchema || !currentContent || !selectedNode || !selectedNode.key) {
-                    logger.error("Save aborted due to missing state.");
-                    return currentContent;
-                }
-                
-                logger.groupCollapsed(`[SAVE] Saving Node: ${selectedNode.key}`);
+    const handleSave = async () => {
+        logger.groupCollapsed(`[SAVE]`);
+        try {
+            const formValues = await form.validateFields();
     
-                const nodeInTree = findNodeByKey(currentContent.structure, selectedNode.key);
-                if (!nodeInTree) {
-                    logger.error(`Could not find node with key ${selectedNode.key} in the current schema structure.`);
-                    logger.groupEnd();
-                    return currentContent;
-                }
+            if (!selectedSchema || !schemaContent || !selectedNode || !selectedNode.key) {
+                throw new Error("Save aborted due to missing state. Please re-select the node.");
+            }
     
-                const definitionIdToUpdate = getEffectiveDefinitionId(nodeInTree, currentContent);
+            const keyToUpdate = selectedNode.key;
     
-                const newContent = JSON.parse(JSON.stringify(currentContent));
-                
-                logger.debug("1. State at start of save:", {
-                    nodeInTree: JSON.parse(JSON.stringify(nodeInTree)),
-                    formValues: JSON.parse(JSON.stringify(formValues)),
-                    definitionIdToUpdate: definitionIdToUpdate,
-                });
-    
-                const segmentDef = newContent.segmentDefinitions[definitionIdToUpdate];
-                if (segmentDef) {
-                    segmentDef.name = formValues.name; 
-                    if (formValues.elements) {
-                        segmentDef.elements = formValues.elements;
-                        segmentDef.elementsByXid = (formValues.elements || []).reduce((acc: any, el: any) => { acc[el.xid] = el; return acc; }, {});
-                    }
-                } else {
-                     logger.error(`Could not find segment definition for ID: ${definitionIdToUpdate}`);
-                     logger.groupEnd();
-                     return currentContent;
-                }
-    
-                const structuralNodeUpdate = {
-                    name: formValues.name,
-                    usage: formValues.usage,
-                    repeat: nodeInTree.type === "loop" ? formValues.repeat : undefined,
-                    max_use: nodeInTree.type === "segment" ? formValues.max_use : undefined,
-                    ...(nodeInTree.definitionId ? { definitionId: nodeInTree.definitionId } : {}),
-                };
-                
-                logger.debug("2. Structural update object:", structuralNodeUpdate);
-                
-                newContent.structure = updateNodeByKey(newContent.structure, nodeInTree.key!, structuralNodeUpdate);
-    
-                const cleanStructureForSave = (nodes: SchemaNode[]): SchemaNode[] => {
-                    const deepCloneWithoutKey = (node: SchemaNode): SchemaNode => {
-                        const { key, ...rest } = node;
-                        return {
-                            ...rest,
-                            children: node.children ? node.children.map(deepCloneWithoutKey) : undefined,
-                        };
-                    };
-                    return nodes.map(deepCloneWithoutKey);
-                };
-    
-                const contentToSave = {
-                    ...newContent,
-                    structure: cleanStructureForSave(newContent.structure),
-                };
-    
-                logger.debug("3. Final payload being sent to API:", JSON.parse(JSON.stringify(contentToSave)));
-                logger.groupEnd();
-                
-                updateSchema({
-                    resource: "schemas",
-                    id: selectedSchema,
-                    values: contentToSave,
-                    successNotification: () => ({ message: "Schema saved successfully!", type: "success" }),
-                    errorNotification: (error?: HttpError) => ({ message: `Save failed: ${error?.message || "Unknown error"}`, type: "error" }),
-                    meta: {
-                        onSuccess: () => {
-                            setIsEditing(false);
-                            setIsSharedEditingEnabled(false);
-                            refetch();
-                        },
-                    },
-                });
-    
-                return currentContent; 
+            logger.debug("1. State at start of save:", {
+                keyToUpdate,
+                formValues: JSON.parse(JSON.stringify(formValues)),
             });
-        });
+    
+            const newContent = JSON.parse(JSON.stringify(schemaContent));
+    
+            const nodeInTree = findNodeByKey(newContent.structure, keyToUpdate);
+            if (!nodeInTree) {
+                throw new Error(`Could not find node with key ${keyToUpdate} in the current schema structure.`);
+            }
+    
+            const definitionIdToUpdate = getEffectiveDefinitionId(nodeInTree, newContent);
+            logger.debug("2. Definition ID to be updated:", definitionIdToUpdate);
+            
+            const segmentDef = newContent.segmentDefinitions[definitionIdToUpdate];
+            if (segmentDef) {
+                segmentDef.name = formValues.name; 
+                if (formValues.elements) {
+                    segmentDef.elements = formValues.elements;
+                    segmentDef.elementsByXid = (formValues.elements || []).reduce((acc: any, el: any) => { acc[el.xid] = el; return acc; }, {});
+                }
+            } else {
+                throw new Error(`Could not find segment definition for ID: ${definitionIdToUpdate}`);
+            }
+    
+            const structuralNodeUpdate = {
+                name: formValues.name,
+                usage: formValues.usage,
+                repeat: nodeInTree.type === "loop" ? formValues.repeat : undefined,
+                max_use: nodeInTree.type === "segment" ? formValues.max_use : undefined,
+            };
+            
+            newContent.structure = updateNodeByKey(newContent.structure, keyToUpdate, structuralNodeUpdate);
+            
+            const cleanStructureForSave = (nodes: SchemaNode[]): SchemaNode[] => {
+                return nodes.map(({ key, ...rest }) => ({
+                    ...rest,
+                    children: rest.children ? cleanStructureForSave(rest.children) : undefined,
+                }));
+            };
+    
+            const contentToSave = { ...newContent, structure: cleanStructureForSave(newContent.structure) };
+            logger.debug("3. Final payload being sent to API:", JSON.parse(JSON.stringify(contentToSave)));
+            
+            updateSchema({
+                resource: "schemas",
+                id: selectedSchema,
+                values: contentToSave,
+                successNotification: () => ({ message: "Schema saved successfully!", type: "success" }),
+                errorNotification: (error?: HttpError) => ({ message: `Save failed: ${error?.message || "Unknown error"}`, type: "error" }),
+                meta: {
+                    onSuccess: () => {
+                        setIsEditing(false);
+                        setIsSharedEditingEnabled(false);
+                        refetch(); 
+                    },
+                },
+            });
+    
+        } catch (error) {
+            const errorMessage = (error as Error)?.message || "An unknown error occurred.";
+            logger.error("An error occurred during save:", error);
+            notification.error({ message: "Save Failed", description: errorMessage });
+        } finally {
+            logger.groupEnd();
+        }
     };
     
 
