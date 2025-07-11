@@ -147,6 +147,7 @@ case "$COMMAND" in
         docker-compose up -d db keycloak
         sleep 5 # Give services time to stabilize
         info "Running alembic command..."
+        # Use 'run --rm' to start a temporary container for the command
         docker-compose run --rm "$BACKEND_SERVICE_NAME" alembic revision --autogenerate -m "$1"
         success "Migration file created. Please check it for correctness."
         ;;
@@ -174,8 +175,8 @@ case "$COMMAND" in
     "setup:keycloak")
         setup_keycloak
         ;;
-    "seed")
-        info "Seeding the database with initial data..."
+    "setup:testdata")
+        info "Seeding the database with initial test data..."
         info "Any additional arguments will be passed to the script (e.g., --clean)."
         docker-compose run --rm "$BACKEND_SERVICE_NAME" python -m scripts.seed "$@"
         success "Database seeding complete."
