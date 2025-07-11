@@ -10,16 +10,15 @@ class SeverityLevel(enum.Enum):
 
 class ProfileRuleAssociation(Base):
     __tablename__ = 'profile_rule_associations'
+    __table_args__ = {'schema': 'public'}
 
     id = Column(Integer, primary_key=True, index=True)
-    # tenant_id = Column(Integer, ForeignKey('tenants.id'), nullable=False)
-    profile_id = Column(Integer, ForeignKey('partner_profiles.id'), nullable=False)
-    rule_id = Column(Integer, ForeignKey('rules.id'), nullable=False)
+    profile_id = Column(Integer, ForeignKey('public.partner_profiles.id'), nullable=False)
+    rule_id = Column(Integer, ForeignKey('public.rules.id'), nullable=False)
 
     is_enabled = Column(Boolean, default=True, nullable=False)
     override_severity = Column(SQLAlchemyEnum(SeverityLevel), nullable=True)
     override_params = Column(JSON, nullable=True)
 
-    # tenant = relationship("Tenant")
     profile = relationship("PartnerProfile")
     rule = relationship("Rule")

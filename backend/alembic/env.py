@@ -1,13 +1,12 @@
 import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy import pool
+from sqlalchemy import pool, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-# --- THIS IS THE NEW SECTION ---
 # Import your app's settings and Base model
 from src.core.config import settings
 from src.core.database import Base
@@ -17,7 +16,6 @@ import src.models  # Ensure all models are loaded for metadata
 # access to the values within the .ini file in use.
 config = context.config
 
-# --- THIS IS THE CRITICAL CHANGE ---
 # Set the sqlalchemy.url from your Pydantic settings object,
 # overriding the static value in alembic.ini.
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
@@ -30,6 +28,19 @@ if config.config_file_name is not None:
 # Set the target_metadata for Alembic's 'autogenerate' support
 target_metadata = Base.metadata
 
+# --- THIS IS THE FIX ---
+# Define a filter function for autogenerate to only include our app's schema
+def include_object(object, name, type_, reflected, compare_to):
+    """
+    Filter function for Alembic's autogenerate process.
+    We only want to generate migrations for objects in the 'public' schema.
+    """
+    if type_ == "table" and object.schema != 'public':
+        return False
+    return True
+# --- END OF FIX ---
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
@@ -38,6 +49,9 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_schemas=True, 
+        version_table_schema='public',
+        include_object=include_object
     )
 
     with context.begin_transaction():
@@ -45,7 +59,13 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection, 
+        target_metadata=target_metadata,
+        include_schemas=True, 
+        version_table_schema='public',
+        include_object=include_object
+    )
 
     with context.begin_transaction():
         context.run_migrations()

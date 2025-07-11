@@ -6,14 +6,13 @@ class TradingPartner(Base):
     __tablename__ = 'trading_partners'
 
     id = Column(Integer, primary_key=True, index=True)
-    # The tenant_id concept is managed by Keycloak realms/groups
     tenant_id = Column(String, nullable=False, index=True)
     name = Column(String, nullable=False, index=True)
     description = Column(Text, nullable=True)
 
     profiles = relationship("PartnerProfile", back_populates="partner", cascade="all, delete-orphan")
 
-    # The combination of tenant and name must be unique
     __table_args__ = (
         UniqueConstraint('tenant_id', 'name', name='_tenant_partner_name_uc'),
+        {'schema': 'public'}
     )

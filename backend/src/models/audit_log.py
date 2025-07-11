@@ -10,6 +10,7 @@ class AuditAction(str, enum.Enum):
 
 class AuditLog(Base):
     __tablename__ = 'audit_logs'
+    __table_args__ = {'schema': 'public'}
 
     id = Column(Integer, primary_key=True, index=True)
     
@@ -24,7 +25,6 @@ class AuditLog(Base):
     action = Column(SQLAlchemyEnum(AuditAction), nullable=False)
     table_name = Column(String, nullable=False, index=True)
     
-    # --- THIS IS THE FIX ---
     # Allow record_pk to be temporarily NULL for CREATE actions.
     # The 'after_flush_postexec' hook will populate it before the transaction commits.
     record_pk = Column(String, nullable=True, index=True)

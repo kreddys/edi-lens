@@ -3,6 +3,7 @@ from src.core.database import Base
 
 class Rule(Base):
     __tablename__ = 'rules'
+    __table_args__ = {'schema': 'public'}
 
     id = Column(Integer, primary_key=True, index=True)
     rule_code = Column(String, unique=True, nullable=False, index=True)

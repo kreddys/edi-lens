@@ -15,10 +15,11 @@ class Operator(enum.Enum):
 
 class ProfileCriterion(Base):
     __tablename__ = 'profile_criteria'
+    __table_args__ = {'schema': 'public'}
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(String, nullable=False, index=True)
-    profile_id = Column(Integer, ForeignKey('partner_profiles.id'), nullable=False)
+    profile_id = Column(Integer, ForeignKey('public.partner_profiles.id'), nullable=False)
     
     field_source = Column(SQLAlchemyEnum(FieldSource), nullable=False)
     field_identifier = Column(String, nullable=False)
