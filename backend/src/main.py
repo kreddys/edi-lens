@@ -6,7 +6,7 @@ from pathlib import Path
 
 from src.api.endpoints import validation, trading_partners, auth, schemas # Add schemas
 from src.core.auth import get_current_user, User
-from src.core.config import setup_logging
+from src.core.config import setup_logging, settings
 from src.core.audit import before_flush, after_flush_postexec
 from src.core.schema_manager import schema_manager
 
@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
     logger.info("--- Starting up EDI Lens Validator API ---")
     
     # Load all EDI implementation guide schemas into memory on startup.
-    schema_dir = Path(__file__).parent / "edi_schemas"
+    schema_dir = Path(settings.EDI_SCHEMA_DIRECTORY)
     schema_manager.load_schemas(schema_dir)
     
     logger.info("Audit logging system initialized.")

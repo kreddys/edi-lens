@@ -1,6 +1,19 @@
 # Stage 1: Build the React app
 FROM node:20-alpine AS build
 WORKDIR /app
+
+# Accept build arguments from docker-compose
+ARG VITE_KEYCLOAK_URL
+ARG VITE_KEYCLOAK_REALM
+ARG VITE_KEYCLOAK_CLIENT_ID
+ARG VITE_API_URL
+
+# Set them as environment variables for the build process
+ENV VITE_KEYCLOAK_URL=${VITE_KEYCLOAK_URL}
+ENV VITE_KEYCLOAK_REALM=${VITE_KEYCLOAK_REALM}
+ENV VITE_KEYCLOAK_CLIENT_ID=${VITE_KEYCLOAK_CLIENT_ID}
+ENV VITE_API_URL=${VITE_API_URL}
+
 COPY package*.json ./
 RUN npm install
 COPY . .

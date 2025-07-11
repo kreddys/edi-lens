@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     KEYCLOAK_BACKEND_CLIENT_SECRET: str
     
     LOG_LEVEL: str = "INFO"
+    # Directory for storing EDI implementation guide schemas
+    EDI_SCHEMA_DIRECTORY: str = "/var/edi_lens/schemas"
 
     BACKEND_HOST: str = "backend"    
 

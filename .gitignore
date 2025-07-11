@@ -57,3 +57,9 @@ llm_export.txt
 
 # Generated Keycloak config with secrets
 keycloak-config/realm-export.json
+
+# Ignore contents of the data directory, except for the initial schemas
+/backend/data/*
+!/backend/data/edi_schemas
+/backend/data/edi_schemas/*
+!/backend/data/edi_schemas/.gitkeep

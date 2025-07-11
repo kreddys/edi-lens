@@ -26,9 +26,9 @@ stop_services() {
 setup_keycloak() {
     info "Running Keycloak setup script..."
     warn "This requires all services to be running and healthy."
-    docker-compose up -d --wait
+    docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --wait db keycloak
     info "Executing setup script inside the backend container..."
-    docker-compose exec "$BACKEND_SERVICE_NAME" python3 /home/appuser/app/scripts/setup_keycloak_realm.py
+    docker-compose -f docker-compose.yml -f docker-compose.dev.yml run --rm "$BACKEND_SERVICE_NAME" python3 /home/appuser/app/scripts/setup_keycloak_realm.py
     success "Keycloak setup script completed successfully."
 }
 
@@ -36,7 +36,7 @@ manage_test_db() {
     local command=$1
     info "Running database command: $command"
     # Override the default command to run the manage_test_db script
-    docker-compose run --rm "$BACKEND_SERVICE_NAME" python -m tests.manage_test_db "$command"
+    docker-compose -f docker-compose.yml -f docker-compose.dev.yml run --rm "$BACKEND_SERVICE_NAME" python -m tests.manage_test_db "$command"
 }
 
 run_unit_tests() {
@@ -52,7 +52,7 @@ run_unit_tests() {
 run_integration_tests() {
     info "Preparing for integration tests..."
     info "(1/4) Starting all services..."
-    docker-compose up -d --wait
+    docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --wait
     
     info "(2/4) Setting up Keycloak realm, roles, and users..."
     setup_keycloak
@@ -62,7 +62,7 @@ run_integration_tests() {
     manage_test_db "create"
 
     info "(4/4) Executing integration tests inside the backend container..."
-    docker-compose run --rm "$BACKEND_SERVICE_NAME" pytest -m "integration"
+    docker-compose -f docker-compose.yml -f docker-compose.dev.yml run --rm "$BACKEND_SERVICE_NAME" pytest -m "integration"
 
     success "Integration tests completed."
 }
@@ -70,10 +70,10 @@ run_integration_tests() {
 
 # --- Main Logic ---
 if [ -z "$1" ]; then
-    error "Usage: ./scripts/run_app.sh [up|dev|down|clean|logs|migrate:make \"message\"|migrate:run|...]"
+    error "Usage: ./scripts/run_app.sh [up|dev|down|clean|logs|restart <service>|...]"
 fi
 COMMAND=$1
-shift # Shift arguments so $1 is now the migration message if present
+shift # Shift arguments so $1 is now the migration message or service name
 
 # Load .env from project root
 if [ -f "$(dirname "$0")/../.env" ]; then
@@ -87,17 +87,23 @@ check_docker
 
 case "$COMMAND" in
     "up")
-        info "Starting all application services with live-reload..."
-        # This will now start the uvicorn server with --reload by default
+        info "Starting all application services..."
         docker-compose up -d --build
         ;;
     "dev")
         info "Starting all services in DEVELOPMENT mode (with backend live-reload)..."
-        # We explicitly specify both compose files. The override file is last.
         docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
         ;;        
     "down")
         stop_services
+        ;;
+    "restart")
+        if [ -z "$1" ]; then
+            error "Service name is required. Usage: ./scripts/run_app.sh restart <service_name>"
+        fi
+        info "Restarting service: $1..."
+        docker-compose -f docker-compose.yml -f docker-compose.dev.yml restart "$1"
+        success "Service $1 restarted."
         ;;
     "clean")
         ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -141,7 +147,6 @@ case "$COMMAND" in
         docker-compose up -d db keycloak
         sleep 5 # Give services time to stabilize
         info "Running alembic command..."
-        # Use 'run --rm' to start a temporary container for the command
         docker-compose run --rm "$BACKEND_SERVICE_NAME" alembic revision --autogenerate -m "$1"
         success "Migration file created. Please check it for correctness."
         ;;
@@ -156,7 +161,7 @@ case "$COMMAND" in
         ;;
     "logs")
         info "Tailing logs for all services..."
-        docker-compose logs -f
+        docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f
         ;;
     "test:unit")
         run_unit_tests

@@ -3,16 +3,14 @@ import json
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from fastapi.responses import PlainTextResponse, JSONResponse
-
+from src.core.config import settings
 from src.core.auth import require_permission
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# --- THIS IS THE FIX ---
-# The path needs to go up one more level to reach the `backend` directory.
-# `__file__` -> endpoints -> api -> src -> backend
-SCHEMA_DIR = Path(__file__).parent.parent.parent.parent / "src/edi_schemas"
+# The schema directory is now read from the application settings.
+SCHEMA_DIR = Path(settings.EDI_SCHEMA_DIRECTORY)
 
 def get_safe_schema_path(schema_name: str) -> Path:
     """

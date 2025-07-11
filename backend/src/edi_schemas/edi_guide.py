@@ -1,9 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Union, Dict, Any, Annotated, Literal
 
-# --- THIS IS THE FIX ---
-# Updated `StructureLoopDefinition` to allow `repeat` to be a string or integer.
-
 class ValidCodes(BaseModel):
     """Defines the list of valid codes for a specific element."""
     code: List[Union[str, int]]
@@ -35,8 +32,10 @@ class StructureLoopDefinition(BaseModel):
     name: str
     usage: str
     pos: str
-    repeat: Union[str, int] # Changed from str to Union[str, int]
-    children: List['StructureChild']
+    repeat: Union[str, int]
+    # --- THIS IS THE FIX ---
+    # The 'children' field now defaults to an empty list if it's missing in the JSON file.
+    children: List['StructureChild'] = Field(default_factory=list)
 
 class StructureSegmentDefinition(BaseModel):
     """Represents a segment's position within the EDI structure."""

@@ -27,11 +27,15 @@ ENV PATH="/home/appuser/app/.venv/bin:$PATH"
 
 COPY --from=builder --chown=appuser:appuser /home/appuser/app/.venv ./.venv
 
-# Copy the application source code AND the new entrypoint script from its new location
-COPY --chown=appuser:appuser . .
+# Copy only the necessary source code and scripts
+COPY --chown=appuser:appuser src/ src/
+COPY --chown=appuser:appuser scripts/ scripts/
+COPY --chown=appuser:appuser alembic.ini .
 
-# --- THIS IS THE CHANGE ---
-# Set the entrypoint to our new script's path
+# Copy the initial EDI schemas into the image. On first run, Docker will use this
+# to populate the `edi_schemas_data` volume.
+COPY --chown=appuser:appuser ./data/edi_schemas /var/edi_lens/schemas
+
 ENTRYPOINT ["/home/appuser/app/scripts/docker-entrypoint.sh"]
 
 # Set the default command that the entrypoint will execute with "exec $@".

@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:15
+    image: postgres:15-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -24,14 +24,13 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     depends_on:
-      db:
-        condition: service_healthy
-      keycloak:
-        condition: service_healthy
+      - db
+      - keycloak
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/home/appuser/app
+      - ./backend/data/edi_schemas:/var/edi_lens/schemas
       - /home/appuser/app/.venv
     env_file:
       - .env
@@ -47,8 +46,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:latest
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
@@ -74,31 +72,23 @@ services:
       retries: 3
       start_period: 30s
 
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - "5173:5173"
-  #   volumes:
-  #     - ./frontend:/app
-  #     - /app/node_modules
-  #   env_file:
-  #     - .env
-  #   networks:
-  #     - edi_network
-  #   command: npm run dev -- --host 
-
   admin-ui:
     build:
       context: ./admin-ui
       dockerfile: Dockerfile
+      args:
+        - VITE_KEYCLOAK_URL=${KEYCLOAK_BROWSER_URL}
+        - VITE_KEYCLOAK_REALM=${KEYCLOAK_REALM}
+        - VITE_KEYCLOAK_CLIENT_ID=${KEYCLOAK_UI_CLIENT_ID}
+        - VITE_API_URL=${VITE_API_URL}
     ports:
       - "3000:80"
     depends_on:
       - backend
     networks:
       - edi_network
+    env_file:
+      - .env
 
 networks:
   edi_network:

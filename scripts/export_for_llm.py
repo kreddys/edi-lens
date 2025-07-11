@@ -25,15 +25,24 @@ def load_gitignore_spec(repo_root):
             return PathSpec.from_lines(GitWildMatchPattern, f)
     return PathSpec([])
 
+def format_file_size(bytes_size):
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if bytes_size < 1024.0:
+            return f"{bytes_size:.1f} {unit}"
+        bytes_size /= 1024.0
+    return f"{bytes_size:.1f} TB"
+
 def generate_export_content(paths_to_scan, gitignore_spec, verbose=False):
     output_chunks = []
     exported_file_count = 0
+    total_export_size = 0
     repo_root = Path(__file__).resolve().parent.parent
 
     def process_file(file_path):
-        nonlocal exported_file_count
+        nonlocal exported_file_count, total_export_size
         relative_file_path = file_path.relative_to(repo_root)
 
+        # Skip ignored or binary files
         if gitignore_spec.match_file(str(relative_file_path)):
             if verbose:
                 print(f"Skipping ignored file: {relative_file_path}")
@@ -44,12 +53,16 @@ def generate_export_content(paths_to_scan, gitignore_spec, verbose=False):
                 print(f"Skipping binary file: {relative_file_path}")
             return
 
-        if verbose:
-            print(f"Exporting: {relative_file_path}")
-
         try:
+            file_size = file_path.stat().st_size
+            total_export_size += file_size
+
+            if verbose:
+                print(f"Exporting: {relative_file_path} ({format_file_size(file_size)})")
+
             with file_path.open('r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
+
             output_chunks.append(f"-- START OF FILE {relative_file_path} --")
             output_chunks.append(content)
             output_chunks.append(f"-- END OF FILE {relative_file_path} --\n")
@@ -68,16 +81,16 @@ def generate_export_content(paths_to_scan, gitignore_spec, verbose=False):
         elif path.is_dir():
             for root_str, dirs, files in os.walk(path, topdown=True):
                 root = Path(root_str)
-                dirs_to_prune = [d for d in dirs if gitignore_spec.match_file(str((root / d).relative_to(repo_root)) + '/')]
-                for d in dirs_to_prune:
-                    if verbose:
-                        print(f"Skipping ignored directory: {(root / d).relative_to(repo_root)}/")
-                    dirs.remove(d)
+                # Filter ignored directories
+                dirs[:] = [
+                    d for d in dirs
+                    if not gitignore_spec.match_file(str((root / d).relative_to(repo_root)) + '/')
+                ]
 
                 for file in sorted(files):
                     process_file(root / file)
 
-    return "\n".join(output_chunks), exported_file_count
+    return "\n".join(output_chunks), exported_file_count, total_export_size
 
 def main():
     parser = argparse.ArgumentParser(
@@ -148,7 +161,7 @@ def main():
             'admin-ui/README.md',
         ])
 
-    # Always include these shared project-level files
+    # Shared project-level files
     paths_to_scan.extend([
         '.gitignore',
         'README.md',
@@ -160,21 +173,24 @@ def main():
         'docs'
     ])
 
-    unique_paths = list(dict.fromkeys(paths_to_scan))
+    unique_paths = list(dict.fromkeys(paths_to_scan))  # Preserve order, remove duplicates
 
-    print(f"Starting export...")
-    print(f"Scanning paths: {', '.join(unique_paths)}")
-    print(f"Outputting to: {args.output}")
+    print("🔍 Starting export...")
+    print(f"📂 Scanning paths:\n  - " + "\n  - ".join(unique_paths))
+    print(f"📄 Output file: {args.output}\n")
 
-    content, count = generate_export_content(unique_paths, gitignore_spec, args.verbose)
+    content, count, total_size = generate_export_content(unique_paths, gitignore_spec, args.verbose)
 
     try:
         with open(args.output, 'w', encoding='utf-8') as f:
             f.write(f"--- START OF FILE {args.output} ---\n")
             f.write(content)
-        print(f"\nSuccess! Exported {count} files to '{args.output}'.")
+
+        print(f"\n✅ Success! Exported {count} files.")
+        print(f"📦 Total export size: {format_file_size(total_size)}")
+        print(f"📝 Output written to: {args.output}")
     except Exception as e:
-        print(f"\nError writing to output file: {e}")
+        print(f"\n❌ Error writing to output file: {e}")
 
 if __name__ == "__main__":
     main()

@@ -11,7 +11,7 @@ pytestmark = pytest.mark.unit
 @pytest.fixture
 def x222a1_schema() -> ImplementationGuideSchema:
     """Loads the 837P schema for the parser."""
-    schema_path = Path(__file__).parent.parent.parent / "src/edi_schemas/837.5010.X222.A1.json"
+    schema_path = Path(__file__).parent.parent / "data/test_schemas/837.5010.X222.A1.json"
     with open(schema_path, 'r') as f:
         return ImplementationGuideSchema.model_validate(json.load(f))
 

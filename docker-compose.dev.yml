@@ -19,5 +19,5 @@ services:
     ports:
       - "3001:3000"  # React dev server runs on 3000
     command: npm run dev -- --host
-    # environment:
-    #   - CHOKIDAR_USEPOLLING=true
+    env_file:
+      - .env

@@ -60,18 +60,22 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+async def async_client(db_session: AsyncSession, monkeypatch) -> AsyncGenerator[AsyncClient, None]:
     """
     Provide a clean test client for each test function, with DB dependency 
     overridden and lifespan events managed.
     """
+    # Use monkeypatch to override the EDI_SCHEMA_DIRECTORY setting during tests.
+    # This points the schema_manager to a local test directory, not the Docker volume path.
+    from pathlib import Path
+    test_schema_dir = Path(__file__).parent / "data" / "test_schemas"
+    monkeypatch.setattr(settings, 'EDI_SCHEMA_DIRECTORY', str(test_schema_dir))
     
     async def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
 
-    # --- THIS IS THE FIX ---
     # Manually manage the application's lifespan events.
     # This ensures that startup events (like loading schemas) are run before tests,
     # and shutdown events are run after.
@@ -80,4 +84,5 @@ async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, 
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             yield client
 
+    # Clean up the overrides after the test
     app.dependency_overrides.clear()

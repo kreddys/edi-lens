@@ -72,7 +72,7 @@ IEA*1*000000101~
 
 @pytest.fixture
 def x222a1_schema() -> ImplementationGuideSchema:
-    schema_path = Path(__file__).parent.parent.parent / "src/edi_schemas/837.5010.X222.A1.json"
+    schema_path = Path(__file__).parent.parent / "data/test_schemas/837.5010.X222.A1.json"
     with open(schema_path, 'r') as f:
         return ImplementationGuideSchema.model_validate(json.load(f))
 
