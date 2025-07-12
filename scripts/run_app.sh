@@ -83,8 +83,8 @@ case "$COMMAND" in
         success "Application started successfully."
         ;;        
     "down")
-        info "Stopping all services...";
-        ${DC_COMMAND} ${DC_FILES} down --volumes
+        info "Stopping all services (containers only, volumes preserved)...";
+        ${DC_COMMAND} ${DC_FILES} down
         ;;
     "clean")
         read -p "⚠️  This will delete all data and volumes, including the database. Are you sure? [y/N] " confirm
