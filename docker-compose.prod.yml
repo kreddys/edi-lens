@@ -61,7 +61,7 @@ services:
       - "9000:9000"
     networks:
       - edi_network
-    command: start
+    command: start-dev
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost:9000\\r\\nConnection: close\\r\\n\\r\\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"' && exit 0 || exit 1"]
       interval: 5s       # Check every 5 seconds
