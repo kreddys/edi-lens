@@ -75,18 +75,20 @@ case "$COMMAND" in
         ${DC_COMMAND} ${DC_FILES} down --volumes
         ;;
     "clean")
-        read -p "⚠️  This will delete all data and volumes. Are you sure? [y/N] " confirm
+        read -p "⚠️  This will delete all data and volumes, including the database. Are you sure? [y/N] " confirm
         if [[ "$confirm" =~ ^[yY](es)?$ ]]; then
-            info "Stopping services and removing Docker volumes..."
-            # CORRECTED: Use the environment-aware $DC_FILES variable
-            ${DC_COMMAND} ${DC_FILES} down --volumes
+            info "Stopping services and removing all defined Docker volumes..."
             
-            # Also explicitly remove the bind-mounted data directory, just in case.
+            # This command removes containers and named volumes (like prod's postgres_data)
+            ${DC_COMMAND} ${DC_FILES} down --volumes
+
+            # This command handles the local dev bind mount
             if [ -d "./postgres-data" ]; then
-                info "Removing local postgres-data directory..."
+                info "Removing local bind-mount directory './postgres-data'..."
                 rm -rf "./postgres-data"
-                success "Deleted postgres-data directory."
             fi
+            
+            success "All services, volumes, and local data directories have been removed."
         else
             warn "Clean operation cancelled."
         fi
