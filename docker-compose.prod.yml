@@ -1,10 +1,24 @@
 # FILE: docker-compose.prod.yml
-# This file is used for production-like deployments, pulling pre-built images.
 version: '3.8'
 
 services:
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"    # For HTTP and HTTP-to-HTTPS redirects
+      - "443:443"  # For HTTPS traffic
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile  # Mount the Caddy configuration
+      - caddy_data:/data                  # Persist SSL certificates and other data
+      - caddy_config:/config
+    env_file: .env
+    networks:
+      - edi_network
+
   db:
     image: postgres:15-alpine
+    restart: always
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -13,8 +27,7 @@ services:
     volumes:
       - ./postgres-data:/var/lib/postgresql/data/
       - ./backend/scripts/init-keycloak-db.sh:/docker-entrypoint-initdb.d/init-keycloak-db.sh
-    ports:
-      - "${POSTGRES_PORT}:5432"
+    # No longer expose the port to the host; Caddy doesn't need to talk to it.
     networks:
       - edi_network
     healthcheck:
@@ -22,56 +35,56 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    restart: always
 
   backend:
     image: ${DOCKERHUB_USERNAME}/edi-lens-backend:${BACKEND_IMAGE_TAG:-latest}
+    restart: always
     depends_on:
       - db
       - keycloak
-    ports:
-      - "8000:8000"
+    # Port is no longer exposed to the host. Caddy will access it internally.
     volumes:
       - ./backend/data/edi_schemas:/var/edi_lens/schemas
     env_file: .env
     networks:
       - edi_network
-    restart: always
 
   keycloak:
     image: quay.io/keycloak/keycloak:latest
+    restart: always
     depends_on:
       - db
     environment:
+      - KC_HOSTNAME_STRICT=false # Allows Caddy to handle the public hostname
+      - KC_HTTP_ENABLED=true     # Keycloak runs on HTTP internally; Caddy provides HTTPS
+      - KC_PROXY=edge            # Tells Keycloak it's behind a reverse proxy
       - KC_BOOTSTRAP_ADMIN_USERNAME=${KEYCLOAK_ADMIN_USER}
       - KC_BOOTSTRAP_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
       - KC_DB=postgres
       - KC_DB_URL_HOST=db
-      - KC_DB_URL_PORT=5432
       - KC_DB_URL_DATABASE=${POSTGRES_DB}
       - KC_DB_USERNAME=${POSTGRES_USER}
       - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
       - KC_DB_SCHEMA=${KEYCLOAK_DB_SCHEMA}
-      # Explicitly set Java heap size to be conservative on a small droplet
       - JAVA_OPTS_APPEND=-Dkeycloak.profile.feature.scripts=enabled -Dkeycloak.profile.feature.upload_scripts=enabled -Xms64m -Xmx512m
-    ports:
-      - "8080:8080"
+    # Port is no longer exposed to the host.
     networks:
       - edi_network
-    # Use the 'start-dev' command for simplicity in a dev deployment.
-    # It handles initial setup more gracefully than '--auto-build'.
     command: start-dev
-    restart: always
 
   admin-ui:
     image: ${DOCKERHUB_USERNAME}/edi-lens-ui:${UI_IMAGE_TAG:-latest}
-    ports:
-      - "3000:80"
+    restart: always
     depends_on:
       - backend
+    # Port is no longer exposed to the host.
     networks:
       - edi_network
-    restart: always
+
+volumes:
+  caddy_data:
+  caddy_config:
+  postgres-data:
 
 networks:
   edi_network:

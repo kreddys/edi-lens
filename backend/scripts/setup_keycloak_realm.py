@@ -62,9 +62,24 @@ CLIENTS = [
 ]
 
 USERS = [
-    {"username": "superuser@edilens.com", "password": "password", "firstName": "Super", "lastName": "User", "email": "superuser@edilens.com", "groups": ["tenant-a", "tenant-b"], "realm_roles": ["superuser", "tenant-admin"]},
-    {"username": "admin.a@edilens.com", "password": "password", "firstName": "Admin", "lastName": "Alpha", "email": "admin.a@edilens.com", "groups": ["tenant-a"], "realm_roles": []},
-    {"username": "viewer.b@edilens.com", "password": "password", "firstName": "Viewer", "lastName": "Bravo", "email": "viewer.b@edilens.com", "groups": ["tenant-b"], "realm_roles": []}
+    {
+        "username": "superuser@edilens.com",
+        "password": os.getenv("KC_SUPERUSER_PASSWORD", "password"),
+        "firstName": "Super", "lastName": "User", "email": "superuser@edilens.com",
+        "groups": ["tenant-a", "tenant-b"], "realm_roles": ["superuser", "tenant-admin"]
+    },
+    {
+        "username": "admin.a@edilens.com",
+        "password": os.getenv("KC_ADMIN_A_PASSWORD", "password"),
+        "firstName": "Admin", "lastName": "Alpha", "email": "admin.a@edilens.com",
+        "groups": ["tenant-a"], "realm_roles": []
+    },
+    {
+        "username": "viewer.b@edilens.com",
+        "password": os.getenv("KC_VIEWER_B_PASSWORD", "password"),
+        "firstName": "Viewer", "lastName": "Bravo", "email": "viewer.b@edilens.com",
+        "groups": ["tenant-b"], "realm_roles": []
+    }
 ]
 
 

@@ -1,0 +1,22 @@
+# Caddyfile
+
+{
+    # This block is for global options. Caddy will prompt for an email
+    # for Let's Encrypt certificate notices. You can set it here to automate it.
+    email kishore5214@outlook.com
+}
+
+# Keycloak Service (e.g., https://auth.your-domain.com)
+auth.{$REMOTE_HOST} {
+    reverse_proxy keycloak:8080
+}
+
+# Backend API Service (e.g., https://api.your-domain.com)
+api.{$REMOTE_HOST} {
+    reverse_proxy backend:8000
+}
+
+# Frontend UI Service (e.g., https://your-domain.com)
+{$REMOTE_HOST} {
+    reverse_proxy admin-ui:80
+}

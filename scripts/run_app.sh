@@ -8,39 +8,69 @@ BACKEND_SERVICE_NAME="backend"
 DB_SERVICE_NAME="db"
 KEYCLOAK_SERVICE_NAME="keycloak"
 
-# --- Functions ---
+# --- Helper Functions ---
 info() { echo "[INFO] $1"; }
 success() { echo "[SUCCESS] $1"; }
 warn() { echo "[WARN] $1"; }
 error() { echo "[ERROR] $1" >&2; exit 1; }
 
 # --- Dynamic Command & File Selection ---
-
-# Check for docker compose vs docker-compose
+# 1. Check for docker compose vs docker-compose
 if docker compose version >/dev/null 2>&1; then
     DC_COMMAND="docker compose"
 else
     DC_COMMAND="docker-compose"
 fi
 
-# Detect environment and set appropriate compose files
-# This logic is for when the script is run on the remote server
-if [ -f "$(dirname "$0")/../docker-compose.prod.yml" ]; then
-    DC_FILES="-f docker-compose.prod.yml"
-else # This logic is for local development
+# 2. Detect environment and set appropriate compose files and env file to load
+# This determines if we are in a local dev setup or a remote/prod setup
+ENV_FILE_LOCAL="$(dirname "$0")/../.env.local"
+
+if [ -f "$ENV_FILE_LOCAL" ]; then
     DC_FILES="-f docker-compose.yml -f docker-compose.dev.yml"
+    ENV_FILE_TO_LOAD="$ENV_FILE_LOCAL"
+else
+    DC_FILES="-f docker-compose.prod.yml"
+    ENV_FILE_TO_LOAD="$(dirname "$0")/../.env"
 fi
 
+# 3. Load base environment file
+if [ -f "$ENV_FILE_TO_LOAD" ]; then
+    info "Loading environment variables from $ENV_FILE_TO_LOAD..."
+    # Use set -a to automatically export all variables sourced from the file
+    set -a
+    source "$ENV_FILE_TO_LOAD"
+    set +a
+else
+    # Only show a warning if it's a local dev setup, as prod should always have the file
+    if [ -f "$ENV_FILE_LOCAL" ]; then
+        warn ".env.local file not found. Some commands may fail. Please create it from .env.local.example."
+    fi
+fi
 
+# 4. Construct and Export Dynamic Variables based on the loaded environment
+if [ "$REMOTE_HOST" = "localhost" ]; then
+  # Local Development Settings
+  export KEYCLOAK_BROWSER_URL="http://${REMOTE_HOST}:8080"
+  export KC_SPI_FRAME_ANCESTORS="'self' http://${REMOTE_HOST}:3001"
+  export VITE_API_URL="http://${REMOTE_HOST}:8000/api/v1"
+else
+  # Production/Staging Settings
+  export KEYCLOAK_BROWSER_URL="https://auth.${REMOTE_HOST}"
+  export KC_SPI_FRAME_ANCESTORS="'self' https://${REMOTE_HOST}"
+  export VITE_API_URL="https://api.${REMOTE_HOST}/api/v1"
+fi
+
+# Export variables needed by the Vite build process and frontend
+export VITE_KEYCLOAK_URL="${KEYCLOAK_BROWSER_URL}"
+export VITE_KEYCLOAK_REALM="${KEYCLOAK_REALM}"
+export VITE_KEYCLOAK_CLIENT_ID="${KEYCLOAK_UI_CLIENT_ID}"
+
+# --- Command Functions ---
 check_docker() {
     if ! docker info > /dev/null 2>&1; then
         error "Docker does not seem to be running. Please start Docker and try again."
     fi
-}
-
-stop_services() {
-    info "Stopping all services..."
-    ${DC_COMMAND} ${DC_FILES} down
 }
 
 setup_keycloak() {
@@ -91,26 +121,7 @@ if [ -z "$1" ]; then
     error "Usage: ./scripts/run_app.sh [dev|down|clean|logs|restart <service>|...]"
 fi
 COMMAND=$1
-shift # Shift arguments so $1 is now the migration message or service name
-
-# Load environment file based on context
-ENV_FILE_LOCAL="$(dirname "$0")/../.env.local"
-ENV_FILE_PROD="$(dirname "$0")/../.env"
-
-if [ -f "$ENV_FILE_LOCAL" ]; then
-    info "Loading local environment variables from .env.local file..."
-    set -a
-    source "$ENV_FILE_LOCAL"
-    set +a
-elif [ -f "$ENV_FILE_PROD" ]; then
-    info "Loading production environment variables from .env file..."
-    set -a
-    source "$ENV_FILE_PROD"
-    set +a
-else
-    warn ".env.local or .env file not found in project root. Some commands may fail."
-fi
-
+shift 
 
 check_docker
 
@@ -118,9 +129,9 @@ case "$COMMAND" in
     "dev")
         info "Starting all services in DEVELOPMENT mode (with live-reload)..."
         ${DC_COMMAND} -f docker-compose.yml -f docker-compose.dev.yml up -d --build
-        ;;        
+        ;;
     "down")
-        # Use dev files by default for local "down" command
+        info "Stopping all services..."
         ${DC_COMMAND} -f docker-compose.yml -f docker-compose.dev.yml down
         ;;
     "restart")
@@ -142,17 +153,8 @@ case "$COMMAND" in
                 ${DC_COMMAND} -f docker-compose.yml -f docker-compose.dev.yml down -v
 
                 if [ -d "$POSTGRES_DATA_DIR" ]; then
-                    info "Found postgres-data folder at: $POSTGRES_DATA_DIR"
-                    info "Attempting to delete postgres-data folder..."
                     rm -rf "$POSTGRES_DATA_DIR"
-
-                    if [ ! -d "$POSTGRES_DATA_DIR" ]; then
-                        success "Successfully deleted postgres-data folder."
-                    else
-                        warn "Failed to delete postgres-data folder at $POSTGRES_DATA_DIR."
-                    fi
-                else
-                    warn "postgres-data folder not found at $POSTGRES_DATA_DIR."
+                    success "Successfully deleted postgres-data folder."
                 fi
 
                 info "Rebuilding all services..."
@@ -195,7 +197,7 @@ case "$COMMAND" in
     "test:integration")
         run_integration_tests
         info "Stopping services after integration tests..."
-        stop_services
+        ${DC_COMMAND} ${DC_FILES} down
         ;;
     "deploy:dev")
         info "Manually triggering the 'Deploy to Dev Droplet' GitHub Action..."
