@@ -43,7 +43,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      - KC_HOSTNAME=auth.${REMOTE_HOST}
+      - KC_HOSTNAME_URL=https://auth.${REMOTE_HOST}
       - KC_HOSTNAME_STRICT=false
       - KC_HTTP_ENABLED=true
       - KC_PROXY=edge
