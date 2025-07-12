@@ -45,15 +45,17 @@ run_in_backend() {
     local cmd_to_run=("$@")
     info "Executing in backend: ${cmd_to_run[*]}"
 
-    if [ "$IS_LOCAL_ENV" = true ]; a
+    if [ "$IS_LOCAL_ENV" = true ]; then # Corrected 'a' to 'then'
+        # Local 'exec' is still the simplest method for the dev environment
         ${DC_COMMAND} ${DC_FILES} exec "$BACKEND_SERVICE_NAME" "${cmd_to_run[@]}"
     else
+        # For prod, use 'docker compose run' with the FULL project context
         export RUN_IMAGE="${DOCKERHUB_USERNAME}/edi-lens-backend:latest"
         
-        # --- THIS IS THE FIX ---
-        # 1. We still provide the full project context with ${DC_FILES}.
-        # 2. We explicitly tell the 'run' command to connect to the project's network.
-        # 3. We still override the entrypoint for one-off tasks.
+        # Pass the main compose files AND the run file.
+        # This gives Docker Compose the full network and service definitions.
+        # We explicitly tell the 'run' command to connect to the project's network.
+        # We also override the entrypoint for one-off tasks.
         ${DC_COMMAND} ${DC_FILES} -f docker-compose.run.yml run --rm \
             --network ${NETWORK_NAME} \
             --entrypoint="" \
