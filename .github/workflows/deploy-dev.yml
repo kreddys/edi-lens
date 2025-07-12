@@ -4,8 +4,8 @@ name: Deploy to Dev Droplet
 on:
   push:
     branches:
-      - dev  # <-- THIS IS THE CHANGE
-  workflow_dispatch: # Allow manual triggering from the GitHub UI
+      - dev
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
@@ -59,8 +59,20 @@ jobs:
           script: |
             set -e
             cd /opt/edi-lens
-            export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            
+            # Pull the latest code changes from the 'dev' branch
+            git checkout dev
+            git pull origin dev
+            
+            # Create/update the .env file from secrets
             echo "${{ secrets.DOT_ENV }}" > .env
+            
+            # Use the DOCKERHUB_USERNAME from secrets for image names
+            export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            
+            # Pull new images and restart services
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
+            
+            # Clean up old, unused images
             docker image prune -af
