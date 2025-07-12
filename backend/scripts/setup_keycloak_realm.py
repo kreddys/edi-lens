@@ -4,6 +4,13 @@ import sys
 import time
 from keycloak import KeycloakAdmin, KeycloakOpenIDConnection
 from keycloak.exceptions import KeycloakGetError, KeycloakPostError
+import logging
+
+# --- Add basic logging configuration ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# --- Configuration (unchanged) ---
+KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
 
 # --- Configuration (unchanged) ---
 KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
@@ -86,10 +93,19 @@ USERS = [
 # --- SCRIPT LOGIC ---
 
 def get_keycloak_admin_client() -> KeycloakAdmin:
+    # --- THIS IS THE FIX ---
+    # Add an explicit timeout to the connection.
+    # If it can't connect within 15 seconds, it will raise an error instead of hanging forever.
     connection = KeycloakOpenIDConnection(
-        server_url=KEYCLOAK_URL, username=ADMIN_USER, password=ADMIN_PASSWORD,
-        realm_name="master", user_realm_name="master", client_id="admin-cli",
+        server_url=KEYCLOAK_URL,
+        username=ADMIN_USER,
+        password=ADMIN_PASSWORD,
+        realm_name="master",
+        user_realm_name="master",
+        client_id="admin-cli",
+        timeout=15  # Add a 15-second timeout
     )
+    # --- END OF FIX ---
     return KeycloakAdmin(connection=connection)
 
 def create_or_update_client_scope_mappers(admin_client: KeycloakAdmin):
@@ -169,37 +185,48 @@ def create_or_update_client_scope_mappers(admin_client: KeycloakAdmin):
 
 
 def main():
-    print("--- Starting Keycloak Realm Setup ---")
+    logging.info("--- Starting Keycloak Realm Setup ---")
     
     admin_client = None
     for i in range(10):
         try:
+            logging.info(f"Attempting to connect to Keycloak admin API at {KEYCLOAK_URL} (attempt {i+1}/10)...")
             admin_client = get_keycloak_admin_client()
+            # This is the first network call. If it hangs, the timeout will now catch it.
             admin_client.get_server_info()
-            print("✅ Successfully connected to Keycloak admin endpoint.")
+            logging.info("✅ Successfully connected to Keycloak admin endpoint.")
             break
         except Exception as e:
-            print(f"⏳ Keycloak not ready yet (attempt {i+1}/10). Retrying in 5 seconds... ({e})")
+            logging.warning(f"⏳ Keycloak not ready yet. Retrying in 5 seconds... (Error: {e})")
             time.sleep(5)
     
     if not admin_client:
-        print("❌ Could not connect to Keycloak after multiple attempts. Aborting.", file=sys.stderr)
+        logging.error("❌ Could not connect to Keycloak after multiple attempts. Aborting.")
         sys.exit(1)
 
-    print(f"\n--- Ensuring realm '{REALM_NAME}' exists ---")
+    logging.info(f"\n--- Ensuring realm '{REALM_NAME}' exists ---")
     try:
+        # We can add a log before the potentially hanging call
+        logging.info(f"Checking for realm '{REALM_NAME}'...")
         admin_client.get_realm(REALM_NAME)
-        print(f"  - Realm '{REALM_NAME}' already exists.")
+        logging.info(f"  - Realm '{REALM_NAME}' already exists.")
     except KeycloakGetError as e:
         if e.response_code == 404:
-            print(f"  - Realm '{REALM_NAME}' not found. Creating it...")
+            logging.info(f"  - Realm '{REALM_NAME}' not found. Creating it...")
             admin_client.create_realm(payload={"realm": REALM_NAME, "enabled": True})
-            print(f"  - Realm '{REALM_NAME}' created.")
+            logging.info(f"  - Realm '{REALM_NAME}' created.")
         else:
             raise e
+    except Exception as e:
+        logging.error(f"An unexpected error occurred while checking for the realm: {e}")
+        sys.exit(1)
 
+    # --- THIS IS THE FIX ---
+    # We must switch the client's context to the new realm for all subsequent operations.
+    logging.info(f"Switching admin client context to realm '{REALM_NAME}'")
     admin_client.connection.realm_name = REALM_NAME
 
+    logging.info("\n--- Configuring Client Scopes and Mappers ---")
     create_or_update_client_scope_mappers(admin_client)
 
     print("\n--- Creating Roles ---")

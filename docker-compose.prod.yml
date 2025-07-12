@@ -54,7 +54,6 @@ services:
       - KC_DB_USERNAME=${POSTGRES_USER}
       - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
       - KC_DB_SCHEMA=${KEYCLOAK_DB_SCHEMA}
-      - JAVA_OPTS_APPEND=-Dkeycloak.profile.feature.scripts=enabled -Dkeycloak.profile.feature.upload_scripts=enabled -Xms64m -Xmx512m
       - KC_HEALTH_ENABLED=true
       - KC_METRICS_ENABLED=true
     ports: # Expose management port for healthcheck from host if needed, but not required if check is internal
@@ -67,7 +66,7 @@ services:
       interval: 5s       # Check every 5 seconds
       timeout: 5s        # Give each check 5 seconds to respond
       retries: 30        # Allow up to 30 failures (30 * 5s = 150s of checks)
-      start_period: 30s  # Grace period of 30s before checks start failing
+      start_period: 15s  # Grace period of 30s before checks start failing
 
   backend:
     image: ${DOCKERHUB_USERNAME}/edi-lens-backend:${BACKEND_IMAGE_TAG:-latest}
