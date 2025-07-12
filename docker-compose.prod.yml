@@ -43,10 +43,11 @@ services:
       db:
         condition: service_healthy
     environment:
+      - KC_PROXY_HEADERS=xforwarded
       - KC_HOSTNAME_URL=https://auth.${REMOTE_HOST}
-      - KC_HTTPS_PORT=443
       - KC_PROXY=edge
-      - KC_HTTP_ENABLED=true
+      - KC_HTTP_HOST=0.0.0.0
+      - KC_HOSTNAME_STRICT=false
       - KC_BOOTSTRAP_ADMIN_USERNAME=${KEYCLOAK_ADMIN_USER}
       - KC_BOOTSTRAP_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
       - KC_DB=postgres
