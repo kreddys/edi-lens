@@ -10,7 +10,6 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry config virtualenvs.in-project true && \
     poetry install --no-root
 
-
 # Stage 2: Final application stage
 FROM python:3.11-slim
 
@@ -27,14 +26,12 @@ ENV PATH="/home/appuser/app/.venv/bin:$PATH"
 
 COPY --from=builder --chown=appuser:appuser /home/appuser/app/.venv ./.venv
 
-# Copy only the necessary source code and scripts
+# Copy all necessary source code, scripts, and configuration
 COPY --chown=appuser:appuser src/ src/
 COPY --chown=appuser:appuser scripts/ scripts/
+COPY --chown=appuser:appuser alembic/ alembic/
 COPY --chown=appuser:appuser alembic.ini .
-
-# Copy the initial EDI schemas into the image. On first run, Docker will use this
-# to populate the `edi_schemas_data` volume.
-COPY --chown=appuser:appuser ./data/edi_schemas /var/edi_lens/schemas
+COPY --chown=appuser:appuser data/edi_schemas/ /var/edi_lens/schemas/
 
 ENTRYPOINT ["/home/appuser/app/scripts/docker-entrypoint.sh"]
 
