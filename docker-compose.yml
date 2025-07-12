@@ -44,10 +44,10 @@ services:
     command: start-dev --import-realm
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost:9000\\r\\nConnection: close\\r\\n\\r\\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"' && exit 0 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+      interval: 5s       # Check every 5 seconds
+      timeout: 5s        # Give each check 5 seconds to respond
+      retries: 30        # Allow up to 30 failures (30 * 5s = 150s of checks)
+      start_period: 30s  # Grace period of 30s before checks start failing
 
   backend:
     build:

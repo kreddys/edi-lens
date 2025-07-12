@@ -2,19 +2,15 @@
 services:
   run-command:
     image: ${RUN_IMAGE}
-    working_dir: /app
+    # working_dir is not strictly necessary if commands use absolute paths, but good to have.
+    working_dir: /home/appuser/app 
     volumes:
-      - .:/app
+      # We mount the code so the scripts are available.
+      - ./backend:/home/appuser/app
     networks:
       - edi_network
-    # --- THIS IS THE FIX ---
-    # Load the environment variables from the .env file in the project root.
-    # This works for both docker-compose v1 and v2.
     env_file:
       - .env
-    command: ["echo", "Ready to run command..."]
-
-networks:
-  edi_network:
-    external: true
-    name: edi-lens_edi_network
+    # The entrypoint is inherited from the image, which is our docker-entrypoint.sh
+    # The command we pass will become the "$@" for that script.
+    command: ["echo", "Ready to run command..."] 

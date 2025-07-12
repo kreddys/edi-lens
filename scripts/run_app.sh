@@ -42,11 +42,17 @@ check_docker() { if ! docker info >/dev/null 2>&1; then error "Docker not runnin
 run_in_backend() {
     local cmd_to_run=("$@")
     info "Executing in backend: ${cmd_to_run[*]}"
+
     if [ "$IS_LOCAL_ENV" = true ]; then
+        # Local 'exec' is still fine
         ${DC_COMMAND} ${DC_FILES} exec "$BACKEND_SERVICE_NAME" "${cmd_to_run[@]}"
     else
+        # For prod, use 'docker compose run' and override the entrypoint
         export RUN_IMAGE="${DOCKERHUB_USERNAME}/edi-lens-backend:latest"
-        ${DC_COMMAND} -f docker-compose.prod.yml -f docker-compose.run.yml run --rm run-command "${cmd_to_run[@]}"
+        
+        # The --entrypoint="" flag tells docker compose to ignore the default entrypoint
+        # from the Dockerfile. The command we pass is then executed directly.
+        ${DC_COMMAND} -f docker-compose.run.yml run --rm --entrypoint="" run-command "${cmd_to_run[@]}"
     fi
 }
 
