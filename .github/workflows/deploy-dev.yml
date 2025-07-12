@@ -63,10 +63,16 @@ jobs:
             set -e
             cd /opt/edi-lens
             
-            # Pull the latest code changes, which includes the run_app.sh script
-            git checkout dev
-            git pull origin dev
+            # This is the robust way to sync the repo
+            echo "Fetching latest changes from origin..."
+            git fetch origin dev
             
+            echo "Resetting local dev branch to match origin/dev..."
+            git reset --hard origin/dev
+            
+            echo "Cleaning up untracked files and directories..."
+            git clean -dfx
+
             # Create/update the .env file from secrets
             echo "${{ secrets.DOT_ENV }}" > .env
             
