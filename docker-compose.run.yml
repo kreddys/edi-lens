@@ -3,9 +3,17 @@
 services:
   run-command:
     image: ${RUN_IMAGE}
-    # working_dir is inherited from the image, but being explicit doesn't hurt.
     working_dir: /home/appuser/app
     env_file:
       - .env
-    # We will let the main prod.yml file handle network attachment.
-    # The 'run' command will attach this to the default project network.
+    # Tell this service to connect to the edi_network
+    networks:
+      - edi_network
+
+# Define the network as external so Docker Compose knows not to create it.
+# It will look for a network with the project-prefixed name.
+networks:
+  edi_network:
+    external: true
+    # The name must match the network created by the main compose file
+    name: edi-lens_edi_network
