@@ -1,0 +1,151 @@
+{
+  "transactionName": "Template EDI Schema (Professional Claim)",
+  "segmentDefinitions": {
+    "ISA": {
+      "name": "Interchange Control Header",
+      "usage": "R"
+    },
+    "GS": {
+      "name": "Functional Group Header",
+      "usage": "R"
+    },
+    "ST": {
+      "name": "Transaction Set Header",
+      "usage": "R"
+    },
+    "HL": {
+      "name": "Hierarchical Level",
+      "usage": "R"
+    },
+    "NM1": {
+      "name": "Name (Generic Base Definition)",
+      "usage": "S",
+      "elements": [
+        { "xid": "NM101", "name": "Entity Identifier Code", "usage": "R" },
+        { "xid": "NM103", "name": "Last or Organization Name", "usage": "R" }
+      ]
+    },
+    "NM1_root_loop_DETAIL_0_loop_2000A_0_loop_2010AA_0_segment_NM1_0": {
+      "name": "Billing Provider Name",
+      "usage": "R",
+      "elements": [
+        { "xid": "NM101", "name": "Entity Identifier Code", "usage": "R", "valid_codes": { "code": ["85"] } },
+        { "xid": "NM102", "name": "Entity Type Qualifier", "usage": "R", "valid_codes": { "code": [1, 2] } },
+        { "xid": "NM103", "name": "Billing Provider Name", "usage": "R" },
+        { "xid": "NM109", "name": "National Provider Identifier", "usage": "R" }
+      ]
+    },
+    "NM1_root_loop_DETAIL_0_loop_2000B_0_loop_2010BA_0_segment_NM1_0": {
+      "name": "Subscriber Name",
+      "usage": "R",
+      "elements": [
+        { "xid": "NM101", "name": "Entity Identifier Code", "usage": "R", "valid_codes": { "code": ["IL"] } },
+        { "xid": "NM103", "name": "Subscriber Last Name", "usage": "R" },
+        { "xid": "NM104", "name": "Subscriber First Name", "usage": "R" },
+        { "xid": "NM109", "name": "Member ID", "usage": "R" }
+      ]
+    },
+    "CLM": {
+      "name": "Claim Information",
+      "usage": "R"
+    },
+    "SE": {
+      "name": "Transaction Set Trailer",
+      "usage": "R"
+    },
+    "GE": {
+      "name": "Functional Group Trailer",
+      "usage": "R"
+    },
+    "IEA": {
+      "name": "Interchange Control Trailer",
+      "usage": "R"
+    }
+  },
+  "structure": [
+    {
+      "type": "loop",
+      "xid": "ISA_LOOP",
+      "name": "Interchange Control",
+      "children": [
+        { "type": "segment", "xid": "ISA" },
+        {
+          "type": "loop",
+          "xid": "GS_LOOP",
+          "name": "Functional Group",
+          "children": [
+            { "type": "segment", "xid": "GS" },
+            {
+              "type": "loop",
+              "xid": "ST_LOOP",
+              "name": "Transaction Set",
+              "children": [
+                { "type": "segment", "xid": "ST" },
+                {
+                  "type": "loop",
+                  "xid": "DETAIL",
+                  "name": "Detail Area",
+                  "children": [
+                    {
+                      "type": "loop",
+                      "xid": "2000A",
+                      "name": "Billing Provider Hierarchical Level",
+                      "children": [
+                        { "type": "segment", "xid": "HL" },
+                        {
+                          "type": "loop",
+                          "xid": "2010AA",
+                          "name": "Billing Provider Name",
+                          "children": [
+                            {
+                              "type": "segment",
+                              "xid": "NM1",
+                              "name": "Billing Provider Name",
+                              "definitionId": "NM1_root_loop_DETAIL_0_loop_2000A_0_loop_2010AA_0_segment_NM1_0"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "loop",
+                      "xid": "2000B",
+                      "name": "Subscriber Hierarchical Level",
+                      "children": [
+                         { "type": "segment", "xid": "HL" },
+                         {
+                           "type": "loop",
+                           "xid": "2010BA",
+                           "name": "Subscriber Name",
+                           "children": [
+                             {
+                               "type": "segment",
+                               "xid": "NM1",
+                               "name": "Subscriber Name",
+                               "definitionId": "NM1_root_loop_DETAIL_0_loop_2000B_0_loop_2010BA_0_segment_NM1_0"
+                             }
+                           ]
+                         },
+                         {
+                            "type": "loop",
+                            "xid": "2300",
+                            "name": "Claim Information",
+                            "children": [
+                                { "type": "segment", "xid": "CLM" }
+                            ]
+                         }
+                      ]
+                    }
+                  ]
+                },
+                { "type": "segment", "xid": "SE" }
+              ]
+            },
+            { "type": "segment", "xid": "GE" }
+          ]
+        },
+        { "type": "segment", "xid": "IEA" }
+      ]
+    }
+  ]
+}

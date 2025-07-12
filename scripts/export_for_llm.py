@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import re
 import argparse
 from pathlib import Path
 from pathspec import PathSpec
@@ -14,6 +15,20 @@ BINARY_EXTENSIONS = {
     '.mp3', '.wav', '.ogg',
     '.mp4', '.mov', '.avi',
 }
+
+IGNORE_PATHS = [
+    'backend/migrations',         # Specific directory
+    'admin-ui/tmp',               # Another directory
+]
+
+IGNORE_FILENAMES = [
+    '.env',
+    '837.5010.X222.A1.json',               # Ignore this file name anywhere
+]
+
+# --- Configuration for Optimizations ---
+TRUNCATE_THRESHOLD_KB = 50
+TRUNCATE_LINES = 100
 
 def is_binary_file(filepath):
     return os.path.splitext(filepath)[1].lower() in BINARY_EXTENSIONS
@@ -36,37 +51,53 @@ def generate_export_content(paths_to_scan, gitignore_spec, verbose=False):
     output_chunks = []
     exported_file_count = 0
     total_export_size = 0
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = Path().resolve()
+
+    ignore_path_set = set(Path(p).as_posix().rstrip('/') for p in IGNORE_PATHS)
+    ignore_filename_set = set(IGNORE_FILENAMES)
+
+    def is_ignored(file_path: Path) -> bool:
+        rel_path = file_path.relative_to(repo_root).as_posix()
+
+        # Match directory or full path
+        if any(rel_path == ignore_dir or rel_path.startswith(ignore_dir + '/') for ignore_dir in ignore_path_set):
+            if verbose:
+                print(f"Ignoring by path: {rel_path}")
+            return True
+
+        # Match filename (anywhere)
+        if file_path.name in ignore_filename_set:
+            if verbose:
+                print(f"Ignoring by filename: {file_path.name}")
+            return True
+
+        return False
 
     def process_file(file_path):
         nonlocal exported_file_count, total_export_size
-        relative_file_path = file_path.relative_to(repo_root)
-
-        # Skip ignored or binary files
-        if gitignore_spec.match_file(str(relative_file_path)):
-            if verbose:
-                print(f"Skipping ignored file: {relative_file_path}")
-            return
-
-        if is_binary_file(file_path):
-            if verbose:
-                print(f"Skipping binary file: {relative_file_path}")
-            return
-
         try:
-            file_size = file_path.stat().st_size
-            total_export_size += file_size
+            relative_file_path = file_path.relative_to(repo_root).as_posix()
+
+            if gitignore_spec.match_file(relative_file_path) or is_binary_file(file_path) or is_ignored(file_path):
+                if verbose:
+                    print(f"Skipping ignored/binary file: {relative_file_path}")
+                return
+
+            content_bytes = file_path.read_bytes()
+            content = content_bytes.decode('utf-8', errors='ignore')
 
             if verbose:
-                print(f"Exporting: {relative_file_path} ({format_file_size(file_size)})")
+                print(f"Exporting: {relative_file_path} ({format_file_size(len(content_bytes))})")
 
-            with file_path.open('r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
+            content = re.sub(r'\n{3,}', '\n\n', content.strip())
 
-            output_chunks.append(f"-- START OF FILE {relative_file_path} --")
+            output_chunks.append(f"--- START OF FILE {relative_file_path} ---")
             output_chunks.append(content)
             output_chunks.append(f"-- END OF FILE {relative_file_path} --\n")
+
             exported_file_count += 1
+            total_export_size += len(content_bytes)
+
         except Exception as e:
             print(f"Could not read file {file_path}: {e}")
 
@@ -79,18 +110,13 @@ def generate_export_content(paths_to_scan, gitignore_spec, verbose=False):
         if path.is_file():
             process_file(path)
         elif path.is_dir():
-            for root_str, dirs, files in os.walk(path, topdown=True):
-                root = Path(root_str)
-                # Filter ignored directories
-                dirs[:] = [
-                    d for d in dirs
-                    if not gitignore_spec.match_file(str((root / d).relative_to(repo_root)) + '/')
-                ]
-
-                for file in sorted(files):
-                    process_file(root / file)
+            for file in sorted(path.rglob('*')):
+                if file.is_file():
+                    process_file(file)
 
     return "\n".join(output_chunks), exported_file_count, total_export_size
+
+
 
 def main():
     parser = argparse.ArgumentParser(
