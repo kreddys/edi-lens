@@ -34,6 +34,11 @@ app = FastAPI(
 
 origins = ["http://localhost:3000", "http://localhost:3001"]
 
+if settings.REMOTE_HOST and settings.REMOTE_HOST != "localhost":
+    # The frontend is served from the root domain
+    prod_origin = f"https://{settings.REMOTE_HOST}"
+    origins.append(prod_origin)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

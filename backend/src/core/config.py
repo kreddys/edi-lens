@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # Directory for storing EDI implementation guide schemas
     EDI_SCHEMA_DIRECTORY: str = "/home/appuser/app/data/edi_schemas"
 
+    REMOTE_HOST: str = "localhost"
     BACKEND_HOST: str = "backend"    
 
     @property
