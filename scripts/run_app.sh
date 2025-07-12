@@ -44,15 +44,15 @@ run_in_backend() {
     info "Executing in backend: ${cmd_to_run[*]}"
 
     if [ "$IS_LOCAL_ENV" = true ]; then
-        # Local 'exec' is still fine
+        # Local 'exec' is still the simplest method for the dev environment
         ${DC_COMMAND} ${DC_FILES} exec "$BACKEND_SERVICE_NAME" "${cmd_to_run[@]}"
     else
-        # For prod, use 'docker compose run' and override the entrypoint
+        # For prod, use 'docker compose run' with the FULL project context
         export RUN_IMAGE="${DOCKERHUB_USERNAME}/edi-lens-backend:latest"
         
-        # The --entrypoint="" flag tells docker compose to ignore the default entrypoint
-        # from the Dockerfile. The command we pass is then executed directly.
-        ${DC_COMMAND} -f docker-compose.run.yml run --rm --entrypoint="" run-command "${cmd_to_run[@]}"
+        # Pass the main compose files AND the run file.
+        # This gives Docker Compose the full network and service definitions.
+        ${DC_COMMAND} ${DC_FILES} -f docker-compose.run.yml run --rm --entrypoint="" run-command "${cmd_to_run[@]}"
     fi
 }
 
