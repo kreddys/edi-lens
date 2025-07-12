@@ -1,16 +1,16 @@
 # FILE: docker-compose.prod.yml
-version: '3.8'
+# This file is used for production-like deployments, pulling pre-built images.
 
 services:
   caddy:
     image: caddy:2-alpine
     restart: always
     ports:
-      - "80:80"    # For HTTP and HTTP-to-HTTPS redirects
-      - "443:443"  # For HTTPS traffic
+      - "80:80"
+      - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile  # Mount the Caddy configuration
-      - caddy_data:/data                  # Persist SSL certificates and other data
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
       - caddy_config:/config
     env_file: .env
     networks:
@@ -27,7 +27,6 @@ services:
     volumes:
       - ./postgres-data:/var/lib/postgresql/data/
       - ./backend/scripts/init-keycloak-db.sh:/docker-entrypoint-initdb.d/init-keycloak-db.sh
-    # No longer expose the port to the host; Caddy doesn't need to talk to it.
     networks:
       - edi_network
     healthcheck:
@@ -42,7 +41,6 @@ services:
     depends_on:
       - db
       - keycloak
-    # Port is no longer exposed to the host. Caddy will access it internally.
     volumes:
       - ./backend/data/edi_schemas:/var/edi_lens/schemas
     env_file: .env
@@ -55,9 +53,9 @@ services:
     depends_on:
       - db
     environment:
-      - KC_HOSTNAME_STRICT=false # Allows Caddy to handle the public hostname
-      - KC_HTTP_ENABLED=true     # Keycloak runs on HTTP internally; Caddy provides HTTPS
-      - KC_PROXY=edge            # Tells Keycloak it's behind a reverse proxy
+      - KC_HOSTNAME_STRICT=false
+      - KC_HTTP_ENABLED=true
+      - KC_PROXY=edge
       - KC_BOOTSTRAP_ADMIN_USERNAME=${KEYCLOAK_ADMIN_USER}
       - KC_BOOTSTRAP_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
       - KC_DB=postgres
@@ -67,7 +65,6 @@ services:
       - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
       - KC_DB_SCHEMA=${KEYCLOAK_DB_SCHEMA}
       - JAVA_OPTS_APPEND=-Dkeycloak.profile.feature.scripts=enabled -Dkeycloak.profile.feature.upload_scripts=enabled -Xms64m -Xmx512m
-    # Port is no longer exposed to the host.
     networks:
       - edi_network
     command: start-dev
@@ -77,7 +74,6 @@ services:
     restart: always
     depends_on:
       - backend
-    # Port is no longer exposed to the host.
     networks:
       - edi_network
 
