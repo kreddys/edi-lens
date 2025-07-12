@@ -22,7 +22,7 @@ IGNORE_PATHS = [
 ]
 
 IGNORE_FILENAMES = [
-    '.env',
+    '.env.local',
     '837.5010.X222.A1.json',               # Ignore this file name anywhere
 ]
 
@@ -191,11 +191,17 @@ def main():
     paths_to_scan.extend([
         '.gitignore',
         'README.md',
+        'Caddyfile',
         '.env.example',
+        '.env.local.example',
+        '.env.prod.example',
         'docker-compose.yml',
         'docker-compose.dev.yml',
+        'docker-compose.prod.yml',
+        'docker-compose.run.yml',
         'scripts/run_app.sh',
         'scripts/queries.sql',
+        'scripts/export_for_llm.py',
         'docs'
     ])
 
