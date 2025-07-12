@@ -202,6 +202,7 @@ def main():
         'scripts/run_app.sh',
         'scripts/queries.sql',
         'scripts/export_for_llm.py',
+        '.github/workflows',
         'docs'
     ])
 
