@@ -44,10 +44,21 @@ run_in_backend() {
     local cmd_to_run=("$@")
     info "Executing in backend: ${cmd_to_run[*]}"
     if [ "$IS_LOCAL_ENV" = true ]; then
+        # In local dev, run the command against the existing 'backend' service container
         ${DC_COMMAND} ${DC_FILES} exec "$BACKEND_SERVICE_NAME" "${cmd_to_run[@]}"
     else
+        # In remote/prod, run a new temporary container from the Docker Hub image
         export RUN_IMAGE="${DOCKERHUB_USERNAME}/edi-lens-backend:latest"
-        ${DC_COMMAND} -f docker-compose.run.yml run --rm run-command "${cmd_to_run[@]}"
+        
+        # --- THIS IS THE FIX ---
+        # Explicitly pass the .env file to the `run` command. This injects the
+        # environment variables into the temporary container.
+        ${DC_COMMAND} \
+            -f docker-compose.prod.yml \
+            -f docker-compose.run.yml \
+            run --rm \
+            --env-file ./.env \
+            run-command "${cmd_to_run[@]}"
     fi
 }
 
