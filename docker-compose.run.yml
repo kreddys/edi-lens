@@ -3,13 +3,9 @@
 services:
   run-command:
     image: ${RUN_IMAGE}
-    working_dir: /home/appuser/app 
-    # --- THIS IS THE FIX ---
-    # REMOVE THE VOLUMES SECTION COMPLETELY.
-    # The image already contains the scripts and all dependencies.
-    # Mounting the local directory was hiding the .venv inside the image.
-    networks:
-      - edi_network
+    # working_dir is inherited from the image, but being explicit doesn't hurt.
+    working_dir: /home/appuser/app
     env_file:
       - .env
-    command: ["echo", "Ready to run command..."] 
+    # We will let the main prod.yml file handle network attachment.
+    # The 'run' command will attach this to the default project network.
