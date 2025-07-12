@@ -1,6 +1,4 @@
 # FILE: docker-compose.prod.yml
-# This file is used for production-like deployments, pulling pre-built images.
-
 services:
   caddy:
     image: caddy:2-alpine
@@ -15,6 +13,9 @@ services:
     env_file: .env
     networks:
       - edi_network
+    depends_on:
+      - backend
+      - keycloak
 
   db:
     image: postgres:15-alpine
@@ -35,23 +36,12 @@ services:
       timeout: 5s
       retries: 10
 
-  backend:
-    image: ${DOCKERHUB_USERNAME}/edi-lens-backend:${BACKEND_IMAGE_TAG:-latest}
-    restart: always
-    depends_on:
-      - db
-      - keycloak
-    volumes:
-      - ./backend/data/edi_schemas:/var/edi_lens/schemas
-    env_file: .env
-    networks:
-      - edi_network
-
   keycloak:
     image: quay.io/keycloak/keycloak:latest
     restart: always
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       - KC_HOSTNAME_STRICT=false
       - KC_HTTP_ENABLED=true
@@ -65,9 +55,39 @@ services:
       - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
       - KC_DB_SCHEMA=${KEYCLOAK_DB_SCHEMA}
       - JAVA_OPTS_APPEND=-Dkeycloak.profile.feature.scripts=enabled -Dkeycloak.profile.feature.upload_scripts=enabled -Xms64m -Xmx512m
+      - KC_HEALTH_ENABLED=true
+      - KC_METRICS_ENABLED=true
+    ports: # Expose management port for healthcheck from host if needed, but not required if check is internal
+      - "9000:9000"
     networks:
       - edi_network
     command: start-dev
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost:9000\\r\\nConnection: close\\r\\n\\r\\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"' && exit 0 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+
+  backend:
+    image: ${DOCKERHUB_USERNAME}/edi-lens-backend:${BACKEND_IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    volumes:
+      - ./backend/data/edi_schemas:/var/edi_lens/schemas
+    env_file: .env
+    networks:
+      - edi_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   admin-ui:
     image: ${DOCKERHUB_USERNAME}/edi-lens-ui:${UI_IMAGE_TAG:-latest}
@@ -84,5 +104,5 @@ volumes:
 
 networks:
   edi_network:
-    name: edi-lens_edi_network # Explicitly name the network
+    name: edi-lens_edi_network
     driver: bridge

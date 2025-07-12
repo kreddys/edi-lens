@@ -5,8 +5,7 @@ set -e
 
 # --- Configuration ---
 BACKEND_SERVICE_NAME="backend"
-# The explicit network name from your compose files
-NETWORK_NAME="edi-lens_edi_network"
+NETWORK_NAME="edi-lens_edi_network" # From docker-compose network definition
 
 # --- Helper Functions ---
 info() { echo "[INFO] $1"; }
@@ -44,21 +43,10 @@ run_in_backend() {
     local cmd_to_run=("$@")
     info "Executing in backend: ${cmd_to_run[*]}"
     if [ "$IS_LOCAL_ENV" = true ]; then
-        # In local dev, run the command against the existing 'backend' service container
         ${DC_COMMAND} ${DC_FILES} exec "$BACKEND_SERVICE_NAME" "${cmd_to_run[@]}"
     else
-        # In remote/prod, run a new temporary container from the Docker Hub image
         export RUN_IMAGE="${DOCKERHUB_USERNAME}/edi-lens-backend:latest"
-        
-        # --- THIS IS THE FIX ---
-        # Explicitly pass the .env file to the `run` command. This injects the
-        # environment variables into the temporary container.
-        ${DC_COMMAND} \
-            -f docker-compose.prod.yml \
-            -f docker-compose.run.yml \
-            run --rm \
-            --env-file ./.env \
-            run-command "${cmd_to_run[@]}"
+        ${DC_COMMAND} -f docker-compose.prod.yml -f docker-compose.run.yml run --rm run-command "${cmd_to_run[@]}"
     fi
 }
 
@@ -67,23 +55,23 @@ if [ -z "$1" ]; then error "Usage: ./scripts/run_app.sh [dev|down|clean|setup:ke
 COMMAND=$1; shift; check_docker
 
 case "$COMMAND" in
-    "up")
-        info "Starting all services..."
-        ${DC_COMMAND} ${DC_FILES} up -d "$@"
-        ;;
     "dev")
         info "Starting services in DEVELOPMENT mode..."
         ${DC_COMMAND} -f docker-compose.yml -f docker-compose.dev.yml up -d --build
         ;;
     "down")
-        info "Stopping all services..."
-        ${DC_COMMAND} ${DC_FILES} down -v
+        info "Stopping all services...";
+        if [ "$IS_LOCAL_ENV" = true ]; then
+            ${DC_COMMAND} -f docker-compose.yml -f docker-compose.dev.yml down -v
+        else
+            ${DC_COMMAND} -f docker-compose.prod.yml down -v
+        fi
         ;;
     "clean")
         read -p "⚠️  This will delete all data and volumes. Are you sure? [y/N] " confirm
         if [[ "$confirm" =~ ^[yY](es)?$ ]]; then
             info "Stopping services and removing Docker volumes..."
-            ${DC_COMMAND} ${DC_FILES} down -v
+            ${DC_COMMAND} -f docker-compose.yml -f docker-compose.dev.yml down -v
             if [ -d "./postgres-data" ]; then rm -rf "./postgres-data"; success "Deleted postgres-data folder."; fi
         else warn "Clean operation cancelled."; fi
         ;;
@@ -91,26 +79,26 @@ case "$COMMAND" in
         if [ -z "$1" ]; then error "Migration message is required."; fi
         info "Generating new migration: $1"
         ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
-        run_in_backend "alembic" "-c" "backend/alembic.ini" "revision" "--autogenerate" "-m" "$1"
+        run_in_backend "alembic" "-c" "alembic.ini" "revision" "--autogenerate" "-m" "$1"
         success "Migration file created."
         ;;
     "migrate:run")
         info "Applying migrations to the database..."
         ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
-        run_in_backend "alembic" "-c" "backend/alembic.ini" "upgrade" "head"
+        run_in_backend "alembic" "-c" "alembic.ini" "upgrade" "head"
         success "Migrations applied."
         ;;
     "setup:keycloak")
         info "Running Keycloak setup script..."
         warn "This requires dependent services to be running."
         ${DC_COMMAND} ${DC_FILES} up -d --wait db keycloak "$BACKEND_SERVICE_NAME"
-        run_in_backend "python" "backend/scripts/setup_keycloak_realm.py"
+        run_in_backend "python" "scripts/setup_keycloak_realm.py"
         success "Keycloak setup script completed successfully."
         ;;
     "setup:testdata")
         info "Seeding the database with initial test data..."
         ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
-        run_in_backend "python" "backend/scripts/seed.py" "$@"
+        run_in_backend "python" "scripts/seed.py" "$@"
         success "Database seeding complete."
         ;;
     "deploy:dev")

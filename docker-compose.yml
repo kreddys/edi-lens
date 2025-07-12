@@ -19,38 +19,16 @@ services:
       timeout: 5s
       retries: 10
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    depends_on:
-      - db
-      - keycloak
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/home/appuser/app
-      - ./backend/data/edi_schemas:/var/edi_lens/schemas
-      - /home/appuser/app/.venv
-    networks:
-      - edi_network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 60s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-
   keycloak:
     image: quay.io/keycloak/keycloak:latest
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KC_DB: postgres
       KC_DB_URL_HOST: db
-      KC_DB_URL_PORT: 5432
       KC_DB_URL_DATABASE: ${POSTGRES_DB}
       KC_DB_USERNAME: ${POSTGRES_USER}
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
@@ -60,14 +38,37 @@ services:
       KC_SPI_FRAME_ANCESTORS: ${KC_SPI_FRAME_ANCESTORS}
     ports:
       - "8080:8080"
-      - "9000:9000" # <-- Expose the management port
+      - "9000:9000"
     networks:
       - edi_network
     command: start-dev --import-realm
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost:9000\r\nConnection: close\r\n\r\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"' && exit 0 || exit 1"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost:9000\\r\\nConnection: close\\r\\n\\r\\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"' && exit 0 || exit 1"]
       interval: 10s
       timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/home/appuser/app
+      - /home/appuser/app/.venv
+    networks:
+      - edi_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
       retries: 3
       start_period: 30s
 
@@ -89,5 +90,5 @@ services:
 
 networks:
   edi_network:
-    name: edi-lens_edi_network # Explicitly name the network
+    name: edi-lens_edi_network
     driver: bridge
