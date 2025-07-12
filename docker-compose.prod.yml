@@ -79,6 +79,8 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/data/edi_schemas:/home/appuser/app/data/edi_schemas
+    environment:
+      - KEYCLOAK_URL=https://auth.${REMOTE_HOST}      
     env_file: .env
     networks:
       - edi_network
