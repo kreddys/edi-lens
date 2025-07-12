@@ -1,4 +1,5 @@
 # FILE: .github/workflows/deploy-dev.yml
+
 name: Deploy to Dev Droplet
 
 on:
@@ -31,7 +32,9 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:${{ github.sha }},${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:latest
+          # Use github.sha for unique tagging if needed, but latest is sufficient for dev
+          # tags: ${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:${{ github.sha }},${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:latest
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:latest
           cache-to: type=inline
 
@@ -41,7 +44,7 @@ jobs:
           context: ./admin-ui
           file: ./admin-ui/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-ui:${{ github.sha }},${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-ui:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-ui:latest
           build-args: |
             VITE_KEYCLOAK_URL=${{ secrets.VITE_KEYCLOAK_URL }}
             VITE_KEYCLOAK_REALM=${{ secrets.VITE_KEYCLOAK_REALM }}
@@ -60,19 +63,23 @@ jobs:
             set -e
             cd /opt/edi-lens
             
-            # Pull the latest code changes from the 'dev' branch
+            # Pull the latest code changes, which includes the run_app.sh script
             git checkout dev
             git pull origin dev
             
             # Create/update the .env file from secrets
             echo "${{ secrets.DOT_ENV }}" > .env
             
-            # Use the DOCKERHUB_USERNAME from secrets for image names
-            export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            # Make sure the script is executable
+            chmod +x ./scripts/run_app.sh
+
+            # --- THIS IS THE UPDATED DEPLOYMENT LOGIC ---
+            # 1. Take down any old running services first
+            ./scripts/run_app.sh down
+
+            # 2. Use the 'up' command to pull new images and start services
+            ./scripts/run_app.sh up
             
-            # Pull new images and restart services
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d
-            
-            # Clean up old, unused images
+            # 3. Clean up old, unused Docker images
+            echo "Cleaning up old Docker images..."
             docker image prune -af
