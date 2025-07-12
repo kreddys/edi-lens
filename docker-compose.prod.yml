@@ -64,10 +64,10 @@ services:
     command: start-dev
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost:9000\\r\\nConnection: close\\r\\n\\r\\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"' && exit 0 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 45s
+      interval: 15s      # Check every 15 seconds
+      timeout: 10s       # Give each check 10 seconds to respond
+      retries: 10        # Allow up to 10 failures
+      start_period: 90s  # Give the container 90 seconds to bootstrap before the first check
 
   backend:
     image: ${DOCKERHUB_USERNAME}/edi-lens-backend:${BACKEND_IMAGE_TAG:-latest}
