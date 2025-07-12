@@ -51,7 +51,7 @@ run_in_backend() {
 }
 
 # --- Main Logic ---
-if [ -z "$1" ]; then error "Usage: ./scripts/run_app.sh [dev|down|clean|setup:keycloak|...]"; fi
+if [ -z "$1" ]; then error "Usage: ./scripts/run_app.sh [dev|up|down|clean|setup:keycloak|setup:testdata...]"; fi
 COMMAND=$1; shift; check_docker
 
 case "$COMMAND" in
@@ -59,13 +59,20 @@ case "$COMMAND" in
         info "Starting services in DEVELOPMENT mode..."
         ${DC_COMMAND} -f docker-compose.yml -f docker-compose.dev.yml up -d --build
         ;;
+    "up")
+        info "Starting services..."
+        # If we're not local, assume production and pull latest images first
+        if [ "$IS_LOCAL_ENV" = false ]; then
+            info "Pulling latest images for production..."
+            ${DC_COMMAND} ${DC_FILES} pull
+        fi
+        # Build if necessary and start detached
+        ${DC_COMMAND} ${DC_FILES} up -d --build
+        success "Application started successfully."
+        ;;        
     "down")
         info "Stopping all services...";
-        if [ "$IS_LOCAL_ENV" = true ]; then
-            ${DC_COMMAND} -f docker-compose.yml -f docker-compose.dev.yml down -v
-        else
-            ${DC_COMMAND} -f docker-compose.prod.yml down -v
-        fi
+        ${DC_COMMAND} ${DC_FILES} down --volumes
         ;;
     "clean")
         read -p "⚠️  This will delete all data and volumes. Are you sure? [y/N] " confirm
