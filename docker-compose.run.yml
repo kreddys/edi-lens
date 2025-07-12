@@ -1,0 +1,24 @@
+# FILE: docker-compose.run.yml
+# This file is for running one-off commands inside a container
+# that is guaranteed to be on the correct network.
+
+services:
+  # This is a temporary service definition for running commands
+  run-command:
+    # We will specify the actual image to use from the command line
+    image: ${RUN_IMAGE}
+    # We mount the entire project so scripts can be found
+    volumes:
+      - .:/app
+    working_dir: /app
+    # CRITICAL: This ensures it connects to the same network as our running services
+    networks:
+      - edi_network
+    # We will override the command when we run it
+    command: ["echo", "Ready to run command..."]
+
+networks:
+  edi_network:
+    # This tells compose to use the existing network created by the main compose files
+    external:
+      name: edi-lens_edi_network
