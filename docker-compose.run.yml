@@ -1,16 +1,15 @@
 # FILE: docker-compose.run.yml
+
 services:
   run-command:
     image: ${RUN_IMAGE}
-    # working_dir is not strictly necessary if commands use absolute paths, but good to have.
     working_dir: /home/appuser/app 
-    volumes:
-      # We mount the code so the scripts are available.
-      - ./backend:/home/appuser/app
+    # --- THIS IS THE FIX ---
+    # REMOVE THE VOLUMES SECTION COMPLETELY.
+    # The image already contains the scripts and all dependencies.
+    # Mounting the local directory was hiding the .venv inside the image.
     networks:
       - edi_network
     env_file:
       - .env
-    # The entrypoint is inherited from the image, which is our docker-entrypoint.sh
-    # The command we pass will become the "$@" for that script.
     command: ["echo", "Ready to run command..."] 
