@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     
     LOG_LEVEL: str = "INFO"
     # Directory for storing EDI implementation guide schemas
-    EDI_SCHEMA_DIRECTORY: str = "/var/edi_lens/schemas"
+    EDI_SCHEMA_DIRECTORY: str = "/home/appuser/app/data/edi_schemas"
 
     BACKEND_HOST: str = "backend"    
 

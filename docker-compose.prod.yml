@@ -77,7 +77,7 @@ services:
       keycloak:
         condition: service_healthy
     volumes:
-      - ./backend/data/edi_schemas:/var/edi_lens/schemas
+      - ./backend/data/edi_schemas:/home/appuser/app/data/edi_schemas
     env_file: .env
     networks:
       - edi_network

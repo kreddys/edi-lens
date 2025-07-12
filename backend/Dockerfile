@@ -31,7 +31,7 @@ COPY --chown=appuser:appuser src/ src/
 COPY --chown=appuser:appuser scripts/ scripts/
 COPY --chown=appuser:appuser alembic/ alembic/
 COPY --chown=appuser:appuser alembic.ini .
-COPY --chown=appuser:appuser data/edi_schemas/ /var/edi_lens/schemas/
+COPY --chown=appuser:appuser data/ data/
 
 ENTRYPOINT ["/home/appuser/app/scripts/docker-entrypoint.sh"]
 

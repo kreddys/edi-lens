@@ -15,7 +15,7 @@ from src.api.schemas import TradingPartnerCreate
 # __file__ is /.../backend/scripts/seed.py
 # .parent is /.../backend/scripts/
 # .parent is /.../backend/
-SEED_DATA_DIR = Path(__file__).parent.parent / "seed_data"
+SEED_DATA_DIR = Path(__file__).parent.parent / "data" / "seed"
 
 # --- Database Setup ---
 engine = create_async_engine(settings.DATABASE_URL, echo=False)
