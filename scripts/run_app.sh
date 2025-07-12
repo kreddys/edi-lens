@@ -71,9 +71,18 @@ case "$COMMAND" in
         read -p "⚠️  This will delete all data and volumes. Are you sure? [y/N] " confirm
         if [[ "$confirm" =~ ^[yY](es)?$ ]]; then
             info "Stopping services and removing Docker volumes..."
-            ${DC_COMMAND} -f docker-compose.yml -f docker-compose.dev.yml down -v
-            if [ -d "./postgres-data" ]; then rm -rf "./postgres-data"; success "Deleted postgres-data folder."; fi
-        else warn "Clean operation cancelled."; fi
+            # CORRECTED: Use the environment-aware $DC_FILES variable
+            ${DC_COMMAND} ${DC_FILES} down --volumes
+            
+            # Also explicitly remove the bind-mounted data directory, just in case.
+            if [ -d "./postgres-data" ]; then
+                info "Removing local postgres-data directory..."
+                rm -rf "./postgres-data"
+                success "Deleted postgres-data directory."
+            fi
+        else
+            warn "Clean operation cancelled."
+        fi
         ;;
     "migrate:make")
         if [ -z "$1" ]; then error "Migration message is required."; fi
