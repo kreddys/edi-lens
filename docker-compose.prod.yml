@@ -1,5 +1,6 @@
 # FILE: docker-compose.prod.yml
 # This file is used for production-like deployments, pulling pre-built images.
+version: '3.8'
 
 services:
   db:
@@ -51,11 +52,15 @@ services:
       - KC_DB_USERNAME=${POSTGRES_USER}
       - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
       - KC_DB_SCHEMA=${KEYCLOAK_DB_SCHEMA}
+      # Explicitly set Java heap size to be conservative on a small droplet
+      - JAVA_OPTS_APPEND=-Dkeycloak.profile.feature.scripts=enabled -Dkeycloak.profile.feature.upload_scripts=enabled -Xms64m -Xmx512m
     ports:
       - "8080:8080"
     networks:
       - edi_network
-    command: start --auto-build
+    # Use the 'start-dev' command for simplicity in a dev deployment.
+    # It handles initial setup more gracefully than '--auto-build'.
+    command: start-dev
     restart: always
 
   admin-ui:
