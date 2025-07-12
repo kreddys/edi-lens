@@ -31,7 +31,7 @@ services:
     networks:
       - edi_network
     healthcheck:
-      test: ["CMD-SHELL", "psql -v ON_ERROR_STOP=1 -U \"${POSTGRES_USER}\" -d \"${POSTGRES_DB}\" -c 'SELECT 1' --variable=schemaname=\"'${KEYCLOAK_DB_SCHEMA}'\" -c 'SELECT 1 FROM pg_namespace WHERE nspname = :schemaname' | grep -q 1"]
+      test: ["CMD-SHELL", "psql -U \"${POSTGRES_USER}\" -d \"${POSTG-RES_DB}\" -c \"SELECT 1 FROM pg_namespace WHERE nspname = '${KEYCLOAK_DB_SCHEMA}';\" | grep -q 1"]
       interval: 5s
       timeout: 5s
       retries: 10
