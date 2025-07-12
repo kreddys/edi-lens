@@ -20,6 +20,7 @@ REALM_NAME = os.getenv("KEYCLOAK_REALM", "edi-lens")
 CLIENT_SECRET = os.getenv("KEYCLOAK_BACKEND_CLIENT_SECRET", "this-is-a-default-secret-change-it")
 KEYCLOAK_BACKEND_CLIENT_ID = os.getenv("KEYCLOAK_BACKEND_CLIENT_ID", "edi-lens-backend")
 KEYCLOAK_UI_CLIENT_ID = os.getenv("KEYCLOAK_UI_CLIENT_ID", "edi-lens-ui")
+REMOTE_HOST = os.getenv("REMOTE_HOST", "localhost")
 
 # --- Blueprint Definitions (with fix) ---
 # --- THIS IS THE FIX ---
@@ -47,15 +48,37 @@ COMPOSITE_ROLES = {
 }
 TENANTS = {"tenant-a": "tenant-admin", "tenant-b": "tenant-viewer"}
 
+# Define base URLs for different environments
+# Localhost URLs are always included for local development and testing.
+redirect_uris = [
+    "http://localhost:3001/*", 
+    "http://localhost:3000/*",
+]
+web_origins = [
+    "http://localhost:3001", 
+    "http://localhost:3000",
+]
+
+# If REMOTE_HOST is set to something other than localhost, add production URLs
+if REMOTE_HOST != "localhost":
+    prod_redirect_uri = f"https://{REMOTE_HOST}/*"
+    prod_web_origin = f"https://{REMOTE_HOST}"
+    redirect_uris.append(prod_redirect_uri)
+    web_origins.append(prod_web_origin)
+    # Log the configured URLs for easy debugging
+    logging.info(f"Production URLs configured for host: {REMOTE_HOST}")
+    logging.info(f"  - Redirect URI: {prod_redirect_uri}")
+    logging.info(f"  - Web Origin: {prod_web_origin}")
+
 CLIENTS = [
     {
         "clientId": KEYCLOAK_UI_CLIENT_ID,
         "name": "EDI Lens UI",
-        "publicClient": True, # Public client, no secret
+        "publicClient": True,
         "standardFlowEnabled": True,
-        "directAccessGrantsEnabled": False, # Not needed for UI
-        "redirectUris": ["http://localhost:3001/*", "http://localhost:3000/*"],
-        "webOrigins": ["http://localhost:3001", "http://localhost:3000"],
+        "directAccessGrantsEnabled": False,
+        "redirectUris": redirect_uris,
+        "webOrigins": web_origins,
     },
     {
         "clientId": KEYCLOAK_BACKEND_CLIENT_ID,
