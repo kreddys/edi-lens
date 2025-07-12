@@ -38,8 +38,7 @@ class Settings(BaseSettings):
     # Configure the model to load from the .env file and to ignore any extra
     # variables that are not defined in this class (e.g., KEYCLOAK_ADMIN_USER).
     model_config = SettingsConfigDict(
-        env_file=ENV_PATH,
-        extra='ignore' # This is the crucial addition
+        extra='ignore'
     )
     # --- END OF FIX ---
 

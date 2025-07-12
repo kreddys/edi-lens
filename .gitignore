@@ -23,17 +23,21 @@ coverage
 
 # Dependency directories
 node_modules/
-frontend/node_modules/ # Specific to new structure
+admin-ui/node_modules/ # Specific to new structure
 
 # Build output
 dist
-frontend/dist/ # Specific to new structure
+admin-ui/dist/ # Specific to new structure
 
 # Other
 .DS_Store
+llm_export.txt
+
+# Environment files - VERY IMPORTANT
 .env
-.env.*.local
-edi_lens_bundle.txt
+.env.*
+!/.env.local.example
+!/.env.prod.example
 
 # Python
 __pycache__/
@@ -53,7 +57,6 @@ build/
 # Docker
 docker-compose.override.yml
 postgres-data/
-llm_export.txt
 
 # Generated Keycloak config with secrets
 keycloak-config/realm-export.json

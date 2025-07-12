@@ -32,8 +32,6 @@ services:
       - ./backend:/home/appuser/app
       - ./backend/data/edi_schemas:/var/edi_lens/schemas
       - /home/appuser/app/.venv
-    env_file:
-      - .env
     networks:
       - edi_network
     healthcheck:
@@ -59,6 +57,7 @@ services:
       KC_DB_SCHEMA: ${KEYCLOAK_DB_SCHEMA}
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
+      KC_SPI_FRAME_ANCESTORS: ${KC_SPI_FRAME_ANCESTORS}
     ports:
       - "8080:8080"
       - "9000:9000" # <-- Expose the management port
@@ -87,8 +86,6 @@ services:
       - backend
     networks:
       - edi_network
-    env_file:
-      - .env
 
 networks:
   edi_network:

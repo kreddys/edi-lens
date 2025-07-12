@@ -7,6 +7,9 @@ BACKEND_SERVICE_NAME="backend"
 DB_SERVICE_NAME="db"
 KEYCLOAK_SERVICE_NAME="keycloak"
 
+# Define the compose files to use for local development
+COMPOSE_FILES="-f docker-compose.yml -f docker-compose.dev.yml"
+
 info() { echo "[INFO] $1"; }
 success() { echo "[SUCCESS] $1"; }
 warn() { echo "[WARN] $1"; }
@@ -20,15 +23,15 @@ check_docker() {
 
 stop_services() {
     info "Stopping all services..."
-    docker-compose down
+    docker-compose ${COMPOSE_FILES} down
 }
 
 setup_keycloak() {
     info "Running Keycloak setup script..."
     warn "This requires all services to be running and healthy."
-    docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --wait db keycloak
+    docker-compose ${COMPOSE_FILES} up -d --wait db keycloak
     info "Executing setup script inside the backend container..."
-    docker-compose -f docker-compose.yml -f docker-compose.dev.yml run --rm "$BACKEND_SERVICE_NAME" python3 /home/appuser/app/scripts/setup_keycloak_realm.py
+    docker-compose ${COMPOSE_FILES} run --rm "$BACKEND_SERVICE_NAME" python3 /home/appuser/app/scripts/setup_keycloak_realm.py
     success "Keycloak setup script completed successfully."
 }
 
@@ -36,7 +39,7 @@ manage_test_db() {
     local command=$1
     info "Running database command: $command"
     # Override the default command to run the manage_test_db script
-    docker-compose -f docker-compose.yml -f docker-compose.dev.yml run --rm "$BACKEND_SERVICE_NAME" python -m tests.manage_test_db "$command"
+    docker-compose ${COMPOSE_FILES} run --rm "$BACKEND_SERVICE_NAME" python -m tests.manage_test_db "$command"
 }
 
 run_unit_tests() {
@@ -52,7 +55,7 @@ run_unit_tests() {
 run_integration_tests() {
     info "Preparing for integration tests..."
     info "(1/4) Starting all services..."
-    docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --wait
+    docker-compose ${COMPOSE_FILES} up -d --wait
     
     info "(2/4) Setting up Keycloak realm, roles, and users..."
     setup_keycloak
@@ -62,37 +65,35 @@ run_integration_tests() {
     manage_test_db "create"
 
     info "(4/4) Executing integration tests inside the backend container..."
-    docker-compose -f docker-compose.yml -f docker-compose.dev.yml run --rm "$BACKEND_SERVICE_NAME" pytest -m "integration"
+    docker-compose ${COMPOSE_FILES} run --rm "$BACKEND_SERVICE_NAME" pytest -m "integration"
 
     success "Integration tests completed."
 }
 
-
 # --- Main Logic ---
 if [ -z "$1" ]; then
-    error "Usage: ./scripts/run_app.sh [up|dev|down|clean|logs|restart <service>|...]"
+    error "Usage: ./scripts/run_app.sh [dev|down|clean|logs|restart <service>|...]"
 fi
 COMMAND=$1
 shift # Shift arguments so $1 is now the migration message or service name
 
-# Load .env from project root
-if [ -f "$(dirname "$0")/../.env" ]; then
-    info "Loading environment variables from .env file..."
-    export $(cat "$(dirname "$0")/../.env" | grep -v '#' | xargs)
+# Load .env.local from project root for local operations
+if [ -f "$(dirname "$0")/../.env.local" ]; then
+    info "Loading local environment variables from .env.local file..."
+    # Use set -a to automatically export all variables sourced from the file
+    set -a
+    source "$(dirname "$0")/../.env.local"
+    set +a
 else
-    warn ".env file not found in project root. Using default environment variables."
+    warn ".env.local file not found in project root. Some commands may fail. Please create it from .env.local.example."
 fi
 
 check_docker
 
 case "$COMMAND" in
-    "up")
-        info "Starting all application services..."
-        docker-compose up -d --build
-        ;;
     "dev")
-        info "Starting all services in DEVELOPMENT mode (with backend live-reload)..."
-        docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+        info "Starting all services in DEVELOPMENT mode (with live-reload)..."
+        docker-compose ${COMPOSE_FILES} up -d --build
         ;;        
     "down")
         stop_services
@@ -102,7 +103,7 @@ case "$COMMAND" in
             error "Service name is required. Usage: ./scripts/run_app.sh restart <service_name>"
         fi
         info "Restarting service: $1..."
-        docker-compose -f docker-compose.yml -f docker-compose.dev.yml restart "$1"
+        docker-compose ${COMPOSE_FILES} restart "$1"
         success "Service $1 restarted."
         ;;
     "clean")
@@ -113,7 +114,7 @@ case "$COMMAND" in
         case "$confirm" in
             [yY][eE][sS]|[yY])
                 info "Stopping services and removing Docker volumes..."
-                docker-compose down -v
+                docker-compose ${COMPOSE_FILES} down -v
 
                 if [ -d "$POSTGRES_DATA_DIR" ]; then
                     info "Found postgres-data folder at: $POSTGRES_DATA_DIR"
@@ -130,7 +131,7 @@ case "$COMMAND" in
                 fi
 
                 info "Rebuilding all services..."
-                docker-compose build
+                docker-compose ${COMPOSE_FILES} build
                 success "Clean complete."
                 ;;
             *)
@@ -144,25 +145,24 @@ case "$COMMAND" in
         fi
         info "Generating new migration: $1"
         info "Starting dependent services..."
-        docker-compose up -d db keycloak
+        docker-compose ${COMPOSE_FILES} up -d db keycloak
         sleep 5 # Give services time to stabilize
         info "Running alembic command..."
-        # Use 'run --rm' to start a temporary container for the command
-        docker-compose run --rm "$BACKEND_SERVICE_NAME" alembic revision --autogenerate -m "$1"
+        docker-compose ${COMPOSE_FILES} run --rm "$BACKEND_SERVICE_NAME" alembic revision --autogenerate -m "$1"
         success "Migration file created. Please check it for correctness."
         ;;
     "migrate:run")
         info "Applying migrations to the database..."
         info "Starting dependent services..."
-        docker-compose up -d db
+        docker-compose ${COMPOSE_FILES} up -d db
         sleep 5
         info "Running alembic upgrade..."
-        docker-compose run --rm "$BACKEND_SERVICE_NAME" alembic upgrade head
+        docker-compose ${COMPOSE_FILES} run --rm "$BACKEND_SERVICE_NAME" alembic upgrade head
         success "Migrations applied."
         ;;
     "logs")
         info "Tailing logs for all services..."
-        docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f
+        docker-compose ${COMPOSE_FILES} logs -f
         ;;
     "test:unit")
         run_unit_tests
@@ -172,13 +172,21 @@ case "$COMMAND" in
         info "Stopping services after integration tests..."
         stop_services
         ;;
+    "deploy:dev")
+        info "Manually triggering the 'Deploy to Dev Droplet' GitHub Action..."
+        if ! command -v gh &> /dev/null; then
+            error "GitHub CLI ('gh') is not installed. Please install it to use this command."
+        fi
+        gh workflow run deploy-dev.yml --ref main
+        success "Workflow triggered. Check the 'Actions' tab in your GitHub repository for progress."
+        ;;
     "setup:keycloak")
         setup_keycloak
         ;;
     "setup:testdata")
         info "Seeding the database with initial test data..."
         info "Any additional arguments will be passed to the script (e.g., --clean)."
-        docker-compose run --rm "$BACKEND_SERVICE_NAME" python -m scripts.seed "$@"
+        docker-compose ${COMPOSE_FILES} run --rm "$BACKEND_SERVICE_NAME" python -m scripts.seed "$@"
         success "Database seeding complete."
         ;;
     *)

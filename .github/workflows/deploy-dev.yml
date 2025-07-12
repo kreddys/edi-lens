@@ -1,0 +1,66 @@
+# FILE: .github/workflows/deploy-dev.yml
+name: Deploy to Dev Droplet
+
+on:
+  push:
+    branches:
+      - dev  # <-- THIS IS THE CHANGE
+  workflow_dispatch: # Allow manual triggering from the GitHub UI
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:${{ github.sha }},${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:latest
+          cache-to: type=inline
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./admin-ui
+          file: ./admin-ui/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-ui:${{ github.sha }},${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-ui:latest
+          build-args: |
+            VITE_KEYCLOAK_URL=${{ secrets.VITE_KEYCLOAK_URL }}
+            VITE_KEYCLOAK_REALM=${{ secrets.VITE_KEYCLOAK_REALM }}
+            VITE_KEYCLOAK_CLIENT_ID=${{ secrets.VITE_KEYCLOAK_CLIENT_ID }}
+            VITE_API_URL=${{ secrets.VITE_API_URL }}
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-ui:latest
+          cache-to: type=inline
+
+      - name: Deploy to Droplet
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USERNAME }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/edi-lens
+            export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            echo "${{ secrets.DOT_ENV }}" > .env
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d
+            docker image prune -af

@@ -9,6 +9,8 @@ services:
     # This command overrides the default CMD in the Dockerfile.
     # The --reload flag enables auto-reloading when source code changes.
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file: .env.local
+
   admin-ui:
     build:
       context: ./admin-ui
@@ -19,5 +21,4 @@ services:
     ports:
       - "3001:3000"  # React dev server runs on 3000
     command: npm run dev -- --host
-    env_file:
-      - .env
+    env_file: .env.local
