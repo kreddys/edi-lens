@@ -16,14 +16,14 @@ error() { echo "[ERROR] $1" >&2; exit 1; }
 # --- Dynamic Environment Setup ---
 if docker compose version >/dev/null 2>&1; then DC_COMMAND="docker compose"; else DC_COMMAND="docker-compose"; fi
 
-ENV_FILE_LOCAL="$(dirname "$0")/../.env.local"
 IS_LOCAL_ENV=false
-if [ -f "$ENV_FILE_LOCAL" ] && [ "$CI" != "true" ]; then
-    IS_LOCAL_ENV=true
-    DC_FILES_UP="-f docker-compose.yml -f docker-compose.dev.yml"
-    ENV_FILE_TO_LOAD="$ENV_FILE_LOCAL"
+if [ -f "$(dirname "$0")/../.env.local" ]; then IS_LOCAL_ENV=true; fi
+
+if [ "$IS_LOCAL_ENV" = true ]; then
+    DC_FILES="-f docker-compose.yml -f docker-compose.dev.yml"
+    ENV_FILE_TO_LOAD="$(dirname "$0")/../.env.local"
 else
-    DC_FILES_UP="-f docker-compose.prod.yml"
+    DC_FILES="-f docker-compose.prod.yml"
     ENV_FILE_TO_LOAD="$(dirname "$0")/../.env"
 fi
 
@@ -43,11 +43,26 @@ run_in_backend() {
     local cmd_to_run=("$@")
     info "Executing in backend: ${cmd_to_run[*]}"
     if [ "$IS_LOCAL_ENV" = true ]; then
-        ${DC_COMMAND} ${DC_FILES_UP} exec "$BACKEND_SERVICE_NAME" "${cmd_to_run[@]}"
+        ${DC_COMMAND} ${DC_FILES} exec "$BACKEND_SERVICE_NAME" "${cmd_to_run[@]}"
     else
         export RUN_IMAGE="${DOCKERHUB_USERNAME}/edi-lens-backend:latest"
         ${DC_COMMAND} -f docker-compose.prod.yml -f docker-compose.run.yml run --rm run-command "${cmd_to_run[@]}"
     fi
+}
+
+setup_keycloak() {
+    info "Running Keycloak setup script..."
+    warn "This requires dependent services to be running."
+    ${DC_COMMAND} ${DC_FILES} up -d --wait db keycloak "$BACKEND_SERVICE_NAME"
+    run_in_backend "python" "backend/scripts/setup_keycloak_realm.py"
+    success "Keycloak setup script completed successfully."
+}
+
+setup_testdata() {
+    info "Seeding the database with initial test data..."
+    ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
+    run_in_backend "python" "backend/scripts/seed.py" "$@"
+    success "Database seeding complete."
 }
 
 # --- Main Logic ---
@@ -55,13 +70,17 @@ if [ -z "$1" ]; then error "Usage: ./scripts/run_app.sh [dev|down|clean|setup:ke
 COMMAND=$1; shift; check_docker
 
 case "$COMMAND" in
+    "up")
+        info "Starting all services defined in compose files..."
+        ${DC_COMMAND} ${DC_FILES} up -d "$@"
+        ;;
     "dev")
         info "Starting services in DEVELOPMENT mode..."
         ${DC_COMMAND} -f docker-compose.yml -f docker-compose.dev.yml up -d --build
         ;;
     "down")
-        info "Stopping all local development services..."
-        ${DC_COMMAND} -f docker-compose.yml -f docker-compose.dev.yml down -v
+        info "Stopping all services..."
+        ${DC_COMMAND} ${DC_FILES} down -v
         ;;
     "clean")
         read -p "⚠️  This will delete local database data and volumes. Are you sure? [y/N] " confirm
@@ -74,22 +93,14 @@ case "$COMMAND" in
     "migrate:make")
         if [ -z "$1" ]; then error "Migration message is required."; fi
         info "Generating new migration: $1"
-        ${DC_COMMAND} ${DC_FILES_UP} up -d --wait "$BACKEND_SERVICE_NAME"
-        if [ "$IS_LOCAL_ENV" = true ]; then
-            run_in_backend "alembic" "-c" "alembic.ini" "revision" "--autogenerate" "-m" "$1"
-        else
-            run_in_backend "alembic" "-c" "backend/alembic.ini" "revision" "--autogenerate" "-m" "$1"
-        fi
+        ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
+        run_in_backend "alembic" "-c" "backend/alembic.ini" "revision" "--autogenerate" "-m" "$1"
         success "Migration file created."
         ;;
     "migrate:run")
         info "Applying migrations to the database..."
-        ${DC_COMMAND} ${DC_FILES_UP} up -d --wait "$BACKEND_SERVICE_NAME"
-        if [ "$IS_LOCAL_ENV" = true ]; then
-            run_in_backend "alembic" "-c" "alembic.ini" "upgrade" "head"
-        else
-            run_in_backend "alembic" "-c" "backend/alembic.ini" "upgrade" "head"
-        fi
+        ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
+        run_in_backend "alembic" "-c" "backend/alembic.ini" "upgrade" "head"
         success "Migrations applied."
         ;;
     "deploy:dev")
@@ -99,29 +110,14 @@ case "$COMMAND" in
         success "Workflow triggered."
         ;;
     "setup:keycloak")
-        info "Running Keycloak setup script..."
-        warn "This requires dependent services to be running."
-        ${DC_COMMAND} ${DC_FILES_UP} up -d --wait db keycloak backend
-        if [ "$IS_LOCAL_ENV" = true ]; then
-            run_in_backend "python" "scripts/setup_keycloak_realm.py"
-        else
-            run_in_backend "python" "backend/scripts/setup_keycloak_realm.py"
-        fi
-        success "Keycloak setup script completed successfully."
+        setup_keycloak
         ;;
     "setup:testdata")
-        info "Seeding the database with initial test data..."
-        ${DC_COMMAND} ${DC_FILES_UP} up -d --wait backend
-        if [ "$IS_LOCAL_ENV" = true ]; then
-            run_in_backend "python" "scripts/seed.py" "$@"
-        else
-            run_in_backend "python" "backend/scripts/seed.py" "$@"
-        fi
-        success "Database seeding complete."
+        setup_testdata "$@"
         ;;
     "logs")
-        info "Tailing logs..."
-        ${DC_COMMAND} ${DC_FILES_UP} logs -f "$@"
+        info "Tailing logs...";
+        ${DC_COMMAND} ${DC_FILES} logs -f "$@"
         ;;
     *)
         error "Unknown command: $COMMAND"

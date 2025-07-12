@@ -2,17 +2,17 @@
 services:
   run-command:
     image: ${RUN_IMAGE}
-    # Mount the entire project so scripts and configs can be found
+    # Set the working directory to the backend code root inside the container
+    working_dir: /app/backend
     volumes:
+      # Mount the entire project to /app
       - .:/app
-    # Set the working directory to where code is mounted
-    working_dir: /app
-    # CRITICAL: This ensures it connects to the same network as our running services
     networks:
       - edi_network
+    # The command will be provided by the script
     command: ["echo", "Ready to run command..."]
 
 networks:
   edi_network:
-    external:
-      name: edi-lens_edi_network
+    # Use the existing network created by the main compose files
+    external: true
