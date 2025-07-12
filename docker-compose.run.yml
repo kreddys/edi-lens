@@ -14,5 +14,5 @@ services:
 
 networks:
   edi_network:
-    # Use the existing network created by the main compose files
     external: true
+    name: edi-lens_edi_network # Explicitly reference the external network

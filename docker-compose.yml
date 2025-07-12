@@ -89,4 +89,5 @@ services:
 
 networks:
   edi_network:
+    name: edi-lens_edi_network # Explicitly name the network
     driver: bridge

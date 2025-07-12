@@ -5,7 +5,8 @@ set -e
 
 # --- Configuration ---
 BACKEND_SERVICE_NAME="backend"
-NETWORK_NAME="edi-lens_edi_network" # From docker-compose network definition
+# The explicit network name from your compose files
+NETWORK_NAME="edi-lens_edi_network"
 
 # --- Helper Functions ---
 info() { echo "[INFO] $1"; }
@@ -46,23 +47,8 @@ run_in_backend() {
         ${DC_COMMAND} ${DC_FILES} exec "$BACKEND_SERVICE_NAME" "${cmd_to_run[@]}"
     else
         export RUN_IMAGE="${DOCKERHUB_USERNAME}/edi-lens-backend:latest"
-        ${DC_COMMAND} -f docker-compose.prod.yml -f docker-compose.run.yml run --rm run-command "${cmd_to_run[@]}"
+        ${DC_COMMAND} -f docker-compose.run.yml run --rm run-command "${cmd_to_run[@]}"
     fi
-}
-
-setup_keycloak() {
-    info "Running Keycloak setup script..."
-    warn "This requires dependent services to be running."
-    ${DC_COMMAND} ${DC_FILES} up -d --wait db keycloak "$BACKEND_SERVICE_NAME"
-    run_in_backend "python" "backend/scripts/setup_keycloak_realm.py"
-    success "Keycloak setup script completed successfully."
-}
-
-setup_testdata() {
-    info "Seeding the database with initial test data..."
-    ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
-    run_in_backend "python" "backend/scripts/seed.py" "$@"
-    success "Database seeding complete."
 }
 
 # --- Main Logic ---
@@ -71,7 +57,7 @@ COMMAND=$1; shift; check_docker
 
 case "$COMMAND" in
     "up")
-        info "Starting all services defined in compose files..."
+        info "Starting all services..."
         ${DC_COMMAND} ${DC_FILES} up -d "$@"
         ;;
     "dev")
@@ -83,10 +69,10 @@ case "$COMMAND" in
         ${DC_COMMAND} ${DC_FILES} down -v
         ;;
     "clean")
-        read -p "⚠️  This will delete local database data and volumes. Are you sure? [y/N] " confirm
+        read -p "⚠️  This will delete all data and volumes. Are you sure? [y/N] " confirm
         if [[ "$confirm" =~ ^[yY](es)?$ ]]; then
             info "Stopping services and removing Docker volumes..."
-            ${DC_COMMAND} -f docker-compose.yml -f docker-compose.dev.yml down -v
+            ${DC_COMMAND} ${DC_FILES} down -v
             if [ -d "./postgres-data" ]; then rm -rf "./postgres-data"; success "Deleted postgres-data folder."; fi
         else warn "Clean operation cancelled."; fi
         ;;
@@ -103,17 +89,24 @@ case "$COMMAND" in
         run_in_backend "alembic" "-c" "backend/alembic.ini" "upgrade" "head"
         success "Migrations applied."
         ;;
+    "setup:keycloak")
+        info "Running Keycloak setup script..."
+        warn "This requires dependent services to be running."
+        ${DC_COMMAND} ${DC_FILES} up -d --wait db keycloak "$BACKEND_SERVICE_NAME"
+        run_in_backend "python" "backend/scripts/setup_keycloak_realm.py"
+        success "Keycloak setup script completed successfully."
+        ;;
+    "setup:testdata")
+        info "Seeding the database with initial test data..."
+        ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
+        run_in_backend "python" "backend/scripts/seed.py" "$@"
+        success "Database seeding complete."
+        ;;
     "deploy:dev")
         info "Manually triggering the 'Deploy to Dev Droplet' GitHub Action..."
         if ! command -v gh &> /dev/null; then error "GitHub CLI ('gh') is not installed."; fi
         gh workflow run deploy-dev.yml --ref dev
         success "Workflow triggered."
-        ;;
-    "setup:keycloak")
-        setup_keycloak
-        ;;
-    "setup:testdata")
-        setup_testdata "$@"
         ;;
     "logs")
         info "Tailing logs...";
