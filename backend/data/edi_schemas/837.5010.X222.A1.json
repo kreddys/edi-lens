@@ -25,7 +25,10 @@
           "data_ele": "I02",
           "name": "Authorization Information",
           "usage": "R",
-          "seq": "02"
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "ISA03",
@@ -45,7 +48,10 @@
           "data_ele": "I04",
           "name": "Security Information",
           "usage": "R",
-          "seq": "04"
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "ISA05",
@@ -72,7 +78,10 @@
           "data_ele": "I06",
           "name": "Interchange Sender ID",
           "usage": "R",
-          "seq": "06"
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "ISA07",
@@ -99,21 +108,30 @@
           "data_ele": "I07",
           "name": "Interchange Receiver ID",
           "usage": "R",
-          "seq": "08"
+          "seq": "08",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "ISA09",
           "data_ele": "I08",
           "name": "Interchange Date",
           "usage": "R",
-          "seq": "09"
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "ISA10",
           "data_ele": "I09",
           "name": "Interchange Time",
           "usage": "R",
-          "seq": "10"
+          "seq": "10",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "ISA11",
@@ -144,7 +162,10 @@
           "data_ele": "I12",
           "name": "Interchange Control Number",
           "usage": "R",
-          "seq": "13"
+          "seq": "13",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "ISA14",
@@ -177,7 +198,10 @@
           "data_ele": "I15",
           "name": "Component Element Separator",
           "usage": "R",
-          "seq": "16"
+          "seq": "16",
+          "valid_codes": {
+            "code": []
+          }
         }
       ],
       "elementsByXid": {
@@ -199,7 +223,10 @@
           "data_ele": "I02",
           "name": "Authorization Information",
           "usage": "R",
-          "seq": "02"
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
         },
         "ISA03": {
           "xid": "ISA03",
@@ -219,7 +246,10 @@
           "data_ele": "I04",
           "name": "Security Information",
           "usage": "R",
-          "seq": "04"
+          "seq": "04",
+          "valid_codes": {
+            "code": []
+          }
         },
         "ISA05": {
           "xid": "ISA05",
@@ -246,7 +276,10 @@
           "data_ele": "I06",
           "name": "Interchange Sender ID",
           "usage": "R",
-          "seq": "06"
+          "seq": "06",
+          "valid_codes": {
+            "code": []
+          }
         },
         "ISA07": {
           "xid": "ISA07",
@@ -273,21 +306,30 @@
           "data_ele": "I07",
           "name": "Interchange Receiver ID",
           "usage": "R",
-          "seq": "08"
+          "seq": "08",
+          "valid_codes": {
+            "code": []
+          }
         },
         "ISA09": {
           "xid": "ISA09",
           "data_ele": "I08",
           "name": "Interchange Date",
           "usage": "R",
-          "seq": "09"
+          "seq": "09",
+          "valid_codes": {
+            "code": []
+          }
         },
         "ISA10": {
           "xid": "ISA10",
           "data_ele": "I09",
           "name": "Interchange Time",
           "usage": "R",
-          "seq": "10"
+          "seq": "10",
+          "valid_codes": {
+            "code": []
+          }
         },
         "ISA11": {
           "xid": "ISA11",
@@ -318,7 +360,10 @@
           "data_ele": "I12",
           "name": "Interchange Control Number",
           "usage": "R",
-          "seq": "13"
+          "seq": "13",
+          "valid_codes": {
+            "code": []
+          }
         },
         "ISA14": {
           "xid": "ISA14",
@@ -351,7 +396,10 @@
           "data_ele": "I15",
           "name": "Component Element Separator",
           "usage": "R",
-          "seq": "16"
+          "seq": "16",
+          "valid_codes": {
+            "code": []
+          }
         }
       }
     },
