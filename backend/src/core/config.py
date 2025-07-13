@@ -4,7 +4,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from keycloak import KeycloakOpenID
 from pathlib import Path
 
-ENV_PATH = Path(__file__).parent.parent.parent.parent / ".env"
+# --- THIS IS THE FIX ---
+# Calculate the project root directory relative to this file's location.
+# This file is in: /backend/src/core/
+# We need to go up three levels to get to the project root.
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+
+# Define the explicit paths to the environment files.
+ENV_FILE_LOCAL_PATH = PROJECT_ROOT / ".env.local"
+ENV_FILE_PROD_PATH = PROJECT_ROOT / ".env"
+
 
 # --- Settings Model (with LOG_LEVEL) ---
 class Settings(BaseSettings):
@@ -35,13 +44,13 @@ class Settings(BaseSettings):
             f"{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 
-    # --- THIS IS THE FIX ---
-    # Configure the model to load from the .env file and to ignore any extra
-    # variables that are not defined in this class (e.g., KEYCLOAK_ADMIN_USER).
+    # Configure the model to load from an env file and to ignore extra variables.
+    # We now provide the absolute paths to the environment files.
     model_config = SettingsConfigDict(
+        env_file=(str(ENV_FILE_LOCAL_PATH), str(ENV_FILE_PROD_PATH)),
+        env_file_encoding='utf-8',
         extra='ignore'
     )
-    # --- END OF FIX ---
 
 settings = Settings()
 
