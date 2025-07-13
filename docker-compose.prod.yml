@@ -58,13 +58,17 @@ services:
       # Admin user creation
       - KEYCLOAK_ADMIN_USER=${KEYCLOAK_ADMIN_USER}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+      
+      # Enable health endpoints on port 8080
+      - KEYCLOAK_ENABLE_HEALTH_ENDPOINTS=true
     networks:
       - edi_network
     healthcheck:
-      # --- THIS IS THE FIX: Use a simple TCP port check ---
-      # This command uses netcat (nc) to check if port 8080 is open and listening.
-      # This is a reliable way to know the main service is up.
-      test: ["CMD", "nc", "-z", "localhost", "8080"]
+      # --- THIS IS THE FINAL FIX ---
+      # This command uses the shell's built-in capabilities to check for an open TCP
+      # connection on port 8080. It does not rely on external tools like curl or nc.
+      # The `>/dev/null 2>&1` part suppresses any output to keep the logs clean.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 >/dev/null 2>&1"]
       interval: 5s
       timeout: 3s
       retries: 30
