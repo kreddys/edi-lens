@@ -49,9 +49,10 @@ run_in_backend() {
         # Local 'exec' is still the simplest method for the dev environment
         ${DC_COMMAND} ${DC_FILES} exec "$BACKEND_SERVICE_NAME" "${cmd_to_run[@]}"
     else
-        # For prod, use 'docker compose run' which will now read the network
-        # configuration from the docker-compose.run.yml file.
-        export RUN_IMAGE="${DOCKERHUB_USERNAME}/edi-lens-backend:latest"
+        # --- THIS IS THE FIX ---
+        # Use the BACKEND_IMAGE_TAG environment variable, defaulting to 'latest-dev'
+        # This ensures we pull the correct multi-arch image that was built by the CI pipeline.
+        export RUN_IMAGE="${DOCKERHUB_USERNAME}/edi-lens-backend:${BACKEND_IMAGE_TAG:-latest-dev}"
         
         # We pass BOTH sets of files. prod.yml defines the project context,
         # and run.yml adds our one-off service to that context.
