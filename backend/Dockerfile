@@ -13,11 +13,15 @@ RUN poetry config virtualenvs.in-project true && \
 # Stage 2: Final application stage
 FROM python:3.11-slim
 
+# --- FIX: Install sudo to allow the user to change permissions ---
 USER root
-RUN apt-get update && apt-get install -y curl && \
+RUN apt-get update && apt-get install -y curl sudo && \
     rm -rf /var/lib/apt/lists/*
 
 RUN useradd --create-home --shell /bin/bash appuser
+# --- FIX: Give the appuser passwordless sudo privileges ---
+RUN echo "appuser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
 USER appuser
 WORKDIR /home/appuser/app
 
@@ -32,6 +36,11 @@ COPY --chown=appuser:appuser scripts/ scripts/
 COPY --chown=appuser:appuser alembic/ alembic/
 COPY --chown=appuser:appuser alembic.ini .
 COPY --chown=appuser:appuser data/ data/
+
+# --- FIX: Change ownership of the data directory inside the container ---
+# This ensures the appuser can write to the schema files, even if the
+# host directory is owned by root.
+RUN sudo chown -R appuser:appuser /home/appuser/app/data
 
 ENTRYPOINT ["/home/appuser/app/scripts/docker-entrypoint.sh"]
 
