@@ -206,6 +206,41 @@ def create_or_update_client_scope_mappers(admin_client: KeycloakAdmin):
             else:
                 raise e
 
+def configure_realm_security(admin_client: KeycloakAdmin):
+    """
+    Updates the realm's browser security headers to allow the UI to be framed.
+    This is necessary for the silent SSO check to work across subdomains.
+    """
+    logging.info("\n--- Updating Realm Security Headers ---")
+    
+    # --- THIS IS THE FIX: Generate the policy based on the environment ---
+    allowed_ancestors = ["'self'"] # Keycloak should always be able to frame itself.
+
+    if REMOTE_HOST == "localhost":
+        # For local dev, allow the HTTP origins for Vite and the Nginx container
+        allowed_ancestors.append("http://localhost:3001")
+        allowed_ancestors.append("http://localhost:3000")
+        logging.info(f"  - Configuring for LOCAL development, allowing: {' '.join(allowed_ancestors)}")
+    else:
+        # For production, only allow the main UI domain over HTTPS
+        allowed_ancestors.append(f"https://{REMOTE_HOST}")
+        logging.info(f"  - Configuring for PRODUCTION, allowing: {' '.join(allowed_ancestors)}")
+
+    # Construct the final Content-Security-Policy string
+    csp_policy = f"frame-ancestors {' '.join(allowed_ancestors)}; object-src 'none';"
+    
+    # The payload only needs the modern CSP header.
+    realm_payload = {
+        "browserSecurityHeaders": {
+            "contentSecurityPolicy": csp_policy
+        }
+    }
+    
+    try:
+        admin_client.update_realm(REALM_NAME, payload=realm_payload)
+        logging.info(f"  - Successfully set Content-Security-Policy.")
+    except Exception as e:
+        logging.error(f"❌ Failed to update realm security headers: {e}")
 
 def main():
     logging.info("--- Starting Keycloak Realm Setup ---")
@@ -244,10 +279,13 @@ def main():
         logging.error(f"An unexpected error occurred while checking for the realm: {e}")
         sys.exit(1)
 
-    # --- THIS IS THE FIX ---
     # We must switch the client's context to the new realm for all subsequent operations.
     logging.info(f"Switching admin client context to realm '{REALM_NAME}'")
     admin_client.connection.realm_name = REALM_NAME
+
+    # --- THIS IS THE FIX ---
+    # Call the new function to update security headers after ensuring the realm exists.
+    configure_realm_security(admin_client)
 
     logging.info("\n--- Configuring Client Scopes and Mappers ---")
     create_or_update_client_scope_mappers(admin_client)
