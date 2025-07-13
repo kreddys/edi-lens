@@ -37,43 +37,42 @@ services:
       retries: 10
 
   keycloak:
-    # --- FIX 1: Use the Bitnami image which supports ARM64 architecture ---
     image: bitnami/keycloak:latest
     restart: always
     depends_on:
       db:
         condition: service_healthy
     environment:
-      # --- FIX 2: Use Bitnami-compatible environment variables for proxying ---
-      # This combination correctly configures Keycloak to run behind Caddy.
+      # --- FIX 1: Use the official Bitnami environment variables ---
+      - KEYCLOAK_DATABASE_VENDOR=postgresql # Explicitly set vendor
+      - KEYCLOAK_DATABASE_HOST=db          # Connect to the 'db' service
+      - KEYCLOAK_DATABASE_NAME=${POSTGRES_DB}
+      - KEYCLOAK_DATABASE_USER=${POSTGRES_USER}
+      - KEYCLOAK_DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - KEYCLOAK_DATABASE_SCHEMA=${KEYCLOAK_DB_SCHEMA}
+
+      # Proxy settings for Bitnami image
       - KEYCLOAK_PROXY_HEADERS=xforwarded
       - KEYCLOAK_HOSTNAME_URL=https://auth.${REMOTE_HOST}
-      - KEYCLOAK_HTTP_HOST=0.0.0.0
       
-      # Bitnami variables for initial admin user
+      # Admin user creation
       - KEYCLOAK_ADMIN_USER=${KEYCLOAK_ADMIN_USER}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
-
-      # Standard Keycloak DB variables (work with Bitnami image)
-      - KC_DB=postgres
-      - KC_DB_URL_HOST=db
-      - KC_DB_URL_DATABASE=${POSTGRES_DB}
-      - KC_DB_USERNAME=${POSTGRES_USER}
-      - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
-      - KC_DB_SCHEMA=${KEYCLOAK_DB_SCHEMA}
+    ports:
+      # --- FIX 2: Re-expose port 9000 for the healthcheck ---
+      - "9000:9000"
     networks:
       - edi_network
     healthcheck:
-      # --- FIX 3: Update healthcheck for the Bitnami image ---
-      # It uses the standard /health path on port 8080.
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      # --- FIX 3: Use your previously working healthcheck command ---
+      # Note: The Bitnami image may not expose a management port by default, but this is worth trying first.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost:9000\\r\\nConnection: close\\r\\n\\r\\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"' && exit 0 || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 30
       start_period: 20s
 
   backend:
-    # --- FIX 4: Use the correct image tag for the dev branch ---
     image: ${DOCKERHUB_USERNAME}/edi-lens-backend:${BACKEND_IMAGE_TAG:-latest-dev}
     restart: always
     depends_on:
@@ -97,7 +96,6 @@ services:
       start_period: 20s
 
   admin-ui:
-    # --- FIX 5: Use the correct image tag for the dev branch ---
     image: ${DOCKERHUB_USERNAME}/edi-lens-ui:${UI_IMAGE_TAG:-latest-dev}
     restart: always
     depends_on:
