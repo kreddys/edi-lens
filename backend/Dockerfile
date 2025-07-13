@@ -2,46 +2,34 @@
 FROM python:3.11-slim AS builder
 
 WORKDIR /home/appuser/app
-
 RUN pip install --no-cache-dir poetry
-
 COPY pyproject.toml poetry.lock ./
-
 RUN poetry config virtualenvs.in-project true && \
     poetry install --no-root
 
 # Stage 2: Final application stage
 FROM python:3.11-slim
 
-USER root
-# --- FIX: Ensure curl is installed for the wait-for-it script ---
-RUN apt-get update && apt-get install -y curl && \
+# Install dependencies as root. 'gosu' is for production permission handling.
+RUN apt-get update && apt-get install -y curl gosu && \
     rm -rf /var/lib/apt/lists/*
 
+# Create user and workdir
 RUN useradd --create-home --shell /bin/bash appuser
-USER appuser
 WORKDIR /home/appuser/app
 
-ENV PYTHONPATH=/home/appuser/app
+# --- THIS IS THE FIX ---
+# Set the PATH environment variable for the entire container.
+# This ensures that any shell, exec command, or main process will automatically
+# find the executables inside the virtual environment.
 ENV PATH="/home/appuser/app/.venv/bin:$PATH"
 
+# Copy project files from the builder stage and local context
 COPY --from=builder --chown=appuser:appuser /home/appuser/app/.venv ./.venv
+COPY --chown=appuser:appuser . .
 
-# Copy all necessary source code, scripts, and configuration
-COPY --chown=appuser:appuser src/ src/
-COPY --chown=appuser:appuser scripts/ scripts/
-COPY --chown=appuser:appuser alembic/ alembic/
-COPY --chown=appuser:appuser alembic.ini .
-COPY --chown=appuser:appuser data/ data/
-
-# --- FIX: Change ownership of the data directory inside the container ---
-# This step needs to be done as root before switching to appuser permanently
-USER root
-RUN chown -R appuser:appuser /home/appuser/app/data
-USER appuser
-
+# The ENTRYPOINT will run as root to fix permissions before stepping down.
 ENTRYPOINT ["/home/appuser/app/scripts/docker-entrypoint.sh"]
 
-# Set the default command that the entrypoint will execute with "exec $@".
-# This allows us to easily override the command in docker-compose for other tasks.
+# The command to run after the entrypoint script has prepared the environment.
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

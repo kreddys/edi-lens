@@ -1,30 +1,28 @@
 #!/bin/bash
-
-# Exit immediately if a command exits with a non-zero status.
 set -e
 
-# --- THIS IS THE FIX: Wait for Keycloak before starting the backend ---
-# This script runs inside the backend container, which has curl installed.
-echo "ENTRYPOINT: Waiting for Keycloak to become available at http://keycloak:8080..."
-# We will check the root URL. We expect a 3xx redirect, which is fine.
-# We just need to know the port is open and the service is responding to HTTP.
+# This script intelligently handles both production and local development startup.
+
+# If running as root (in production), fix permissions and then re-execute this script as the appuser.
+if [ "$(id -u)" = "0" ]; then
+    echo "ENTRYPOINT [root]: Fixing volume permissions..."
+    chown -R appuser:appuser /home/appuser/app/data
+    exec gosu appuser "$0" "$@"
+fi
+
+# From here on, the script is running as 'appuser' with the correct PATH from the Dockerfile.
+
+echo "ENTRYPOINT (as appuser): Waiting for Keycloak..."
 while ! curl --fail --silent --head http://keycloak:8080 > /dev/null; do
     echo "ENTRYPOINT: Keycloak not responding yet, sleeping for 3 seconds..."
     sleep 3
 done
 echo "ENTRYPOINT: Keycloak is ready."
 
-# Define absolute paths to the python executable and the alembic config.
-# This makes the script resilient to where it's called from.
-APP_DIR="/home/appuser/app"
-VENV_PYTHON="${APP_DIR}/.venv/bin/python"
-ALEMBIC_CONFIG="${APP_DIR}/alembic.ini"
+# Run migrations automatically on startup.
+echo "ENTRYPOINT (as appuser): Running database migrations..."
+alembic -c /home/appuser/app/alembic.ini upgrade head
 
-# 1. Run database migrations using absolute paths.
-echo "ENTRYPOINT: Running database migrations..."
-$VENV_PYTHON -m alembic -c "$ALEMBIC_CONFIG" upgrade head
-
-# 2. Start the main application.
-#    Use "exec" to replace the shell process with the Uvicorn process.
-echo "ENTRYPOINT: Starting Uvicorn server..."
+# Finally, execute the main command passed to the container (e.g., uvicorn).
+echo "ENTRYPOINT (as appuser): Starting application..."
 exec "$@"

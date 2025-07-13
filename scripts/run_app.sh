@@ -30,7 +30,7 @@ fi
 if [ -f "$ENV_FILE_TO_LOAD" ]; then info "Loading env from $ENV_FILE_TO_LOAD..."; set -a; source "$ENV_FILE_TO_LOAD"; set +a; else warn "$ENV_FILE_TO_LOAD not found."; fi
 
 if [ "$REMOTE_HOST" = "localhost" ]; then
-  export KEYCLOAK_BROWSER_URL="http://${REMOTE_HOST}:8080"; export KC_SPI_FRAME_ANCESTORS="'self' http://${REMOTE_HOST}:3001"; export VITE_API_URL="http://${REMOTE_HOST}:8000/api/v1";
+  export KEYCLOAK_BROWSER_URL="http://${REMOTE_HOST}:8080"; export KC_SPI_FRAME_ANCESTORS="'self' http://${REMOTE_HOST}:3001 http://${REMOTE_HOST}:3000"; export VITE_API_URL="http://${REMOTE_HOST}:8000/api/v1";
 else
   export KEYCLOAK_BROWSER_URL="https://auth.${REMOTE_HOST}"; export KC_SPI_FRAME_ANCESTORS="'self' https://${REMOTE_HOST}"; export VITE_API_URL="https://api.${REMOTE_HOST}/api/v1";
 fi
@@ -39,29 +39,15 @@ export VITE_KEYCLOAK_URL="${KEYCLOAK_BROWSER_URL}"; export VITE_KEYCLOAK_REALM="
 check_docker() { if ! docker info >/dev/null 2>&1; then error "Docker not running."; fi; }
 
 # --- Command Functions ---
-# FILE: scripts/run_app.sh
 
+# This is now the single, simplified function for running one-off commands.
+# It works for both local and prod because the containers are configured correctly.
 run_in_backend() {
     local cmd_to_run=("$@")
     info "Executing in backend: ${cmd_to_run[*]}"
-
-    if [ "$IS_LOCAL_ENV" = true ]; then
-        # Local 'exec' is still the simplest method for the dev environment
-        ${DC_COMMAND} ${DC_FILES} exec "$BACKEND_SERVICE_NAME" "${cmd_to_run[@]}"
-    else
-        # --- THIS IS THE FIX ---
-        # Use the BACKEND_IMAGE_TAG environment variable, defaulting to 'latest-dev'
-        # This ensures we pull the correct multi-arch image that was built by the CI pipeline.
-        export RUN_IMAGE="${DOCKERHUB_USERNAME}/edi-lens-backend:${BACKEND_IMAGE_TAG:-latest-dev}"
-        
-        # We pass BOTH sets of files. prod.yml defines the project context,
-        # and run.yml adds our one-off service to that context.
-        # The --entrypoint="" flag is still crucial.
-        ${DC_COMMAND} ${DC_FILES} -f docker-compose.run.yml run --rm \
-            --entrypoint="" \
-            run-command "${cmd_to_run[@]}"
-    fi
+    ${DC_COMMAND} ${DC_FILES} exec "$BACKEND_SERVICE_NAME" "${cmd_to_run[@]}"
 }
+
 
 # --- Main Logic ---
 if [ -z "$1" ]; then error "Usage: ./scripts/run_app.sh [dev|up|down|clean|setup:keycloak|setup:testdata...]"; fi
@@ -74,12 +60,10 @@ case "$COMMAND" in
         ;;
     "up")
         info "Starting services..."
-        # If we're not local, assume production and pull latest images first
         if [ "$IS_LOCAL_ENV" = false ]; then
             info "Pulling latest images for production..."
             ${DC_COMMAND} ${DC_FILES} pull
         fi
-        # Build if necessary and start detached
         ${DC_COMMAND} ${DC_FILES} up -d --build
         success "Application started successfully."
         ;;        
@@ -91,16 +75,11 @@ case "$COMMAND" in
         read -p "⚠️  This will delete all data and volumes, including the database. Are you sure? [y/N] " confirm
         if [[ "$confirm" =~ ^[yY](es)?$ ]]; then
             info "Stopping services and removing all defined Docker volumes..."
-            
-            # This command removes containers and named volumes (like prod's postgres_data)
             ${DC_COMMAND} ${DC_FILES} down --volumes
-
-            # This command handles the local dev bind mount
             if [ -d "./postgres-data" ]; then
                 info "Removing local bind-mount directory './postgres-data'..."
                 rm -rf "./postgres-data"
             fi
-            
             success "All services, volumes, and local data directories have been removed."
         else
             warn "Clean operation cancelled."
@@ -110,26 +89,29 @@ case "$COMMAND" in
         if [ -z "$1" ]; then error "Migration message is required."; fi
         info "Generating new migration: $1"
         ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
-        run_in_backend "alembic" "-c" "alembic.ini" "revision" "--autogenerate" "-m" "$1"
+        run_in_backend alembic -c alembic.ini revision --autogenerate -m "$1"
         success "Migration file created."
         ;;
     "migrate:run")
         info "Applying migrations to the database..."
         ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
-        run_in_backend "alembic" "-c" "alembic.ini" "upgrade" "head"
+        run_in_backend alembic -c alembic.ini upgrade head
         success "Migrations applied."
         ;;
     "setup:keycloak")
         info "Running Keycloak setup script..."
         warn "This requires dependent services to be running."
         ${DC_COMMAND} ${DC_FILES} up -d --wait db keycloak "$BACKEND_SERVICE_NAME"
-        run_in_backend "python" "scripts/setup_keycloak_realm.py"
+        # --- THIS IS THE FIX: Run the script as a module ---
+        # This adds the project root to Python's path, allowing it to find the 'src' module.
+        run_in_backend python -m scripts.setup_keycloak_realm
         success "Keycloak setup script completed successfully."
         ;;
     "setup:testdata")
         info "Seeding the database with initial test data..."
         ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
-        run_in_backend "python" "scripts/seed.py" "$@"
+        # --- THIS IS THE FIX: Run the script as a module ---
+        run_in_backend python -m scripts.seed "$@"
         success "Database seeding complete."
         ;;
     "deploy:dev")

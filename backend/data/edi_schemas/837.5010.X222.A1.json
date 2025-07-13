@@ -404,7 +404,7 @@
       }
     },
     "TA1": {
-      "name": "Interchange Acknowledgement",
+      "name": "Interchange Acknowledgement TEST",
       "usage": "S",
       "pos": "200",
       "max_use": 1,
@@ -414,21 +414,30 @@
           "data_ele": "I12",
           "name": "Interchange Control Number",
           "usage": "R",
-          "seq": "01"
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "TA102",
           "data_ele": "I08",
           "name": "Interchange Date",
           "usage": "R",
-          "seq": "02"
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "TA103",
           "data_ele": "I09",
           "name": "Interchange Time",
           "usage": "R",
-          "seq": "03"
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
         },
         {
           "xid": "TA104",
@@ -494,21 +503,30 @@
           "data_ele": "I12",
           "name": "Interchange Control Number",
           "usage": "R",
-          "seq": "01"
+          "seq": "01",
+          "valid_codes": {
+            "code": []
+          }
         },
         "TA102": {
           "xid": "TA102",
           "data_ele": "I08",
           "name": "Interchange Date",
           "usage": "R",
-          "seq": "02"
+          "seq": "02",
+          "valid_codes": {
+            "code": []
+          }
         },
         "TA103": {
           "xid": "TA103",
           "data_ele": "I09",
           "name": "Interchange Time",
           "usage": "R",
-          "seq": "03"
+          "seq": "03",
+          "valid_codes": {
+            "code": []
+          }
         },
         "TA104": {
           "xid": "TA104",
