@@ -20,10 +20,10 @@ IS_LOCAL_ENV=false
 if [ -f "$(dirname "$0")/../.env.local" ]; then IS_LOCAL_ENV=true; fi
 
 if [ "$IS_LOCAL_ENV" = true ]; then
-    DC_FILES="-f docker-compose.yml -f docker-compose.dev.yml"
+    DC_FILES="-f docker-compose.base.yml -f docker-compose.local.yml"
     ENV_FILE_TO_LOAD="$(dirname "$0")/../.env.local"
 else
-    DC_FILES="-f docker-compose.prod.yml"
+    DC_FILES="-f docker-compose.base.yml -f docker-compose.dev-server.yml"
     ENV_FILE_TO_LOAD="$(dirname "$0")/../.env"
 fi
 
@@ -48,15 +48,20 @@ run_in_backend() {
     ${DC_COMMAND} ${DC_FILES} exec "$BACKEND_SERVICE_NAME" "${cmd_to_run[@]}"
 }
 
+NO_CACHE_FLAG=""
+# Check if the second argument is --no-cache
+if [[ "$2" == "--no-cache" ]]; then
+  NO_CACHE_FLAG="--no-cache"
+fi
 
 # --- Main Logic ---
-if [ -z "$1" ]; then error "Usage: ./scripts/run_app.sh [dev|up|down|clean|setup:keycloak|setup:testdata...]"; fi
+if [ -z "$1" ]; then error "Usage: ./scripts/run_app.sh [dev|up|down|build|clean|setup:keycloak|setup:testdata...]"; fi
 COMMAND=$1; shift; check_docker
 
 case "$COMMAND" in
     "dev")
         info "Starting services in DEVELOPMENT mode..."
-        ${DC_COMMAND} -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+        ${DC_COMMAND} ${DC_FILES} up -d --build
         ;;
     "up")
         info "Starting services..."
@@ -66,6 +71,15 @@ case "$COMMAND" in
         fi
         ${DC_COMMAND} ${DC_FILES} up -d --build
         success "Application started successfully."
+        ;;        
+    "build")
+        if [ -n "$NO_CACHE_FLAG" ]; then
+            info "Building images with no cache..."
+        else
+            info "Building images..."
+        fi
+        ${DC_COMMAND} ${DC_FILES} build ${NO_CACHE_FLAG}
+        success "Images built successfully."
         ;;        
     "down")
         info "Stopping all services (containers only, volumes preserved)...";
