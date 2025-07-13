@@ -23,7 +23,7 @@ if [ "$IS_LOCAL_ENV" = true ]; then
     DC_FILES="-f docker-compose.base.yml -f docker-compose.local.yml"
     ENV_FILE_TO_LOAD="$(dirname "$0")/../.env.local"
 else
-    DC_FILES="-f docker-compose.base.yml -f docker-compose.dev-server.yml"
+    DC_FILES="-f docker-compose.dev-server.yml"
     ENV_FILE_TO_LOAD="$(dirname "$0")/../.env"
 fi
 
