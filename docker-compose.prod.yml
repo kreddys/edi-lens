@@ -43,9 +43,9 @@ services:
       db:
         condition: service_healthy
     environment:
-      # --- FIX 1: Use the official Bitnami environment variables ---
-      - KEYCLOAK_DATABASE_VENDOR=postgresql # Explicitly set vendor
-      - KEYCLOAK_DATABASE_HOST=db          # Connect to the 'db' service
+      # Bitnami-specific database variables
+      - KEYCLOAK_DATABASE_VENDOR=postgresql
+      - KEYCLOAK_DATABASE_HOST=db
       - KEYCLOAK_DATABASE_NAME=${POSTGRES_DB}
       - KEYCLOAK_DATABASE_USER=${POSTGRES_USER}
       - KEYCLOAK_DATABASE_PASSWORD=${POSTGRES_PASSWORD}
@@ -58,15 +58,14 @@ services:
       # Admin user creation
       - KEYCLOAK_ADMIN_USER=${KEYCLOAK_ADMIN_USER}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
-    ports:
-      # --- FIX 2: Re-expose port 9000 for the healthcheck ---
-      - "9000:9000"
+      
+      # --- THIS IS THE FIX: Enable health endpoints for the healthcheck ---
+      - KEYCLOAK_ENABLE_HEALTH_ENDPOINTS=true
     networks:
       - edi_network
     healthcheck:
-      # --- FIX 3: Use your previously working healthcheck command ---
-      # Note: The Bitnami image may not expose a management port by default, but this is worth trying first.
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost:9000\\r\\nConnection: close\\r\\n\\r\\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"' && exit 0 || exit 1"]
+      # --- THIS IS THE FIX: Use the correct healthcheck for the Bitnami image ---
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -82,7 +81,6 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/data/edi_schemas:/home/appuser/app/data/edi_schemas
-    # Explicitly set the internal URL for Keycloak communication
     environment:
       - KEYCLOAK_URL=http://keycloak:8080
     env_file: .env
