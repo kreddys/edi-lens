@@ -37,41 +37,44 @@ services:
       retries: 10
 
   keycloak:
-    image: quay.io/keycloak/keycloak:latest
+    # --- FIX 1: Use the Bitnami image which supports ARM64 architecture ---
+    image: bitnami/keycloak:latest
     restart: always
     depends_on:
       db:
         condition: service_healthy
     environment:
-      - KC_PROXY_HEADERS=xforwarded
-      - KC_HOSTNAME_URL=https://auth.${REMOTE_HOST}
-      - KC_PROXY=edge
-      - KC_HTTP_HOST=0.0.0.0
-      - KC_HOSTNAME_STRICT=false
-      - KC_BOOTSTRAP_ADMIN_USERNAME=${KEYCLOAK_ADMIN_USER}
-      - KC_BOOTSTRAP_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+      # --- FIX 2: Use Bitnami-compatible environment variables for proxying ---
+      # This combination correctly configures Keycloak to run behind Caddy.
+      - KEYCLOAK_PROXY_HEADERS=xforwarded
+      - KEYCLOAK_HOSTNAME_URL=https://auth.${REMOTE_HOST}
+      - KEYCLOAK_HTTP_HOST=0.0.0.0
+      
+      # Bitnami variables for initial admin user
+      - KEYCLOAK_ADMIN_USER=${KEYCLOAK_ADMIN_USER}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+
+      # Standard Keycloak DB variables (work with Bitnami image)
       - KC_DB=postgres
       - KC_DB_URL_HOST=db
       - KC_DB_URL_DATABASE=${POSTGRES_DB}
       - KC_DB_USERNAME=${POSTGRES_USER}
       - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
       - KC_DB_SCHEMA=${KEYCLOAK_DB_SCHEMA}
-      - KC_HEALTH_ENABLED=true
-      - KC_METRICS_ENABLED=true
-    ports: # Expose management port for healthcheck from host if needed, but not required if check is internal
-      - "9000:9000"
     networks:
       - edi_network
-    command: start-dev
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost:9000\\r\\nConnection: close\\r\\n\\r\\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"' && exit 0 || exit 1"]
-      interval: 5s       # Check every 5 seconds
-      timeout: 5s        # Give each check 5 seconds to respond
-      retries: 30        # Allow up to 30 failures (30 * 5s = 150s of checks)
-      start_period: 15s  # Grace period of 30s before checks start failing
+      # --- FIX 3: Update healthcheck for the Bitnami image ---
+      # It uses the standard /health path on port 8080.
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 
   backend:
-    image: ${DOCKERHUB_USERNAME}/edi-lens-backend:${BACKEND_IMAGE_TAG:-latest}
+    # --- FIX 4: Use the correct image tag for the dev branch ---
+    image: ${DOCKERHUB_USERNAME}/edi-lens-backend:${BACKEND_IMAGE_TAG:-latest-dev}
     restart: always
     depends_on:
       db:
@@ -80,8 +83,9 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/data/edi_schemas:/home/appuser/app/data/edi_schemas
+    # Explicitly set the internal URL for Keycloak communication
     environment:
-      - KEYCLOAK_URL=https://auth.${REMOTE_HOST}      
+      - KEYCLOAK_URL=http://keycloak:8080
     env_file: .env
     networks:
       - edi_network
@@ -93,7 +97,8 @@ services:
       start_period: 20s
 
   admin-ui:
-    image: ${DOCKERHUB_USERNAME}/edi-lens-ui:${UI_IMAGE_TAG:-latest}
+    # --- FIX 5: Use the correct image tag for the dev branch ---
+    image: ${DOCKERHUB_USERNAME}/edi-lens-ui:${UI_IMAGE_TAG:-latest-dev}
     restart: always
     depends_on:
       - backend
