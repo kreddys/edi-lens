@@ -67,9 +67,13 @@ jobs:
           script: |
             set -e
             cd /opt/edi-lens
+
+            # --- THIS IS THE FIX ---
+            # Reclaim ownership of all files for the current SSH user
+            echo "Ensuring correct file permissions..."
+            sudo chown -R $USER:$USER .
             
             echo "Fetching latest changes from origin..."
-            # --- FIX: Ensure we are on the dev branch and pull from it ---
             git checkout dev
             git fetch origin dev
             
@@ -85,7 +89,6 @@ jobs:
             echo "Making helper script executable..."
             chmod +x ./scripts/run_app.sh
 
-            # --- FIX: Add environment variables for the dev image tags ---
             echo "Exporting image tags..."
             export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
             export BACKEND_IMAGE_TAG=latest-dev
