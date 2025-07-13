@@ -1,11 +1,13 @@
 # FILE: .github/workflows/deploy-dev.yml
 
-name: Deploy to Dev Droplet
+name: Deploy to Dev Metal
 
 on:
   push:
+    # --- FIX: Trigger the deployment only on pushes to the 'dev' branch ---
     branches:
       - dev
+  # Allow manual triggering
   workflow_dispatch:
 
 jobs:
@@ -17,14 +19,17 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Set up QEMU for multi-platform builds
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Build and push backend image
         uses: docker/build-push-action@v5
@@ -32,10 +37,9 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:latest
-          # Use github.sha for unique tagging if needed, but latest is sufficient for dev
-          # tags: ${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:${{ github.sha }},${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:latest
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:latest
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:latest-dev
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-backend:latest-dev
           cache-to: type=inline
 
       - name: Build and push frontend image
@@ -44,16 +48,17 @@ jobs:
           context: ./admin-ui
           file: ./admin-ui/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-ui:latest
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-ui:latest-dev
           build-args: |
             VITE_KEYCLOAK_URL=${{ secrets.VITE_KEYCLOAK_URL }}
             VITE_KEYCLOAK_REALM=${{ secrets.VITE_KEYCLOAK_REALM }}
             VITE_KEYCLOAK_CLIENT_ID=${{ secrets.VITE_KEYCLOAK_CLIENT_ID }}
             VITE_API_URL=${{ secrets.VITE_API_URL }}
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-ui:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/edi-lens-ui:latest-dev
           cache-to: type=inline
 
-      - name: Deploy to Droplet
+      - name: Deploy to Server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DROPLET_HOST }}
@@ -63,29 +68,34 @@ jobs:
             set -e
             cd /opt/edi-lens
             
-            # This is the robust way to sync the repo
             echo "Fetching latest changes from origin..."
+            # --- FIX: Ensure we are on the dev branch and pull from it ---
+            git checkout dev
             git fetch origin dev
             
             echo "Resetting local dev branch to match origin/dev..."
             git reset --hard origin/dev
             
-            echo "Cleaning up untracked files and directories..."
+            echo "Cleaning up untracked files..."
             git clean -dfx
 
-            # Create/update the .env file from secrets
+            echo "Creating/updating the .env file from secrets..."
             echo "${{ secrets.DOT_ENV }}" > .env
             
-            # Make sure the script is executable
+            echo "Making helper script executable..."
             chmod +x ./scripts/run_app.sh
 
-            # --- THIS IS THE UPDATED DEPLOYMENT LOGIC ---
-            # 1. Take down any old running services first
+            # --- FIX: Add environment variables for the dev image tags ---
+            echo "Exporting image tags..."
+            export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            export BACKEND_IMAGE_TAG=latest-dev
+            export UI_IMAGE_TAG=latest-dev
+
+            echo "Stopping old services (if any)..."
             ./scripts/run_app.sh down
 
-            # 2. Use the 'up' command to pull new images and start services
+            echo "Starting application stack..."
             ./scripts/run_app.sh up
             
-            # 3. Clean up old, unused Docker images
             echo "Cleaning up old Docker images..."
             docker image prune -af
