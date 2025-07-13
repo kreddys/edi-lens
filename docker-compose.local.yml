@@ -1,12 +1,78 @@
-# FILE: docker-compose.dev.yml
+# This is the single compose file for LOCAL development.
 services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      KEYCLOAK_DB_SCHEMA: ${KEYCLOAK_DB_SCHEMA}
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data/
+      - ./backend/scripts/init-keycloak-db.sh:/docker-entrypoint-initdb.d/init-keycloak-db.sh
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    networks:
+      - edi_network
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" -c \"SELECT 1 FROM pg_namespace WHERE nspname = '$${KEYCLOAK_DB_SCHEMA}';\" | grep -q 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL_HOST: db
+      KC_DB_URL_DATABASE: ${POSTGRES_DB}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_DB_SCHEMA: ${KEYCLOAK_DB_SCHEMA}
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_SPI_FRAME_ANCESTORS: ${KC_SPI_FRAME_ANCESTORS}
+    ports:
+      - "8080:8080"
+      - "9000:9000"
+    networks:
+      - edi_network
+    command: start-dev
+
   backend:
-    # --- FIX: Remove 'poetry run'. The entrypoint now handles the PATH. ---
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/home/appuser/app
+      - /home/appuser/app/.venv
+    networks:
+      - edi_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # --- LOCAL DEVELOPMENT OVERRIDES ---
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     env_file: .env.local
     user: "${UID:-1000}:${GID:-1000}"
 
   admin-ui:
+    # --- LOCAL DEVELOPMENT OVERRIDES ---
     build:
       context: ./admin-ui
       dockerfile: Dockerfile.dev
@@ -17,3 +83,13 @@ services:
       - "3001:3000"
     command: npm run dev -- --host
     env_file: .env.local
+    # --- END LOCAL OVERRIDES ---
+    depends_on:
+      - backend
+    networks:
+      - edi_network
+
+networks:
+  edi_network:
+    name: edi-lens_edi_network
+    driver: bridge

@@ -19,8 +19,10 @@ if docker compose version >/dev/null 2>&1; then DC_COMMAND="docker compose"; els
 IS_LOCAL_ENV=false
 if [ -f "$(dirname "$0")/../.env.local" ]; then IS_LOCAL_ENV=true; fi
 
+# --- THIS IS THE FIX ---
+# Updated to remove the reference to the base file.
 if [ "$IS_LOCAL_ENV" = true ]; then
-    DC_FILES="-f docker-compose.base.yml -f docker-compose.local.yml"
+    DC_FILES="-f docker-compose.local.yml"
     ENV_FILE_TO_LOAD="$(dirname "$0")/../.env.local"
 else
     DC_FILES="-f docker-compose.dev-server.yml"

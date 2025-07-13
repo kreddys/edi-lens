@@ -1,6 +1,8 @@
 # Stage 1: Builder stage with all dependencies
-# Using Python 3.13 to match pyproject.toml constraints
-FROM python:3.13-slim AS builder
+# --- THIS IS THE FIX ---
+# Pinning to a specific minor version (3.12) that satisfies the pyproject.toml
+# constraint (>=3.11, <=3.13) and provides a stable build environment.
+FROM python:3.12-slim AS builder
 
 WORKDIR /home/appuser/app
 RUN pip install --no-cache-dir poetry
@@ -9,8 +11,9 @@ RUN poetry config virtualenvs.in-project true && \
     poetry install --no-root
 
 # Stage 2: Final application stage
-# Using Python 3.13 to match the builder stage
-FROM python:3.13-slim
+# --- THIS IS THE FIX ---
+# Using the same pinned Python version as the builder stage for consistency.
+FROM python:3.12-slim
 
 # Install dependencies as root. 'gosu' is for production permission handling.
 RUN apt-get update && apt-get install -y curl gosu && \
