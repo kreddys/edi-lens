@@ -1,22 +1,31 @@
 import os
+import sys
 import json
 import logging
 from pathlib import Path
+from dotenv import load_dotenv
 
-# --- Setup Project Path ---
-project_root = Path(__file__).parent.parent
-import sys
+# --- Step 1: Set up project path and LOAD THE ENVIRONMENT ---
+# This is now the first thing the script does.
+project_root = Path(__file__).resolve().parent.parent
 sys.path.append(str(project_root))
+
+# The .env file is in the parent of the `backend` directory
+env_path = project_root.parent / ".env.local" 
+if env_path.exists():
+    # This loads the variables from .env.local into os.environ
+    load_dotenv(dotenv_path=env_path, override=True)
 # --- End Setup ---
 
-# Must import config and setup logging BEFORE other project modules.
-# Pydantic's Settings class will now automatically find and load the .env files.
+
+# --- Step 2: Now, import application modules ---
+# These imports will now succeed because the environment is already populated.
 from src.core.config import settings, setup_logging
 from src.core.schema_manager import schema_manager
 from src.agents.crew import create_schema_refinement_crew
 
-# --- Setup Logging ---
-# This will configure the root logger based on LOG_LEVEL in your .env file
+
+# --- Step 3: Configure Logging ---
 setup_logging()
 logger = logging.getLogger(__name__)
 
@@ -25,15 +34,13 @@ def run_test():
     """Initializes and runs the schema refinement crew."""
     logger.info("--- Starting Schema Refinement Crew ---")
 
-    # The .env files are now loaded automatically by the Settings class.
-    # We just need to check if the required API key is present.
+    # This check will now succeed because os.getenv can see the loaded variables.
     if not os.getenv("OPENROUTER_API_KEY") and not os.getenv("OPENAI_API_KEY") and not os.getenv("ANTHROPIC_API_KEY") and not os.getenv("OLLAMA_BASE_URL"):
         logger.error("No LLM API key or configuration found.")
         logger.error("Please ensure the required API key for your chosen provider is set in your .env.local file.")
         return
 
-    # 2. Initialize the Schema Manager to load schemas into memory
-    # We replace the hardcoded path from the Docker container with the local equivalent
+    # Initialize the Schema Manager
     local_schema_path = str(project_root) + settings.EDI_SCHEMA_DIRECTORY.replace('/home/appuser/app', '')
     schema_dir = Path(local_schema_path)
 
@@ -41,23 +48,15 @@ def run_test():
     schema_manager.load_schemas(schema_dir)
     logger.debug(f"Loaded schemas: {list(schema_manager._schemas.keys())}")
 
-    # 3. Define the user's request
+    # Define the user's request
     schema_to_edit = '005010X222A1'
+    user_query = "In the 2010BA Subscriber Name loop, the NM1 segment's NM109 element (Subscriber Primary Identifier) should be required."
     
-    # --- Try different inputs here ---
-    user_query = """
-    In our implementation guide for the 837P, the claim information loop (2300)
-    requires a Payer Claim Control Number. This should be sent in a REF segment
-    with an 'F8' qualifier. This entire REF segment should be mandatory.
-    """
-    
-    # user_query = "The subscriber's name in loop 2010BA is required."
-
     logger.info("--- User Query ---")
     logger.info(user_query)
     logger.info("--------------------")
 
-    # 4. Create and run the crew
+    # Create and run the crew
     crew = create_schema_refinement_crew(schema_name=schema_to_edit, user_input=user_query)
     
     logger.info("🚀 Kicking off the crew...")
@@ -65,7 +64,6 @@ def run_test():
 
     logger.info("--- Crew Final Result ---")
     try:
-        # Try to parse and pretty-print the JSON result
         parsed_result = json.loads(result)
         logger.info(json.dumps(parsed_result, indent=2))
     except (json.JSONDecodeError, TypeError):

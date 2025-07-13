@@ -4,18 +4,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from keycloak import KeycloakOpenID
 from pathlib import Path
 
-# --- THIS IS THE FIX ---
-# Calculate the project root directory relative to this file's location.
-# This file is in: /backend/src/core/
-# We need to go up three levels to get to the project root.
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+# The Settings class now cleanly reads from the process environment,
+# which should be populated by the entrypoint script (e.g., run_crew.py or a uvicorn startup script)
+# before this module is imported.
 
-# Define the explicit paths to the environment files.
-ENV_FILE_LOCAL_PATH = PROJECT_ROOT / ".env.local"
-ENV_FILE_PROD_PATH = PROJECT_ROOT / ".env"
-
-
-# --- Settings Model (with LOG_LEVEL) ---
 class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
@@ -31,9 +23,7 @@ class Settings(BaseSettings):
     KEYCLOAK_BACKEND_CLIENT_SECRET: str
     
     LOG_LEVEL: str = "INFO"
-    # Directory for storing EDI implementation guide schemas
     EDI_SCHEMA_DIRECTORY: str = "/home/appuser/app/data/edi_schemas"
-
     REMOTE_HOST: str = "localhost"
     BACKEND_HOST: str = "backend"    
 
@@ -44,37 +34,34 @@ class Settings(BaseSettings):
             f"{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 
-    # Configure the model to load from an env file and to ignore extra variables.
-    # We now provide the absolute paths to the environment files.
-    model_config = SettingsConfigDict(
-        env_file=(str(ENV_FILE_LOCAL_PATH), str(ENV_FILE_PROD_PATH)),
-        env_file_encoding='utf-8',
-        extra='ignore'
-    )
+    # Simplified config - it will read from the environment by default.
+    # The responsibility of loading a .env file is now on the script that runs the app.
+    model_config = SettingsConfigDict(extra='ignore')
 
+
+# This line will now succeed because the entrypoint script is expected to
+# have already populated the environment using `load_dotenv`.
 settings = Settings()
 
-# --- Logging Setup Function (Correct) ---
+
 def setup_logging():
-    """Configures the root logger for the application."""
+    """Configures the root logger based on the LOG_LEVEL from the loaded settings."""
     log_level = settings.LOG_LEVEL.upper()
     logging.basicConfig(
         level=log_level,
         format="[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s",
         stream=sys.stdout,
+        force=True, 
     )
-    logger = logging.getLogger()
-    logger.setLevel(log_level)
+    logger = logging.getLogger(__name__)
+    logger.info(f"Logging configured with level: {log_level}")
     
+    # Configure uvicorn loggers to use the root configuration
     logging.getLogger("uvicorn").handlers.clear()
     logging.getLogger("uvicorn.error").propagate = True
     logging.getLogger("uvicorn.access").propagate = True
 
-    logging.getLogger(__name__).info(f"Logging configured with level: {log_level}")
-
-# --- Keycloak Client Initialization (Correct) ---
-# This client is ONLY used for server-to-server communication (in the callback).
-# The browser-facing URL is constructed manually in the /login endpoint.
+# --- Keycloak Client Initialization ---
 keycloak_openid = KeycloakOpenID(
     server_url=settings.KEYCLOAK_URL,
     realm_name=settings.KEYCLOAK_REALM,
