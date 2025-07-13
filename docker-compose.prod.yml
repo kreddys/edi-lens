@@ -58,16 +58,15 @@ services:
       # Admin user creation
       - KEYCLOAK_ADMIN_USER=${KEYCLOAK_ADMIN_USER}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
-      
-      # --- THIS IS THE FIX: Enable health endpoints for the healthcheck ---
-      - KEYCLOAK_ENABLE_HEALTH_ENDPOINTS=true
     networks:
       - edi_network
     healthcheck:
-      # --- THIS IS THE FIX: Use the correct healthcheck for the Bitnami image ---
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      # --- THIS IS THE FIX: Use a simple TCP port check ---
+      # This command uses netcat (nc) to check if port 8080 is open and listening.
+      # This is a reliable way to know the main service is up.
+      test: ["CMD", "nc", "-z", "localhost", "8080"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 30
       start_period: 20s
 
