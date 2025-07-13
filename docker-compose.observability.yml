@@ -1,0 +1,70 @@
+# FILE: docker-compose.observability.yml
+# Defines the services for the OpenLIT observability stack.
+
+services:
+  openlit-db:
+    image: clickhouse/clickhouse-server:24.4.1
+    container_name: openlit-db
+    environment:
+      - CLICKHOUSE_USER=${OPENLIT_DB_USER:-default}
+      - CLICKHOUSE_PASSWORD=${OPENLIT_DB_PASSWORD:-OPENLIT}
+      - CLICKHOUSE_DB=${OPENLIT_DB_NAME:-openlit}
+    volumes:
+      - openlit-db-data:/var/lib/clickhouse
+    networks:
+      - edi_network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+
+  openlit-otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.94.0
+    container_name: openlit-otel-collector
+    depends_on:
+      openlit-db:
+        condition: service_healthy
+    # --- THIS IS THE FIX ---
+    # The collector needs its own environment variables to connect to the database.
+    # These are used to expand the `${env:VAR_NAME}` placeholders in its config file.
+    environment:
+      - INIT_DB_HOST=openlit-db
+      - INIT_DB_PORT=9000
+      - INIT_DB_DATABASE=${OPENLIT_DB_NAME:-openlit}
+      - INIT_DB_USERNAME=${OPENLIT_DB_USER:-default}
+      - INIT_DB_PASSWORD=${OPENLIT_DB_PASSWORD:-OPENLIT}
+    # --- END OF FIX ---
+    ports:
+      - "4317:4317" # OTLP gRPC endpoint
+      - "4318:4318" # OTLP HTTP endpoint
+      - "8888:8888" # Prometheus metrics
+    volumes:
+      - ./assets/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+    networks:
+      - edi_network
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+
+  openlit-ui:
+    image: ghcr.io/openlit/openlit:latest
+    container_name: openlit-ui
+    depends_on:
+      - openlit-otel-collector
+    ports:
+      - "3300:3000" # Mapped to 3300 to avoid conflict with admin-ui
+    environment:
+      - TELEMETRY_ENABLED=true
+      - INIT_DB_HOST=openlit-db
+      - INIT_DB_PORT=8123
+      - INIT_DB_DATABASE=${OPENLIT_DB_NAME:-openlit}
+      - INIT_DB_USERNAME=${OPENLIT_DB_USER:-default}
+      - INIT_DB_PASSWORD=${OPENLIT_DB_PASSWORD:-OPENLIT}
+      - SQLITE_DATABASE_URL=file:/app/client/data/data.db
+    volumes:
+      - openlit-data:/app/client/data
+    networks:
+      - edi_network
+
+volumes:
+  openlit-db-data:
+  openlit-data:

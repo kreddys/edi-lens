@@ -16,20 +16,30 @@ error() { echo "[ERROR] $1" >&2; exit 1; }
 # --- Dynamic Environment Setup ---
 if docker compose version >/dev/null 2>&1; then DC_COMMAND="docker compose"; else DC_COMMAND="docker-compose"; fi
 
-IS_LOCAL_ENV=false
-if [ -f "$(dirname "$0")/../.env.local" ]; then IS_LOCAL_ENV=true; fi
+PROJECT_ROOT=$(dirname "$0")/..
+ENV_FILE_TO_LOAD=""
+DC_FILES=""
 
-# --- THIS IS THE FIX ---
-# Updated to remove the reference to the base file.
-if [ "$IS_LOCAL_ENV" = true ]; then
+if [ -f "$PROJECT_ROOT/.env.local" ]; then
+    info "Found .env.local, configuring for LOCAL development."
+    ENV_FILE_TO_LOAD="$PROJECT_ROOT/.env.local"
     DC_FILES="-f docker-compose.local.yml"
-    ENV_FILE_TO_LOAD="$(dirname "$0")/../.env.local"
-else
+elif [ -f "$PROJECT_ROOT/.env" ]; then
+    info "Found .env, configuring for PRODUCTION-LIKE development."
+    ENV_FILE_TO_LOAD="$PROJECT_ROOT/.env"
     DC_FILES="-f docker-compose.dev-server.yml"
-    ENV_FILE_TO_LOAD="$(dirname "$0")/../.env"
 fi
 
-if [ -f "$ENV_FILE_TO_LOAD" ]; then info "Loading env from $ENV_FILE_TO_LOAD..."; set -a; source "$ENV_FILE_TO_LOAD"; set +a; else warn "$ENV_FILE_TO_LOAD not found."; fi
+if [ -f "$ENV_FILE_TO_LOAD" ]; then
+    set -a; source "$ENV_FILE_TO_LOAD"; set +a
+    # Conditionally add observability stack after sourcing the main env file
+    if [ "${ENABLE_OBSERVABILITY}" = "true" ]; then
+      info "Observability is enabled. Including observability stack..."
+      DC_FILES="$DC_FILES -f docker-compose.observability.yml"
+    fi
+else
+    warn "No .env.local or .env file found. Environment variables may be missing."
+fi
 
 if [ "$REMOTE_HOST" = "localhost" ]; then
   export KEYCLOAK_BROWSER_URL="http://${REMOTE_HOST}:8080"; export KC_SPI_FRAME_ANCESTORS="'self' http://${REMOTE_HOST}:3001 http://${REMOTE_HOST}:3000"; export VITE_API_URL="http://${REMOTE_HOST}:8000/api/v1";
@@ -48,7 +58,7 @@ run_in_backend() {
 }
 
 # --- Main Logic ---
-if [ -z "$1" ]; then error "Usage: ./scripts/run_app.sh [dev|up|down|build|clean|setup:keycloak|setup:testdata...]"; fi
+if [ -z "$1" ]; then error "Usage: ./scripts/run_app.sh [dev|up|down|build|clean|run_in_backend|setup:keycloak|setup:testdata...]"; fi
 COMMAND=$1; shift;
 
 # Defer the Docker check, as some commands might not need it.
@@ -69,10 +79,10 @@ case "$COMMAND" in
         ;;
     "up")
         info "Starting services..."
-        if [ "$IS_LOCAL_ENV" = false ]; then
-            info "Pulling latest images for production..."
-            ${DC_COMMAND} ${DC_FILES} pull
+        if [[ -z "$DC_FILES" ]]; then
+            error "Cannot determine which compose files to use. Ensure .env.local or .env exists."
         fi
+        ${DC_COMMAND} ${DC_FILES} pull
         ${DC_COMMAND} ${DC_FILES} up -d --build
         success "Application started successfully."
         ;;        
@@ -93,12 +103,11 @@ case "$COMMAND" in
         read -p "⚠️  This will delete all data and volumes, including the database. Are you sure? [y/N] " confirm
         if [[ "$confirm" =~ ^[yY](es)?$ ]]; then
             info "Stopping services and removing all defined Docker volumes..."
-            ${DC_COMMAND} ${DC_FILES} down --volumes
-            if [ -d "./postgres-data" ]; then
-                info "Removing local bind-mount directory './postgres-data'..."
-                rm -rf "./postgres-data"
+            if [ "${ENABLE_OBSERVABILITY}" = "true" ]; then
+                info "Observability is enabled. OpenLIT data volumes will also be removed."
             fi
-            success "All services, volumes, and local data directories have been removed."
+            ${DC_COMMAND} ${DC_FILES} down --volumes
+            success "All services and volumes have been removed."
         else
             warn "Clean operation cancelled."
         fi
@@ -115,6 +124,10 @@ case "$COMMAND" in
         ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
         run_in_backend alembic -c alembic.ini upgrade head
         success "Migrations applied."
+        ;;
+    "run_in_backend")
+        if [ -z "$1" ]; then error "No command provided to run in backend."; fi
+        run_in_backend "$@"
         ;;
     "setup:keycloak")
         info "Running Keycloak setup script..."

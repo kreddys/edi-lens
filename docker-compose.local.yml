@@ -8,7 +8,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       KEYCLOAK_DB_SCHEMA: ${KEYCLOAK_DB_SCHEMA}
     volumes:
-      - ./postgres-data:/var/lib/postgresql/data/
+      - postgres_data:/var/lib/postgresql/data/
       - ./backend/scripts/init-keycloak-db.sh:/docker-entrypoint-initdb.d/init-keycloak-db.sh
     ports:
       - "${POSTGRES_PORT}:5432"
@@ -93,3 +93,6 @@ networks:
   edi_network:
     name: edi-lens_edi_network
     driver: bridge
+
+volumes:
+  postgres_data:    
