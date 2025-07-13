@@ -39,24 +39,26 @@ export VITE_KEYCLOAK_URL="${KEYCLOAK_BROWSER_URL}"; export VITE_KEYCLOAK_REALM="
 check_docker() { if ! docker info >/dev/null 2>&1; then error "Docker not running."; fi; }
 
 # --- Command Functions ---
-
-# This is now the single, simplified function for running one-off commands.
-# It works for both local and prod because the containers are configured correctly.
 run_in_backend() {
     local cmd_to_run=("$@")
     info "Executing in backend: ${cmd_to_run[*]}"
     ${DC_COMMAND} ${DC_FILES} exec "$BACKEND_SERVICE_NAME" "${cmd_to_run[@]}"
 }
 
+# --- Main Logic ---
+if [ -z "$1" ]; then error "Usage: ./scripts/run_app.sh [dev|up|down|build|clean|setup:keycloak|setup:testdata...]"; fi
+COMMAND=$1; shift;
+
+# Defer the Docker check, as some commands might not need it.
+if [[ "$COMMAND" != "test:unit" && "$COMMAND" != "deploy:dev" ]]; then
+    check_docker
+fi
+
 NO_CACHE_FLAG=""
 # Check if the second argument is --no-cache
 if [[ "$2" == "--no-cache" ]]; then
   NO_CACHE_FLAG="--no-cache"
 fi
-
-# --- Main Logic ---
-if [ -z "$1" ]; then error "Usage: ./scripts/run_app.sh [dev|up|down|build|clean|setup:keycloak|setup:testdata...]"; fi
-COMMAND=$1; shift; check_docker
 
 case "$COMMAND" in
     "dev")
@@ -116,7 +118,6 @@ case "$COMMAND" in
         info "Running Keycloak setup script..."
         warn "This requires dependent services to be running."
         ${DC_COMMAND} ${DC_FILES} up -d --wait db keycloak "$BACKEND_SERVICE_NAME"
-        # --- THIS IS THE FIX: Run the script as a module ---
         # This adds the project root to Python's path, allowing it to find the 'src' module.
         run_in_backend python -m scripts.setup_keycloak_realm
         success "Keycloak setup script completed successfully."
@@ -124,7 +125,7 @@ case "$COMMAND" in
     "setup:testdata")
         info "Seeding the database with initial test data..."
         ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
-        # --- THIS IS THE FIX: Run the script as a module ---
+        # This adds the project root to Python's path, allowing it to find the 'src' module.
         run_in_backend python -m scripts.seed "$@"
         success "Database seeding complete."
         ;;
@@ -137,6 +138,47 @@ case "$COMMAND" in
     "logs")
         info "Tailing logs...";
         ${DC_COMMAND} ${DC_FILES} logs -f "$@"
+        ;;
+    "test:create-db")
+        info "Creating the test database..."
+        ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
+        run_in_backend python -m tests.manage_test_db create
+        success "Test database created."
+        ;;
+    "test:drop-db")
+        info "Dropping the test database..."
+        ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
+        run_in_backend python -m tests.manage_test_db drop
+        success "Test database dropped."
+        ;;
+    "test:unit")
+        info "Running unit tests locally (no Docker)..."
+        if ! command -v poetry &> /dev/null; then
+            error "Poetry is not installed or not in your PATH. Please install it to run unit tests locally."
+        fi
+        if [ ! -f "backend/pyproject.toml" ]; then
+            error "This script must be run from the project root directory."
+        fi
+        (cd backend && poetry run pytest -m "unit" "$@")
+        success "Unit tests completed."
+        ;;
+    "test:integration")
+        info "Running integration tests inside Docker..."
+        
+        cleanup() {
+            info "Integration tests finished. Dropping test database..."
+            run_in_backend python -m tests.manage_test_db drop >/dev/null 2>&1
+        }
+        trap cleanup EXIT
+        
+        info "Creating test database for integration run..."
+        ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
+        run_in_backend python -m tests.manage_test_db create
+        
+        info "Running pytest for integration tests..."
+        run_in_backend pytest -m "integration" "$@"
+        
+        success "Integration tests completed."
         ;;
     *)
         error "Unknown command: $COMMAND"
