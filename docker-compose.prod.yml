@@ -43,36 +43,21 @@ services:
       db:
         condition: service_healthy
     environment:
-      # Bitnami-specific database variables
       - KEYCLOAK_DATABASE_VENDOR=postgresql
       - KEYCLOAK_DATABASE_HOST=db
       - KEYCLOAK_DATABASE_NAME=${POSTGRES_DB}
       - KEYCLOAK_DATABASE_USER=${POSTGRES_USER}
       - KEYCLOAK_DATABASE_PASSWORD=${POSTGRES_PASSWORD}
       - KEYCLOAK_DATABASE_SCHEMA=${KEYCLOAK_DB_SCHEMA}
-
-      # Proxy settings for Bitnami image
       - KEYCLOAK_PROXY_HEADERS=xforwarded
       - KEYCLOAK_HOSTNAME_URL=https://auth.${REMOTE_HOST}
-      
-      # Admin user creation
       - KEYCLOAK_ADMIN_USER=${KEYCLOAK_ADMIN_USER}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
-      
-      # Enable health endpoints on port 8080
-      - KEYCLOAK_ENABLE_HEALTH_ENDPOINTS=true
     networks:
       - edi_network
-    healthcheck:
-      # --- THIS IS THE FINAL FIX ---
-      # This command uses the shell's built-in capabilities to check for an open TCP
-      # connection on port 8080. It does not rely on external tools like curl or nc.
-      # The `>/dev/null 2>&1` part suppresses any output to keep the logs clean.
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 >/dev/null 2>&1"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-      start_period: 20s
+    # --- FIX 1: Remove the healthcheck entirely ---
+    # Since no checking tools are available in the image, we will handle
+    # the dependency in the backend's entrypoint script instead.
 
   backend:
     image: ${DOCKERHUB_USERNAME}/edi-lens-backend:${BACKEND_IMAGE_TAG:-latest-dev}
@@ -80,8 +65,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      # --- FIX 2: Change depends_on condition ---
+      # Wait for the service to start, but not for it to be healthy.
       keycloak:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - ./backend/data/edi_schemas:/home/appuser/app/data/edi_schemas
     environment:

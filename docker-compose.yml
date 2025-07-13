@@ -20,6 +20,7 @@ services:
       retries: 10
 
   keycloak:
+    # --- FIX: Switch to the official Quay image for local dev (it works on AMD64/Intel) ---
     image: quay.io/keycloak/keycloak:latest
     depends_on:
       db:
@@ -41,13 +42,9 @@ services:
       - "9000:9000"
     networks:
       - edi_network
-    command: start-dev --import-realm
-    healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost:9000\\r\\nConnection: close\\r\\n\\r\\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"' && exit 0 || exit 1"]
-      interval: 5s       # Check every 5 seconds
-      timeout: 5s        # Give each check 5 seconds to respond
-      retries: 30        # Allow up to 30 failures (30 * 5s = 150s of checks)
-      start_period: 30s  # Grace period of 30s before checks start failing
+    command: start-dev
+    # --- FIX: Remove the healthcheck from the base compose file ---
+    # Dependencies will now be managed by the backend's entrypoint script.
 
   backend:
     build:
@@ -56,8 +53,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      # --- FIX: Change the depends_on condition to service_started ---
       keycloak:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "8000:8000"
     volumes:
