@@ -1,15 +1,13 @@
+# FILE: backend/src/agents/tools.py
 import json
 import logging
 from typing import Any
 
-from crewai.tools import tool # This is the corrected import path
+from crewai.tools import tool
 from src.core.schema_manager import schema_manager
 from .utils import get_schema_toc, find_node_by_key
 
-# Get a logger for this module
 logger = logging.getLogger(__name__)
-
-# --- Tool Definitions using the @tool decorator ---
 
 @tool("Schema Structure Reader")
 def schema_structure_tool(schema_name: str) -> str:
@@ -51,7 +49,6 @@ def node_definition_tool(schema_name: str, node_key: str) -> str:
         logger.warning(f"Node with key '{node_key}' not found in schema '{schema_name}'.")
         return f"Error: Node with key '{node_key}' not found."
     
-    # Include segment definition if it's a segment node
     if node.get("type") == "segment":
         def_id = node.get("definitionId", node.get("xid"))
         node["definition"] = schema_data["segmentDefinitions"].get(def_id, {})
