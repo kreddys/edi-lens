@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     REMOTE_HOST: str = "localhost"
     BACKEND_HOST: str = "backend"    
 
+    PINECONE_API_KEY: str = ""
+    PINECONE_EMBED_MODEL: str = "multilingual-e5-large"
+
     @property
     def DATABASE_URL(self) -> str:
         return (

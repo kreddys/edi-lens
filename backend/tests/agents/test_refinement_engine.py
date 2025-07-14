@@ -29,27 +29,33 @@ MOCK_PATCH_FOR_CLM = json.dumps([
 def test_engine_orchestrates_plan_and_execute_workflow(mocker):
     """
     Unit test for the SchemaRefinementEngine's orchestration logic.
-    Mocks the crew outputs to isolate the engine's behavior.
+    Mocks the crew outputs AND the embedding model to isolate the engine.
     """
     # --- THIS IS THE FIX ---
-    # Create a mock object that has a .raw attribute, just like the real CrewOutput.
-    mock_plan_output = MagicMock()
-    mock_plan_output.raw = MOCK_PLAN_JSON
+    # 1. Mock the PineconeEmbeddingModel to prevent any real API calls
+    mock_embedding_model = MagicMock()
+    mocker.patch(
+        'src.agents.refinement_engine.engine.PineconeEmbeddingModel',
+        return_value=mock_embedding_model
+    )
 
-    mock_patch_output = MagicMock()
-    mock_patch_output.raw = MOCK_PATCH_FOR_CLM
+    # 2. Mock the RAGTool's initialization, as it depends on the embedding model
+    #    We don't need to test the RAGTool's internals here, just the engine.
+    mocker.patch('src.agents.refinement_engine.engine.RAGTool')
     # --- END OF FIX ---
 
     # Arrange: Mock the crews that the engine depends on
     mock_crew_factory_instance = MagicMock()
 
     mock_planning_crew = MagicMock()
-    # The kickoff method now returns our mock output object.
+    mock_plan_output = MagicMock()
+    mock_plan_output.raw = MOCK_PLAN_JSON
     mock_planning_crew.kickoff.return_value = mock_plan_output
     mock_crew_factory_instance.planning_crew.return_value = mock_planning_crew
 
     mock_worker_crew = MagicMock()
-    # The worker's kickoff also returns a mock output object.
+    mock_patch_output = MagicMock()
+    mock_patch_output.raw = MOCK_PATCH_FOR_CLM
     mock_worker_crew.kickoff.return_value = mock_patch_output
     mock_crew_factory_instance.worker_crew.return_value = mock_worker_crew
     
@@ -77,11 +83,9 @@ def test_engine_orchestrates_plan_and_execute_workflow(mocker):
     final_status = status_updates[-1]
     assert final_status.phase == "Complete"
 
-    # Assert that the final schema is correctly patched
     final_schema = engine.get_final_schema()
     clm_def = final_schema["segmentDefinitions"]["CLM"]
     assert clm_def["elements"][1]["usage"] == "R"
 
-    # Assert that the crews were called as expected
     mock_planning_crew.kickoff.assert_called_once()
     mock_worker_crew.kickoff.assert_called_once()

@@ -8,45 +8,48 @@ from jsonpatch import JsonPatch
 from .models import KnowledgeSource, RefinementStatus, RefinementTask
 from .rag_tool import RAGTool
 from src.agents.crews import SchemaRefinementCrews
+# --- NEW IMPORTS ---
+from .embedding_models import PineconeEmbeddingModel
+from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# --- NEW HELPER FUNCTION ---
 def _extract_json_from_llm_output(text: str) -> str:
-    """
-    Extracts a JSON string from a markdown code block in the LLM's output.
-    """
+    # ... (no change to this helper function) ...
     match = re.search(r'```(json)?\n(.*)\n```', text, re.DOTALL)
     if match:
         return match.group(2).strip()
-    # Fallback if no markdown block is found, assume the whole string is JSON
     return text.strip()
 
 
 class SchemaRefinementEngine:
     def __init__(self, base_schema: Dict[str, Any], knowledge_source: KnowledgeSource):
         self.in_memory_schema = base_schema
-        self.rag_tool = RAGTool(knowledge_source=knowledge_source)
+        
+        # --- THIS IS THE NEW LOGIC ---
+        # 1. Choose and instantiate the embedding model based on config
+        #    This is where you could add logic for "openai", "local", etc.
+        logger.info("Initializing embedding model...")
+        embedding_model = PineconeEmbeddingModel(model_name=settings.PINECONE_EMBED_MODEL)
+
+        # 2. Inject the chosen embedding model into the RAGTool
+        self.rag_tool = RAGTool(
+            knowledge_source=knowledge_source,
+            embedding_model=embedding_model
+        )
+        # --- END OF NEW LOGIC ---
+        
         self.crew_factory = SchemaRefinementCrews(rag_tool=self.rag_tool)
         logger.info("SchemaRefinementEngine initialized with new CrewBase factory.")
 
     def run(self) -> Generator[RefinementStatus, None, None]:
-        """
-        Runs the full refinement process, yielding status updates.
-        """
+        # ... (the rest of the run method is unchanged) ...
         try:
-            # --- PHASE 1: PLANNING ---
             yield RefinementStatus(phase="Planning", message="Analyzing documentation to create a refinement plan...")
-            
             planning_crew = self.crew_factory.planning_crew()
             plan_output = planning_crew.kickoff()
-            
-            # --- THIS IS THE FIX ---
-            # Use the helper to extract the clean JSON before parsing
             clean_plan_json = _extract_json_from_llm_output(plan_output.raw)
             tasks_data = json.loads(clean_plan_json)
-            # --- END OF FIX ---
-            
             tasks = [RefinementTask.model_validate(t) for t in tasks_data]
             
             total_tasks = len(tasks)
@@ -57,7 +60,6 @@ class SchemaRefinementEngine:
                 total_tasks=total_tasks
             )
 
-            # --- PHASE 2: EXECUTION ---
             worker_crew = self.crew_factory.worker_crew()
             for i, task in enumerate(tasks):
                 yield RefinementStatus(
@@ -74,10 +76,8 @@ class SchemaRefinementEngine:
                 }
                 patch_output = worker_crew.kickoff(inputs=crew_input)
                 
-                # --- THIS IS THE FIX (Applied here as well) ---
                 clean_patch_json = _extract_json_from_llm_output(patch_output.raw)
                 patch = json.loads(clean_patch_json)
-                # --- END OF FIX ---
                 
                 self.in_memory_schema = JsonPatch(patch).apply(self.in_memory_schema)
                 
