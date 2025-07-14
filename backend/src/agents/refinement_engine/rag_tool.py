@@ -15,7 +15,6 @@ from .models import KnowledgeSource
 
 logger = logging.getLogger(__name__)
 
-
 class RAGTool(BaseTool):
     """
     A custom CrewAI tool for querying a knowledge source using a real RAG pipeline.
@@ -43,12 +42,11 @@ class RAGTool(BaseTool):
         loader = get_loader(self.knowledge_source)
         loaded_documents = loader.load()
 
-        # --- FIX 1: Filter out any empty documents before processing ---
         documents = [doc for doc in loaded_documents if doc.get_content().strip()]
 
         if documents:
             service_context = ServiceContext.from_defaults(
-                llm=None,
+                llm=None, # We use the RAG tool for retrieval only, not synthesis
                 embed_model=self.embedding_model,
                 node_parser=SentenceSplitter(
                     paragraph_separator="\n---\n",
@@ -67,7 +65,8 @@ class RAGTool(BaseTool):
             
             self.query_engine = index.as_query_engine(
                 service_context=service_context,
-                similarity_top_k=1
+                # Retrieve the top 3 most relevant sections to give the agent more context
+                similarity_top_k=3
             )
 
             logger.info("RAG query engine is ready.")
@@ -77,8 +76,9 @@ class RAGTool(BaseTool):
 
     def _run(self, query: str) -> str:
         """
-        Queries the indexed knowledge base and returns a response only if
-        the retrieved context is relevant enough.
+        Queries the indexed knowledge base and returns the raw text of all
+        retrieved source nodes, concatenated together. This provides a richer
+        context to the agent than a simple synthesized answer.
         """
         logger.debug(f"RAGTool received query: '{query}'")
         if not self.query_engine:
@@ -86,14 +86,16 @@ class RAGTool(BaseTool):
 
         response = self.query_engine.query(query)
 
-        # --- FIX 2: Check for relevance before returning the context ---
-        # If the top result's similarity score is below a threshold, we assume it's not relevant.
-        if not response.source_nodes or response.source_nodes[0].score < 0.7:
+        if not response.source_nodes or response.source_nodes[0].score < 0.75:
             logger.warning(
                 f"No relevant context found for query '{query}'. "
                 f"Top score was: {response.source_nodes[0].score if response.source_nodes else 'N/A'}"
             )
             return "No relevant context found in the documentation for this query."
         
-        # If the context is relevant enough, return the synthesized response.
-        return str(response)
+        # --- THIS IS THE FIX ---
+        # Instead of returning str(response), which is a synthesized answer,
+        # we return the combined raw text of all retrieved chunks.
+        source_texts = [node.get_content() for node in response.source_nodes]
+        return "\n\n---\n\n".join(source_texts)
+        # --- END OF FIX ---

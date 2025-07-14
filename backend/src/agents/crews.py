@@ -22,9 +22,15 @@ class SchemaRefinementCrews:
     @agent
     def planner(self) -> Agent:
         return Agent(
-            role='EDI Documentation Analysis and Planning Agent',
-            goal='Analyze a large EDI implementation guide and create a structured, machine-readable plan of all required schema changes.',
-            backstory="You are a meticulous technical writer and project manager. You read complex specifications and break them down into granular, actionable tasks for a team of developers. Your plans are flawless and comprehensive.",
+            role='EDI Requirement Analyst',
+            goal='Analyze EDI implementation guide documentation to extract all specified schema modification requirements and formulate them into a structured JSON list of tasks.',
+            # --- THIS IS THE FIX ---
+            # Added a very strong negative constraint to prevent hallucination.
+            backstory="""You are an expert EDI analyst. Your sole focus is to read technical documentation and accurately translate every stated requirement into a machine-readable task format.
+You never miss a requirement and always follow the specified output format.
+You MUST base your analysis ONLY on the information provided to you by the tools.
+Do NOT use any external knowledge or make assumptions about EDI standards beyond what is explicitly written in the provided text.""",
+            # --- END OF FIX ---
             tools=[self.rag_tool],
             llm=self.llm,
             verbose=True
@@ -36,7 +42,6 @@ class SchemaRefinementCrews:
             role='EDI Schema Design Architect',
             goal='Analyze a user request against a specific schema definition and generate a precise, structured JSON Patch object (RFC 6902) of proposed changes.',
             backstory="You are a meticulous architect who translates user requirements into detailed, machine-readable modification instructions. You must adhere to the specified JSON Patch output format.",
-            # This agent no longer needs tools, as the full context is provided.
             tools=[],
             llm=self.llm,
             verbose=True
@@ -48,19 +53,35 @@ class SchemaRefinementCrews:
     def planning_task(self) -> Task:
         return Task(
             description="""
-                Read the provided knowledge source document using your tools.
-                Your goal is to create a comprehensive, step-by-step plan for refining an EDI schema.
-                Break down the required changes into a list of specific, actionable tasks.
-                For each task, identify the type of change (e.g., 'update_segment_definition'),
-                the specific entity to be changed (e.g., 'CLM' segment), and a clear description.
+                Use your tools to read and analyze the provided knowledge source document.
+                Your mission is to identify EVERY single stated requirement for modifying the EDI schema.
+                To do this, you will first use your tool with a broad query to gather all relevant sections of the document.
+                You may need to use the tool multiple times if the first query does not provide all necessary details.
+                
+                Once you are certain you have gathered all available information from the document, you will synthesize it.
+                For EACH requirement you have found, create a corresponding JSON object representing that single task.
+                Finally, combine all of these individual task objects into a single JSON array to form your final answer.
             """,
             expected_output="""
                 A final, complete JSON array of task objects.
                 Each object must have three keys: 'task_type', 'task_description', and 'entity_id'.
+                
+                The 'entity_id' MUST be structured to provide context.
+                - For element-level changes, use the format: 'LOOP_ID:SEGMENT_ID.ELEMENT_ID' (e.g., '2010AA:NM1.NM102').
+                - For segment-level changes, use the format: 'LOOP_ID:SEGMENT_ID' (e.g., '2300:CLM').
+
                 Example:
                 [
-                  { "task_type": "update_segment_definition", "entity_id": "CLM", "task_description": "Make CLM02 required." }
+                  {
+                    "task_type": "update_segment_definition",
+                    "entity_id": "2010AA:NM1.NM102",
+                    "task_description": "Make NM102 (Entity Type Qualifier) in Billing Provider NM1 (Loop 2010AA) required."
+                  }
                 ]
+                
+                You MUST output your answer as a valid JSON array. Do not add any introductory text,
+                conversation, or markdown formatting like ```json. The entire response must be
+                the raw JSON array and nothing else.
             """,
             agent=self.planner()
         )
@@ -103,7 +124,6 @@ class SchemaRefinementCrews:
 
     @crew
     def worker_crew(self) -> Crew:
-        # The worker crew is now simpler, with only one agent and one task.
         return Crew(
             agents=[self.architect()],
             tasks=[self.propose_patch_task()],
