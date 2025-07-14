@@ -140,7 +140,7 @@ def main():
             '.gitignore', 'README.md', 'Caddyfile', 'assets/otel-collector-config.yaml',
             '.env.local.example', '.env.prod.example', 'docker-compose.local.yml',
             'docker-compose.dev-server.yml', 'docker-compose.observability.yml',
-            'scripts/run_app.sh', 'scripts/queries.sql', 'docs'
+            'scripts/run_app.sh', 'scripts/queries.sql', 'docs', 'backend/data/knowledge', 'backend/data/knowledge'
         ])
     
     unique_paths = list(dict.fromkeys(paths_to_scan))

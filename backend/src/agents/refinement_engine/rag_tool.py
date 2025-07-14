@@ -4,7 +4,10 @@ from pathlib import Path
 from typing import Any
 
 from crewai.tools import BaseTool
-from llama_index.core import Document, Settings, VectorStoreIndex
+from pydantic import ConfigDict, Field
+
+from llama_index.core import Document, VectorStoreIndex, ServiceContext 
+from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.base.embeddings.base import BaseEmbedding
 
 from .document_loader import get_loader
@@ -24,48 +27,73 @@ class RAGTool(BaseTool):
         "The input should be a clear, natural language question."
     )
     
-    # --- THIS IS THE FIX ---
-    # We remove the field declarations from the class body.
-    # We will set them manually in __init__ after the parent is initialized.
     class Config:
-        # This is the key: it allows us to set arbitrary attributes on the instance.
         arbitrary_types_allowed = True
         extra = "allow"
-    # --- END OF FIX ---
 
     def __init__(self, knowledge_source: KnowledgeSource, embedding_model: BaseEmbedding, **kwargs):
-        # Call the parent __init__ with only the arguments it knows about.
         super().__init__(**kwargs)
 
-        # Now, manually set our custom attributes on the instance.
         self.knowledge_source = knowledge_source
         self.embedding_model = embedding_model
         self.query_engine: Any = None
         
-        logger.info(f"Initializing RAGTool with embedding model: {self.embedding_model.__class__.__name__}")
+        logger.info(f"Initializing RAGTool with embedding model: {embedding_model.__class__.__name__}")
         
-        Settings.embed_model = self.embedding_model
-        Settings.llm = None
-
         loader = get_loader(self.knowledge_source)
-        documents = loader.load()
+        loaded_documents = loader.load()
+
+        # --- FIX 1: Filter out any empty documents before processing ---
+        documents = [doc for doc in loaded_documents if doc.get_content().strip()]
 
         if documents:
-            logger.info("Creating vector store index from document(s)...")
-            index = VectorStoreIndex.from_documents(documents, show_progress=True)
-            self.query_engine = index.as_query_engine()
+            service_context = ServiceContext.from_defaults(
+                llm=None,
+                embed_model=self.embedding_model,
+                node_parser=SentenceSplitter(
+                    paragraph_separator="\n---\n",
+                    chunk_size=512,
+                    chunk_overlap=20
+                )
+            )
+            
+            logger.info(f"Creating vector store index from {len(documents)} valid document(s)...")
+
+            index = VectorStoreIndex.from_documents(
+                documents, 
+                service_context=service_context, 
+                show_progress=True
+            )
+            
+            self.query_engine = index.as_query_engine(
+                service_context=service_context,
+                similarity_top_k=1
+            )
+
             logger.info("RAG query engine is ready.")
         else:
-            logger.error("Document loader returned no documents. RAG engine will not be available.")
-
+            logger.error("Document loader returned no valid documents with content. RAG engine will not be available.")
+            self.query_engine = None
 
     def _run(self, query: str) -> str:
         """
-        Queries the indexed knowledge base.
+        Queries the indexed knowledge base and returns a response only if
+        the retrieved context is relevant enough.
         """
         logger.debug(f"RAGTool received query: '{query}'")
         if not self.query_engine:
             return "Error: RAG query engine is not initialized. Knowledge source may be missing or invalid."
 
         response = self.query_engine.query(query)
+
+        # --- FIX 2: Check for relevance before returning the context ---
+        # If the top result's similarity score is below a threshold, we assume it's not relevant.
+        if not response.source_nodes or response.source_nodes[0].score < 0.7:
+            logger.warning(
+                f"No relevant context found for query '{query}'. "
+                f"Top score was: {response.source_nodes[0].score if response.source_nodes else 'N/A'}"
+            )
+            return "No relevant context found in the documentation for this query."
+        
+        # If the context is relevant enough, return the synthesized response.
         return str(response)

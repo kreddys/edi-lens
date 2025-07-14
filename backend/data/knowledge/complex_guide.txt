@@ -1,0 +1,22 @@
+# FILE: backend/data/knowledge/complex_guide.txt
+### Section 1: Claim Information (CLM) Rules
+
+The CLM segment is used to specify the main claim data.
+The element CLM01, the Patient Control Number, is mandatory.
+The element CLM02, Total Claim Charge, must always be present and should be greater than zero.
+
+---
+
+### Section 2: Referring Provider (REF) Rules
+
+The REF segment is used to provide secondary identification.
+When the REF01 element contains the code 'G2' (Provider Commercial Number), then the REF02 element, which holds the actual number, is required.
+For all other REF01 codes, REF02 is situational. The 'G2' rule is a high-priority payer requirement.
+
+---
+
+### Section 3: Date Time Period (DTP) Rules
+
+The DTP segment specifies important dates related to the service.
+This segment can repeat up to a maximum of 5 times within the 2400 Service Line Loop.
+The DTP01 will contain a date category code, like '472' for Service Date.

@@ -1,4 +1,4 @@
-# FILE: backend/src/refinement_engine/models.py
+# FILE: backend/src/agents/refinement_engine/models.py
 from pydantic import BaseModel, Field
 from typing import Literal, Optional, Any, List, Dict
 
@@ -7,7 +7,10 @@ class KnowledgeSource(BaseModel):
     Defines the source of knowledge for the refinement.
     Can be a file path or raw text content.
     """
-    source_type: Literal["file", "text"]
+    # --- THIS IS THE FIX ---
+    # Added 'file_sections' to the list of allowed types.
+    source_type: Literal["file", "text", "file_sections"]
+    # --- END OF FIX ---
     content: str # For 'text', this is the raw text. For 'file', this is the path.
 
 class RefinementTask(BaseModel):

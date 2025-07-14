@@ -18,6 +18,38 @@ class DocumentLoader(ABC):
         """Loads a knowledge source and returns a list of LlamaIndex Documents."""
         pass
 
+# --- NEW, ROBUST LOADER ---
+class SectionLoader(DocumentLoader):
+    """
+    Loads a text file and splits it into multiple Document objects based on
+    a specified separator. This is ideal for pre-chunking structured text.
+    """
+    def __init__(self, file_path: Path, separator: str = "\n\n---\n\n"):
+        self.file_path = file_path
+        self.separator = separator
+        
+    def load(self) -> List[Document]:
+        try:
+            full_content = self.file_path.read_text()
+            sections = full_content.split(self.separator)
+            
+            documents = []
+            for i, section_text in enumerate(sections):
+                if section_text.strip(): # Ensure we don't create empty documents
+                    doc = Document(
+                        text=section_text, 
+                        # Add metadata to each document for traceability
+                        metadata={"section": i + 1, "file_name": self.file_path.name}
+                    )
+                    documents.append(doc)
+            
+            logger.info(f"Successfully loaded and split '{self.file_path.name}' into {len(documents)} sections.")
+            return documents
+        except Exception as e:
+            logger.error(f"Failed to read or split file {self.file_path}: {e}", exc_info=True)
+            return []
+
+# --- EXISTING LOADERS (NO CHANGE) ---
 class PdfLoader(DocumentLoader):
     """Loads a PDF file and extracts its text content."""
     def __init__(self, file_path: Path):
@@ -37,7 +69,7 @@ class PdfLoader(DocumentLoader):
             return []
 
 class TextFileLoader(DocumentLoader):
-    """Loads a plain text file."""
+    """Loads a plain text file as a single Document."""
     def __init__(self, file_path: Path):
         self.file_path = file_path
 
@@ -60,6 +92,7 @@ class RawTextLoader(DocumentLoader):
         logger.info(f"Loading raw text input with id: '{self.doc_id}'")
         return [Document(text=self.text, doc_id=self.doc_id)]
 
+# --- UPDATED FACTORY FUNCTION ---
 def get_loader(knowledge_source: KnowledgeSource) -> DocumentLoader:
     """
     Factory function that returns the appropriate document loader
@@ -71,6 +104,12 @@ def get_loader(knowledge_source: KnowledgeSource) -> DocumentLoader:
     if source_type == "text":
         return RawTextLoader(text=content)
     
+    # --- THIS IS THE KEY CHANGE ---
+    # We now look for a more specific source type to use our new loader.
+    if source_type == "file_sections":
+        return SectionLoader(file_path=Path(content))
+    # --- END OF CHANGE ---
+
     if source_type == "file":
         file_path = Path(content)
         if not file_path.is_file():
@@ -80,8 +119,8 @@ def get_loader(knowledge_source: KnowledgeSource) -> DocumentLoader:
         if suffix == ".pdf":
             return PdfLoader(file_path=file_path)
         if suffix == ".txt":
+            # Default behavior for a .txt file is still to load it whole.
             return TextFileLoader(file_path=file_path)
-        # Add more loaders here in the future, e.g., .docx, .md
         
         raise NotImplementedError(f"File type '{suffix}' is not supported.")
 
