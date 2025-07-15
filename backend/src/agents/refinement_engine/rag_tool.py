@@ -1,19 +1,23 @@
 # FILE: backend/src/agents/refinement_engine/rag_tool.py
 import logging
-from pathlib import Path
 from typing import Any
 
 from crewai.tools import BaseTool
-from pydantic import BaseModel, ConfigDict, Field
-
-from llama_index.core import Document, VectorStoreIndex, ServiceContext 
+# --- THIS IS THE FIX: Add the missing imports from pydantic ---
+from pydantic import BaseModel, Field
+# --- END OF FIX ---
+from llama_index.core import VectorStoreIndex, ServiceContext, Document
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.base.embeddings.base import BaseEmbedding
+
+from opentelemetry import trace
+from openlit.semcov import SemanticConvention
 
 from .document_loader import get_loader
 from .models import KnowledgeSource
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer("rag_tool_tracer")
 
 class RAGTool(BaseTool):
     """
@@ -38,7 +42,6 @@ class RAGTool(BaseTool):
 
     def __init__(self, knowledge_source: KnowledgeSource, embedding_model: BaseEmbedding, **kwargs):
         super().__init__(**kwargs)
-
         self.knowledge_source = knowledge_source
         self.embedding_model = embedding_model
         self.query_engine: Any = None
@@ -47,61 +50,46 @@ class RAGTool(BaseTool):
         
         loader = get_loader(self.knowledge_source)
         loaded_documents = loader.load()
-
         documents = [doc for doc in loaded_documents if doc.get_content().strip()]
 
         if documents:
             service_context = ServiceContext.from_defaults(
-                llm=None, # We use the RAG tool for retrieval only, not synthesis
+                llm=None,
                 embed_model=self.embedding_model,
-                node_parser=SentenceSplitter(
-                    paragraph_separator="\n---\n",
-                    chunk_size=512,
-                    chunk_overlap=20
-                )
+                node_parser=SentenceSplitter(paragraph_separator="\n---\n", chunk_size=512, chunk_overlap=20)
             )
-            
             logger.info(f"Creating vector store index from {len(documents)} valid document(s)...")
-
-            index = VectorStoreIndex.from_documents(
-                documents, 
-                service_context=service_context, 
-                show_progress=True
-            )
-            
-            self.query_engine = index.as_query_engine(
-                service_context=service_context,
-                # Retrieve the top 3 most relevant sections to give the agent more context
-                similarity_top_k=3
-            )
-
+            index = VectorStoreIndex.from_documents(documents, service_context=service_context, show_progress=True)
+            self.query_engine = index.as_query_engine(service_context=service_context, similarity_top_k=3)
             logger.info("RAG query engine is ready.")
         else:
-            logger.error("Document loader returned no valid documents with content. RAG engine will not be available.")
+            logger.error("Document loader returned no valid documents. RAG engine will not be available.")
             self.query_engine = None
 
-    def _run(self, query: str) -> str:
+    def _run(self, **kwargs: Any) -> str:
         """
         Queries the indexed knowledge base and returns the raw text of all
-        retrieved source nodes, concatenated together. This provides a richer
-        context to the agent than a simple synthesized answer.
+        retrieved source nodes. This method is now instrumented.
         """
-        logger.debug(f"RAGTool received query: '{query}'")
-        if not self.query_engine:
-            return "Error: RAG query engine is not initialized. Knowledge source may be missing or invalid."
+        query = kwargs.get("query", "")
+        with tracer.start_as_current_span(f"Tool Usage: {self.name}") as span:
+            span.set_attribute(SemanticConvention.GEN_AI_TOOL_NAME, self.name)
+            span.set_attribute(SemanticConvention.GEN_AI_TOOL_ARGS, query)
 
-        response = self.query_engine.query(query)
+            logger.debug(f"RAGTool received query: '{query}'")
+            if not self.query_engine:
+                error_msg = "Error: RAG query engine is not initialized. Knowledge source may be missing or invalid."
+                span.set_attribute("tool.output", error_msg)
+                return error_msg
 
-        if not response.source_nodes or response.source_nodes[0].score < 0.75:
-            logger.warning(
-                f"No relevant context found for query '{query}'. "
-                f"Top score was: {response.source_nodes[0].score if response.source_nodes else 'N/A'}"
-            )
-            return "No relevant context found in the documentation for this query."
-        
-        # --- THIS IS THE FIX ---
-        # Instead of returning str(response), which is a synthesized answer,
-        # we return the combined raw text of all retrieved chunks.
-        source_texts = [node.get_content() for node in response.source_nodes]
-        return "\n\n---\n\n".join(source_texts)
-        # --- END OF FIX ---
+            response = self.query_engine.query(query)
+
+            if not response.source_nodes or response.source_nodes[0].score < 0.75:
+                logger.warning(f"No relevant context found for query '{query}'. Top score: {response.source_nodes[0].score if response.source_nodes else 'N/A'}")
+                output = "No relevant context found in the documentation for this query."
+            else:
+                source_texts = [node.get_content() for node in response.source_nodes]
+                output = "\n\n---\n\n".join(source_texts)
+
+            span.set_attribute("tool.output", output)
+            return output
