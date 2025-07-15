@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
+import os
 
 # --- Setup Project Path and Environment ---
 project_root = Path(__file__).resolve().parent.parent
@@ -13,13 +14,17 @@ env_path = project_root.parent / ".env.local"
 if env_path.exists():
     load_dotenv(dotenv_path=env_path)
 
+# --- THIS IS THE FIX: Import openlit and the new trace_crew utility ---
+import openlit
+from src.utils.telemetry import trace_crew
+# --- END OF FIX ---
+
 from src.core.config import setup_logging, settings
 from src.agents.crews import SchemaEnrichmentCrews
-# --- THIS IS THE FIX: Corrected import path ---
 from scripts.preprocess_guide import preprocess_guide
 from src.agents.refinement_engine.rag_tool import RAGTool
 from src.agents.refinement_engine.embedding_models import PineconeEmbeddingModel
-from src.agents.refinement_engine.models import KnowledgeSource # Import the model
+from src.agents.refinement_engine.models import KnowledgeSource
 
 # --- Configuration ---
 RUN_TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -34,12 +39,19 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- Setup Logging ---
 log_file = LOG_DIR / "proposal_generation.log"
-setup_logging() # Sets up console logging
-# Add file handler for this run
+setup_logging()
 file_handler = logging.FileHandler(log_file)
 file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s"))
 logging.getLogger().addHandler(file_handler)
 logger = logging.getLogger(__name__)
+
+# --- THIS IS THE FIX: Initialize OpenLIT for this script's execution ---
+if os.getenv("ENABLE_OBSERVABILITY", "false").lower() == "true":
+    logger.info("Observability is enabled. Initializing OpenLIT for proposal generation script...")
+    openlit.init(application_name="edi-lens-proposal-agent")
+else:
+    logger.info("Observability is disabled for this script.")
+# --- END OF FIX ---
 
 def generate_proposals(base_schema_path: Path, guide_path: Path):
     logger.info(f"Starting proposal generation run. Output will be in: {CURRENT_RUN_DIR}")
@@ -53,9 +65,6 @@ def generate_proposals(base_schema_path: Path, guide_path: Path):
     # 2. Pre-process and index the guide
     chunk_dir, toc_content = preprocess_guide(guide_path)
     embedding_model = PineconeEmbeddingModel(model_name=settings.PINECONE_EMBED_MODEL)
-    
-    # --- THIS IS THE FIX: Use the KnowledgeSource model and a new source_type ---
-    # We will update the document loader to handle this new type.
     knowledge = KnowledgeSource(source_type="directory", content=str(chunk_dir))
     rag_tool = RAGTool(knowledge_source=knowledge, embedding_model=embedding_model)
     logger.info("Knowledge base has been chunked and indexed.")
@@ -71,10 +80,14 @@ def generate_proposals(base_schema_path: Path, guide_path: Path):
         logger.info(f"----- Analyzing segment: {segment_id} -----")
         
         try:
-            analysis_result = analysis_crew.kickoff(inputs={
+            # --- THIS IS THE FIX: Use the trace_crew wrapper ---
+            analysis_inputs = {
                 "segment_id": segment_id,
                 "current_definition_json": json.dumps(segment_def, indent=2)
-            })
+            }
+            analysis_result = trace_crew(analysis_crew, analysis_inputs)
+            # --- END OF FIX ---
+
             tasks = json.loads(analysis_result.raw)
 
             if not tasks:
@@ -87,13 +100,15 @@ def generate_proposals(base_schema_path: Path, guide_path: Path):
             all_patches_for_segment = []
             current_segment_def_for_patching = segment_def
             for task in tasks:
-                patch_result = architect_crew.kickoff(inputs={
+                # --- THIS IS THE FIX: Use the trace_crew wrapper ---
+                architect_inputs = {
                     "task_json": json.dumps(task),
                     "current_definition_json": json.dumps(current_segment_def_for_patching, indent=2)
-                })
+                }
+                patch_result = trace_crew(architect_crew, architect_inputs)
+                # --- END OF FIX ---
                 patch = json.loads(patch_result.raw)
                 all_patches_for_segment.extend(patch)
-                # Apply patch to keep the definition up-to-date for the next task
                 from jsonpatch import JsonPatch
                 current_segment_def_for_patching = JsonPatch(patch).apply(current_segment_def_for_patching)
             

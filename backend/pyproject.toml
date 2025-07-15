@@ -34,6 +34,7 @@ llama-index-core = "0.10.60"
 # We explicitly require pypdf here to ensure our direct usage works,
 # but we align our version with crewai-tools' requirement.
 pypdf = ">=4.2.0"
+pinecone-client = "^4.1.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.2"

@@ -7,46 +7,69 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 import logging 
 import sys 
+import os
+import openlit
 
 from src.main import app
 from src.core.database import get_db, Base
 from src.core.config import settings
-
-# --- THIS IS THE FIX ---
 
 def pytest_addoption(parser):
     """Adds a custom command-line option to control the application's log level during tests."""
     parser.addoption(
         "--log-level-app", 
         action="store", 
-        default="INFO",  # Default to INFO if not specified
+        default="INFO",
         help="Set the log level for the application during tests (e.g., DEBUG, INFO, WARNING)"
     )
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_test_logging(pytestconfig):
-    """Set up logging to output to console for all tests, using the custom log level."""
-    # Get the value from the command line, defaulting to INFO as defined above.
+def setup_test_suite(pytestconfig):
+    """
+    Runs once at the beginning of the test session.
+    It configures logging and initializes OpenLIT before any tests are collected.
+    """
     log_level = pytestconfig.getoption("log_level_app").upper()
-    
-    # This configures the root logger.
-    # All loggers created with logging.getLogger(__name__) will inherit this.
     logging.basicConfig(
         level=log_level,
         format="[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s",
         stream=sys.stdout,
-        force=True # Override any existing configurations
+        force=True
     )
     logging.info(f"Test logging configured with level: {log_level}")
 
-# --- END OF FIX ---
+    os.environ["IS_PYTEST"] = "true"
 
-# Use a separate test database URL
+    if os.getenv("ENABLE_OBSERVABILITY", "false").lower() == "true":
+        print("\n[TEST SESSION START] Observability is enabled. Initializing OpenLIT...")
+        
+        # We will explicitly disable the default crewai instrumentor to avoid double-tracing.
+        unused_instrumentors = [
+            "crewai",
+            "anthropic", "cohere", "mistral", "bedrock", "vertexai", "groq", "ollama",
+            "gpt4all", "elevenlabs", "vllm", "google-ai-studio", "azure-ai-inference",
+            "langchain", "langchain_community", "haystack", "embedchain", "mem0", "chroma",
+            "qdrant", "milvus", "transformers", "litellm", "ag2", "autogen",
+            "pyautogen", "multion", "dynamiq", "phidata", "reka-api", "premai", "julep",
+            "astra", "ai21", "controlflow", "assemblyai", "crawl4ai", "firecrawl",
+            "letta", "together", "openai-agents", "pydantic_ai", "gpu"
+        ]
+        
+        openlit.init(
+            application_name="edi-lens-test-suite",
+            disabled_instrumentors=unused_instrumentors
+        )
+    else:
+        print("\n[TEST SESSION START] Observability is disabled.")
+    
+    yield
+    
+    del os.environ["IS_PYTEST"]
+
+# --- The rest of the file is unchanged ---
 TEST_DATABASE_URL = settings.DATABASE_URL.replace(
     settings.POSTGRES_DB, settings.POSTGRES_DB + "_test"
 )
-
-# Create a test engine and sessionmaker
 test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 TestAsyncSessionLocal = sessionmaker(
     autocommit=False,
@@ -58,45 +81,24 @@ TestAsyncSessionLocal = sessionmaker(
 
 @pytest_asyncio.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Fixture that provides a database session for a test, and handles
-    schema creation and teardown. This fixture is used by integration tests.
-    """
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
     async with TestAsyncSessionLocal() as session:
         yield session
-
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-
     await test_engine.dispose()
 
 @pytest_asyncio.fixture(scope="function")
 async def async_client(db_session: AsyncSession, monkeypatch) -> AsyncGenerator[AsyncClient, None]:
-    """
-    Provide a clean test client for each test function, with DB dependency 
-    overridden and lifespan events managed.
-    """
-    # Use monkeypatch to override the EDI_SCHEMA_DIRECTORY setting during tests.
-    # This points the schema_manager to a local test directory, not the Docker volume path.
     from pathlib import Path
     test_schema_dir = Path(__file__).parent / "data" / "test_schemas"
     monkeypatch.setattr(settings, 'EDI_SCHEMA_DIRECTORY', str(test_schema_dir))
-    
     async def override_get_db():
         yield db_session
-
     app.dependency_overrides[get_db] = override_get_db
-
-    # Manually manage the application's lifespan events.
-    # This ensures that startup events (like loading schemas) are run before tests,
-    # and shutdown events are run after.
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             yield client
-
-    # Clean up the overrides after the test
     app.dependency_overrides.clear()
