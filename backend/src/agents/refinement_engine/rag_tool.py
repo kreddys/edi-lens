@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from crewai.tools import BaseTool
-from pydantic import ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from llama_index.core import Document, VectorStoreIndex, ServiceContext 
 from llama_index.core.node_parser import SentenceSplitter
@@ -26,6 +26,12 @@ class RAGTool(BaseTool):
         "The input should be a clear, natural language question."
     )
     
+    class RAGToolSchema(BaseModel):
+        """Input for RAGTool."""
+        query: str = Field(..., description="Mandatory query string")
+
+    args_schema: type[BaseModel] = RAGToolSchema
+
     class Config:
         arbitrary_types_allowed = True
         extra = "allow"

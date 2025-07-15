@@ -1,3 +1,4 @@
+# FILE: backend/tests/conftest.py
 import pytest
 import pytest_asyncio
 from typing import AsyncGenerator
@@ -11,20 +12,34 @@ from src.main import app
 from src.core.database import get_db, Base
 from src.core.config import settings
 
-# --- THIS IS THE NEW SECTION FOR LOGGING ---
+# --- THIS IS THE FIX ---
+
+def pytest_addoption(parser):
+    """Adds a custom command-line option to control the application's log level during tests."""
+    parser.addoption(
+        "--log-level-app", 
+        action="store", 
+        default="INFO",  # Default to INFO if not specified
+        help="Set the log level for the application during tests (e.g., DEBUG, INFO, WARNING)"
+    )
+
 @pytest.fixture(scope="session", autouse=True)
-def setup_test_logging():
-    """Set up logging to output to console for all tests."""
+def setup_test_logging(pytestconfig):
+    """Set up logging to output to console for all tests, using the custom log level."""
+    # Get the value from the command line, defaulting to INFO as defined above.
+    log_level = pytestconfig.getoption("log_level_app").upper()
+    
     # This configures the root logger.
     # All loggers created with logging.getLogger(__name__) will inherit this.
     logging.basicConfig(
-        level=logging.DEBUG, # Set the level to DEBUG
+        level=log_level,
         format="[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s",
-        stream=sys.stdout, # Direct output to stdout
+        stream=sys.stdout,
         force=True # Override any existing configurations
     )
-# --- END OF NEW SECTION ---
+    logging.info(f"Test logging configured with level: {log_level}")
 
+# --- END OF FIX ---
 
 # Use a separate test database URL
 TEST_DATABASE_URL = settings.DATABASE_URL.replace(
@@ -57,7 +72,6 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         await conn.run_sync(Base.metadata.drop_all)
 
     await test_engine.dispose()
-
 
 @pytest_asyncio.fixture(scope="function")
 async def async_client(db_session: AsyncSession, monkeypatch) -> AsyncGenerator[AsyncClient, None]:

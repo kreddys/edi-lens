@@ -60,3 +60,5 @@ postgres-data/
 
 # Generated Keycloak config with secrets
 keycloak-config/realm-export.json
+
+logs/

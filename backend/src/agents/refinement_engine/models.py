@@ -9,7 +9,7 @@ class KnowledgeSource(BaseModel):
     """
     # --- THIS IS THE FIX ---
     # Added 'file_sections' to the list of allowed types.
-    source_type: Literal["file", "text", "file_sections"]
+    source_type: Literal["file", "text", "file_sections", "directory"]
     # --- END OF FIX ---
     content: str # For 'text', this is the raw text. For 'file', this is the path.
 

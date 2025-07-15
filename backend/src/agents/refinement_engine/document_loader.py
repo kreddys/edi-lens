@@ -18,7 +18,33 @@ class DocumentLoader(ABC):
         """Loads a knowledge source and returns a list of LlamaIndex Documents."""
         pass
 
-# --- NEW, ROBUST LOADER ---
+# --- THIS IS THE NEW LOADER ---
+class DirectoryLoader(DocumentLoader):
+    """Loads all .txt files from a given directory as separate Documents."""
+    def __init__(self, dir_path: Path):
+        self.dir_path = dir_path
+
+    def load(self) -> List[Document]:
+        documents = []
+        if not self.dir_path.is_dir():
+            logger.error(f"Directory not found for loader: {self.dir_path}")
+            return []
+            
+        for file_path in self.dir_path.glob("*.txt"):
+            try:
+                text_content = file_path.read_text(encoding='utf-8')
+                doc = Document(
+                    text=text_content, 
+                    metadata={"file_name": file_path.name}
+                )
+                documents.append(doc)
+            except Exception as e:
+                logger.error(f"Failed to load file {file_path}: {e}", exc_info=True)
+        
+        logger.info(f"Successfully loaded {len(documents)} documents from directory '{self.dir_path.name}'.")
+        return documents
+# --- END OF NEW LOADER ---
+
 class SectionLoader(DocumentLoader):
     """
     Loads a text file and splits it into multiple Document objects based on
@@ -35,10 +61,9 @@ class SectionLoader(DocumentLoader):
             
             documents = []
             for i, section_text in enumerate(sections):
-                if section_text.strip(): # Ensure we don't create empty documents
+                if section_text.strip():
                     doc = Document(
                         text=section_text, 
-                        # Add metadata to each document for traceability
                         metadata={"section": i + 1, "file_name": self.file_path.name}
                     )
                     documents.append(doc)
@@ -49,7 +74,6 @@ class SectionLoader(DocumentLoader):
             logger.error(f"Failed to read or split file {self.file_path}: {e}", exc_info=True)
             return []
 
-# --- EXISTING LOADERS (NO CHANGE) ---
 class PdfLoader(DocumentLoader):
     """Loads a PDF file and extracts its text content."""
     def __init__(self, file_path: Path):
@@ -104,11 +128,14 @@ def get_loader(knowledge_source: KnowledgeSource) -> DocumentLoader:
     if source_type == "text":
         return RawTextLoader(text=content)
     
-    # --- THIS IS THE KEY CHANGE ---
-    # We now look for a more specific source type to use our new loader.
     if source_type == "file_sections":
         return SectionLoader(file_path=Path(content))
-    # --- END OF CHANGE ---
+        
+    # --- THIS IS THE FIX ---
+    # Add a case to handle the directory of chunks
+    if source_type == "directory":
+        return DirectoryLoader(dir_path=Path(content))
+    # --- END OF FIX ---
 
     if source_type == "file":
         file_path = Path(content)
@@ -119,7 +146,6 @@ def get_loader(knowledge_source: KnowledgeSource) -> DocumentLoader:
         if suffix == ".pdf":
             return PdfLoader(file_path=file_path)
         if suffix == ".txt":
-            # Default behavior for a .txt file is still to load it whole.
             return TextFileLoader(file_path=file_path)
         
         raise NotImplementedError(f"File type '{suffix}' is not supported.")
