@@ -24,7 +24,6 @@ class ChangeProposal(BaseModel):
     """Pydantic model for the list of proposed changes, which is the final output of the analysis task."""
     proposals: List[ProposedChange] = Field(default=[], description="A list of proposed changes. Must be an empty list if no changes are needed.")
 
-
 @CrewBase
 class SchemaEnrichmentCrews:
     """A crew designed to enrich a base schema with details from documentation."""
@@ -71,12 +70,17 @@ Your job is to find every single piece of missing information, every incorrect v
                 2. Use the 'Documentation Query Tool' ONE TIME with the given segment ID to retrieve its documentation.
                 3. Perform a strict comparison between the retrieved text and the provided JSON.
                 4. For each discrepancy, create a change object. A discrepancy ONLY exists if the text provides a value that is different from the JSON, or if the text describes an element that is completely missing from the JSON.
-                   - If an element's property is incorrect (e.g., usage is 'S' but should be 'R'), the `change_type` MUST be 'MODIFY_ELEMENT'.
-                   - If an element is completely missing from the definition, the `change_type` MUST be 'ADD_ELEMENT'.
+                   - If an element's property is incorrect (e.g., usage is 'S' but should be 'R'), the `change_type` MUST be 'MODIFY_ELEMENT'. The `proposed_changes` object MUST contain ONLY the key-value pairs that need to be changed, for example: `{{"usage": "R"}}`.
+                   - If an element is completely missing from the definition, the `change_type` MUST be 'ADD_ELEMENT'. The `proposed_changes` object MUST contain the full definition of the new element to be added, including its `xid`, `name`, and `usage` parsed from the documentation. For example: `{{"xid": "SBR01", "name": "Payer Responsibility Sequence Number Code", "usage": "R"}}`.
                 5. If an element exists in the JSON but is NOT mentioned in the retrieved text, you MUST ignore it. DO NOT propose to remove it.
                 6. YOUR FINAL ANSWER MUST BE A JSON OBJECT containing a list of these change objects. If no changes are needed, you MUST return an object with an empty list.
 
-                **CRITICAL RULE**: Every change object you propose MUST include a "citation" field containing the exact quote from the documentation that justifies the change. If you cannot find a quote, you cannot propose the change.
+                **CRITICAL RULE 1: ADHERE STRICTLY TO THE PROVIDED DOCUMENTATION**: You are absolutely forbidden from proposing a change or addition for an element if that element is not explicitly described in the retrieved documentation. Do not use your own knowledge to 'fill in the blanks'.
+                **EXAMPLE OF WHAT NOT TO DO**: If the documentation for segment 'ST' only mentions 'ST-01', you MUST NOT propose to add 'ST-02', even if you know 'ST-02' typically exists. Your knowledge comes ONLY from the text provided by the tool. If the text doesn't mention it, it doesn't exist for the purpose of this task.
+
+                **CRITICAL RULE 2: PROVIDE CITATIONS**: Every change object you propose MUST include a "citation" field containing the exact quote from the documentation that justifies the change. If you cannot find a quote, you cannot propose the change.
+
+                **CRITICAL RULE 3: NORMALIZE IDs**: The `element_id` and the `xid` in `proposed_changes` MUST be normalized by removing any hyphens (e.g., 'SBR-01' from the documentation becomes 'SBR01').
 
                 Context:
                 - Segment ID: {segment_id}
