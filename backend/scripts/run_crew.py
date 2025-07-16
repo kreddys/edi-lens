@@ -19,8 +19,9 @@ from src.core.config import settings, setup_logging
 import openlit
 
 # Import the new engine and its models
-from src.refinement_engine.engine import SchemaRefinementEngine
-from src.refinement_engine.models import KnowledgeSource
+from src.agents.refinement_engine.engine import SchemaRefinementEngine
+from src.agents.refinement_engine.models import KnowledgeSource
+from scripts.preprocess_guide import preprocess_guide
 
 # --- Step 3: Configure Logging & OpenLIT ---
 setup_logging()
@@ -32,51 +33,40 @@ if os.getenv("ENABLE_OBSERVABILITY", "false").lower() == "true":
 else:
     logger.info("Observability is disabled.")
 
-
 def run_full_schema_refinement():
     """
     A command-line interface for the SchemaRefinementEngine.
-    This function orchestrates the entire "Plan & Execute" workflow.
+    This function orchestrates the entire "Schema Assembly Line" workflow.
     """
-    logger.info("--- EDI Lens Schema Refinement Utility ---")
+    logger.info("--- EDI Lens Schema Generation & Enrichment Utility ---")
     
-    if not os.getenv("OPENROUTER_API_KEY") and not os.getenv("OPENAI_API_KEY") and not os.getenv("ANTHROPIC_API_KEY") and not os.getenv("OLLAMA_BASE_URL"):
-        logger.error("No LLM API key or configuration found.")
-        logger.error("Please ensure the required API key for your chosen provider is set in your .env.local file.")
+    if not (os.getenv("PINECONE_API_KEY") and (os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY"))):
+        logger.error("Required API keys (PINECONE_API_KEY and an LLM provider key) are not set in .env.local")
         return
 
     # --- Define Inputs ---
-    # For this test, we'll use a placeholder text file for the knowledge source.
-    # In a real scenario, this would point to a PDF or DOCX file.
-    knowledge_dir = project_root / "data" / "knowledge"
-    knowledge_dir.mkdir(exist_ok=True)
-    knowledge_file = knowledge_dir / "X222A1_guide.txt"
-    knowledge_file.write_text(
-        "This is the implementation guide for 837P X222A1. "
-        "Rule 1: The CLM segment is for claim level data. Its CLM02 element for total claim charge must be required. "
-        "Rule 2: The NM1 segment in the 2010AA loop is for the Billing Provider. The NM109 element must be required."
-    )
-
-    # We'll use the sample schema as our base for refinement.
-    base_schema_path = project_root.parent / "docs" / "schema" / "sample_schema.json"
-    output_schema_path = project_root / "data" / "schemas_refined" / "sample_schema.refined.json"
-    output_schema_path.parent.mkdir(exist_ok=True)
+    base_schema_path = project_root / "data" / "edi_schemas" / "837.5010.X222.A1.json"
+    guide_path = project_root / "data" / "knowledge" / "x222a1.txt"
+    output_schema_path = project_root / "data" / "schemas_refined" / "837.5010.X222.A1.enriched.json"
+    output_schema_path.parent.mkdir(exist_ok=True, parents=True)
 
     with open(base_schema_path, 'r') as f:
         base_schema = json.load(f)
 
-    knowledge = KnowledgeSource(source_type="file", content=str(knowledge_file))
+    # Preprocess the guide to get the chunks and the table of contents
+    chunk_dir, toc_content = preprocess_guide(guide_path)
+    knowledge = KnowledgeSource(source_type="directory", content=str(chunk_dir))
     
     # --- Initialize and Run the Engine ---
-    engine = SchemaRefinementEngine(base_schema=base_schema, knowledge_source=knowledge)
+    engine = SchemaRefinementEngine(
+        base_schema=base_schema, 
+        knowledge_source=knowledge,
+        guide_toc=toc_content
+    )
     
     for status in engine.run():
-        progress_bar = ""
-        if status.progress is not None:
-            filled_len = int(40 * status.progress)
-            progress_bar = f"[{'=' * filled_len}{' ' * (40 - filled_len)}]"
-        
-        logger.info(f"[{status.phase.upper():<9}] {progress_bar} {status.message}")
+        progress_bar = f"{int(status.progress * 100)}%"
+        logger.info(f"[{status.phase.upper():<22}] {progress_bar:>4} | {status.message}")
         
         if status.details:
             logger.debug(json.dumps(status.details, indent=2))

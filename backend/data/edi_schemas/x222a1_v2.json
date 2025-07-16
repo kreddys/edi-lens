@@ -1,0 +1,1045 @@
+{
+  "transactionName": "HIPAA Health Care Claim: Professional X222A1-837",
+  "version": "005010X222A1",
+  "description": "Enriched schema for the Health Care Claim Transaction Set (837). This schema includes structural definitions, element-level constraints, and codified complex validation rules derived from the implementation guide.",
+  "rules": [
+    {
+      "ruleId": "BHT03_LengthCheck",
+      "description": "The Originator Application Transaction Identifier (BHT03) is limited to 30 characters.",
+      "type": "field_length",
+      "target": {
+        "segment": "BHT",
+        "element": "BHT03"
+      },
+      "action": {
+        "maxLength": 30
+      }
+    },
+    {
+      "ruleId": "CLM02_BalanceCheck",
+      "description": "The Total Claim Charge Amount (CLM02) must balance to the sum of all service line charge amounts (SV102).",
+      "type": "balance",
+      "target": {
+        "segment": "CLM",
+        "element": "CLM02"
+      },
+      "action": {
+        "operator": "sum_equals",
+        "source": {
+          "loop": "2400",
+          "segment": "SV1",
+          "element": "SV102"
+        }
+      }
+    },
+    {
+      "ruleId": "Require_AccidentDate_DTP",
+      "description": "If the claim is related to an Auto (AA) or Other (OA) Accident, the Accident Date (DTP with qualifier 439) is required.",
+      "type": "conditional_presence",
+      "conditions": [
+        {
+          "field": "CLM11-01",
+          "operator": "in",
+          "value": [
+            "AA",
+            "OA"
+          ]
+        },
+        {
+          "logic": "OR"
+        },
+        {
+          "field": "CLM11-02",
+          "operator": "in",
+          "value": [
+            "AA",
+            "OA"
+          ]
+        }
+      ],
+      "action": {
+        "type": "REQUIRE_SEGMENT",
+        "segmentId": "DTP",
+        "qualifier": {
+          "element": "DTP01",
+          "value": "439"
+        }
+      }
+    },
+    {
+      "ruleId": "Prohibit_PayToPlanLoop",
+      "description": "The Pay-To Plan Name Loop (2010AC) may only be used when BHT06 (Claim or Encounter Identifier) is '31' (Subrogation Demand).",
+      "type": "loop_constraint",
+      "target": {
+        "loop": "2010AC"
+      },
+      "conditions": [
+        {
+          "field": "BHT06",
+          "operator": "not_equals",
+          "value": "31"
+        }
+      ],
+      "action": {
+        "type": "PROHIBIT_LOOP"
+      }
+    }
+  ],
+  "contextualDefinitions": {
+    "1000A.NM1": {
+      "name": "Submitter Name",
+      "elements": {
+        "NM101": {
+          "valid_codes": {
+            "code": [
+              "41"
+            ]
+          }
+        },
+        "NM108": {
+          "valid_codes": {
+            "code": [
+              "46"
+            ]
+          }
+        }
+      }
+    },
+    "1000B.NM1": {
+      "name": "Receiver Name",
+      "elements": {
+        "NM101": {
+          "valid_codes": {
+            "code": [
+              "40"
+            ]
+          }
+        },
+        "NM102": {
+          "valid_codes": {
+            "code": [
+              2
+            ]
+          }
+        },
+        "NM108": {
+          "valid_codes": {
+            "code": [
+              "46"
+            ]
+          }
+        }
+      }
+    },
+    "2010AA.NM1": {
+      "name": "Billing Provider Name",
+      "description": "Identifies the provider to be paid for the services rendered.",
+      "elements": {
+        "NM101": {
+          "valid_codes": {
+            "code": [
+              "85"
+            ]
+          }
+        },
+        "NM108": {
+          "valid_codes": {
+            "code": [
+              "XX"
+            ]
+          }
+        }
+      }
+    },
+    "2010BA.NM1": {
+      "name": "Subscriber Name",
+      "elements": {
+        "NM101": {
+          "valid_codes": {
+            "code": [
+              "IL"
+            ]
+          }
+        },
+        "NM108": {
+          "valid_codes": {
+            "code": [
+              "II",
+              "MI"
+            ]
+          }
+        }
+      }
+    },
+    "2010BB.NM1": {
+      "name": "Payer Name",
+      "description": "Identifies the destination payer for the claim.",
+      "elements": {
+        "NM101": {
+          "valid_codes": {
+            "code": [
+              "PR"
+            ]
+          }
+        },
+        "NM102": {
+          "valid_codes": {
+            "code": [
+              2
+            ]
+          }
+        },
+        "NM108": {
+          "valid_codes": {
+            "code": [
+              "PI",
+              "XV"
+            ]
+          }
+        }
+      }
+    },
+    "2010CA.NM1": {
+      "name": "Patient Name",
+      "elements": {
+        "NM101": {
+          "valid_codes": {
+            "code": [
+              "QC"
+            ]
+          }
+        },
+        "NM102": {
+          "valid_codes": {
+            "code": [
+              1
+            ]
+          }
+        }
+      }
+    }
+  },
+  "segmentDefinitions": {
+    "ISA": {
+      "name": "Interchange Control Header",
+      "description": "To start and identify an interchange of zero or more functional groups and interchange-related control segments.",
+      "usage": "R",
+      "elements": [
+        {
+          "xid": "ISA01", "data_ele": "I01", "name": "Authorization Information Qualifier", "usage": "R", "seq": "01", "dataType": "Identifier",
+          "valid_codes": { "code": [ "00", "03" ] }
+        },
+        {
+          "xid": "ISA02", "data_ele": "I02", "name": "Authorization Information", "usage": "R", "seq": "02", "dataType": "String", "minLength": 10, "maxLength": 10
+        },
+        {
+          "xid": "ISA03", "data_ele": "I03", "name": "Security Information Qualifier", "usage": "R", "seq": "03", "dataType": "Identifier",
+          "valid_codes": { "code": [ "00", "01" ] }
+        },
+        {
+          "xid": "ISA04", "data_ele": "I04", "name": "Security Information", "usage": "R", "seq": "04", "dataType": "String", "minLength": 10, "maxLength": 10
+        },
+        {
+          "xid": "ISA05", "data_ele": "I05", "name": "Interchange ID Qualifier", "usage": "R", "seq": "05", "dataType": "Identifier", "minLength": 2, "maxLength": 2
+        },
+        {
+          "xid": "ISA06", "data_ele": "I06", "name": "Interchange Sender ID", "usage": "R", "seq": "06", "dataType": "String", "minLength": 15, "maxLength": 15
+        },
+        {
+          "xid": "ISA07", "data_ele": "I05", "name": "Interchange ID Qualifier", "usage": "R", "seq": "07", "dataType": "Identifier", "minLength": 2, "maxLength": 2
+        },
+        {
+          "xid": "ISA08", "data_ele": "I07", "name": "Interchange Receiver ID", "usage": "R", "seq": "08", "dataType": "String", "minLength": 15, "maxLength": 15
+        },
+        {
+          "xid": "ISA09", "data_ele": "I08", "name": "Interchange Date", "usage": "R", "seq": "09", "dataType": "Date", "format": "YYMMDD"
+        },
+        {
+          "xid": "ISA10", "data_ele": "I09", "name": "Interchange Time", "usage": "R", "seq": "10", "dataType": "Time", "format": "HHMM"
+        },
+        {
+          "xid": "ISA11", "data_ele": "I65", "name": "Repetition Separator", "usage": "R", "seq": "11", "dataType": "String", "minLength": 1, "maxLength": 1
+        },
+        {
+          "xid": "ISA12", "data_ele": "I11", "name": "Interchange Control Version Number", "usage": "R", "seq": "12", "dataType": "Identifier",
+          "valid_codes": { "code": [ "00501" ] }
+        },
+        {
+          "xid": "ISA13", "data_ele": "I12", "name": "Interchange Control Number", "usage": "R", "seq": "13", "dataType": "Numeric", "minLength": 9, "maxLength": 9
+        },
+        {
+          "xid": "ISA14", "data_ele": "I13", "name": "Acknowledgment Requested", "usage": "R", "seq": "14", "dataType": "Identifier",
+          "valid_codes": { "code": [ 0, 1 ] }
+        },
+        {
+          "xid": "ISA15", "data_ele": "I14", "name": "Interchange Usage Indicator", "usage": "R", "seq": "15", "dataType": "Identifier",
+          "valid_codes": { "code": [ "I", "P", "T" ] }
+        },
+        {
+          "xid": "ISA16", "data_ele": "I15", "name": "Component Element Separator", "usage": "R", "seq": "16", "dataType": "String", "minLength": 1, "maxLength": 1
+        }
+      ]
+    },
+    "GS": {
+      "name": "Functional Group Header",
+      "description": "To indicate the beginning of a functional group and to provide control information.",
+      "usage": "R",
+      "elements": [
+        {
+          "xid": "GS01", "data_ele": 479, "name": "Functional Identifier Code", "usage": "R", "seq": "01", "dataType": "Identifier",
+          "valid_codes": { "code": [ "HC" ] }
+        },
+        {
+          "xid": "GS02", "data_ele": 142, "name": "Application Sender's Code", "usage": "R", "seq": "02", "dataType": "String", "minLength": 2, "maxLength": 15
+        },
+        {
+          "xid": "GS03", "data_ele": 124, "name": "Application Receiver's Code", "usage": "R", "seq": "03", "dataType": "String", "minLength": 2, "maxLength": 15
+        },
+        {
+          "xid": "GS04", "data_ele": 373, "name": "Date", "usage": "R", "seq": "04", "dataType": "Date", "format": "CCYYMMDD"
+        },
+        {
+          "xid": "GS05", "data_ele": 337, "name": "Time", "usage": "R", "seq": "05", "dataType": "Time", "format": "HHMM"
+        },
+        {
+          "xid": "GS06", "data_ele": 28, "name": "Group Control Number", "usage": "R", "seq": "06", "dataType": "Numeric", "minLength": 1, "maxLength": 9
+        },
+        {
+          "xid": "GS07", "data_ele": 455, "name": "Responsible Agency Code", "usage": "R", "seq": "07", "dataType": "Identifier",
+          "valid_codes": { "code": [ "X" ] }
+        },
+        {
+          "xid": "GS08", "data_ele": 480, "name": "Version / Release / Industry Identifier Code", "usage": "R", "seq": "08", "dataType": "String",
+          "valid_codes": { "code": [ "005010X222A1" ] }
+        }
+      ]
+    },
+    "ST": {
+      "name": "Transaction Set Header",
+      "description": "To indicate the start of a transaction set and to assign a control number.",
+      "usage": "R",
+      "elements": [
+        {
+          "xid": "ST01", "data_ele": 143, "name": "Transaction Set Identifier Code", "usage": "R", "seq": "01", "dataType": "Identifier",
+          "valid_codes": { "code": [ 837 ] }
+        },
+        {
+          "xid": "ST02", "data_ele": 329, "name": "Transaction Set Control Number", "usage": "R", "seq": "02", "dataType": "Numeric", "minLength": 4, "maxLength": 9,
+          "description": "Identifying control number that must be unique within the transaction set functional group. The value in ST02 must be identical to the value in SE02."
+        },
+        {
+          "xid": "ST03", "data_ele": 1705, "name": "Implementation Guide Version Name", "usage": "R", "seq": "03", "dataType": "String",
+          "description": "This field contains the same value as GS08. This element must be populated with the guide identifier from Section 1.2.",
+          "valid_codes": { "code": [ "005010X222A1" ] }
+        }
+      ]
+    },
+    "BHT": {
+      "name": "Beginning of Hierarchical Transaction",
+      "description": "To define the business hierarchical structure of the transaction set and identify the business application purpose.",
+      "usage": "R",
+      "elements": [
+        {
+          "xid": "BHT01", "data_ele": 1005, "name": "Hierarchical Structure Code", "usage": "R", "seq": "01", "dataType": "Identifier",
+          "valid_codes": { "code": [ "0019" ] }
+        },
+        {
+          "xid": "BHT02", "data_ele": 353, "name": "Transaction Set Purpose Code", "usage": "R", "seq": "02", "dataType": "Identifier",
+          "description": "Conveys the electronic transmission status of the 837 batch.",
+          "valid_codes": { "code": [ "00", "18" ] }
+        },
+        {
+          "xid": "BHT03", "data_ele": 127, "name": "Originator Application Transaction Identifier", "usage": "R", "seq": "03", "dataType": "String", "minLength": 1, "maxLength": 30,
+          "description": "A number assigned by the originator to identify this transaction, often a batch control number."
+        },
+        {
+          "xid": "BHT04", "data_ele": 373, "name": "Transaction Set Creation Date", "usage": "R", "seq": "04", "dataType": "Date", "format": "CCYYMMDD"
+        },
+        {
+          "xid": "BHT05", "data_ele": 337, "name": "Transaction Set Creation Time", "usage": "R", "seq": "05", "dataType": "Time", "format": "HHMM"
+        },
+        {
+          "xid": "BHT06", "data_ele": 640, "name": "Claim or Encounter Identifier", "usage": "R", "seq": "06", "dataType": "Identifier",
+          "valid_codes": { "code": [ "CH", "RP", "31" ] }
+        }
+      ]
+    },
+    "NM1": {
+      "name": "Name",
+      "description": "To supply the full name of an individual or organizational entity. This is the base definition.",
+      "usage": "R",
+      "elements": [
+        { "xid": "NM101", "data_ele": 98, "name": "Entity Identifier Code", "usage": "R", "seq": "01", "dataType": "Identifier", "description": "Code identifying an organizational entity, a physical location, property or an individual." },
+        { "xid": "NM102", "data_ele": 1065, "name": "Entity Type Qualifier", "usage": "R", "seq": "02", "dataType": "Identifier", "description": "Code qualifying the type of entity." },
+        { "xid": "NM103", "data_ele": 1035, "name": "Last or Organization Name", "usage": "R", "seq": "03", "dataType": "String", "minLength": 1, "maxLength": 60 },
+        { "xid": "NM104", "data_ele": 1036, "name": "First Name", "usage": "S", "seq": "04", "dataType": "String", "minLength": 1, "maxLength": 35 },
+        { "xid": "NM105", "data_ele": 1037, "name": "Middle Name or Initial", "usage": "S", "seq": "05", "dataType": "String", "minLength": 1, "maxLength": 25 },
+        { "xid": "NM107", "data_ele": 1039, "name": "Name Suffix", "usage": "S", "seq": "07", "dataType": "String", "minLength": 1, "maxLength": 10 },
+        { "xid": "NM108", "data_ele": 66, "name": "Identification Code Qualifier", "usage": "R", "seq": "08", "dataType": "Identifier", "description": "Code designating the system/method of code structure used for Identification Code (NM109)." },
+        { "xid": "NM109", "data_ele": 67, "name": "Identifier", "usage": "R", "seq": "09", "dataType": "String", "minLength": 2, "maxLength": 80 }
+      ],
+      "syntax": [ "P0809" ]
+    },
+    "PER": {
+      "name": "Administrative Communications Contact",
+      "description": "To identify a person or office to whom administrative communications should be directed.",
+      "usage": "R",
+      "elements": [
+        { "xid": "PER01", "data_ele": 366, "name": "Contact Function Code", "usage": "R", "seq": "01", "dataType": "Identifier", "valid_codes": { "code": ["IC"] } },
+        { "xid": "PER02", "data_ele": 93, "name": "Contact Name", "usage": "S", "seq": "02", "dataType": "String", "minLength": 1, "maxLength": 60 },
+        { "xid": "PER03", "data_ele": 365, "name": "Communication Number Qualifier", "usage": "R", "seq": "03", "dataType": "Identifier", "valid_codes": { "code": ["EM", "FX", "TE"] } },
+        { "xid": "PER04", "data_ele": 364, "name": "Communication Number", "usage": "R", "seq": "04", "dataType": "String", "minLength": 1, "maxLength": 256 },
+        { "xid": "PER05", "data_ele": 365, "name": "Communication Number Qualifier", "usage": "S", "seq": "05", "dataType": "Identifier", "valid_codes": { "code": ["EM", "EX", "FX", "TE"] } },
+        { "xid": "PER06", "data_ele": 364, "name": "Communication Number", "usage": "S", "seq": "06", "dataType": "String", "minLength": 1, "maxLength": 256 },
+        { "xid": "PER07", "data_ele": 365, "name": "Communication Number Qualifier", "usage": "S", "seq": "07", "dataType": "Identifier", "valid_codes": { "code": ["EM", "EX", "FX", "TE"] } },
+        { "xid": "PER08", "data_ele": 364, "name": "Communication Number", "usage": "S", "seq": "08", "dataType": "String", "minLength": 1, "maxLength": 256 }
+      ],
+      "syntax": [ "P0304", "P0506", "P0708" ]
+    },
+    "CLM": {
+      "name": "Claim Information",
+      "description": "To specify basic data about the claim.",
+      "usage": "R",
+      "elements": [
+        {
+          "xid": "CLM01", "data_ele": 1028, "name": "Patient Control Number", "usage": "R", "seq": "01", "dataType": "String", "minLength": 1, "maxLength": 20,
+          "description": "The number that the submitter transmits in this position is echoed back to the submitter in the 835 and other transactions."
+        },
+        {
+          "xid": "CLM02", "data_ele": 782, "name": "Total Claim Charge Amount", "usage": "R", "seq": "02", "dataType": "Decimal", "minLength": 1, "maxLength": 15
+        },
+        {
+          "xid": "CLM05", "data_ele": "C023", "name": "Health Care Service Location Information", "usage": "R", "seq": "05",
+          "elements": [
+            { "xid": "CLM05-01", "data_ele": 1331, "name": "Place of Service Code", "usage": "R", "seq": "01", "dataType": "String", "minLength": 1, "maxLength": 2 },
+            { "xid": "CLM05-02", "data_ele": 1332, "name": "Facility Code Qualifier", "usage": "R", "seq": "02", "dataType": "Identifier", "valid_codes": { "code": ["B"] } },
+            { "xid": "CLM05-03", "data_ele": 1325, "name": "Claim Frequency Code", "usage": "R", "seq": "03", "dataType": "Identifier" }
+          ]
+        },
+        {
+          "xid": "CLM06", "data_ele": 1073, "name": "Provider or Supplier Signature Indicator", "usage": "R", "seq": "06", "dataType": "Identifier",
+          "valid_codes": { "code": [ "Y", "N" ] }
+        },
+        {
+          "xid": "CLM07", "data_ele": 1359, "name": "Assignment or Plan Participation Code", "usage": "R", "seq": "07", "dataType": "Identifier",
+          "valid_codes": { "code": [ "A", "B", "C" ] }
+        },
+        {
+          "xid": "CLM08", "data_ele": 1073, "name": "Benefits Assignment Certification Indicator", "usage": "R", "seq": "08", "dataType": "Identifier",
+          "valid_codes": { "code": [ "Y", "N", "W" ] }
+        },
+        {
+          "xid": "CLM09", "data_ele": 1363, "name": "Release of Information Code", "usage": "R", "seq": "09", "dataType": "Identifier",
+          "valid_codes": { "code": [ "Y", "I" ] }
+        },
+        {
+          "xid": "CLM10", "data_ele": 1351, "name": "Patient Signature Source Code", "usage": "S", "seq": "10", "dataType": "Identifier",
+          "valid_codes": { "code": [ "P" ] }
+        },
+        {
+          "xid": "CLM11", "data_ele": "C024", "name": "Related Causes Information", "usage": "S", "seq": "11",
+          "elements": [
+            { "xid": "CLM11-01", "data_ele": 1362, "name": "Related Causes Code", "usage": "R", "seq": "01", "dataType": "Identifier", "valid_codes": { "code": [ "AA", "EM", "OA" ] } },
+            { "xid": "CLM11-02", "data_ele": 1362, "name": "Related Causes Code", "usage": "S", "seq": "02", "dataType": "Identifier", "valid_codes": { "code": [ "AA", "EM", "OA" ] } },
+            { "xid": "CLM11-04", "data_ele": 156, "name": "Auto Accident State or Province Code", "usage": "S", "seq": "04", "dataType": "Identifier" },
+            { "xid": "CLM11-05", "data_ele": 26, "name": "Country Code", "usage": "S", "seq": "05", "dataType": "Identifier" }
+          ]
+        },
+        {
+          "xid": "CLM12", "data_ele": 1366, "name": "Special Program Indicator", "usage": "S", "seq": "12", "dataType": "Identifier",
+          "valid_codes": { "code": [ "02", "03", "05", "09" ] }
+        },
+        {
+          "xid": "CLM20", "data_ele": 1514, "name": "Delay Reason Code", "usage": "S", "seq": "20", "dataType": "Identifier",
+          "valid_codes": { "code": [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15 ] }
+        }
+      ]
+    },
+    "SE": {
+      "name": "Transaction Set Trailer",
+      "description": "To indicate the end of the transaction set and provide the count of the transmitted segments.",
+      "usage": "R",
+      "elements": [
+        {
+          "xid": "SE01", "data_ele": 96, "name": "Transaction Segment Count", "usage": "R", "seq": "01", "dataType": "Numeric", "minLength": 1, "maxLength": 10,
+          "description": "Total number of segments included in a transaction set including ST and SE segments."
+        },
+        {
+          "xid": "SE02", "data_ele": 329, "name": "Transaction Set Control Number", "usage": "R", "seq": "02", "dataType": "Numeric", "minLength": 4, "maxLength": 9,
+          "description": "Must be identical to the value in ST02."
+        }
+      ]
+    },
+    "GE": {
+      "name": "Functional Group Trailer",
+      "description": "To indicate the end of a functional group and to provide control information.",
+      "usage": "R",
+      "elements": [
+        {
+          "xid": "GE01", "data_ele": 97, "name": "Number of Transaction Sets Included", "usage": "R", "seq": "01", "dataType": "Numeric", "minLength": 1, "maxLength": 6
+        },
+        {
+          "xid": "GE02", "data_ele": 28, "name": "Group Control Number", "usage": "R", "seq": "02", "dataType": "Numeric", "minLength": 1, "maxLength": 9
+        }
+      ]
+    },
+    "IEA": {
+      "name": "Interchange Control Trailer",
+      "description": "To define the end of an interchange of zero or more functional groups and interchange-related control segments.",
+      "usage": "R",
+      "elements": [
+        {
+          "xid": "IEA01", "data_ele": "I16", "name": "Number of Included Functional Groups", "usage": "R", "seq": "01", "dataType": "Numeric", "minLength": 1, "maxLength": 5
+        },
+        {
+          "xid": "IEA02", "data_ele": "I12", "name": "Interchange Control Number", "usage": "R", "seq": "02", "dataType": "Numeric", "minLength": 9, "maxLength": 9
+        }
+      ]
+    }
+  },
+"structure": [
+    {
+      "type": "loop",
+      "xid": "ISA_LOOP",
+      "name": "Interchange Control",
+      "usage": "R",
+      "repeat": ">1",
+      "children": [
+        { "type": "segment", "xid": "ISA", "usage": "R", "max_use": 1, "baseDefinitionId": "ISA" },
+        {
+          "type": "loop",
+          "xid": "GS_LOOP",
+          "name": "Functional Group",
+          "usage": "R",
+          "repeat": ">1",
+          "children": [
+            { "type": "segment", "xid": "GS", "usage": "R", "max_use": 1, "baseDefinitionId": "GS" },
+            {
+              "type": "loop",
+              "xid": "ST_LOOP",
+              "name": "Transaction Set",
+              "usage": "R",
+              "repeat": ">1",
+              "children": [
+                { "type": "segment", "xid": "ST", "usage": "R", "max_use": 1, "baseDefinitionId": "ST" },
+                {
+                  "type": "loop",
+                  "xid": "HEADER",
+                  "name": "Table 1 - Header",
+                  "usage": "R",
+                  "repeat": 1,
+                  "children": [
+                    { "type": "segment", "xid": "BHT", "usage": "R", "max_use": 1, "baseDefinitionId": "BHT" },
+                    {
+                      "type": "loop",
+                      "xid": "1000A",
+                      "name": "Submitter Name",
+                      "usage": "R",
+                      "repeat": 1,
+                      "children": [
+                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1", "contextId": "1000A.NM1" },
+                        { "type": "segment", "xid": "PER", "usage": "R", "max_use": 2, "baseDefinitionId": "PER" }
+                      ]
+                    },
+                    {
+                      "type": "loop",
+                      "xid": "1000B",
+                      "name": "Receiver Name",
+                      "usage": "R",
+                      "repeat": 1,
+                      "children": [
+                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1", "contextId": "1000B.NM1" }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "loop",
+                  "xid": "DETAIL",
+                  "name": "Table 2 - Detail",
+                  "usage": "R",
+                  "repeat": ">1",
+                  "children": [
+                    {
+                      "type": "loop",
+                      "xid": "2000A",
+                      "name": "Billing Provider Hierarchical Level",
+                      "usage": "R",
+                      "repeat": ">1",
+                      "children": [
+                        { "type": "segment", "xid": "HL", "usage": "R", "max_use": 1, "baseDefinitionId": "HL" },
+                        { "type": "segment", "xid": "PRV", "usage": "S", "max_use": 1, "baseDefinitionId": "PRV" },
+                        { "type": "segment", "xid": "CUR", "usage": "S", "max_use": 1, "baseDefinitionId": "CUR" },
+                        {
+                          "type": "loop",
+                          "xid": "2010AA",
+                          "name": "Billing Provider Name",
+                          "usage": "R",
+                          "repeat": 1,
+                          "children": [
+                            { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1", "contextId": "2010AA.NM1" },
+                            { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
+                            { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" },
+                            { "type": "segment", "xid": "REF", "usage": "R", "max_use": 1, "baseDefinitionId": "REF" },
+                            { "type": "segment", "xid": "REF", "usage": "S", "max_use": 2, "baseDefinitionId": "REF" },
+                            { "type": "segment", "xid": "PER", "usage": "S", "max_use": 2, "baseDefinitionId": "PER" }
+                          ]
+                        },
+                        {
+                          "type": "loop",
+                          "xid": "2010AB",
+                          "name": "Pay-to Address Name",
+                          "usage": "S",
+                          "repeat": 1,
+                          "children": [
+                            { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                            { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
+                            { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" }
+                          ]
+                        },
+                        {
+                          "type": "loop",
+                          "xid": "2010AC",
+                          "name": "Pay-To Plan Name",
+                          "usage": "S",
+                          "repeat": 1,
+                          "children": [
+                            { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                            { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
+                            { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" },
+                            { "type": "segment", "xid": "REF", "usage": "S", "max_use": 1, "baseDefinitionId": "REF" },
+                            { "type": "segment", "xid": "REF", "usage": "R", "max_use": 1, "baseDefinitionId": "REF" }
+                          ]
+                        },
+                        {
+                          "type": "loop",
+                          "xid": "2000B",
+                          "name": "Subscriber Hierarchical Level",
+                          "usage": "R",
+                          "repeat": ">1",
+                          "children": [
+                            { "type": "segment", "xid": "HL", "usage": "R", "max_use": 1, "baseDefinitionId": "HL" },
+                            { "type": "segment", "xid": "SBR", "usage": "R", "max_use": 1, "baseDefinitionId": "SBR" },
+                            { "type": "segment", "xid": "PAT", "usage": "S", "max_use": 1, "baseDefinitionId": "PAT" },
+                            {
+                              "type": "loop",
+                              "xid": "2010BA",
+                              "name": "Subscriber Name",
+                              "usage": "R",
+                              "repeat": 1,
+                              "children": [
+                                { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1", "contextId": "2010BA.NM1" },
+                                { "type": "segment", "xid": "N3", "usage": "S", "max_use": 1, "baseDefinitionId": "N3" },
+                                { "type": "segment", "xid": "N4", "usage": "S", "max_use": 1, "baseDefinitionId": "N4" },
+                                { "type": "segment", "xid": "DMG", "usage": "S", "max_use": 1, "baseDefinitionId": "DMG" },
+                                { "type": "segment", "xid": "REF", "usage": "S", "max_use": 1, "baseDefinitionId": "REF" },
+                                { "type": "segment", "xid": "REF", "usage": "S", "max_use": 1, "baseDefinitionId": "REF" },
+                                { "type": "segment", "xid": "PER", "usage": "S", "max_use": 1, "baseDefinitionId": "PER" }
+                              ]
+                            },
+                            {
+                              "type": "loop",
+                              "xid": "2010BB",
+                              "name": "Payer Name",
+                              "usage": "R",
+                              "repeat": 1,
+                              "children": [
+                                { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1", "contextId": "2010BB.NM1" },
+                                { "type": "segment", "xid": "N3", "usage": "S", "max_use": 1, "baseDefinitionId": "N3" },
+                                { "type": "segment", "xid": "N4", "usage": "S", "max_use": 1, "baseDefinitionId": "N4" },
+                                { "type": "segment", "xid": "REF", "usage": "S", "max_use": 3, "baseDefinitionId": "REF" },
+                                { "type": "segment", "xid": "REF", "usage": "S", "max_use": 2, "baseDefinitionId": "REF" }
+                              ]
+                            },
+                            {
+                              "type": "loop",
+                              "xid": "2000C",
+                              "name": "Patient Hierarchical Level",
+                              "usage": "S",
+                              "repeat": ">1",
+                              "children": [
+                                { "type": "segment", "xid": "HL", "usage": "R", "max_use": 1, "baseDefinitionId": "HL" },
+                                { "type": "segment", "xid": "PAT", "usage": "R", "max_use": 1, "baseDefinitionId": "PAT" },
+                                {
+                                  "type": "loop",
+                                  "xid": "2010CA",
+                                  "name": "Patient Name",
+                                  "usage": "R",
+                                  "repeat": 1,
+                                  "children": [
+                                    { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1", "contextId": "2010CA.NM1" },
+                                    { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
+                                    { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" },
+                                    { "type": "segment", "xid": "DMG", "usage": "R", "max_use": 1, "baseDefinitionId": "DMG" },
+                                    { "type": "segment", "xid": "REF", "usage": "S", "max_use": 1, "baseDefinitionId": "REF" },
+                                    { "type": "segment", "xid": "REF", "usage": "S", "max_use": 1, "baseDefinitionId": "REF" },
+                                    { "type": "segment", "xid": "PER", "usage": "S", "max_use": 1, "baseDefinitionId": "PER" }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "loop",
+                              "xid": "2300",
+                              "name": "Claim Information",
+                              "usage": "R",
+                              "repeat": 100,
+                              "children": [
+                                { "type": "segment", "xid": "CLM", "usage": "R", "max_use": 1, "baseDefinitionId": "CLM" },
+                                { "type": "segment", "xid": "DTP", "usage": "S", "max_use": 15, "baseDefinitionId": "DTP" },
+                                { "type": "segment", "xid": "PWK", "usage": "S", "max_use": 10, "baseDefinitionId": "PWK" },
+                                { "type": "segment", "xid": "CN1", "usage": "S", "max_use": 1, "baseDefinitionId": "CN1" },
+                                { "type": "segment", "xid": "AMT", "usage": "S", "max_use": 1, "baseDefinitionId": "AMT" },
+                                { "type": "segment", "xid": "REF", "usage": "S", "max_use": 15, "baseDefinitionId": "REF" },
+                                { "type": "segment", "xid": "K3", "usage": "S", "max_use": 10, "baseDefinitionId": "K3" },
+                                { "type": "segment", "xid": "NTE", "usage": "S", "max_use": 1, "baseDefinitionId": "NTE" },
+                                { "type": "segment", "xid": "CR1", "usage": "S", "max_use": 1, "baseDefinitionId": "CR1" },
+                                { "type": "segment", "xid": "CR2", "usage": "S", "max_use": 1, "baseDefinitionId": "CR2" },
+                                { "type": "segment", "xid": "CRC", "usage": "S", "max_use": 5, "baseDefinitionId": "CRC" },
+                                { "type": "segment", "xid": "HI", "usage": "R", "max_use": 4, "baseDefinitionId": "HI" },
+                                { "type": "segment", "xid": "HCP", "usage": "S", "max_use": 1, "baseDefinitionId": "HCP" },
+                                {
+                                  "type": "loop",
+                                  "xid": "2310A",
+                                  "name": "Referring Provider Name",
+                                  "usage": "S",
+                                  "repeat": 2,
+                                  "children": [
+                                    { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                    { "type": "segment", "xid": "REF", "usage": "S", "max_use": 3, "baseDefinitionId": "REF" }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2310B",
+                                  "name": "Rendering Provider Name",
+                                  "usage": "S",
+                                  "repeat": 1,
+                                  "children": [
+                                    { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                    { "type": "segment", "xid": "PRV", "usage": "S", "max_use": 1, "baseDefinitionId": "PRV" },
+                                    { "type": "segment", "xid": "REF", "usage": "S", "max_use": 4, "baseDefinitionId": "REF" }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2310C",
+                                  "name": "Service Facility Location Name",
+                                  "usage": "S",
+                                  "repeat": 1,
+                                  "children": [
+                                    { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                    { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
+                                    { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" },
+                                    { "type": "segment", "xid": "REF", "usage": "S", "max_use": 3, "baseDefinitionId": "REF" },
+                                    { "type": "segment", "xid": "PER", "usage": "S", "max_use": 1, "baseDefinitionId": "PER" }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2310D",
+                                  "name": "Supervising Provider Name",
+                                  "usage": "S",
+                                  "repeat": 1,
+                                  "children": [
+                                    { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                    { "type": "segment", "xid": "REF", "usage": "S", "max_use": 4, "baseDefinitionId": "REF" }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2310E",
+                                  "name": "Ambulance Pick-up Location",
+                                  "usage": "S",
+                                  "repeat": 1,
+                                  "children": [
+                                    { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                    { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
+                                    { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2310F",
+                                  "name": "Ambulance Drop-off Location",
+                                  "usage": "S",
+                                  "repeat": 1,
+                                  "children": [
+                                    { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                    { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
+                                    { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2320",
+                                  "name": "Other Subscriber Information",
+                                  "usage": "S",
+                                  "repeat": 10,
+                                  "children": [
+                                    { "type": "segment", "xid": "SBR", "usage": "R", "max_use": 1, "baseDefinitionId": "SBR" },
+                                    { "type": "segment", "xid": "CAS", "usage": "S", "max_use": 5, "baseDefinitionId": "CAS" },
+                                    { "type": "segment", "xid": "AMT", "usage": "S", "max_use": 3, "baseDefinitionId": "AMT" },
+                                    { "type": "segment", "xid": "OI", "usage": "R", "max_use": 1, "baseDefinitionId": "OI" },
+                                    { "type": "segment", "xid": "MOA", "usage": "S", "max_use": 1, "baseDefinitionId": "MOA" },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2330A",
+                                      "name": "Other Subscriber Name",
+                                      "usage": "R",
+                                      "repeat": 1,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "N3", "usage": "S", "max_use": 1, "baseDefinitionId": "N3" },
+                                        { "type": "segment", "xid": "N4", "usage": "S", "max_use": 1, "baseDefinitionId": "N4" },
+                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 1, "baseDefinitionId": "REF" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2330B",
+                                      "name": "Other Payer Name",
+                                      "usage": "R",
+                                      "repeat": 1,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "N3", "usage": "S", "max_use": 1, "baseDefinitionId": "N3" },
+                                        { "type": "segment", "xid": "N4", "usage": "S", "max_use": 1, "baseDefinitionId": "N4" },
+                                        { "type": "segment", "xid": "DTP", "usage": "S", "max_use": 1, "baseDefinitionId": "DTP" },
+                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 5, "baseDefinitionId": "REF" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2330C",
+                                      "name": "Other Payer Referring Provider",
+                                      "usage": "S",
+                                      "repeat": 2,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "REF", "usage": "R", "max_use": 3, "baseDefinitionId": "REF" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2330D",
+                                      "name": "Other Payer Rendering Provider",
+                                      "usage": "S",
+                                      "repeat": 1,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "REF", "usage": "R", "max_use": 3, "baseDefinitionId": "REF" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2330E",
+                                      "name": "Other Payer Service Facility Location",
+                                      "usage": "S",
+                                      "repeat": 1,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "REF", "usage": "R", "max_use": 3, "baseDefinitionId": "REF" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2330F",
+                                      "name": "Other Payer Supervising Provider",
+                                      "usage": "S",
+                                      "repeat": 1,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "REF", "usage": "R", "max_use": 3, "baseDefinitionId": "REF" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2330G",
+                                      "name": "Other Payer Billing Provider",
+                                      "usage": "S",
+                                      "repeat": 1,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "REF", "usage": "R", "max_use": 2, "baseDefinitionId": "REF" }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2400",
+                                  "name": "Service Line",
+                                  "usage": "R",
+                                  "repeat": 50,
+                                  "children": [
+                                    { "type": "segment", "xid": "LX", "usage": "R", "max_use": 1, "baseDefinitionId": "LX" },
+                                    { "type": "segment", "xid": "SV1", "usage": "R", "max_use": 1, "baseDefinitionId": "SV1" },
+                                    { "type": "segment", "xid": "SV5", "usage": "S", "max_use": 1, "baseDefinitionId": "SV5" },
+                                    { "type": "segment", "xid": "PWK", "usage": "S", "max_use": 11, "baseDefinitionId": "PWK" },
+                                    { "type": "segment", "xid": "CR1", "usage": "S", "max_use": 1, "baseDefinitionId": "CR1" },
+                                    { "type": "segment", "xid": "CR3", "usage": "S", "max_use": 1, "baseDefinitionId": "CR3" },
+                                    { "type": "segment", "xid": "CRC", "usage": "S", "max_use": 3, "baseDefinitionId": "CRC" },
+                                    { "type": "segment", "xid": "DTP", "usage": "R", "max_use": 11, "baseDefinitionId": "DTP" },
+                                    { "type": "segment", "xid": "QTY", "usage": "S", "max_use": 2, "baseDefinitionId": "QTY" },
+                                    { "type": "segment", "xid": "MEA", "usage": "S", "max_use": 5, "baseDefinitionId": "MEA" },
+                                    { "type": "segment", "xid": "CN1", "usage": "S", "max_use": 1, "baseDefinitionId": "CN1" },
+                                    { "type": "segment", "xid": "REF", "usage": "S", "max_use": 10, "baseDefinitionId": "REF" },
+                                    { "type": "segment", "xid": "AMT", "usage": "S", "max_use": 2, "baseDefinitionId": "AMT" },
+                                    { "type": "segment", "xid": "K3", "usage": "S", "max_use": 10, "baseDefinitionId": "K3" },
+                                    { "type": "segment", "xid": "NTE", "usage": "S", "max_use": 2, "baseDefinitionId": "NTE" },
+                                    { "type": "segment", "xid": "PS1", "usage": "S", "max_use": 1, "baseDefinitionId": "PS1" },
+                                    { "type": "segment", "xid": "HCP", "usage": "S", "max_use": 1, "baseDefinitionId": "HCP" },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2410",
+                                      "name": "Drug Identification",
+                                      "usage": "S",
+                                      "repeat": 1,
+                                      "children": [
+                                        { "type": "segment", "xid": "LIN", "usage": "R", "max_use": 1, "baseDefinitionId": "LIN" },
+                                        { "type": "segment", "xid": "CTP", "usage": "R", "max_use": 1, "baseDefinitionId": "CTP" },
+                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 1, "baseDefinitionId": "REF" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2420A",
+                                      "name": "Rendering Provider Name",
+                                      "usage": "S",
+                                      "repeat": 1,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "PRV", "usage": "S", "max_use": 1, "baseDefinitionId": "PRV" },
+                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 20, "baseDefinitionId": "REF" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2420B",
+                                      "name": "Purchased Service Provider Name",
+                                      "usage": "S",
+                                      "repeat": 1,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 20, "baseDefinitionId": "REF" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2420C",
+                                      "name": "Service Facility Location",
+                                      "usage": "S",
+                                      "repeat": 1,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
+                                        { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" },
+                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 3, "baseDefinitionId": "REF" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2420D",
+                                      "name": "Supervising Provider Name",
+                                      "usage": "S",
+                                      "repeat": 1,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 20, "baseDefinitionId": "REF" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2420E",
+                                      "name": "Ordering Provider Name",
+                                      "usage": "S",
+                                      "repeat": 1,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "N3", "usage": "S", "max_use": 1, "baseDefinitionId": "N3" },
+                                        { "type": "segment", "xid": "N4", "usage": "S", "max_use": 1, "baseDefinitionId": "N4" },
+                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 20, "baseDefinitionId": "REF" },
+                                        { "type": "segment", "xid": "PER", "usage": "S", "max_use": 1, "baseDefinitionId": "PER" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2420F",
+                                      "name": "Referring Provider Name",
+                                      "usage": "S",
+                                      "repeat": 2,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 20, "baseDefinitionId": "REF" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2420G",
+                                      "name": "Ambulance Pick-up Location",
+                                      "usage": "S",
+                                      "repeat": 1,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
+                                        { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2420H",
+                                      "name": "Ambulance Drop-off Location",
+                                      "usage": "S",
+                                      "repeat": 1,
+                                      "children": [
+                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
+                                        { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
+                                        { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2430",
+                                      "name": "Line Adjudication Information",
+                                      "usage": "S",
+                                      "repeat": 15,
+                                      "children": [
+                                        { "type": "segment", "xid": "SVD", "usage": "R", "max_use": 1, "baseDefinitionId": "SVD" },
+                                        { "type": "segment", "xid": "CAS", "usage": "S", "max_use": 5, "baseDefinitionId": "CAS" },
+                                        { "type": "segment", "xid": "DTP", "usage": "R", "max_use": 1, "baseDefinitionId": "DTP" },
+                                        { "type": "segment", "xid": "AMT", "usage": "S", "max_use": 1, "baseDefinitionId": "AMT" }
+                                      ]
+                                    },
+                                    {
+                                      "type": "loop",
+                                      "xid": "2440",
+                                      "name": "Form Identification Code",
+                                      "usage": "S",
+                                      "repeat": ">1",
+                                      "children": [
+                                        { "type": "segment", "xid": "LQ", "usage": "R", "max_use": 1, "baseDefinitionId": "LQ" },
+                                        { "type": "segment", "xid": "FRM", "usage": "R", "max_use": 99, "baseDefinitionId": "FRM" }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                { "type": "segment", "xid": "SE", "usage": "R", "max_use": 1, "baseDefinitionId": "SE" }
+              ]
+            },
+            { "type": "segment", "xid": "GE", "usage": "R", "max_use": 1, "baseDefinitionId": "GE" }
+          ]
+        },
+        { "type": "segment", "xid": "IEA", "usage": "R", "max_use": 1, "baseDefinitionId": "IEA" }
+      ]
+    }
+  ]
+}

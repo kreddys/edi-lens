@@ -2,140 +2,181 @@
 import logging
 from crewai import Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task
-from typing import List, Literal, Dict, Any
+from typing import List, Literal, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
 from .llm import get_llm
 from .refinement_engine.rag_tool import RAGTool
+from .refinement_engine.models import (
+    StructuralChange, StructuralChangeProposal,
+    ContextualLink, ContextualLinkProposal,
+    ElementEnrichment, ElementEnrichmentProposal,
+    ComplexRule, ComplexRuleProposal
+)
 
 logger = logging.getLogger(__name__)
 
-# --- Pydantic Models for Structured Output ---
-
-class ProposedChange(BaseModel):
-    """Pydantic model for a single proposed change to the schema."""
-    change_type: Literal["MODIFY_ELEMENT", "ADD_ELEMENT", "UPDATE", "ADD"] = Field(..., description="The type of change to perform.")
-    element_id: str = Field(..., description="The ID of the element to change (e.g., 'CLM02').")
-    human_readable_reason: str = Field(..., description="A brief, clear explanation of why the change is needed.")
-    citation: str = Field(..., description="The EXACT sentence or phrase from the documentation that proves the change is necessary.")
-    proposed_changes: Dict[str, Any] = Field(..., description="A JSON object of the new values to apply.")
-
-class ChangeProposal(BaseModel):
-    """Pydantic model for the list of proposed changes, which is the final output of the analysis task."""
-    proposals: List[ProposedChange] = Field(default=[], description="A list of proposed changes. Must be an empty list if no changes are needed.")
-
 @CrewBase
 class SchemaEnrichmentCrews:
-    """A crew designed to enrich a base schema with details from documentation."""
+    """
+    A collection of specialized agent crews that form a "Schema Assembly Line"
+    to generate and enrich an EDI schema from an implementation guide.
+    """
     def __init__(self, rag_tool: RAGTool):
         self.rag_tool = rag_tool
         self.llm = get_llm()
+        # --- THIS IS THE FIX ---
+        # Instantiate the agents in the constructor so they are objects, not methods.
+        self.structural_integrity_agent_instance = self.structural_integrity_agent()
+        self.contextualization_agent_instance = self.contextualization_agent()
+        self.element_enrichment_agent_instance = self.element_enrichment_agent()
+        self.complex_rule_extraction_agent_instance = self.complex_rule_extraction_agent()
+        # --- END OF FIX ---
 
-    # --- Agent Definitions ---
+    # --- AGENT DEFINITIONS ---
+
     @agent
-    def analyst(self) -> Agent:
+    def structural_integrity_agent(self) -> Agent:
         return Agent(
-            role="EDI Schema Analyst",
-            goal="Compare a segment's existing JSON definition with its text documentation, identify all discrepancies or missing details, and create a structured list of required changes.",
-            backstory='''You are a meticulous JSON auditing agent. You are a machine that follows instructions perfectly.
-You compare an existing JSON implementation against a detailed text specification.
-Your job is to find every single piece of missing information, every incorrect value, and every incomplete description.''',
+            role="EDI Structural Architect",
+            goal="Ensure the schema's hierarchical structure perfectly matches the implementation guide's table of contents by identifying and adding any missing loops or segments.",
+            backstory=(
+                "You are a meticulous architect focused solely on the blueprint of an EDI transaction. "
+                "You ignore the fine details of elements and rules, concentrating only on the high-level structure. "
+                "Your job is to compare the guide's intended hierarchy (its table of contents) with the existing schema's structure and add any missing pieces to create a perfect, complete skeleton."
+            ),
             tools=[self.rag_tool],
             llm=self.llm,
             verbose=True,
             allow_delegation=False,
+            output_pydantic=StructuralChangeProposal
         )
 
     @agent
-    def architect(self) -> Agent:
+    def contextualization_agent(self) -> Agent:
         return Agent(
-            role='EDI Schema Design Architect',
-            goal='Given a specific, single task and a segment\'s JSON, generate a precise JSON Patch object (RFC 6902) to perform ONLY that task.',
-            backstory="You are a JSON surgeon. You perform micro-operations. You receive a single, clear instruction (e.g., 'add element X', 'change usage of Y') and a JSON document. You generate a minimal, perfect JSON Patch to execute that one instruction. You never combine tasks.",
-            tools=[],
+            role="EDI Contextual Linker",
+            goal="Identify segments within the schema structure that have a special, context-specific meaning and create the necessary links and placeholders for their unique definitions.",
+            backstory=(
+                "You are a librarian of EDI semantics. You understand that a segment's meaning changes with its location. "
+                "You traverse the schema's structure, and for each segment, you consult the guide to determine its specific role (e.g., 'Billing Provider Name' vs. 'Subscriber Name'). "
+                "You don't write the full definitions; you simply create the 'card catalog' entry (`contextId`) and the empty placeholder, preparing the way for the detail-oriented agents."
+            ),
+            tools=[self.rag_tool],
             llm=self.llm,
-            verbose=True
+            verbose=True,
+            allow_delegation=False,
+            output_pydantic=ContextualLinkProposal
         )
 
-    # --- Task Definitions ---
+    @agent
+    def element_enrichment_agent(self) -> Agent:
+        return Agent(
+            role="EDI Element Detail Specialist",
+            goal="Flesh out the definitions of individual segments by adding all element-level details from the guide, such as descriptions, data types, code values, and length constraints.",
+            backstory=(
+                "You are a detail-oriented technical writer, a master of specifications. You are given a single segment to focus on. "
+                "You meticulously read the corresponding section of the implementation guide and transfer every piece of element-specific information—descriptions, usage notes, data types, valid codes, and min/max lengths—into the JSON schema. "
+                "You also identify and add any elements that are completely missing from the base definition."
+            ),
+            tools=[self.rag_tool],
+            llm=self.llm,
+            verbose=True,
+            allow_delegation=False,
+            output_pydantic=ElementEnrichmentProposal
+        )
+
+    @agent
+    def complex_rule_extraction_agent(self) -> Agent:
+        return Agent(
+            role="EDI Complex Rule Analyst",
+            goal="Extract all complex, conditional, and relational validation rules from the implementation guide and codify them into a structured, machine-readable JSON format.",
+            backstory=(
+                "You are a logic and syntax expert. You read between the lines of the implementation guide, searching for the complex business rules that govern the entire transaction. "
+                "You ignore simple element properties and focus on sentences containing keywords like 'if', 'when', 'then', 'required', 'must not', and 'must balance'. "
+                "Your sole purpose is to translate this complex business logic into a clear, data-driven JSON format that a validation engine can execute."
+            ),
+            tools=[self.rag_tool],
+            llm=self.llm,
+            verbose=True,
+            allow_delegation=False,
+            output_pydantic=ComplexRuleProposal
+        )
+
+    # --- TASK DEFINITIONS ---
+
     @task
-    def analysis_task(self) -> Task:
+    def structural_integrity_task(self) -> Task:
         return Task(
-            description="""Analyze Segment Definition: You are an auditor comparing a JSON definition against a text document.
-                The text document provided by the 'Documentation Query Tool' is your ONLY source of truth.
-                Do NOT use any of your pre-existing knowledge about EDI standards.
-                Your task is to identify discrepancies ONLY for the elements and properties explicitly mentioned in the retrieved text.
-
-                1. You will be given a segment ID (e.g., 'CLM') and its current JSON definition.
-                2. Use the 'Documentation Query Tool' ONE TIME with the given segment ID to retrieve its documentation.
-                3. Perform a strict comparison between the retrieved text and the provided JSON.
-                4. For each discrepancy, create a change object. A discrepancy ONLY exists if the text provides a value that is different from the JSON, or if the text describes an element that is completely missing from the JSON.
-                   - If an element's property is incorrect (e.g., usage is 'S' but should be 'R'), the `change_type` MUST be 'MODIFY_ELEMENT'. The `proposed_changes` object MUST contain ONLY the key-value pairs that need to be changed, for example: `{{"usage": "R"}}`.
-                   - If an element is completely missing from the definition, the `change_type` MUST be 'ADD_ELEMENT'. The `proposed_changes` object MUST contain the full definition of the new element to be added, including its `xid`, `name`, and `usage` parsed from the documentation. For example: `{{"xid": "SBR01", "name": "Payer Responsibility Sequence Number Code", "usage": "R"}}`.
-                5. If an element exists in the JSON but is NOT mentioned in the retrieved text, you MUST ignore it. DO NOT propose to remove it.
-                6. YOUR FINAL ANSWER MUST BE A JSON OBJECT containing a list of these change objects. If no changes are needed, you MUST return an object with an empty list.
-
-                **CRITICAL RULE 1: ADHERE STRICTLY TO THE PROVIDED DOCUMENTATION**: You are absolutely forbidden from proposing a change or addition for an element if that element is not explicitly described in the retrieved documentation. Do not use your own knowledge to 'fill in the blanks'.
-                **EXAMPLE OF WHAT NOT TO DO**: If the documentation for segment 'ST' only mentions 'ST-01', you MUST NOT propose to add 'ST-02', even if you know 'ST-02' typically exists. Your knowledge comes ONLY from the text provided by the tool. If the text doesn't mention it, it doesn't exist for the purpose of this task.
-
-                **CRITICAL RULE 2: PROVIDE CITATIONS**: Every change object you propose MUST include a "citation" field containing the exact quote from the documentation that justifies the change. If you cannot find a quote, you cannot propose the change.
-
-                **CRITICAL RULE 3: NORMALIZE IDs**: The `element_id` and the `xid` in `proposed_changes` MUST be normalized by removing any hyphens (e.g., 'SBR-01' from the documentation becomes 'SBR01').
-
-                Context:
-                - Segment ID: {segment_id}
-                - Current JSON Definition: {current_definition_json}
-            """,
-            expected_output="""A list of proposed changes. Must be an empty list if no changes are needed.""",
-            agent=self.analyst(),
-            output_pydantic=ChangeProposal,
+            description=(
+                "Analyze the provided `guide_toc` (Table of Contents from the implementation guide) and compare it against the `current_schema_structure`. "
+                "Identify any loops or segments present in the guide's TOC that are completely missing from the schema structure. "
+                "For each missing item, create a `StructuralChange` object specifying its `xid`, `type`, `name`, and the `parentLoopId` where it should be inserted. "
+                "Your final output must be a `StructuralChangeProposal` object."
+            ),
+            expected_output="A single, valid JSON object matching the `StructuralChangeProposal` Pydantic model.",
+            # --- THIS IS THE FIX ---
+            agent=self.structural_integrity_agent_instance,
+            output_json=StructuralChangeProposal
         )
 
     @task
-    def patch_generation_task(self) -> Task:
+    def contextualization_task(self) -> Task:
         return Task(
-            description="""Generate JSON Patch: You are a JSON Patch specialist. Your task is to convert a single, specific change request into a valid JSON Patch (RFC 6902) array.
-                The patch's 'path' MUST be a valid JSON Pointer, starting from the root of the provided segment definition.
-                For example, to change the usage of the second element, the path would be `/elements/1/usage`.
-
-                Current Segment Definition:
-                {current_definition_json}
-
-                Specific Change to Implement:
-                {task_json}
-            """,
-            expected_output="""
-                A valid JSON array formatted as a standard JSON Patch (RFC 6902).
-                Do not add any explanations or markdown.
-
-                Example for modifying an element:
-                [
-                    { "op": "replace", "path": "/elements/1/usage", "value": "R" }
-                ]
-
-                Example for adding an element:
-                [
-                    { "op": "add", "path": "/elements/-", "value": {"xid": "CLM09", "name": "Release of Information Code", "usage": "R", "seq": "09"} }
-                ]
-            """,
-            agent=self.architect()
+            description=(
+                "You will be given the full `schema_structure` and a specific `loop_id` to analyze. "
+                "For each segment within that loop, use the 'Documentation Query Tool' to find its specific name or role (e.g., 'Billing Provider Name' for an NM1 in loop 2010AA). "
+                "If a segment has a specific role, create a `ContextualLink` object containing the `loopId`, `segmentId`, and a new `contextId` (formatted as 'LOOP_ID.SEGMENT_ID'). "
+                "Your final output must be a `ContextualLinkProposal` object."
+            ),
+            expected_output="A single, valid JSON object matching the `ContextualLinkProposal` Pydantic model.",
+            agent=self.contextualization_agent_instance,
+            output_json=ContextualLinkProposal
         )
 
-    # --- Crew Definitions ---
+    @task
+    def element_enrichment_task(self) -> Task:
+        return Task(
+            description=(
+                "You will be given a `segment_id`, its `context_id` (if any), and its `current_definition_json`. "
+                "Your task is to enrich this definition. Use the 'Documentation Query Tool' with a very specific query to get the relevant guide text. "
+                "Extract and add all missing details: element descriptions, data types, min/max lengths, and full `valid_codes` lists. "
+                "Also, identify any elements mentioned in the guide but missing from the definition. "
+                "Your final output must be an `ElementEnrichmentProposal` object containing the JSON patch operations needed to update the definition."
+            ),
+            expected_output="A single, valid JSON object matching the `ElementEnrichmentProposal` Pydantic model, containing a list of JSON Patch operations.",
+            agent=self.element_enrichment_agent_instance,
+            output_json=ElementEnrichmentProposal
+        )
+
+    @task
+    def complex_rule_extraction_task(self) -> Task:
+        return Task(
+            description=(
+                "Analyze the provided `guide_text_chunk`. Your goal is to identify and extract ONLY complex, conditional, or relational rules. "
+                "Ignore simple properties like data types or code lists. Focus on rules that span multiple elements or segments (e.g., 'If X, then Y is required'). "
+                "For each rule found, create a `ComplexRule` object, filling in all fields, especially the `type`, `conditions`, and `action`. "
+                "Your final output must be a `ComplexRuleProposal` object."
+            ),
+            expected_output="A single, valid JSON object matching the `ComplexRuleProposal` Pydantic model.",
+            agent=self.complex_rule_extraction_agent_instance,
+            output_json=ComplexRuleProposal
+        )
+
+    # --- CREW DEFINITIONS ---
+
     @crew
-    def analysis_crew(self) -> Crew:
-        return Crew(
-            agents=[self.analyst()],
-            tasks=[self.analysis_task()],
-            process=Process.sequential,
-            verbose=True
-        )
+    def structural_integrity_crew(self) -> Crew:
+        return Crew(agents=[self.structural_integrity_agent_instance], tasks=[self.structural_integrity_task()], process=Process.sequential, verbose=True)
 
     @crew
-    def architect_crew(self) -> Crew:
-        return Crew(
-            agents=[self.architect()],
-            tasks=[self.patch_generation_task()],
-            process=Process.sequential,
-            verbose=True
-        )
+    def contextualization_crew(self) -> Crew:
+        return Crew(agents=[self.contextualization_agent_instance], tasks=[self.contextualization_task()], process=Process.sequential, verbose=True)
+
+    @crew
+    def element_enrichment_crew(self) -> Crew:
+        return Crew(agents=[self.element_enrichment_agent_instance], tasks=[self.element_enrichment_task()], process=Process.sequential, verbose=True)
+
+    @crew
+    def complex_rule_extraction_crew(self) -> Crew:
+        return Crew(agents=[self.complex_rule_extraction_agent_instance], tasks=[self.complex_rule_extraction_task()], process=Process.sequential, verbose=True)

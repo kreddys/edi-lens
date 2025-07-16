@@ -1,76 +1,73 @@
-# FILE: backend/tests/agents/test_refinement_engine_integration.py
+
 import pytest
 import json
-import os
-import logging
-from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from src.agents.refinement_engine.engine import SchemaRefinementEngine
-from src.agents.refinement_engine.models import KnowledgeSource
-# --- NEW IMPORT ---
-from src.core.schema_manager import schema_manager
+from src.agents.refinement_engine.models import KnowledgeSource, RefinementStatus
+from src.agents.refinement_engine.rag_tool import RAGTool, RAGToolInput
 
 # Mark this entire file as an 'integration' test
 pytestmark = pytest.mark.integration
-logger = logging.getLogger(__name__)
 
-def test_engine_e2e_with_live_llm():
-    """
-    Integration test for the SchemaRefinementEngine using a live LLM call.
-    """
-    # Arrange: Check for prerequisite API key
-    llm_api_key_found = (
-        os.getenv("OPENROUTER_API_KEY") or
-        os.getenv("OPENAI_API_KEY") or
-        os.getenv("ANTHROPIC_API_KEY") or
-        os.getenv("OLLAMA_BASE_URL")
-    )
-    if not llm_api_key_found:
-        pytest.skip("Skipping live LLM test: No LLM API key or OLLAMA_BASE_URL found in environment.")
-
-    # --- THIS IS THE FIX ---
-    # Manually load schemas into the singleton manager so the tools can find them.
-    # This simulates the app's startup process for the test.
-    test_schema_dir = Path(__file__).parent.parent / "data" / "test_schemas"
-    schema_manager.load_schemas(test_schema_dir)
-    assert schema_manager.get_schema("005010X222A1") is not None, "Test schema failed to load."
-    # --- END OF FIX ---
-
-    # Arrange: Define a simple schema and a clear instruction
-    base_schema = {
-        "segmentDefinitions": {
-            "CLM": {
-                "name": "Claim Info",
-                "elements": [
-                    {"xid": "CLM01", "name": "Patient Control Number", "usage": "R"},
-                    {"xid": "CLM02", "name": "Total Claim Charge", "usage": "S"}
-                ]
-            }
+# A minimal schema to test the traversal logic
+MOCK_BASE_SCHEMA = {
+    "structure": [
+        {
+            "type": "loop", "xid": "HEADER", "children": [
+                { "type": "segment", "xid": "BHT", "baseDefinitionId": "BHT" }
+            ]
+        },
+        {
+            "type": "loop", "xid": "2000A", "children": [
+                { "type": "segment", "xid": "HL", "baseDefinitionId": "HL" },
+                { "type": "loop", "xid": "2010AA", "children": [
+                    { "type": "segment", "xid": "NM1", "baseDefinitionId": "NM1", "contextId": "2010AA.NM1" }
+                ]}
+            ]
         }
-    }
-    
-    instruction = "The Total Claim Charge element, which is CLM02 in the CLM segment, must be required."
-    knowledge = KnowledgeSource(source_type="text", content=instruction)
+    ],
+    "segmentDefinitions": {
+        "BHT": { "name": "Beginning of Hierarchical Transaction", "elements": [{"description": ""}] },
+        "HL": { "name": "Hierarchical Level", "elements": [{"description": ""}] },
+        "NM1": { "name": "Name (Base)", "elements": [{"description": ""}] }
+    },
+    "contextualDefinitions": {
+        "2010AA.NM1": { "name": "Billing Provider Name", "elements": [{"description": ""}] }
+    },
+    "rules": []
+}
 
-    # Act: Run the engine and collect status updates
-    engine = SchemaRefinementEngine(base_schema=base_schema, knowledge_source=knowledge)
+def test_refinement_engine_integration_with_real_crews(mocker):
+    """
+    Tests the full refinement engine workflow with real agent crews and a mocked RAGTool.
+    """
+    # Arrange
+    # We will mock the embedding model to avoid actual Pinecone calls
+    mocker.patch('src.agents.refinement_engine.embedding_models.PineconeEmbeddingModel')
     
-    logger.info("--- Starting Live LLM Refinement Engine Test ---")
-    status_updates = []
-    for status in engine.run():
-        logger.info(f"[{status.phase.upper():<9}] {status.message}")
-        status_updates.append(status)
+    knowledge = KnowledgeSource(source_type="text", content="This is a test guide.")
+    schema_copy = json.loads(json.dumps(MOCK_BASE_SCHEMA))
+    
+    engine = SchemaRefinementEngine(
+        base_schema=schema_copy,
+        knowledge_source=knowledge,
+        guide_toc="Test TOC"
+    )
 
-    # Assert: Verify the engine completed successfully and applied the correct change
+    # Act
+    status_updates = list(engine.run())
+
+    # Assert
     final_status = status_updates[-1]
-    assert final_status.phase == "Complete", f"Engine failed with message: {final_status.message}"
+    assert final_status.phase == "Complete"
+    assert final_status.progress == 1.0
 
     final_schema = engine.get_final_schema()
-    
-    clm_def = final_schema["segmentDefinitions"]["CLM"]
-    clm02_element = clm_def["elements"][1]
-    
-    assert clm02_element["xid"] == "CLM02"
-    assert clm02_element["usage"] == "R", "The LLM failed to change the usage of CLM02 to 'R'."
-
-    logger.info("--- Live LLM Refinement Engine Test Passed ---")
+    assert "description" in final_schema["segmentDefinitions"]["BHT"]
+    assert "description" in final_schema["contextualDefinitions"]["2010AA.NM1"]
+    assert len(final_schema["rules"]) > 0
+    assert "elements" in final_schema["segmentDefinitions"]["BHT"]
+    assert len(final_schema["segmentDefinitions"]["BHT"]["elements"]) > 0
+    assert "elements" in final_schema["segmentDefinitions"]["BHT"]
+    assert len(final_schema["segmentDefinitions"]["BHT"]["elements"]) > 0

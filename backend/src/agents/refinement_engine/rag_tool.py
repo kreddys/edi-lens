@@ -3,10 +3,8 @@ import logging
 from typing import Any
 
 from crewai.tools import BaseTool
-# --- THIS IS THE FIX: Add the missing imports from pydantic ---
 from pydantic import BaseModel, Field
-# --- END OF FIX ---
-from llama_index.core import VectorStoreIndex, ServiceContext, Document
+from llama_index.core import VectorStoreIndex, ServiceContext
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.base.embeddings.base import BaseEmbedding
 
@@ -19,22 +17,26 @@ from .models import KnowledgeSource
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer("rag_tool_tracer")
 
+# --- THIS IS THE FIX ---
+# Move the RAGToolInput class to the module level so it can be imported.
+class RAGToolInput(BaseModel):
+    """Input for the RAGTool, providing a structured query."""
+    query: str = Field(..., description="A clear, natural language question or topic to find in the documentation.")
+# --- END OF FIX ---
+
 class RAGTool(BaseTool):
     """
     A custom CrewAI tool for querying a knowledge source using a real RAG pipeline.
+    This tool performs a vector-based search on a pre-indexed implementation guide.
     """
     name: str = "Documentation Query Tool"
     description: str = (
         "Queries the implementation guide documentation for specific rules or context. "
-        "Use this to understand the requirements for a segment or loop. "
-        "The input should be a clear, natural language question."
+        "Use this to retrieve the ground-truth information for a specific segment or topic. "
+        "The input should be a clear, natural language question about what you need to find."
     )
     
-    class RAGToolSchema(BaseModel):
-        """Input for RAGTool."""
-        query: str = Field(..., description="Mandatory query string")
-
-    args_schema: type[BaseModel] = RAGToolSchema
+    args_schema: type[BaseModel] = RAGToolInput
 
     class Config:
         arbitrary_types_allowed = True
@@ -60,7 +62,7 @@ class RAGTool(BaseTool):
             )
             logger.info(f"Creating vector store index from {len(documents)} valid document(s)...")
             index = VectorStoreIndex.from_documents(documents, service_context=service_context, show_progress=True)
-            self.query_engine = index.as_query_engine(service_context=service_context, similarity_top_k=3)
+            self.query_engine = index.as_query_engine(service_context=service_context, similarity_top_k=5)
             logger.info("RAG query engine is ready.")
         else:
             logger.error("Document loader returned no valid documents. RAG engine will not be available.")
