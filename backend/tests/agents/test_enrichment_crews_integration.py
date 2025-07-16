@@ -3,7 +3,8 @@ import pytest
 import os
 import json
 import logging
-from pathlib import Path
+import inspect
+import litellm
 
 from src.utils.telemetry import trace_crew
 from src.utils.llm_output_parser import extract_json_from_llm_output
@@ -17,17 +18,54 @@ from scripts.preprocess_guide import preprocess_guide
 pytestmark = pytest.mark.integration
 logger = logging.getLogger(__name__)
 
-# --- Test Fixtures ---
+# --- Fixtures (unchanged) ---
+@pytest.fixture(autouse=True)
+def patch_litellm_completion(monkeypatch):
+    original_completion = litellm.completion
+    is_verbose = os.getenv('AGENT_VERBOSE', 'false').lower() == 'true'
+
+    if not is_verbose:
+        yield
+        return
+
+    def llm_debug_callback(kwargs, completion_response, start_time, end_time):
+        print("\n" + "="*20 + " LLM DEBUG " + "="*20)
+        try:
+            print("\n--- LLM Request ---")
+            request_data = {"model": kwargs.get("model"), "messages": kwargs.get("messages")}
+            print(json.dumps(request_data, indent=2))
+            print("\n--- LLM Response ---")
+            if hasattr(completion_response, 'model_dump_json'):
+                print(completion_response.model_dump_json(indent=2))
+            else:
+                print(str(completion_response))
+        except Exception as e:
+            print(f"\nError in llm_debug_callback: {e}")
+        finally:
+            print("\n" + "="*51 + "\n")
+
+    def wrapped_completion(*args, **kwargs):
+        existing_callbacks = kwargs.get("success_callback", [])
+        if not isinstance(existing_callbacks, list):
+            existing_callbacks = [existing_callbacks]
+        if llm_debug_callback not in existing_callbacks:
+            existing_callbacks.append(llm_debug_callback)
+        kwargs["success_callback"] = existing_callbacks
+        return original_completion(*args, **kwargs)
+
+    monkeypatch.setattr(litellm, "completion", wrapped_completion)
+    logger.info("LLM debug logging enabled via monkeypatch.")
+    yield
+    logger.info("LLM debug logging disabled.")
+
 @pytest.fixture(scope="module")
 def setup_prerequisites():
-    """A module-scoped fixture to check for API keys once per test run."""
     if not settings.PINECONE_API_KEY:
         pytest.skip("Skipping agent tests: PINECONE_API_KEY not found in environment.")
-    if not (os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY") or os.getenv("OLLAMA_BASE_URL")):
+    if not (os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY") or os.getenv("GROQ_API_KEY") or os.getenv("OLLAMA_BASE_URL")):
         pytest.skip("Skipping agent tests: No LLM API key or OLLAMA_BASE_URL found.")
 
 def get_crews_for_guide_text(guide_text: str, tmp_path_factory) -> SchemaEnrichmentCrews:
-    """Helper function to create a crew setup for a given piece of guide text."""
     tmp_path = tmp_path_factory.mktemp("guide_data")
     guide_path = tmp_path / "guide.txt"
     guide_path.write_text(guide_text)
@@ -39,137 +77,159 @@ def get_crews_for_guide_text(guide_text: str, tmp_path_factory) -> SchemaEnrichm
 
 # --- Test Cases ---
 
-def test_analyst_crew_proposes_modify_and_add(setup_prerequisites, tmp_path_factory):
+def test_enrichment_crew_modifies_element(setup_prerequisites, tmp_path_factory):
     """
-    Tests that the analysis crew can correctly identify both a missing element
-    and an element with an incorrect property in the same segment.
+    Tests the agent's ability to generate a 'replace' patch for an existing,
+    incorrect element property.
     """
     # Arrange
+    guide_text = "CLM-02 Total Claim Charge is Required."
+    base_clm_def = {"name": "Claim Information", "elements": [{"xid": "CLM02", "name": "Total Claim Charge", "usage": "S"}]}
+    crews = get_crews_for_guide_text(guide_text, tmp_path_factory)
+    enrichment_crew = crews.element_enrichment_crew()
+    enrichment_inputs = {"segment_id": "CLM", "context_id": None, "current_definition_json": json.dumps(base_clm_def)}
+
+    # Act
+    result = trace_crew(enrichment_crew, enrichment_inputs)
+    
+    # Debug & Parse
+    logger.info(f"--- DEBUG OUTPUT FOR: {inspect.currentframe().f_code.co_name} ---")
+    logger.info(f"Agent's raw output:\n{result.raw}")
+    json_string = extract_json_from_llm_output(result.raw)
+    logger.info(f"Extracted JSON:\n{json_string}")
+    logger.info("--- END DEBUG ---")
+    
+    # Assert
+    assert json_string, "The LLM did not return a valid JSON block."
+    patch_data = json.loads(json_string)
+    patches = patch_data.get("patches", patch_data)
+
+    assert isinstance(patches, list)
+    assert len(patches) > 0, "Expected at least one patch operation, but got none."
+    replace_patch = next((p for p in patches if p.get("op") == "replace"), None)
+    assert replace_patch is not None, "A 'replace' operation was expected in the patch."
+    assert replace_patch["path"] == "/elements/0/usage"
+    assert replace_patch["value"] == "R"
+
+def test_enrichment_crew_adds_missing_element(setup_prerequisites, tmp_path_factory):
+    """
+    Tests the agent's ability to generate an 'add' patch for a missing element.
+    """
+    # Arrange
+    # --- THIS IS THE FIX: Provide a more complete context ---
     guide_text = """
     CLM Claim Information
-    To specify basic data about the claim.
-
-    CLM-02 Total Claim Charge Amount
-    Required
-    Decimal number (R)
-
-    CLM-09 Release of Information Code
-    Required
-    Identifier (ID)
+    This segment is to specify the claim data.
+    - CLM01 Patient Control Number is Required.
+    - CLM02 Total Claim Charge is Required.
+    - CLM09 Release of Information Code is Situational. This indicates if the provider has authorization to release medical info.
     """
+    # The base definition is missing CLM09
     base_clm_def = {
-      "name": "Claim Information", "elements": [
-        {"xid": "CLM01", "name": "Patient Control Number", "usage": "R"},
-        {"xid": "CLM02", "name": "Total Claim Charge", "usage": "S"}
-      ]
+        "name": "Claim Information",
+        "elements": [
+            {"xid": "CLM01", "name": "Patient Control Number", "usage": "R"},
+            {"xid": "CLM02", "name": "Total Claim Charge", "usage": "R"}
+        ]
     }
+    # --- END OF FIX ---
+    
     crews = get_crews_for_guide_text(guide_text, tmp_path_factory)
-    analysis_crew = crews.analysis_crew()
+    enrichment_crew = crews.element_enrichment_crew()
+    enrichment_inputs = {"segment_id": "CLM", "context_id": None, "current_definition_json": json.dumps(base_clm_def)}
 
     # Act
-    analysis_inputs = {
-        "segment_id": "CLM", "current_definition_json": json.dumps(base_clm_def)
-    }
-    result = trace_crew(analysis_crew, analysis_inputs)
-    logger.info(f"Analyst Agent (Modify/Add Test) raw output:\n{result.raw}")
-    
+    result = trace_crew(enrichment_crew, enrichment_inputs)
+
+    # Debug & Parse
+    logger.info(f"--- DEBUG OUTPUT FOR: {inspect.currentframe().f_code.co_name} ---")
+    logger.info(f"Agent's raw output:\n{result.raw}")
     json_string = extract_json_from_llm_output(result.raw)
-    assert json_string, "The LLM did not return a valid JSON block in its output."
-    proposed_tasks = json.loads(json_string)
+    logger.info(f"Extracted JSON:\n{json_string}")
+    logger.info("--- END DEBUG ---")
 
     # Assert
-    assert isinstance(proposed_tasks["proposals"], list)
-    assert len(proposed_tasks["proposals"]) >= 2
+    assert json_string, "The LLM did not return a valid JSON block."
+    patch_data = json.loads(json_string)
+    patches = patch_data.get("patches", patch_data)
     
-    modify_task = next((t for t in proposed_tasks["proposals"] if t.get("change_type") == "MODIFY_ELEMENT"), None)
-    assert modify_task and modify_task["element_id"] == "CLM02"
-    assert modify_task["proposed_changes"]["usage"] == "R"
-    
-    add_task = next((t for t in proposed_tasks["proposals"] if t.get("change_type") == "ADD_ELEMENT"), None)
-    assert add_task and add_task["element_id"] == "CLM09"
-    assert add_task["proposed_changes"]["xid"] == "CLM09"
+    assert isinstance(patches, list)
+    assert len(patches) > 0, "Expected at least one patch operation, but got none."
+    add_patch = next((p for p in patches if p.get("op") == "add" and "CLM09" in str(p.get("value"))), None)
+    assert add_patch is not None, "An 'add' operation for CLM09 was expected."
+    # The new element will be added at index 2, after CLM01 and CLM02
+    assert add_patch["path"] == "/elements/2"
+    assert add_patch["value"]["xid"] == "CLM09"
+    assert add_patch["value"]["usage"] == "S"
 
-def test_analyst_crew_proposes_multiple_adds(setup_prerequisites, tmp_path_factory):
+def test_enrichment_crew_returns_empty_patch_for_correct_segment(setup_prerequisites, tmp_path_factory):
     """
-    Tests that the crew can identify and propose adding multiple missing elements
-    to a sparse segment definition.
+    Tests the critical case where the agent correctly identifies that no changes
+    are needed and returns an empty patch list.
     """
     # Arrange
-    guide_text = """
-    SBR Subscriber Information
-    To record information specific to the primary insured.
-
-    SBR-01 Payer Responsibility Sequence Number Code
-    Required
-    Identifier (ID)
-
-    SBR-02 Individual Relationship Code
-    Optional
-    Identifier (ID)
-
-    SBR-09 Claim Filing Indicator Code
-    Required
-    Identifier (ID)
-    """
-    base_sbr_def = { "name": "Subscriber Information", "elements": [] }
+    guide_text = "CLM-02 Total Claim Charge is Required."
+    correct_clm_def = {"name": "Claim Information", "elements": [{"xid": "CLM02", "name": "Total Claim Charge", "usage": "R"}]}
     crews = get_crews_for_guide_text(guide_text, tmp_path_factory)
-    analysis_crew = crews.analysis_crew()
-
+    enrichment_crew = crews.element_enrichment_crew()
+    enrichment_inputs = {"segment_id": "CLM", "context_id": None, "current_definition_json": json.dumps(correct_clm_def)}
+    
     # Act
-    analysis_inputs = {
-        "segment_id": "SBR", "current_definition_json": json.dumps(base_sbr_def)
-    }
-    result = trace_crew(analysis_crew, analysis_inputs)
-    logger.info(f"Analyst Agent (Multiple Adds Test) raw output:\n{result.raw}")
+    result = trace_crew(enrichment_crew, enrichment_inputs)
 
+    # Debug & Parse
+    logger.info(f"--- DEBUG OUTPUT FOR: {inspect.currentframe().f_code.co_name} ---")
+    logger.info(f"Agent's raw output:\n{result.raw}")
     json_string = extract_json_from_llm_output(result.raw)
-    assert json_string, "The LLM did not return a valid JSON block in its output."
-    proposed_tasks = json.loads(json_string)
+    logger.info(f"Extracted JSON:\n{json_string}")
+    logger.info("--- END DEBUG ---")
 
     # Assert
-    assert isinstance(proposed_tasks["proposals"], list)
-    assert len(proposed_tasks["proposals"]) == 3
-    element_ids_to_add = {t["element_id"] for t in proposed_tasks["proposals"]}
-    assert element_ids_to_add == {"SBR01", "SBR02", "SBR09"}
+    assert json_string, "The LLM did not return a valid JSON block."
+    patch_data = json.loads(json_string)
+    patches = patch_data.get("patches", [])
     
-    sbr01_task = next(t for t in proposed_tasks["proposals"] if t["element_id"] == "SBR01")
-    assert sbr01_task["proposed_changes"]["usage"] == "R"
-    
-    sbr02_task = next(t for t in proposed_tasks["proposals"] if t["element_id"] == "SBR02")
-    assert sbr02_task["proposed_changes"]["usage"] == "S"
+    assert isinstance(patches, list)
+    assert len(patches) == 0, "Expected an empty patch list for a correct segment."
 
-def test_analyst_crew_proposes_no_changes_for_correct_segment(setup_prerequisites, tmp_path_factory):
+def test_rule_extraction_crew_extracts_conditional_rule(setup_prerequisites, tmp_path_factory):
     """
-    Tests the critical case where the segment definition already matches the guide,
-    ensuring the agent correctly returns an empty list.
+    Tests that the rule extraction agent can correctly parse a conditional
+    rule from text into the structured `ComplexRule` format.
     """
     # Arrange
-    guide_text = """
-    ST Transaction Set Header
-    To indicate the start of a transaction set.
-
-    ST-01 Transaction Set Identifier Code
-    Required
-    Identifier (ID)
-    """
-    correct_st_def = {
-      "name": "Transaction Set Header",
-      "elements": [{"xid": "ST01", "name": "Transaction Set Identifier Code", "usage": "R"}]
-    }
+    guide_text = "When the REF01 element contains the code 'G2', then the REF02 element is required."
     crews = get_crews_for_guide_text(guide_text, tmp_path_factory)
-    analysis_crew = crews.analysis_crew()
-
+    rule_crew = crews.complex_rule_extraction_crew()
+    rule_inputs = {"guide_text_chunk": guide_text}
+    
     # Act
-    analysis_inputs = {
-        "segment_id": "ST", "current_definition_json": json.dumps(correct_st_def)
-    }
-    result = trace_crew(analysis_crew, analysis_inputs)
-    logger.info(f"Analyst Agent (No Change Test) raw output:\n{result.raw}")
-
+    result = trace_crew(rule_crew, rule_inputs)
+    
+    # Debug & Parse
+    logger.info(f"--- DEBUG OUTPUT FOR: {inspect.currentframe().f_code.co_name} ---")
+    logger.info(f"Agent's raw output:\n{result.raw}")
     json_string = extract_json_from_llm_output(result.raw)
-    assert json_string, "The LLM did not return a valid JSON block in its output."
-    proposed_tasks = json.loads(json_string)
+    logger.info(f"Extracted JSON:\n{json_string}")
+    logger.info("--- END DEBUG ---")
 
     # Assert
-    assert isinstance(proposed_tasks["proposals"], list)
-    assert len(proposed_tasks["proposals"]) == 0
+    assert json_string, "The LLM did not return a valid JSON block."
+    proposal = json.loads(json_string)
+    
+    assert "rules" in proposal
+    assert isinstance(proposal["rules"], list)
+    assert len(proposal["rules"]) == 1, "Expected exactly one rule to be extracted."
+    
+    rule = proposal["rules"][0]
+    assert "REF" in rule["ruleId"]
+    assert rule["appliesTo"]["segment"] == "REF"
+    
+    condition = rule["conditions"]
+    assert condition["expressions"][0]["field"] == "REF01"
+    assert condition["expressions"][0]["operator"] == "equals"
+    assert condition["expressions"][0]["value"] == "G2"
+
+    action = rule["action"]
+    assert "REQUIRE" in action["type"]
+    assert "REF02" in str(action)

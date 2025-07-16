@@ -24,7 +24,6 @@ class SchemaRefinementEngine:
         
         logger.info("Initializing embedding model and RAG tool...")
         embedding_model = PineconeEmbeddingModel(model_name=settings.PINECONE_EMBED_MODEL)
-        # The RAG tool is now initialized inside the engine, as it's a core dependency
         from .rag_tool import RAGTool
         rag_tool = RAGTool(knowledge_source=self.knowledge_source, embedding_model=embedding_model)
         
@@ -33,13 +32,14 @@ class SchemaRefinementEngine:
 
     def _apply_patch(self, patch: List[Dict[str, Any]], description: str):
         """Applies a JSON patch to the in-memory schema and logs the outcome."""
+        if not patch:
+            logger.debug(f"Skipping patch for '{description}' as it is empty.")
+            return
         try:
-            # The `apply` method returns the new, patched document.
             self.schema = JsonPatch(patch).apply(self.schema)
             logger.info(f"Successfully applied patch for: {description}")
-        except JsonPatchException as e:
-            logger.error(f"Failed to apply patch for {description}: {e}")
-            # In a real-world scenario, you might want to halt or handle this error more gracefully
+        except (JsonPatchException, InvalidJsonPatch) as e:
+            logger.error(f"Failed to apply patch for {description}: {e}. Patch was: {patch}", exc_info=True)
             raise
 
     def run(self) -> Generator[RefinementStatus, None, None]:
@@ -47,96 +47,72 @@ class SchemaRefinementEngine:
         try:
             # Stage 1: Structural Integrity
             yield RefinementStatus(phase="Structural Integrity", message="Analyzing guide TOC to find and add missing loops/segments...", progress=0.1)
-            # This stage is a future enhancement. For now, we assume the provided structure is complete.
-            # integrity_crew = self.crews.structural_integrity_crew()
-            # ... run crew and apply patches ...
             
             # Stage 2: Contextualization
             yield RefinementStatus(phase="Contextualization", message="Traversing structure to create context links...", progress=0.2)
-            # This stage is also a future enhancement. We will rely on the pre-defined contextIds for now.
-
+            
             # Stage 3: Element Enrichment
             yield RefinementStatus(phase="Element Enrichment", message="Beginning detailed enrichment of all segment definitions...", progress=0.4)
             enrichment_crew = self.crews.element_enrichment_crew()
             
-            # Enrich base definitions
-            all_definitions = self.schema.get("segmentDefinitions", {})
+            all_definitions = {**self.schema.get("segmentDefinitions", {}), **self.schema.get("contextualDefinitions", {})}
+            total_defs = len(all_definitions)
+
             for i, (def_id, def_json) in enumerate(all_definitions.items()):
-                yield RefinementStatus(phase="Element Enrichment", message=f"Enriching base definition: {def_id}", progress=0.4 + (0.2 * (i / len(all_definitions))))
-                inputs = {"segment_id": def_id, "context_id": None, "current_definition_json": json.dumps(def_json)}
+                yield RefinementStatus(phase="Element Enrichment", message=f"Enriching definition: {def_id}", progress=0.4 + (0.4 * (i / total_defs if total_defs > 0 else 0)))
+                
+                is_contextual = def_id in self.schema.get("contextualDefinitions", {})
+                segment_id_for_query = def_id.split('.')[1] if is_contextual else def_id
+                context_id_for_query = def_id if is_contextual else None
+                base_path = f"/contextualDefinitions/{def_id}" if is_contextual else f"/segmentDefinitions/{def_id}"
+
+                inputs = {"segment_id": segment_id_for_query, "context_id": context_id_for_query, "current_definition_json": json.dumps(def_json)}
                 result = enrichment_crew.kickoff(inputs=inputs)
-                patch_json = extract_json_from_llm_output(result.raw)
-                if patch_json:
-                    patch_data = json.loads(patch_json)
-                    if isinstance(patch_data, dict) and "patches" in patch_data:
-                        patch = patch_data["patches"]
-                    else:
-                        patch = patch_data
+                
+                patch_json_str = extract_json_from_llm_output(result.raw)
+                if not patch_json_str:
+                    logger.warning(f"Agent for {def_id} returned no parsable JSON. Raw output: {result.raw}")
+                    continue
 
+                try:
+                    patch_data = json.loads(patch_json_str)
+                    patch = patch_data.get("patches", patch_data)
                     if not isinstance(patch, list):
-                        raise InvalidJsonPatch("Patch is not a list of operations.")
-                    # The agent returns a patch relative to the definition, so we prepend the path.
-                    full_path_patch = [
-                        {**p, "path": f"/segmentDefinitions/{def_id}{p['path']}"}
-                        for p in patch
-                    ]
-                    self._apply_patch(full_path_patch, f"Base definition {def_id}")
+                        raise InvalidJsonPatch("Agent output 'patches' field is not a list.")
+                        
+                    full_path_patch = [{**p, "path": f"{base_path}{p['path']}"} for p in patch]
+                    self._apply_patch(full_path_patch, f"Definition {def_id}")
 
-            # Enrich contextual definitions
-            all_contexts = self.schema.get("contextualDefinitions", {})
-            for i, (ctx_id, ctx_json) in enumerate(all_contexts.items()):
-                yield RefinementStatus(phase="Element Enrichment", message=f"Enriching contextual definition: {ctx_id}", progress=0.6 + (0.2 * (i / len(all_contexts))))
-                base_def_id = ctx_id.split('.')[1]
-                inputs = {"segment_id": base_def_id, "context_id": ctx_id, "current_definition_json": json.dumps(ctx_json)}
-                result = enrichment_crew.kickoff(inputs=inputs)
-                patch_json = extract_json_from_llm_output(result.raw)
-                if patch_json:
-                    patch_data = json.loads(patch_json)
-                    if isinstance(patch_data, dict) and "patches" in patch_data:
-                        patch = patch_data["patches"]
-                    else:
-                        patch = patch_data
-
-                    if not isinstance(patch, list):
-                        raise InvalidJsonPatch("Patch is not a list of operations.")
-                    # The agent returns a patch relative to the definition, so we prepend the path.
-                    full_path_patch = [
-                        {**p, "path": f"/contextualDefinitions/{ctx_id}{p['path']}"}
-                        for p in patch
-                    ]
-                    self._apply_patch(full_path_patch, f"Contextual definition {ctx_id}")
-
+                except (json.JSONDecodeError, InvalidJsonPatch, KeyError) as e:
+                    logger.error(f"Could not process patch for {def_id}: {e}. Raw JSON from agent: {patch_json_str}", exc_info=True)
+                    continue
+            
             # Stage 4: Complex Rule Extraction
             yield RefinementStatus(phase="Rule Extraction", message="Scanning guide for complex, conditional rules...", progress=0.8)
-            try:
-                rule_crew = self.crews.complex_rule_extraction_crew()
-                # In a real implementation, you would chunk the guide and loop through it.
-                # For this example, we'll do one pass.
-                inputs = {"guide_text_chunk": self.guide_toc} # Using TOC as a proxy for rule-heavy text
-                result = rule_crew.kickoff(inputs=inputs)
-                rules_json = extract_json_from_llm_output(result.raw)
-                if rules_json:
-                    extracted_data = json.loads(rules_json)
-                    if isinstance(extracted_data, dict):
-                        extracted_rules = extracted_data.get("rules", [])
-                        if isinstance(extracted_rules, list):
-                            if extracted_rules:
-                                if "rules" not in self.schema:
-                                    self.schema["rules"] = []
-                                self.schema["rules"].extend(extracted_rules)
-                                yield RefinementStatus(phase="Rule Extraction", message=f"Extracted and added {len(extracted_rules)} complex rules.", progress=0.9)
-                        else:
-                            raise TypeError("'rules' key in agent output is not a list.")
-            except (TypeError, KeyError) as e:
-                logger.error(f"Failed to process and apply rules: {e}")
-                yield RefinementStatus(phase="Failed", message=f"An error occurred during rule extraction: {str(e)}")
-                return
+            rule_crew = self.crews.complex_rule_extraction_crew()
+            inputs = {"guide_text_chunk": self.guide_toc}
+            result = rule_crew.kickoff(inputs=inputs)
+            
+            rules_json_str = extract_json_from_llm_output(result.raw)
+            if rules_json_str:
+                try:
+                    extracted_data = json.loads(rules_json_str)
+                    extracted_rules = extracted_data.get("rules", [])
+                    if isinstance(extracted_rules, list) and extracted_rules:
+                        if "rules" not in self.schema:
+                            self.schema["rules"] = []
+                        self.schema["rules"].extend(extracted_rules)
+                        yield RefinementStatus(phase="Rule Extraction", message=f"Extracted and added {len(extracted_rules)} complex rules.", progress=0.9)
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.error(f"Could not process extracted rules: {e}. Raw JSON from agent: {rules_json_str}", exc_info=True)
+            else:
+                logger.warning(f"Rule extraction agent returned no parsable JSON. Raw output: {result.raw}")
 
             yield RefinementStatus(phase="Complete", message="Schema enrichment finished successfully.", progress=1.0)
 
         except Exception as e:
             logger.error(f"Refinement engine failed: {e}", exc_info=True)
-            yield RefinementStatus(phase="Failed", message=f"An error occurred: {str(e)}")
+            yield RefinementStatus(phase="Failed", message=f"An unhandled error occurred in the engine: {str(e)}")
 
     def get_final_schema(self) -> Dict[str, Any]:
         return self.schema

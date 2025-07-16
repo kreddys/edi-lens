@@ -38,15 +38,21 @@ def setup_test_suite(pytestconfig):
     )
     logging.info(f"Test logging configured with level: {log_level}")
 
+    # --- THIS IS THE FIX ---
+    # Set the log level for noisy libraries to WARNING to reduce clutter.
+    # We still get to see our application's INFO logs.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("litellm").setLevel(logging.WARNING)
+    logging.getLogger("LiteLLM").setLevel(logging.WARNING)
+    # --- END OF FIX ---
+
     os.environ["IS_PYTEST"] = "true"
 
     if os.getenv("ENABLE_OBSERVABILITY", "false").lower() == "true":
         print("\n[TEST SESSION START] Observability is enabled. Initializing OpenLIT...")
         
-        # We will explicitly disable the default crewai instrumentor to avoid double-tracing.
         unused_instrumentors = [
-            "crewai",
-            "anthropic", "cohere", "mistral", "bedrock", "vertexai", "groq", "ollama",
+            "crewai", "anthropic", "cohere", "mistral", "bedrock", "vertexai", "groq", "ollama",
             "gpt4all", "elevenlabs", "vllm", "google-ai-studio", "azure-ai-inference",
             "langchain", "langchain_community", "haystack", "embedchain", "mem0", "chroma",
             "qdrant", "milvus", "transformers", "litellm", "ag2", "autogen",
