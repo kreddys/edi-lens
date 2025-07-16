@@ -4,9 +4,9 @@ import json
 from unittest.mock import MagicMock, patch
 from jsonpatch import JsonPatchException
 
-from src.agents.refinement_engine.engine import SchemaRefinementEngine
-from src.agents.refinement_engine.models import KnowledgeSource, RefinementStatus
-from src.agents.refinement_engine.rag_tool import RAGTool, RAGToolInput
+from src.agents.rag_pipeline.engine import SchemaRefinementEngine
+from src.agents.rag_pipeline.models import KnowledgeSource, RefinementStatus
+from src.agents.rag_pipeline.rag_tool import RAGTool, RAGToolInput
 
 # Mark this entire file as a 'unit' test
 pytestmark = pytest.mark.unit
@@ -75,7 +75,7 @@ def mock_crews(mocker):
     crews_instance.element_enrichment_crew.return_value = mock_enrichment_crew
     crews_instance.complex_rule_extraction_crew.return_value = mock_rule_crew
     
-    mocker.patch('src.agents.refinement_engine.engine.SchemaEnrichmentCrews', return_value=crews_instance)
+    mocker.patch('src.agents.rag_pipeline.engine.SchemaEnrichmentCrews', return_value=crews_instance)
     return crews_instance
 
 @pytest.fixture
@@ -86,8 +86,8 @@ def refinement_engine(mocker, mock_crews):
     """
     # Patch dependencies that are initialized directly within SchemaRefinementEngine's __init__
     # before the crews are ever used. This prevents real calls to external services.
-    mocker.patch('src.agents.refinement_engine.embedding_models.PineconeEmbeddingModel')
-    mocker.patch('src.agents.refinement_engine.rag_tool.RAGTool')
+    mocker.patch('src.agents.rag_pipeline.embedding_models.PineconeEmbeddingModel')
+    mocker.patch('src.agents.rag_pipeline.rag_tool.RAGTool')
 
     knowledge = KnowledgeSource(source_type="text", content="dummy")
     # Create a deep copy to prevent modifications in one test from affecting others
@@ -217,8 +217,8 @@ def test_engine_handles_deeply_nested_schema(mock_crews, mocker):
     and applies patches at all levels.
     """
     # Arrange
-    mocker.patch('src.agents.refinement_engine.embedding_models.PineconeEmbeddingModel')
-    mocker.patch('src.agents.refinement_engine.rag_tool.RAGTool')
+    mocker.patch('src.agents.rag_pipeline.embedding_models.PineconeEmbeddingModel')
+    mocker.patch('src.agents.rag_pipeline.rag_tool.RAGTool')
     
     knowledge = KnowledgeSource(source_type="text", content="dummy")
     schema_copy = json.loads(json.dumps(MOCK_COMPLEX_SCHEMA))
@@ -253,8 +253,8 @@ def test_engine_handles_multiple_patches_for_one_definition(mock_crews, mocker):
     mock_enrichment_result.raw = MOCK_MULTIPLE_PATCHES
     enrichment_crew.kickoff.return_value = mock_enrichment_result
     
-    mocker.patch('src.agents.refinement_engine.embedding_models.PineconeEmbeddingModel')
-    mocker.patch('src.agents.refinement_engine.rag_tool.RAGTool')
+    mocker.patch('src.agents.rag_pipeline.embedding_models.PineconeEmbeddingModel')
+    mocker.patch('src.agents.rag_pipeline.rag_tool.RAGTool')
     
     knowledge = KnowledgeSource(source_type="text", content="dummy")
     schema_copy = json.loads(json.dumps(MOCK_BASE_SCHEMA))
@@ -286,8 +286,8 @@ def test_engine_skips_enrichment_on_empty_llm_output(mock_crews, mocker):
     mock_empty_result.raw = "" # Simulate empty response
     enrichment_crew.kickoff.return_value = mock_empty_result
     
-    mocker.patch('src.agents.refinement_engine.embedding_models.PineconeEmbeddingModel')
-    mocker.patch('src.agents.refinement_engine.rag_tool.RAGTool')
+    mocker.patch('src.agents.rag_pipeline.embedding_models.PineconeEmbeddingModel')
+    mocker.patch('src.agents.rag_pipeline.rag_tool.RAGTool')
     
     knowledge = KnowledgeSource(source_type="text", content="dummy")
     schema_copy = json.loads(json.dumps(MOCK_BASE_SCHEMA))
@@ -318,8 +318,8 @@ def test_engine_handles_malformed_rule_json(mock_crews, mocker):
     mock_malformed_result.raw = '{"rules": [{"ruleId": "BAD_RULE", "descript' # Malformed JSON
     rule_crew.kickoff.return_value = mock_malformed_result
     
-    mocker.patch('src.agents.refinement_engine.embedding_models.PineconeEmbeddingModel')
-    mocker.patch('src.agents.refinement_engine.rag_tool.RAGTool')
+    mocker.patch('src.agents.rag_pipeline.embedding_models.PineconeEmbeddingModel')
+    mocker.patch('src.agents.rag_pipeline.rag_tool.RAGTool')
     
     knowledge = KnowledgeSource(source_type="text", content="dummy")
     schema_copy = json.loads(json.dumps(MOCK_BASE_SCHEMA))
@@ -345,8 +345,8 @@ def test_engine_handles_empty_base_schema(mock_crews, mocker):
     Tests that the engine runs without errors when given a completely empty schema.
     """
     # Arrange
-    mocker.patch('src.agents.refinement_engine.embedding_models.PineconeEmbeddingModel')
-    mocker.patch('src.agents.refinement_engine.rag_tool.RAGTool')
+    mocker.patch('src.agents.rag_pipeline.embedding_models.PineconeEmbeddingModel')
+    mocker.patch('src.agents.rag_pipeline.rag_tool.RAGTool')
     
     knowledge = KnowledgeSource(source_type="text", content="dummy")
     
@@ -385,8 +385,8 @@ def test_engine_handles_logically_invalid_patch(mock_crews, mocker):
     mock_invalid_result.raw = invalid_patch
     enrichment_crew.kickoff.return_value = mock_invalid_result
     
-    mocker.patch('src.agents.refinement_engine.embedding_models.PineconeEmbeddingModel')
-    mocker.patch('src.agents.refinement_engine.rag_tool.RAGTool')
+    mocker.patch('src.agents.rag_pipeline.embedding_models.PineconeEmbeddingModel')
+    mocker.patch('src.agents.rag_pipeline.rag_tool.RAGTool')
     
     knowledge = KnowledgeSource(source_type="text", content="dummy")
     schema_copy = json.loads(json.dumps(MOCK_BASE_SCHEMA))
@@ -416,8 +416,8 @@ def test_engine_handles_malformed_rules_key(mock_crews, mocker):
     mock_bad_rules_result.raw = '{"rules": {"ruleId": "NOT_A_LIST"}}'
     rule_crew.kickoff.return_value = mock_bad_rules_result
     
-    mocker.patch('src.agents.refinement_engine.embedding_models.PineconeEmbeddingModel')
-    mocker.patch('src.agents.refinement_engine.rag_tool.RAGTool')
+    mocker.patch('src.agents.rag_pipeline.embedding_models.PineconeEmbeddingModel')
+    mocker.patch('src.agents.rag_pipeline.rag_tool.RAGTool')
     
     knowledge = KnowledgeSource(source_type="text", content="dummy")
     schema_copy = json.loads(json.dumps(MOCK_BASE_SCHEMA))
@@ -449,8 +449,8 @@ def test_engine_handles_non_patch_json_from_agent(mock_crews, mocker):
     mock_non_patch_result.raw = '{"error": "An unexpected error occurred."}'
     enrichment_crew.kickoff.return_value = mock_non_patch_result
     
-    mocker.patch('src.agents.refinement_engine.embedding_models.PineconeEmbeddingModel')
-    mocker.patch('src.agents.refinement_engine.rag_tool.RAGTool')
+    mocker.patch('src.agents.rag_pipeline.embedding_models.PineconeEmbeddingModel')
+    mocker.patch('src.agents.rag_pipeline.rag_tool.RAGTool')
     
     knowledge = KnowledgeSource(source_type="text", content="dummy")
     schema_copy = json.loads(json.dumps(MOCK_BASE_SCHEMA))

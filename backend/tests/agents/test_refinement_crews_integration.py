@@ -7,10 +7,10 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from src.agents.crews import SchemaRefinementCrews
-from src.agents.refinement_engine.rag_tool import RAGTool
-from src.agents.refinement_engine.models import KnowledgeSource
-from src.agents.refinement_engine.embedding_models import PineconeEmbeddingModel
-from src.agents.refinement_engine.engine import SchemaRefinementEngine
+from src.agents.rag_pipeline.rag_tool import RAGTool
+from src.agents.rag_pipeline.models import KnowledgeSource
+from src.agents.rag_pipeline.embedding_models import PineconeEmbeddingModel
+from src.agents.rag_pipeline.engine import SchemaRefinementEngine
 from src.core.config import settings
 
 # Mark all tests in this file as integration tests

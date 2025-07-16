@@ -5,9 +5,9 @@ import logging
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from src.agents.refinement_engine.rag_tool import RAGTool
-from src.agents.refinement_engine.models import KnowledgeSource
-from src.agents.refinement_engine.embedding_models import PineconeEmbeddingModel
+from src.agents.rag_pipeline.rag_tool import RAGTool
+from src.agents.rag_pipeline.models import KnowledgeSource
+from src.agents.rag_pipeline.embedding_models import PineconeEmbeddingModel
 from src.core.config import settings
 
 pytestmark = pytest.mark.integration

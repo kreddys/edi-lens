@@ -3,9 +3,9 @@ import pytest
 import json
 from unittest.mock import MagicMock, patch
 
-from src.agents.refinement_engine.engine import SchemaRefinementEngine
-from src.agents.refinement_engine.models import KnowledgeSource, RefinementStatus
-from src.agents.refinement_engine.rag_tool import RAGTool, RAGToolInput
+from src.agents.rag_pipeline.engine import SchemaRefinementEngine
+from src.agents.rag_pipeline.models import KnowledgeSource, RefinementStatus
+from src.agents.rag_pipeline.rag_tool import RAGTool, RAGToolInput
 
 # Mark this entire file as an 'integration' test
 pytestmark = pytest.mark.integration
@@ -44,7 +44,7 @@ def test_refinement_engine_integration_with_real_crews(mocker):
     """
     # Arrange
     # We will mock the embedding model to avoid actual Pinecone calls
-    mocker.patch('src.agents.refinement_engine.embedding_models.PineconeEmbeddingModel')
+    mocker.patch('src.agents.rag_pipeline.embedding_models.PineconeEmbeddingModel')
     
     knowledge = KnowledgeSource(source_type="text", content="This is a test guide.")
     schema_copy = json.loads(json.dumps(MOCK_BASE_SCHEMA))

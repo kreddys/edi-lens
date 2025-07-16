@@ -4,23 +4,24 @@ import os
 import json
 import logging
 import inspect
+import asyncio
 import litellm
+from unittest.mock import MagicMock, AsyncMock
 
 from src.utils.telemetry import trace_crew
 from src.utils.llm_output_parser import extract_json_from_llm_output
 from src.agents.crews import SchemaEnrichmentCrews
-from src.agents.refinement_engine.rag_tool import RAGTool
-from src.agents.refinement_engine.models import KnowledgeSource
-from src.agents.refinement_engine.embedding_models import PineconeEmbeddingModel
+from src.agents.rag_pipeline.graph_rag_tool import GraphRAGTool
 from src.core.config import settings
-from scripts.preprocess_guide import preprocess_guide
 
 pytestmark = pytest.mark.integration
 logger = logging.getLogger(__name__)
 
-# --- Fixtures (unchanged) ---
+# --- Fixtures ---
+
 @pytest.fixture(autouse=True)
 def patch_litellm_completion(monkeypatch):
+    """Patches litellm.completion to add a debug callback if AGENT_VERBOSE is set."""
     original_completion = litellm.completion
     is_verbose = os.getenv('AGENT_VERBOSE', 'false').lower() == 'true'
 
@@ -58,34 +59,52 @@ def patch_litellm_completion(monkeypatch):
     yield
     logger.info("LLM debug logging disabled.")
 
+
 @pytest.fixture(scope="module")
 def setup_prerequisites():
+    """Checks for necessary API keys before running the test module."""
     if not settings.PINECONE_API_KEY:
         pytest.skip("Skipping agent tests: PINECONE_API_KEY not found in environment.")
     if not (os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY") or os.getenv("GROQ_API_KEY") or os.getenv("OLLAMA_BASE_URL")):
         pytest.skip("Skipping agent tests: No LLM API key or OLLAMA_BASE_URL found.")
 
-def get_crews_for_guide_text(guide_text: str, tmp_path_factory) -> SchemaEnrichmentCrews:
-    tmp_path = tmp_path_factory.mktemp("guide_data")
-    guide_path = tmp_path / "guide.txt"
-    guide_path.write_text(guide_text)
-    chunk_dir, _ = preprocess_guide(guide_path)
-    embedding_model = PineconeEmbeddingModel(model_name=settings.PINECONE_EMBED_MODEL)
-    knowledge = KnowledgeSource(source_type="directory", content=str(chunk_dir))
-    rag_tool = RAGTool(knowledge_source=knowledge, embedding_model=embedding_model)
-    return SchemaEnrichmentCrews(rag_tool=rag_tool)
+
+# --- THIS IS THE CORRECTED HELPER FUNCTION ---
+@pytest.fixture
+def get_crews_for_guide_text(monkeypatch):
+    """
+    A factory fixture to create a SchemaEnrichmentCrews instance with a mocked GraphRAGTool.
+    This prevents the tests from needing a live database connection for the knowledge base.
+    """
+    def _get_crews(guide_text_for_rag: str):
+        # Create a mock for the async run method of the tool
+        mock_run_async = AsyncMock(return_value=guide_text_for_rag)
+        
+        # Patch the _run_async method on the GraphRAGTool class
+        monkeypatch.setattr(GraphRAGTool, "_run_async", mock_run_async)
+
+        # Now, when SchemaEnrichmentCrews initializes its GraphRAGTool,
+        # the tool's run method will be our mock, so it won't hit the DB.
+        return SchemaEnrichmentCrews()
+
+    return _get_crews
+# --- END OF CORRECTION ---
+
 
 # --- Test Cases ---
 
-def test_enrichment_crew_modifies_element(setup_prerequisites, tmp_path_factory):
+def test_enrichment_crew_modifies_element(setup_prerequisites, get_crews_for_guide_text):
     """
     Tests the agent's ability to generate a 'replace' patch for an existing,
     incorrect element property.
     """
     # Arrange
-    guide_text = "CLM-02 Total Claim Charge is Required."
+    guide_text = "The CLM segment defines claim information. CLM-02, Total Claim Charge, is Required."
     base_clm_def = {"name": "Claim Information", "elements": [{"xid": "CLM02", "name": "Total Claim Charge", "usage": "S"}]}
-    crews = get_crews_for_guide_text(guide_text, tmp_path_factory)
+    
+    # Use the factory to get a crew instance with the RAG tool mocked to return our guide_text
+    crews = get_crews_for_guide_text(guide_text)
+    
     enrichment_crew = crews.element_enrichment_crew()
     enrichment_inputs = {"segment_id": "CLM", "context_id": None, "current_definition_json": json.dumps(base_clm_def)}
 
@@ -111,20 +130,18 @@ def test_enrichment_crew_modifies_element(setup_prerequisites, tmp_path_factory)
     assert replace_patch["path"] == "/elements/0/usage"
     assert replace_patch["value"] == "R"
 
-def test_enrichment_crew_adds_missing_element(setup_prerequisites, tmp_path_factory):
+
+def test_enrichment_crew_adds_missing_element(setup_prerequisites, get_crews_for_guide_text):
     """
     Tests the agent's ability to generate an 'add' patch for a missing element.
     """
     # Arrange
-    # --- THIS IS THE FIX: Provide a more complete context ---
     guide_text = """
-    CLM Claim Information
-    This segment is to specify the claim data.
+    The CLM segment is for claim data.
     - CLM01 Patient Control Number is Required.
     - CLM02 Total Claim Charge is Required.
     - CLM09 Release of Information Code is Situational. This indicates if the provider has authorization to release medical info.
     """
-    # The base definition is missing CLM09
     base_clm_def = {
         "name": "Claim Information",
         "elements": [
@@ -132,9 +149,8 @@ def test_enrichment_crew_adds_missing_element(setup_prerequisites, tmp_path_fact
             {"xid": "CLM02", "name": "Total Claim Charge", "usage": "R"}
         ]
     }
-    # --- END OF FIX ---
     
-    crews = get_crews_for_guide_text(guide_text, tmp_path_factory)
+    crews = get_crews_for_guide_text(guide_text)
     enrichment_crew = crews.element_enrichment_crew()
     enrichment_inputs = {"segment_id": "CLM", "context_id": None, "current_definition_json": json.dumps(base_clm_def)}
 
@@ -157,20 +173,21 @@ def test_enrichment_crew_adds_missing_element(setup_prerequisites, tmp_path_fact
     assert len(patches) > 0, "Expected at least one patch operation, but got none."
     add_patch = next((p for p in patches if p.get("op") == "add" and "CLM09" in str(p.get("value"))), None)
     assert add_patch is not None, "An 'add' operation for CLM09 was expected."
-    # The new element will be added at index 2, after CLM01 and CLM02
     assert add_patch["path"] == "/elements/2"
     assert add_patch["value"]["xid"] == "CLM09"
     assert add_patch["value"]["usage"] == "S"
 
-def test_enrichment_crew_returns_empty_patch_for_correct_segment(setup_prerequisites, tmp_path_factory):
+
+def test_enrichment_crew_returns_empty_patch_for_correct_segment(setup_prerequisites, get_crews_for_guide_text):
     """
     Tests the critical case where the agent correctly identifies that no changes
     are needed and returns an empty patch list.
     """
     # Arrange
-    guide_text = "CLM-02 Total Claim Charge is Required."
+    guide_text = "The CLM-02 element is Required."
     correct_clm_def = {"name": "Claim Information", "elements": [{"xid": "CLM02", "name": "Total Claim Charge", "usage": "R"}]}
-    crews = get_crews_for_guide_text(guide_text, tmp_path_factory)
+    
+    crews = get_crews_for_guide_text(guide_text)
     enrichment_crew = crews.element_enrichment_crew()
     enrichment_inputs = {"segment_id": "CLM", "context_id": None, "current_definition_json": json.dumps(correct_clm_def)}
     
@@ -192,14 +209,16 @@ def test_enrichment_crew_returns_empty_patch_for_correct_segment(setup_prerequis
     assert isinstance(patches, list)
     assert len(patches) == 0, "Expected an empty patch list for a correct segment."
 
-def test_rule_extraction_crew_extracts_conditional_rule(setup_prerequisites, tmp_path_factory):
+
+def test_rule_extraction_crew_extracts_conditional_rule(setup_prerequisites, get_crews_for_guide_text):
     """
     Tests that the rule extraction agent can correctly parse a conditional
     rule from text into the structured `ComplexRule` format.
     """
     # Arrange
     guide_text = "When the REF01 element contains the code 'G2', then the REF02 element is required."
-    crews = get_crews_for_guide_text(guide_text, tmp_path_factory)
+    
+    crews = get_crews_for_guide_text(guide_text)
     rule_crew = crews.complex_rule_extraction_crew()
     rule_inputs = {"guide_text_chunk": guide_text}
     

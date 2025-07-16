@@ -22,9 +22,9 @@ from src.utils.telemetry import trace_crew
 from src.core.config import setup_logging, settings
 from src.agents.crews import SchemaEnrichmentCrews
 from scripts.preprocess_guide import preprocess_guide
-from src.agents.refinement_engine.rag_tool import RAGTool
-from src.agents.refinement_engine.embedding_models import PineconeEmbeddingModel
-from src.agents.refinement_engine.models import KnowledgeSource
+from src.agents.rag_pipeline.rag_tool import RAGTool
+from src.agents.rag_pipeline.embedding_models import PineconeEmbeddingModel
+from src.agents.rag_pipeline.models import KnowledgeSource
 
 # --- Configuration ---
 RUN_TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")

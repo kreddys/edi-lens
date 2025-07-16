@@ -19,8 +19,8 @@ from src.core.config import settings, setup_logging
 import openlit
 
 # Import the new engine and its models
-from src.agents.refinement_engine.engine import SchemaRefinementEngine
-from src.agents.refinement_engine.models import KnowledgeSource
+from src.agents.rag_pipeline.engine import SchemaRefinementEngine
+from src.agents.rag_pipeline.models import KnowledgeSource
 from scripts.preprocess_guide import preprocess_guide
 
 # --- Step 3: Configure Logging & OpenLIT ---
