@@ -1,3 +1,5 @@
+# FILE: backend/tests/manage_test_db.py
+
 import asyncio
 import sys
 from sqlalchemy import text
@@ -6,7 +8,7 @@ from src.core.config import settings
 from src.core.database import Base
 
 async def create_test_db():
-    """Creates the test database."""
+    """Creates the test database and installs necessary extensions."""
     print("--- Creating Test Database ---")
     db_name = f"{settings.POSTGRES_DB}_test"
     # Connect to the default 'postgres' database to be able to create a new one
@@ -24,6 +26,22 @@ async def create_test_db():
         await conn.execute(text(f"CREATE DATABASE {db_name}"))
 
     await engine.dispose()
+    
+    # --- THIS IS THE FIX ---
+    # Now, connect to the newly created test database to install extensions
+    print(f"--- Installing Extensions in '{db_name}' ---")
+    test_db_url = settings.DATABASE_URL.replace(settings.POSTGRES_DB, db_name)
+    test_engine = create_async_engine(test_db_url)
+    async with test_engine.connect() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS age;"))
+        # The search path setting is a per-session setting, but it's good practice
+        # to ensure the extensions are correctly configured from the start.
+        await conn.execute(text(f"ALTER DATABASE {db_name} SET search_path = ag_catalog, '$user', public;"))
+        await conn.commit()
+    await test_engine.dispose()
+    print("--- Extensions Installed Successfully ---")
+    # --- END OF FIX ---
 
     print("--- Test Database Created Successfully ---")
 
