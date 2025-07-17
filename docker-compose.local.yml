@@ -1,39 +1,63 @@
-# This is the single compose file for LOCAL development.
+# FILE: docker-compose.local.yml
 services:
-  db:
+  # --- DB #1: For Keycloak (Standard PostgreSQL) ---
+  db-keycloak:
     image: postgres:15-alpine
+    container_name: db-keycloak
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      KEYCLOAK_DB_SCHEMA: ${KEYCLOAK_DB_SCHEMA}
+      POSTGRES_USER: ${POSTGRES_KC_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_KC_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_KC_DB}
     volumes:
-      - postgres_data:/var/lib/postgresql/data/
-      - ./backend/scripts/init-keycloak-db.sh:/docker-entrypoint-initdb.d/init-keycloak-db.sh
+      - postgres_kc_data:/var/lib/postgresql/data/
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - "${POSTGRES_KC_PORT}:5432"
     networks:
       - edi_network
     healthcheck:
-      test: ["CMD-SHELL", "psql -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" -c \"SELECT 1 FROM pg_namespace WHERE nspname = '$${KEYCLOAK_DB_SCHEMA}';\" | grep -q 1"]
-      interval: 5s
+      # This check now correctly uses the custom user variable
+      test: ["CMD-SHELL", "PGPASSWORD=${POSTGRES_KC_PASSWORD} psql -h localhost -U ${POSTGRES_KC_USER} -d ${POSTGRES_KC_DB} -c 'SELECT 1' > /dev/null 2>&1"]
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
+
+  # --- DB #2: For Main App & LightRAG (Custom Image with Extensions) ---
+  db-app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.pg
+    container_name: db-app
+    environment:
+      POSTGRES_USER: ${POSTGRES_APP_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_APP_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_APP_DB}
+    volumes:
+      - postgres_app_data:/var/lib/postgresql/data/
+      - ./backend/scripts/init-db-extensions.sh:/docker-entrypoint-initdb.d/init-extensions.sh
+    ports:
+      - "${POSTGRES_APP_PORT}:5432"
+    networks:
+      - edi_network
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD=${POSTGRES_APP_PASSWORD} psql -h localhost -U ${POSTGRES_APP_USER} -d ${POSTGRES_APP_DB} -c \"SELECT 1 FROM pg_extension WHERE extname = 'vector'\" > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   keycloak:
     image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak
     depends_on:
-      db:
+      db-keycloak:
         condition: service_healthy
     environment:
+      KC_DB_URL_HOST: db-keycloak
+      KC_DB_URL_DATABASE: ${POSTGRES_KC_DB}
+      KC_DB_USERNAME: ${POSTGRES_KC_USER}
+      KC_DB_PASSWORD: ${POSTGRES_KC_PASSWORD}
+      KC_DB_SCHEMA: public
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
-      KC_DB: postgres
-      KC_DB_URL_HOST: db
-      KC_DB_URL_DATABASE: ${POSTGRES_DB}
-      KC_DB_USERNAME: ${POSTGRES_USER}
-      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
-      KC_DB_SCHEMA: ${KEYCLOAK_DB_SCHEMA}
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
       KC_SPI_FRAME_ANCESTORS: ${KC_SPI_FRAME_ANCESTORS}
@@ -44,14 +68,36 @@ services:
       - edi_network
     command: start-dev
 
+  lightrag-server:
+    image: ghcr.io/hkuds/lightrag:latest
+    container_name: lightrag-server
+    restart: always
+    ports:
+      - "9621:9621"
+    volumes:
+      - ./backend/data/knowledge:/app/inputs
+    networks:
+      - edi_network
+    env_file:
+      - .env.local
+    command: >
+      --workspace=edi_lens_kb
+      --auto-scan-at-startup
+    depends_on:
+      db-app:
+        condition: service_healthy
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    container_name: backend
     depends_on:
-      db:
+      db-app:
         condition: service_healthy
       keycloak:
+        condition: service_started
+      lightrag-server:
         condition: service_started
     ports:
       - "8000:8000"
@@ -66,24 +112,24 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    # --- LOCAL DEVELOPMENT OVERRIDES ---
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
-    env_file: .env.local
+    env_file:
+      - .env.local
     user: "${UID:-1000}:${GID:-1000}"
 
   admin-ui:
-    # --- LOCAL DEVELOPMENT OVERRIDES ---
     build:
       context: ./admin-ui
       dockerfile: Dockerfile.dev
+    container_name: admin-ui
     volumes:
       - ./admin-ui:/app
       - /app/node_modules
     ports:
       - "3001:3000"
     command: npm run dev -- --host
-    env_file: .env.local
-    # --- END LOCAL OVERRIDES ---
+    env_file:
+      - .env.local
     depends_on:
       - backend
     networks:
@@ -95,4 +141,5 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:    
+  postgres_kc_data:
+  postgres_app_data:

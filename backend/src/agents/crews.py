@@ -3,15 +3,10 @@ import logging
 import os
 from crewai import Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task
-from typing import List, Dict, Any
 
 from .llm import get_llm
-# --- FIX: Updated import paths ---
-from .rag_pipeline.graph_rag_tool import GraphRAGTool
-from .rag_pipeline.models import (
-    ElementEnrichmentProposal,
-    ComplexRuleProposal
-)
+from .tools.rag import KnowledgeBaseTool
+from .models import ElementEnrichmentProposal, ComplexRuleProposal
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +21,7 @@ class SchemaEnrichmentCrews:
     to generate and enrich an EDI schema from an implementation guide.
     """
     def __init__(self):
-        self.graph_rag_tool = GraphRAGTool() 
+        self.rag_tool = KnowledgeBaseTool()
         self.llm = get_llm()
         self.element_enrichment_agent_instance = self.element_enrichment_agent()
         self.complex_rule_extraction_agent_instance = self.complex_rule_extraction_agent()
@@ -38,12 +33,12 @@ class SchemaEnrichmentCrews:
             goal="Generate a precise JSON patch to align a given JSON definition with the guide's specifications by first consulting the documentation, then identifying discrepancies, and finally creating the patch.",
             backstory=(
                 "You are a meticulous and obedient JSON Patch specialist for EDI schemas. "
-                "Your thought process MUST begin with using the 'Hierarchical Documentation Query Tool' to find the specifications for the given segment. This is not optional. "
+                "Your thought process MUST begin with using the 'EDI Guide Knowledge Base Tool' to find the specifications for the given segment. This is not optional. "
                 "After retrieving the documentation, your primary job is to compare the provided JSON to that documentation and generate a JSON patch array (`op`, `path`, `value`) to fix it. "
                 "You ONLY generate patches for what is explicitly different or missing. If the definition is already correct after consulting the guide, you return an empty patch array. "
                 "You do not hallucinate or add properties not mentioned in the guide."
             ),
-            tools=[self.graph_rag_tool],
+            tools=[self.rag_tool],
             llm=self.llm,
             verbose=_is_verbose_mode_enabled(),
             allow_delegation=False,
@@ -60,7 +55,7 @@ class SchemaEnrichmentCrews:
                 "You ignore simple element properties and focus on sentences containing keywords like 'if', 'when', 'then', 'required', 'must not', and 'must balance'. "
                 "Your sole purpose is to translate this complex business logic into a clear, data-driven JSON format that a validation engine can execute. You follow the requested output format perfectly."
             ),
-            tools=[self.graph_rag_tool],
+            tools=[self.rag_tool],
             llm=self.llm,
             verbose=_is_verbose_mode_enabled(),
             allow_delegation=False,
@@ -74,7 +69,7 @@ class SchemaEnrichmentCrews:
                 "You are a JSON Patch specialist for EDI schemas. Your task is to align the JSON definition for the '{segment_id}' segment.\n"
                 "The current definition is: {current_definition_json}\n\n"
                 "Your process MUST be:\n"
-                "1. Use the 'Hierarchical Documentation Query Tool' to get the ground-truth specifications for the '{segment_id}' segment. Your query must be specific to '{segment_id}'.\n"
+                "1. Use the 'EDI Guide Knowledge Base Tool' to get the ground-truth specifications for the '{segment_id}' segment. Your query must be specific to '{segment_id}'.\n"
                 "2. Compare the `current_definition_json` against the documentation you retrieved. Pay close attention to keywords.\n"
                 "   - The word 'Required' in the guide MUST map to a 'usage' value of 'R'.\n"
                 "   - The word 'Situational' or 'Optional' in the guide MUST map to a 'usage' value of 'S'.\n"

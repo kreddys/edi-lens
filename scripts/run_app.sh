@@ -66,11 +66,6 @@ if [[ "$COMMAND" != "test:unit" && "$COMMAND" != "deploy:dev" ]]; then
     check_docker
 fi
 
-NO_CACHE_FLAG=""
-# Check if the second argument is --no-cache
-if [[ "$2" == "--no-cache" ]]; then
-  NO_CACHE_FLAG="--no-cache"
-fi
 
 case "$COMMAND" in
     "dev")
@@ -87,13 +82,22 @@ case "$COMMAND" in
         success "Application started successfully."
         ;;        
     "build")
-        if [ -n "$NO_CACHE_FLAG" ]; then
-            info "Building images with no cache..."
-        else
-            info "Building images..."
-        fi
-        ${DC_COMMAND} ${DC_FILES} build ${NO_CACHE_FLAG}
+        ${DC_COMMAND} ${DC_FILES} build --no-cache
         success "Images built successfully."
+        ;;        
+    "build:db")
+        info "Building multi-platform PostgreSQL RAG image..."
+        if [ -z "$DOCKERHUB_USERNAME" ]; then error "DOCKERHUB_USERNAME is not set in your .env file."; fi
+        
+        # --- FIX: Update the --file and context path ---
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          -t "${DOCKERHUB_USERNAME}/postgres-for-rag:latest" \
+          --file ./backend/Dockerfile.pg \
+          --push \
+          ./backend
+          
+        success "Successfully built and pushed ${DOCKERHUB_USERNAME}/postgres-for-rag:latest"
         ;;        
     "down")
         info "Stopping all services (containers only, volumes preserved)...";
