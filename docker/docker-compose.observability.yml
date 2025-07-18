@@ -40,7 +40,7 @@ services:
       - "4318:4318" # OTLP HTTP endpoint
       - "8888:8888" # Prometheus metrics
     volumes:
-      - ./assets/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+      - ./docker/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
     networks:
       - edi_network
     command: ["--config=/etc/otelcol-contrib/config.yaml"]

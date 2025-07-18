@@ -17,36 +17,34 @@ error() { echo "[ERROR] $1" >&2; exit 1; }
 if docker compose version >/dev/null 2>&1; then DC_COMMAND="docker compose"; else DC_COMMAND="docker-compose"; fi
 
 PROJECT_ROOT=$(dirname "$0")/..
-ENV_FILE_TO_LOAD=""
-DC_FILES=""
+DC_FILES="-f docker-compose.yml" # Default to the new single file for local dev
 
+# Load environment variables from .env.local if it exists
 if [ -f "$PROJECT_ROOT/.env.local" ]; then
-    info "Found .env.local, configuring for LOCAL development."
-    ENV_FILE_TO_LOAD="$PROJECT_ROOT/.env.local"
-    DC_FILES="-f docker-compose.local.yml"
-elif [ -f "$PROJECT_ROOT/.env" ]; then
-    info "Found .env, configuring for PRODUCTION-LIKE development."
-    ENV_FILE_TO_LOAD="$PROJECT_ROOT/.env"
-    DC_FILES="-f docker-compose.dev-server.yml"
-fi
-
-if [ -f "$ENV_FILE_TO_LOAD" ]; then
-    set -a; source "$ENV_FILE_TO_LOAD"; set +a
-    # Conditionally add observability stack after sourcing the main env file
+    info "Found .env.local, using it for configuration."
+    set -a; source "$PROJECT_ROOT/.env.local"; set +a
+    
+    # Conditionally add observability stack after sourcing the env file
     if [ "${ENABLE_OBSERVABILITY}" = "true" ]; then
       info "Observability is enabled. Including observability stack..."
-      DC_FILES="$DC_FILES -f docker-compose.observability.yml"
+      DC_FILES="$DC_FILES -f docker/docker-compose.observability.yml"
     fi
 else
-    warn "No .env.local or .env file found. Environment variables may be missing."
+    warn "No .env.local file found. The local development environment may not be configured correctly."
 fi
 
+# Set frontend environment variables dynamically
 if [ "$REMOTE_HOST" = "localhost" ]; then
-  export KEYCLOAK_BROWSER_URL="http://${REMOTE_HOST}:8080"; export KC_SPI_FRAME_ANCESTORS="'self' http://${REMOTE_HOST}:3001 http://${REMOTE_HOST}:3000"; export VITE_API_URL="http://${REMOTE_HOST}:8000/api/v1";
+  export KEYCLOAK_BROWSER_URL="http://${REMOTE_HOST}:8080"; 
+  export KC_SPI_FRAME_ANCESTORS="'self' http://${REMOTE_HOST}:3000"; 
+  export VITE_API_URL="http://${REMOTE_HOST}:3000/api/v1";
 else
-  export KEYCLOAK_BROWSER_URL="https://auth.${REMOTE_HOST}"; export KC_SPI_FRAME_ANCESTORS="'self' https://${REMOTE_HOST}"; export VITE_API_URL="https://api.${REMOTE_HOST}/api/v1";
+  export KEYCLOAK_BROWSER_URL="https://auth.${REMOTE_HOST}"; 
+  export KC_SPI_FRAME_ANCESTORS="'self' https://${REMOTE_HOST}"; 
+  export VITE_API_URL="https://api.${REMOTE_HOST}/api/v1";
 fi
 export VITE_KEYCLOAK_URL="${KEYCLOAK_BROWSER_URL}"; export VITE_KEYCLOAK_REALM="${KEYCLOAK_REALM}"; export VITE_KEYCLOAK_CLIENT_ID="${KEYCLOAK_UI_CLIENT_ID}";
+
 
 check_docker() { if ! docker info >/dev/null 2>&1; then error "Docker not running."; fi; }
 
@@ -61,44 +59,32 @@ run_in_backend() {
 if [ -z "$1" ]; then error "Usage: ./scripts/run_app.sh [dev|up|down|build|clean|run_in_backend|setup:keycloak|setup:testdata...]"; fi
 COMMAND=$1; shift;
 
-# Defer the Docker check, as some commands might not need it.
 if [[ "$COMMAND" != "test:unit" && "$COMMAND" != "deploy:dev" ]]; then
     check_docker
 fi
 
-
 case "$COMMAND" in
-    "dev")
+    "dev" | "up")
         info "Starting services in DEVELOPMENT mode..."
         ${DC_COMMAND} ${DC_FILES} up -d --build
         ;;
-    "up")
-        info "Starting services..."
-        if [[ -z "$DC_FILES" ]]; then
-            error "Cannot determine which compose files to use. Ensure .env.local or .env exists."
-        fi
-        ${DC_COMMAND} ${DC_FILES} pull
-        ${DC_COMMAND} ${DC_FILES} up -d --build
-        success "Application started successfully."
-        ;;        
     "build")
         ${DC_COMMAND} ${DC_FILES} build --no-cache
         success "Images built successfully."
-        ;;        
+        ;;
     "build:db")
         info "Building multi-platform PostgreSQL RAG image..."
         if [ -z "$DOCKERHUB_USERNAME" ]; then error "DOCKERHUB_USERNAME is not set in your .env file."; fi
         
-        # --- FIX: Update the --file and context path ---
         docker buildx build \
           --platform linux/amd64,linux/arm64 \
           -t "${DOCKERHUB_USERNAME}/postgres-for-rag:latest" \
-          --file ./backend/Dockerfile.pg \
+          --file ./docker/postgres/Dockerfile \
           --push \
-          ./backend
+          .
           
         success "Successfully built and pushed ${DOCKERHUB_USERNAME}/postgres-for-rag:latest"
-        ;;        
+        ;;
     "down")
         info "Stopping all services (containers only, volumes preserved)...";
         ${DC_COMMAND} ${DC_FILES} down
@@ -136,15 +122,13 @@ case "$COMMAND" in
     "setup:keycloak")
         info "Running Keycloak setup script..."
         warn "This requires dependent services to be running."
-        ${DC_COMMAND} ${DC_FILES} up -d --wait db keycloak "$BACKEND_SERVICE_NAME"
-        # This adds the project root to Python's path, allowing it to find the 'src' module.
+        ${DC_COMMAND} ${DC_FILES} up -d --wait db-keycloak keycloak "$BACKEND_SERVICE_NAME"
         run_in_backend python -m scripts.setup_keycloak_realm
         success "Keycloak setup script completed successfully."
         ;;
     "setup:testdata")
         info "Seeding the database with initial test data..."
         ${DC_COMMAND} ${DC_FILES} up -d --wait "$BACKEND_SERVICE_NAME"
-        # This adds the project root to Python's path, allowing it to find the 'src' module.
         run_in_backend python -m scripts.seed "$@"
         success "Database seeding complete."
         ;;

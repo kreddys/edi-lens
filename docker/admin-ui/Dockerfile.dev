@@ -1,10 +1,10 @@
-# Dockerfile.dev
+# FILE: docker/admin-ui/Dockerfile.dev
 FROM node:20-alpine
 
 WORKDIR /app
 
 # Install dependencies
-COPY package*.json ./
+COPY admin-ui/package*.json ./
 RUN npm install
 
 # Let Docker run your local files, so no need to copy the rest

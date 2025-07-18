@@ -1,9 +1,24 @@
-# FILE: docker-compose.local.yml
-# This compose file defines the local development environment with a two-database setup:
-# 1. A standard Postgres DB for Keycloak.
-# 2. A custom Postgres DB (with pgvector/age) for the Application and RAG knowledge base.
+# FILE: docker-compose.yml
+# This compose file defines the local development environment with Caddy as the single entry point.
 
 services:
+  # --- CADDY REVERSE PROXY ---
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "3000:3000" # Main app entry point (UI & API)
+      - "8080:8080" # Keycloak admin UI
+    volumes:
+      - ./docker/Caddyfile.local:/etc/caddy/Caddyfile
+    networks:
+      - edi_network
+    depends_on:
+      - backend
+      - admin-ui
+      - keycloak
+
   # --- DB #1: For Keycloak (Standard PostgreSQL) ---
   db-keycloak:
     image: postgres:15-alpine
@@ -14,8 +29,7 @@ services:
       POSTGRES_DB: ${POSTGRES_KC_DB}
     volumes:
       - postgres_kc_data:/var/lib/postgresql/data/
-    ports:
-      - "${POSTGRES_KC_PORT}:5432"
+    # No ports exposed directly to host
     networks:
       - edi_network
     healthcheck:
@@ -27,8 +41,8 @@ services:
   # --- DB #2: For Main App & LightRAG (Custom Image with Extensions) ---
   db-app:
     build:
-      context: ./backend
-      dockerfile: Dockerfile.pg
+      context: .
+      dockerfile: docker/postgres/Dockerfile
     container_name: db-app
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -36,9 +50,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_app_data:/var/lib/postgresql/data/
-      - ./backend/scripts/init-db-extensions.sh:/docker-entrypoint-initdb.d/init-extensions.sh
-    ports:
-      - "${POSTGRES_PORT}:5432"
+      - ./docker/postgres/init-db-extensions.sh:/docker-entrypoint-initdb.d/init-extensions.sh
+    # No ports exposed directly to host
     networks:
       - edi_network
     healthcheck:
@@ -63,10 +76,9 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
-      KC_SPI_FRAME_ANCESTORS: ${KC_SPI_FRAME_ANCESTORS}
-    ports:
-      - "8080:8080"
-      - "9000:9000"
+      KC_PROXY: "edge" # Tell Keycloak it's behind a proxy
+      KC_HTTP_RELATIVE_PATH: "/"
+    # No ports exposed directly to host
     networks:
       - edi_network
     command: start-dev
@@ -75,8 +87,7 @@ services:
     image: ghcr.io/hkuds/lightrag:latest
     container_name: lightrag-server
     restart: always
-    ports:
-      - "9621:9621"
+    # No ports exposed directly to host
     volumes:
       - ./backend/data/knowledge:/app/inputs
     networks:
@@ -92,8 +103,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/backend/Dockerfile
     container_name: backend
     depends_on:
       db-app:
@@ -102,8 +113,7 @@ services:
         condition: service_started
       lightrag-server:
         condition: service_started
-    ports:
-      - "8000:8000"
+    # No ports exposed directly to host
     volumes:
       - ./backend:/home/appuser/app:delegated
       - /home/appuser/app/.venv
@@ -118,19 +128,17 @@ services:
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir alembic
     env_file:
       - .env.local
-    user: "${UID:-1000}:${GID:-1000}"
 
   admin-ui:
     build:
-      context: ./admin-ui
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: docker/admin-ui/Dockerfile.dev
     container_name: admin-ui
     volumes:
       - ./admin-ui:/app:delegated
       - admin-ui-node-modules:/app/node_modules
-    ports:
-      - "3001:3000"
-    command: npm run dev -- --host
+    # No ports exposed directly to host
+    command: npm run dev -- --host 0.0.0.0 --port 3000 # Explicitly set Vite's internal port
     env_file:
       - .env.local
     depends_on:
