@@ -1,9 +1,9 @@
-# Caddyfile
+# FILE: docker/Caddyfile
 
 {
-    # This block is for global options. Caddy will prompt for an email
-    # for Let's Encrypt certificate notices. You can set it here to automate it.
-    email kishore5214@outlook.com
+    # Caddy will prompt for an email for Let's Encrypt certificates.
+    # It will use the email from the environment if available.
+    email {$ACME_EMAIL:-kishore5214@outlook.com}
 }
 
 # Keycloak Service (e.g., https://auth.your-domain.com)

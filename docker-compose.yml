@@ -10,14 +10,19 @@ services:
     ports:
       - "3000:3000" # Main app entry point (UI & API)
       - "8080:8080" # Keycloak admin UI
+      - "3300:3300" # OpenLit UI
+      - "3400:3400" # LightRAG UI
     volumes:
-      - ./docker/Caddyfile.local:/etc/caddy/Caddyfile
+      - ./docker/caddy/local.Caddyfile:/etc/caddy/Caddyfile
     networks:
       - edi_network
     depends_on:
       - backend
       - admin-ui
       - keycloak
+      - openlit-ui
+      - lightrag-server
+
 
   # --- DB #1: For Keycloak (Standard PostgreSQL) ---
   db-keycloak:
@@ -95,7 +100,9 @@ services:
     env_file:
       - .env.local
     command: >
-      --workspace=edi_lens_kb
+      --host 0.0.0.0
+      --port 9621
+      --workspace edi_lens_kb
       --auto-scan-at-startup
     depends_on:
       db-app:

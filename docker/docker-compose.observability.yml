@@ -10,7 +10,7 @@ services:
       - CLICKHOUSE_PASSWORD=${OPENLIT_DB_PASSWORD:-OPENLIT}
       - CLICKHOUSE_DB=${OPENLIT_DB_NAME:-openlit}
     volumes:
-      - openlit-db-data:/var/lib/clickhouse
+      - openlit_db_data:/var/lib/clickhouse
     networks:
       - edi_network
     healthcheck:
@@ -25,20 +25,12 @@ services:
     depends_on:
       openlit-db:
         condition: service_healthy
-    # --- THIS IS THE FIX ---
-    # The collector needs its own environment variables to connect to the database.
-    # These are used to expand the `${env:VAR_NAME}` placeholders in its config file.
     environment:
       - INIT_DB_HOST=openlit-db
       - INIT_DB_PORT=9000
       - INIT_DB_DATABASE=${OPENLIT_DB_NAME:-openlit}
       - INIT_DB_USERNAME=${OPENLIT_DB_USER:-default}
       - INIT_DB_PASSWORD=${OPENLIT_DB_PASSWORD:-OPENLIT}
-    # --- END OF FIX ---
-    ports:
-      - "4317:4317" # OTLP gRPC endpoint
-      - "4318:4318" # OTLP HTTP endpoint
-      - "8888:8888" # Prometheus metrics
     volumes:
       - ./docker/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
     networks:
@@ -50,8 +42,6 @@ services:
     container_name: openlit-ui
     depends_on:
       - openlit-otel-collector
-    ports:
-      - "3300:3000" # Mapped to 3300 to avoid conflict with admin-ui
     environment:
       - TELEMETRY_ENABLED=true
       - INIT_DB_HOST=openlit-db
@@ -61,10 +51,10 @@ services:
       - INIT_DB_PASSWORD=${OPENLIT_DB_PASSWORD:-OPENLIT}
       - SQLITE_DATABASE_URL=file:/app/client/data/data.db
     volumes:
-      - openlit-data:/app/client/data
+      - openlit_data:/app/client/data
     networks:
       - edi_network
 
 volumes:
-  openlit-db-data:
-  openlit-data:
+  openlit_db_data:
+  openlit_data:
