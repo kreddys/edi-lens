@@ -13,7 +13,7 @@ services:
       - "3300:3300" # OpenLit UI
       - "3400:3400" # LightRAG UI
     volumes:
-      - ./docker/caddy/local.Caddyfile:/etc/caddy/Caddyfile
+      - ./docker/caddy/dev.Caddyfile:/etc/caddy/Caddyfile
     networks:
       - edi_network
     depends_on:
@@ -95,7 +95,7 @@ services:
     networks:
       - edi_network
     env_file:
-      - .env.local
+      - .env.dev
     command: >
       --host 0.0.0.0
       --port 9621
@@ -131,7 +131,7 @@ services:
       start_period: 30s
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir alembic
     env_file:
-      - .env.local
+      - .env.dev
 
   admin-ui:
     build:
@@ -144,7 +144,7 @@ services:
     # No ports exposed directly to host
     command: npm run dev -- --host 0.0.0.0 --port 3000 # Explicitly set Vite's internal port
     env_file:
-      - .env.local
+      - .env.dev
     depends_on:
       - backend
     networks:

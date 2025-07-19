@@ -36,7 +36,8 @@ llm_export.txt
 # Environment files - VERY IMPORTANT
 .env
 .env.*
-!/.env.local.example
+!/.env.dev.example
+!/.env.test.example
 !/.env.prod.example
 
 # Python

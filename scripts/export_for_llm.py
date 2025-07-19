@@ -32,7 +32,7 @@ IGNORE_PATHS = [
 
 # Filenames to always ignore by default.
 IGNORE_FILENAMES = {
-    '.env.local',
+    '.env.dev',
     '837.5010.X222.A1.json',
     'poetry.lock',
     'package-lock.json',
@@ -138,7 +138,7 @@ def main():
     if args.backend or args.admin or scan_all:
         paths_to_scan.extend([
             '.gitignore', 'README.md',
-            '.env.local.example', '.env.prod.example', 'docker-compose.yml',
+            '.env.dev.example', '.env.prod.example', 'docker-compose.yml',
             'docker',
             'scripts/run_app.sh', 'scripts/queries.sql', 'docs', 'backend/data/knowledge', 'backend/data/knowledge'
         ])
