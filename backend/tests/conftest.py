@@ -72,11 +72,8 @@ def setup_test_suite(pytestconfig):
     
     del os.environ["IS_PYTEST"]
 
-# --- The rest of the file is unchanged ---
-TEST_DATABASE_URL = settings.DATABASE_URL.replace(
-    settings.POSTGRES_DB, settings.POSTGRES_DB + "_test"
-)
-test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+test_engine = create_async_engine(settings.DATABASE_URL, echo=False)
+
 TestAsyncSessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,

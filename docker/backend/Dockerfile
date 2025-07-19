@@ -1,65 +1,87 @@
-# FILE: docker/backend/Dockerfile (Corrected Paths)
+# FILE: docker/backend/Dockerfile (Multi-Target, Corrected)
 
-# --- Stage 1: The Builder ---
-# This stage installs all dependencies, including build-time tools.
+# --- Stage 1: A common builder for all dependencies AND source code ---
 FROM python:3.12-slim as builder
-
 ENV POETRY_NO_INTERACTION=1 \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
     POETRY_VIRTUALENVS_CREATE=true \
     POETRY_CACHE_DIR=/tmp/poetry_cache
 
-# Install build-time system dependencies and Poetry
 RUN apt-get update && apt-get install -y --no-install-recommends curl build-essential && \
     pip install --no-cache-dir poetry
 
-# --- FIX: Use the final WORKDIR path in the builder stage ---
 WORKDIR /home/appuser/app
-
-# Copy only the dependency definition files to leverage Docker cache
 COPY backend/pyproject.toml backend/poetry.lock ./
 
-# Install project dependencies
-RUN poetry install --only main --no-root
+# Install ALL dependencies, including dev, in this stage
+RUN poetry install --no-root
 
-# Copy the rest of the application source code
+# --- THIS IS THE FIX ---
+# Now, copy the application source code into the builder stage.
+# This makes it available for the subsequent stages to copy from.
 COPY backend/src ./src
 COPY backend/alembic ./alembic
 COPY backend/alembic.ini ./
 COPY backend/scripts ./scripts
+# --- END OF FIX ---
 
-# --- Stage 2: The Final Image ---
-# This stage is clean and minimal, containing only what's needed to run the app.
-FROM python:3.12-slim
 
-# Install runtime-only system dependencies and create the app user
+# --- Stage 2: The lean PRODUCTION image ---
+FROM python:3.12-slim as production
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl gosu && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get clean && \
     useradd --create-home --shell /bin/bash appuser
 
-# --- Use the same WORKDIR as the builder ---
 WORKDIR /home/appuser/app
 
-# --- FIX: Copy from the corrected builder path ---
-# Copy the virtual environment from the builder stage
-COPY --from=builder --chown=appuser:appuser /home/appuser/app/.venv ./.venv
+# 1. Copy the project definition files from the builder
+COPY --from=builder /home/appuser/app/pyproject.toml /home/appuser/app/poetry.lock ./
 
-# Copy the application code from the builder stage
-COPY --from=builder --chown=appuser:appuser /home/appuser/app/src ./src
-COPY --from=builder --chown=appuser:appuser /home/appuser/app/alembic ./alembic
-COPY --from=builder --chown=appuser:appuser /home/appuser/app/alembic.ini ./
-COPY --from=builder --chown=appuser:appuser /home/appuser/app/scripts ./scripts
+# 2. Copy the full virtual environment from the builder
+COPY --from=builder /home/appuser/app/.venv ./.venv
 
-# Set the PATH to include the virtual environment's executables
+# 3. Now, run the poetry command in the same layer as its installation/uninstallation
+RUN pip install --no-cache-dir poetry && \
+    . .venv/bin/activate && \
+    poetry install --only main --sync --no-root && \
+    pip uninstall -y poetry
+
+# Copy application source code from the builder
+COPY --from=builder /home/appuser/app/src ./src
+COPY --from=builder /home/appuser/app/alembic ./alembic
+COPY --from=builder /home/appuser/app/alembic.ini ./
+COPY --from=builder /home/appuser/app/scripts ./scripts
+
 ENV PATH="/home/appuser/app/.venv/bin:$PATH"
-
-# Ensure entrypoint script is executable
 RUN chmod +x /home/appuser/app/scripts/docker-entrypoint.sh
-
-# The ENTRYPOINT will run as root to fix permissions before stepping down
 ENTRYPOINT ["/home/appuser/app/scripts/docker-entrypoint.sh"]
-
-# The command to run after the entrypoint script has prepared the environment
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+
+# --- Stage 3: The TEST image (includes dev dependencies) ---
+FROM python:3.12-slim as test
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl gosu && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get clean && \
+    useradd --create-home --shell /bin/bash appuser
+
+WORKDIR /home/appuser/app
+
+# Copy the FULL virtual environment (with pytest) from the builder.
+COPY --from=builder /home/appuser/app/.venv ./.venv
+
+# Copy application source code from the builder (this will now work)
+COPY --from=builder /home/appuser/app/src ./src
+COPY --from=builder /home/appuser/app/alembic ./alembic
+COPY --from=builder /home/appuser/app/alembic.ini ./
+COPY --from=builder /home/appuser/app/scripts ./scripts
+
+ENV PATH="/home/appuser/app/.venv/bin:$PATH"
+RUN chmod +x /home/appuser/app/scripts/docker-entrypoint.sh
+ENTRYPOINT ["/home/appuser/app/scripts/docker-entrypoint.sh"]
+CMD ["tail", "-f", "/dev/null"]

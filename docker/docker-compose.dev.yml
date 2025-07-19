@@ -78,6 +78,7 @@ services:
     build:
       context: .
       dockerfile: docker/backend/Dockerfile
+      target: production
     container_name: backend
     depends_on:
       db-app:

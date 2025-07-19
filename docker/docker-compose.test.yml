@@ -44,6 +44,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"      
     volumes:
       - postgres_app_data_test:/var/lib/postgresql/data/
       - ./docker/postgres/init-db-extensions.sh:/docker-entrypoint-initdb.d/init-extensions.sh
@@ -87,6 +89,7 @@ services:
     build:
       context: .
       dockerfile: docker/backend/Dockerfile
+      target: test
     container_name: backend-test
     depends_on:
       db-app-test:
