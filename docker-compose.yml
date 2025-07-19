@@ -66,27 +66,24 @@ services:
       retries: 5
 
   keycloak:
-    image: quay.io/keycloak/keycloak:latest
+    image: bitnami/keycloak:latest
     container_name: keycloak
     depends_on:
       db-keycloak:
         condition: service_healthy
     environment:
-      KC_DB_URL_HOST: db-keycloak
-      KC_DB_URL_DATABASE: ${POSTGRES_KC_DB}
-      KC_DB_USERNAME: ${POSTGRES_KC_USER}
-      KC_DB_PASSWORD: ${POSTGRES_KC_PASSWORD}
-      KC_DB_SCHEMA: public
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
-      KC_HEALTH_ENABLED: "true"
-      KC_METRICS_ENABLED: "true"
-      KC_PROXY: "edge" # Tell Keycloak it's behind a proxy
-      KC_HTTP_RELATIVE_PATH: "/"
-    # No ports exposed directly to host
+      - KEYCLOAK_DATABASE_HOST=${KEYCLOAK_DATABASE_HOST}
+      - KEYCLOAK_DATABASE_PORT=${KEYCLOAK_DATABASE_PORT}
+      - KEYCLOAK_DATABASE_NAME=${KEYCLOAK_DATABASE_NAME}
+      - KEYCLOAK_DATABASE_USER=${KEYCLOAK_DATABASE_USER}
+      - KEYCLOAK_DATABASE_PASSWORD=${KEYCLOAK_DATABASE_PASSWORD}
+      - KEYCLOAK_DATABASE_SCHEMA=${KEYCLOAK_DATABASE_SCHEMA}
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+      - KEYCLOAK_DATABASE_VENDOR=postgresql
+      - KEYCLOAK_PROXY_HEADERS=xforwarded
     networks:
       - edi_network
-    command: start-dev
 
   lightrag-server:
     image: ghcr.io/hkuds/lightrag:latest

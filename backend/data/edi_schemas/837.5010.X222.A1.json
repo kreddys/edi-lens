@@ -404,7 +404,7 @@
       }
     },
     "TA1": {
-      "name": "Interchange Acknowledgement TEST",
+      "name": "Interchange Acknowledgement",
       "usage": "S",
       "pos": "200",
       "max_use": 1,

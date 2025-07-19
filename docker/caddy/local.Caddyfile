@@ -8,7 +8,7 @@
 # --- Main Application ---
 # Mapped to http://localhost:3000
 http://localhost:3000 {
-    handle_path /api/* {
+    handle /api/* {
         reverse_proxy backend:8000
     }
     handle {

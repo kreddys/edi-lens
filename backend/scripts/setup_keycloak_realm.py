@@ -14,7 +14,7 @@ KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
 
 # --- Configuration (unchanged) ---
 KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
-ADMIN_USER = os.getenv("KEYCLOAK_ADMIN_USER", "admin")
+ADMIN_USER = os.getenv("KEYCLOAK_ADMIN", "admin")
 ADMIN_PASSWORD = os.getenv("KEYCLOAK_ADMIN_PASSWORD", "admin")
 REALM_NAME = os.getenv("KEYCLOAK_REALM", "edi-lens")
 CLIENT_SECRET = os.getenv("KEYCLOAK_BACKEND_CLIENT_SECRET", "this-is-a-default-secret-change-it")
