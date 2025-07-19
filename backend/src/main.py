@@ -1,5 +1,5 @@
 # FILE: backend/src/main.py
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, APIRouter # <-- Add APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
@@ -17,11 +17,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # ... (this function remains unchanged) ...
     setup_logging()
     logger.info("--- Starting up EDI Lens Validator API ---")
     
-    # Only initialize OpenLIT if NOT in a pytest session.
-    # The `IS_PYTEST` env var is set by our conftest.py fixture.
     if os.getenv("IS_PYTEST") != "true":
         if os.getenv("ENABLE_OBSERVABILITY", "false").lower() == "true":
             logger.info("Observability is enabled. Initializing OpenLIT for the application...")
@@ -31,7 +30,6 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Skipping OpenLIT initialization in main.py (running in test mode).")
     
-    # Load all EDI implementation guide schemas into memory on startup.
     schema_dir = Path(settings.EDI_SCHEMA_DIRECTORY)
     schema_manager.load_schemas(schema_dir)
     
@@ -46,13 +44,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# ... (origins and CORS middleware remain unchanged) ...
 origins = ["http://localhost:3000", "http://localhost:3001"]
-
 if settings.REMOTE_HOST and settings.REMOTE_HOST != "localhost":
-    # The frontend is served from the root domain
     prod_origin = f"https://{settings.REMOTE_HOST}"
     origins.append(prod_origin)
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -61,19 +57,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/users/me", response_model=User, tags=["Users"], summary="Get Current User",
-         description="Fetches the profile information for the currently authenticated user based on their JWT.")
+# --- THIS IS THE NEW, CONSOLIDATED ROUTER ---
+api_router = APIRouter(prefix="/api/v1")
+
+@api_router.get("/health", tags=["Health"], summary="Health Check")
+def health_check():
+    logger.debug("Health check endpoint was called.")
+    return {"status": "ok"}
+
+@api_router.get("/users/me", response_model=User, tags=["Users"], summary="Get Current User")
 async def read_users_me(current_user: User = Depends(get_current_user)):
     logger.info(f"User {current_user.username} fetched their profile.")
     return current_user
 
-app.include_router(auth.router, prefix="/api/v1", tags=["Authentication"])
-app.include_router(validation.router, prefix="/api/v1", tags=["Validation"])
-app.include_router(trading_partners.router, prefix="/api/v1", tags=["Trading Partners"])
-app.include_router(schemas.router, prefix="/api/v1", tags=["Schemas"])
+# Attach all the existing endpoint routers to our new main api_router
+api_router.include_router(auth.router, tags=["Authentication"])
+api_router.include_router(validation.router, tags=["Validation"])
+api_router.include_router(trading_partners.router, tags=["Trading Partners"])
+api_router.include_router(schemas.router, tags=["Schemas"])
 
-@app.get("/health", tags=["Health"], summary="Health Check",
-         description="A simple endpoint to verify that the API service is running and responsive.")
-def health_check():
-    logger.debug("Health check endpoint was called.")
-    return {"status": "ok"}
+# Finally, include the main api_router in the app
+app.include_router(api_router)

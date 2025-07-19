@@ -10,7 +10,7 @@ from src.core.database import Base
 async def create_test_db():
     """Creates the test database and installs necessary extensions."""
     print("--- Creating Test Database ---")
-    db_name = f"{settings.POSTGRES_DB}_test"
+    db_name = settings.POSTGRES_DB # From .env.test, this is edi_lens_db_test
     # Connect to the default 'postgres' database to be able to create a new one
     default_db_url = settings.DATABASE_URL.rsplit('/', 1)[0] + '/postgres'
     engine = create_async_engine(default_db_url, isolation_level="AUTOCOMMIT")
@@ -27,21 +27,17 @@ async def create_test_db():
 
     await engine.dispose()
     
-    # --- THIS IS THE FIX ---
     # Now, connect to the newly created test database to install extensions
     print(f"--- Installing Extensions in '{db_name}' ---")
-    test_db_url = settings.DATABASE_URL.replace(settings.POSTGRES_DB, db_name)
+    test_db_url = settings.DATABASE_URL
     test_engine = create_async_engine(test_db_url)
     async with test_engine.connect() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS age;"))
-        # The search path setting is a per-session setting, but it's good practice
-        # to ensure the extensions are correctly configured from the start.
         await conn.execute(text(f"ALTER DATABASE {db_name} SET search_path = ag_catalog, '$user', public;"))
         await conn.commit()
     await test_engine.dispose()
     print("--- Extensions Installed Successfully ---")
-    # --- END OF FIX ---
 
     print("--- Test Database Created Successfully ---")
 
@@ -49,7 +45,7 @@ async def create_test_db():
 async def drop_test_db():
     """Drops the test database."""
     print("--- Dropping Test Database ---")
-    db_name = f"{settings.POSTGRES_DB}_test"
+    db_name = settings.POSTGRES_DB
     default_db_url = settings.DATABASE_URL.rsplit('/', 1)[0] + '/postgres'
     engine = create_async_engine(default_db_url, isolation_level="AUTOCOMMIT")
 

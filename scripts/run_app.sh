@@ -41,7 +41,9 @@ if [ -z "$1" ] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]]; then
     echo "  test:logs [svc...]    Tail logs for running test services."
     echo "  test:stop             Stop the test stack (preserves data)."
     echo "  test:clean            Stop and DELETE ALL TEST DATA."
-    echo "  test:integration [args...] Run integration tests against the running test stack."
+    echo "  test:integration [args...] Run in-process integration tests."
+    echo "  test:e2e [args...]         Run E2E tests against the running test stack."
+    echo "                             (Resets DB with Alembic before running)."
     echo ""
     echo "SPECIAL COMMANDS:"
     echo "  test:unit [args...]   Run local unit tests (no Docker needed)."
@@ -149,12 +151,58 @@ case "$ACTION" in
         ;;
     "integration")
         if [ "$ENV_CONTEXT" != "test" ]; then error "'integration' command is only for the 'test' environment."; fi
-        info "Running integration tests..."
-        # Use `exec` to run the pytest command inside the running backend-test container.
+        info "Running IN-PROCESS integration tests..."
+        # This still needs the backend-test service to be running to load settings etc.
+        # It assumes the user has run `test:start`.
         ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec "$BACKEND_SERVICE" pytest -m "integration" "$@"
+        success "In-process integration tests finished."
         ;;
-    *)
-        error "Unknown action: '$ACTION' for environment '$ENV_CONTEXT'."
+    "e2e")
+        if [ "$ENV_CONTEXT" != "test" ]; then error "'e2e' command is only for the 'test' environment."; fi
+        
+        info "Setting up a clean environment for E2E tests..."
+        ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} down --volumes --remove-orphans
+        ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} up -d --build --wait
+        success "Test environment containers are up."
+
+        # --- THIS IS THE FIX ---
+        info "Configuring the test Keycloak instance..."
+        # We need to wait a few seconds for Keycloak's internal startup to be ready for the script.
+        sleep 5 
+        ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec "$BACKEND_SERVICE" python -m scripts.setup_keycloak_realm
+        success "Keycloak is configured."
+        # --- END OF FIX ---
+
+        info "Verifying backend health before running tests..."
+        BACKEND_HEALTH_URL="http://localhost:3001/api/v1/health"
+        MAX_RETRIES=45
+        RETRY_INTERVAL=5
+
+        for i in $(seq 1 $MAX_RETRIES); do
+            STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${BACKEND_HEALTH_URL}")
+            
+            if [ "$STATUS_CODE" -eq 200 ]; then
+                success "Backend is healthy and ready to accept requests."
+                break
+            fi
+
+            if [ "$i" -eq "$MAX_RETRIES" ]; then
+                error "Backend did not become healthy after ${i} attempts. Last status: ${STATUS_CODE}."
+                ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} logs "$BACKEND_SERVICE"
+                ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} down --volumes
+                exit 1
+            fi
+
+            info "Backend not ready yet (status: ${STATUS_CODE}, attempt ${i}/${MAX_RETRIES}). Retrying..."
+            sleep $RETRY_INTERVAL
+        done
+
+        info "Running E2E tests..."
+        ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec "$BACKEND_SERVICE" pytest -m "e2e" "$@"
+        
+        info "Tearing down E2E test environment..."
+        ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} down --volumes
+        success "E2E tests finished."
         ;;
 esac
 

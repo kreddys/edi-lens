@@ -125,7 +125,7 @@ def main():
         paths_to_scan.extend([
             'backend/src', 'backend/alembic', 'backend/scripts', 'backend/data/seed', 'backend/tests',
             'backend/pyproject.toml', 'backend/alembic.ini', 'backend/pytest.ini', 'backend/.dockerignore',
-            'backend/.dockerignore', 'backend/entrypoint.sh', 'backend/README.md',
+            'backend/.dockerignore', 'backend/README.md',
         ])
 
     if args.admin or scan_all:
@@ -138,9 +138,9 @@ def main():
     if args.backend or args.admin or scan_all:
         paths_to_scan.extend([
             '.gitignore', 'README.md',
-            '.env.dev.example', '.env.prod.example', 'docker-compose.yml',
+            '.env.dev.example', '.env.test.example', '.env.prod.example',
             'docker',
-            'scripts/run_app.sh', 'scripts/queries.sql', 'docs', 'backend/data/knowledge', 'backend/data/knowledge'
+            'scripts/run_app.sh', 'scripts/queries.sql', 'docs', 'backend/data/knowledge'
         ])
     
     unique_paths = list(dict.fromkeys(paths_to_scan))

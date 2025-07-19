@@ -17,7 +17,7 @@ IntegrationSessionLocal = sessionmaker(
     expire_on_commit=False,
 )
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.asyncio, pytest.mark.e2e]
 
 # --- Helper Functions to get tokens for different users ---
 
@@ -49,7 +49,7 @@ async def test_users_me_with_live_token():
     """Verifies that the basic /users/me endpoint works with a live token."""
     token = await get_user_token("superuser@edilens.com")
     headers = {"Authorization": f"Bearer {token}"}
-    backend_url = f"http://{settings.BACKEND_HOST}:8000/users/me"
+    backend_url = f"http://{settings.BACKEND_HOST}:8000/api/v1/users/me"
 
     async with httpx.AsyncClient() as client:
         response = await client.get(backend_url, headers=headers)
