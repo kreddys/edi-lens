@@ -69,7 +69,7 @@ case "$COMMAND" in
         ${DC_COMMAND} ${DC_FILES} up -d --build
         ;;
     "build")
-        ${DC_COMMAND} ${DC_FILES} build --no-cache
+        ${DC_COMMAND} ${DC_FILES} build
         success "Images built successfully."
         ;;
     "build:db")

@@ -124,22 +124,22 @@ def main():
     if args.backend or scan_all:
         paths_to_scan.extend([
             'backend/src', 'backend/alembic', 'backend/scripts', 'backend/data/seed', 'backend/tests',
-            'backend/pyproject.toml', 'backend/alembic.ini', 'backend/pytest.ini',
-            'backend/Dockerfile', 'backend/.dockerignore', 'backend/entrypoint.sh', 'backend/README.md',
+            'backend/pyproject.toml', 'backend/alembic.ini', 'backend/pytest.ini', 'backend/.dockerignore',
+            'backend/.dockerignore', 'backend/entrypoint.sh', 'backend/README.md',
         ])
 
     if args.admin or scan_all:
         paths_to_scan.extend([
             'admin-ui/src', 'admin-ui/package.json', 'admin-ui/tsconfig.json', 'admin-ui/vite.config.ts',
-            'admin-ui/tsconfig.node.json', 'admin-ui/nginx.conf', 'admin-ui/index.html',
-            'admin-ui/Dockerfile', 'admin-ui/Dockerfile.dev', 'admin-ui/README.md',
+            'admin-ui/tsconfig.node.json', 'admin-ui/index.html',
+            'admin-ui/README.md',
         ])
 
     if args.backend or args.admin or scan_all:
         paths_to_scan.extend([
-            '.gitignore', 'README.md', 'Caddyfile', 'assets/otel-collector-config.yaml',
-            '.env.local.example', '.env.prod.example', 'docker-compose.local.yml',
-            'docker-compose.dev-server.yml', 'docker-compose.observability.yml',
+            '.gitignore', 'README.md',
+            '.env.local.example', '.env.prod.example', 'docker-compose.yml',
+            'docker',
             'scripts/run_app.sh', 'scripts/queries.sql', 'docs', 'backend/data/knowledge', 'backend/data/knowledge'
         ])
     

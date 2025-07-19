@@ -1,38 +1,58 @@
-# FILE: docker/backend/Dockerfile (Simplified Approach)
-FROM python:3.12-slim
+# FILE: docker/backend/Dockerfile (Corrected Paths)
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y curl gosu && \
-    rm -rf /var/lib/apt/lists/* && \
-    apt-get clean
+# --- Stage 1: The Builder ---
+# This stage installs all dependencies, including build-time tools.
+FROM python:3.12-slim as builder
 
-# Install poetry globally
-RUN pip install --no-cache-dir poetry
+ENV POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    POETRY_VIRTUALENVS_CREATE=true \
+    POETRY_CACHE_DIR=/tmp/poetry_cache
 
-# Create user (but don't switch to it yet)
-RUN useradd --create-home --shell /bin/bash appuser
+# Install build-time system dependencies and Poetry
+RUN apt-get update && apt-get install -y --no-install-recommends curl build-essential && \
+    pip install --no-cache-dir poetry
 
-# Set up the app directory
+# --- FIX: Use the final WORKDIR path in the builder stage ---
 WORKDIR /home/appuser/app
 
-# Copy dependency files
+# Copy only the dependency definition files to leverage Docker cache
 COPY backend/pyproject.toml backend/poetry.lock ./
 
-# Install dependencies as root (we'll fix permissions later)
-RUN poetry config virtualenvs.in-project true && \
-    poetry config virtualenvs.create true && \
-    poetry install --no-root --no-interaction --no-ansi
+# Install project dependencies
+RUN poetry install --only main --no-root
 
-# Copy the entire backend source code
-COPY backend/ .
+# Copy the rest of the application source code
+COPY backend/src ./src
+COPY backend/alembic ./alembic
+COPY backend/alembic.ini ./
+COPY backend/scripts ./scripts
 
-# Install the project itself
-RUN poetry install --no-interaction --no-ansi
+# --- Stage 2: The Final Image ---
+# This stage is clean and minimal, containing only what's needed to run the app.
+FROM python:3.12-slim
 
-# Fix ownership of everything
-RUN chown -R appuser:appuser /home/appuser/app
+# Install runtime-only system dependencies and create the app user
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl gosu && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get clean && \
+    useradd --create-home --shell /bin/bash appuser
 
-# Set the PATH environment variable
+# --- Use the same WORKDIR as the builder ---
+WORKDIR /home/appuser/app
+
+# --- FIX: Copy from the corrected builder path ---
+# Copy the virtual environment from the builder stage
+COPY --from=builder --chown=appuser:appuser /home/appuser/app/.venv ./.venv
+
+# Copy the application code from the builder stage
+COPY --from=builder --chown=appuser:appuser /home/appuser/app/src ./src
+COPY --from=builder --chown=appuser:appuser /home/appuser/app/alembic ./alembic
+COPY --from=builder --chown=appuser:appuser /home/appuser/app/alembic.ini ./
+COPY --from=builder --chown=appuser:appuser /home/appuser/app/scripts ./scripts
+
+# Set the PATH to include the virtual environment's executables
 ENV PATH="/home/appuser/app/.venv/bin:$PATH"
 
 # Ensure entrypoint script is executable
