@@ -1,0 +1,31 @@
+# FILE: docker/caddy/test.Caddyfile
+# Defines Caddy routing for the ISOLATED TEST ENVIRONMENT.
+# Note: All reverse_proxy directives point to services with a "-test" suffix.
+{
+    auto_https off
+}
+
+# Test App UI & API (on port 3001)
+http://localhost:3001 {
+    handle /api/* {
+        reverse_proxy backend-test:8000
+    }
+    handle {
+        reverse_proxy admin-ui-test:3000
+    }
+}
+
+# Test Keycloak (on port 8081)
+http://localhost:8081 {
+    reverse_proxy keycloak-test:8080
+}
+
+# Test OpenLIT (on port 3301)
+http://localhost:3301 {
+    reverse_proxy openlit-ui-test:3000
+}
+
+# Test LightRAG (on port 3401)
+http://localhost:3401 {
+    reverse_proxy lightrag-server-test:9621
+}

@@ -1,30 +1,15 @@
-# FILE: docker-compose.yml
-# This compose file defines the local development environment with Caddy as the single entry point.
+# FILE: docker/docker-compose.dev.yml
+# Defines the complete DEV environment stack. Hot-reloading is the default.
 
 services:
-  # --- CADDY REVERSE PROXY ---
   caddy:
     image: caddy:2-alpine
     container_name: caddy
-    restart: unless-stopped
-    ports:
-      - "3000:3000" # Main app entry point (UI & API)
-      - "8080:8080" # Keycloak admin UI
-      - "3300:3300" # OpenLit UI
-      - "3400:3400" # LightRAG UI
-    volumes:
-      - ./docker/caddy/dev.Caddyfile:/etc/caddy/Caddyfile
-    networks:
-      - edi_network
-    depends_on:
-      - backend
-      - admin-ui
-      - keycloak
-      - openlit-ui
-      - lightrag-server
+    ports: ["3000:3000", "8080:8080", "3300:3300", "3400:3400"]
+    volumes: ["./docker/caddy/dev.Caddyfile:/etc/caddy/Caddyfile"]
+    networks: [edi_network]
+    depends_on: [backend, admin-ui, keycloak, lightrag-server, openlit-ui]
 
-
-  # --- DB #1: For Keycloak (Standard PostgreSQL) ---
   db-keycloak:
     image: postgres:15-alpine
     container_name: db-keycloak
@@ -34,16 +19,11 @@ services:
       POSTGRES_DB: ${POSTGRES_KC_DB}
     volumes:
       - postgres_kc_data:/var/lib/postgresql/data/
-    # No ports exposed directly to host
     networks:
       - edi_network
     healthcheck:
       test: ["CMD-SHELL", "PGPASSWORD=${POSTGRES_KC_PASSWORD} psql -h localhost -U ${POSTGRES_KC_USER} -d ${POSTGRES_KC_DB} -c 'SELECT 1' > /dev/null 2>&1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
-  # --- DB #2: For Main App & LightRAG (Custom Image with Extensions) ---
   db-app:
     build:
       context: .
@@ -56,14 +36,10 @@ services:
     volumes:
       - postgres_app_data:/var/lib/postgresql/data/
       - ./docker/postgres/init-db-extensions.sh:/docker-entrypoint-initdb.d/init-extensions.sh
-    # No ports exposed directly to host
     networks:
       - edi_network
     healthcheck:
       test: ["CMD-SHELL", "PGPASSWORD=${POSTGRES_PASSWORD} psql -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c \"SELECT 1 FROM pg_extension WHERE extname = 'vector'\" > /dev/null 2>&1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   keycloak:
     image: bitnami/keycloak:latest
@@ -72,12 +48,10 @@ services:
       db-keycloak:
         condition: service_healthy
     environment:
-      - KEYCLOAK_DATABASE_HOST=${KEYCLOAK_DATABASE_HOST}
-      - KEYCLOAK_DATABASE_PORT=${KEYCLOAK_DATABASE_PORT}
-      - KEYCLOAK_DATABASE_NAME=${KEYCLOAK_DATABASE_NAME}
-      - KEYCLOAK_DATABASE_USER=${KEYCLOAK_DATABASE_USER}
-      - KEYCLOAK_DATABASE_PASSWORD=${KEYCLOAK_DATABASE_PASSWORD}
-      - KEYCLOAK_DATABASE_SCHEMA=${KEYCLOAK_DATABASE_SCHEMA}
+      - KEYCLOAK_DATABASE_HOST=${POSTGRES_KC_HOST}
+      - KEYCLOAK_DATABASE_NAME=${POSTGRES_KC_DB}
+      - KEYCLOAK_DATABASE_USER=${POSTGRES_KC_USER}
+      - KEYCLOAK_DATABASE_PASSWORD=${POSTGRES_KC_PASSWORD}
       - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
       - KEYCLOAK_DATABASE_VENDOR=postgresql
@@ -88,8 +62,6 @@ services:
   lightrag-server:
     image: ghcr.io/hkuds/lightrag:latest
     container_name: lightrag-server
-    restart: always
-    # No ports exposed directly to host
     volumes:
       - ./backend/data/knowledge:/app/inputs
     networks:
@@ -97,10 +69,7 @@ services:
     env_file:
       - .env.dev
     command: >
-      --host 0.0.0.0
-      --port 9621
-      --workspace edi_lens_kb
-      --auto-scan-at-startup
+      --host 0.0.0.0 --port 9621 --workspace edi_lens_kb --auto-scan-at-startup
     depends_on:
       db-app:
         condition: service_healthy
@@ -117,7 +86,8 @@ services:
         condition: service_started
       lightrag-server:
         condition: service_started
-    # No ports exposed directly to host
+      openlit-otel-collector:
+        condition: service_started
     volumes:
       - ./backend:/home/appuser/app:delegated
       - /home/appuser/app/.venv
@@ -125,13 +95,9 @@ services:
       - edi_network
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir alembic
     env_file:
       - .env.dev
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir alembic
 
   admin-ui:
     build:
@@ -141,21 +107,70 @@ services:
     volumes:
       - ./admin-ui:/app:delegated
       - admin-ui-node-modules:/app/node_modules
-    # No ports exposed directly to host
-    command: npm run dev -- --host 0.0.0.0 --port 3000 # Explicitly set Vite's internal port
     env_file:
       - .env.dev
     depends_on:
       - backend
     networks:
       - edi_network
+    command: npm run dev -- --host 0.0.0.0 --port 3000
+
+  openlit-db:
+    image: clickhouse/clickhouse-server:24.4.1
+    container_name: openlit-db
+    environment:
+      CLICKHOUSE_USER: ${OPENLIT_DB_USER}
+      CLICKHOUSE_PASSWORD: ${OPENLIT_DB_PASSWORD}
+      CLICKHOUSE_DB: ${OPENLIT_DB_NAME}
+    volumes:
+      - openlit-db-data:/var/lib/clickhouse
+    networks:
+      - edi_network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+
+  openlit-otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.94.0
+    container_name: openlit-otel-collector
+    depends_on:
+      openlit-db:
+        condition: service_healthy
+    environment:
+      - INIT_DB_HOST=openlit-db
+      - INIT_DB_PORT=9000
+      - INIT_DB_DATABASE=${OPENLIT_DB_NAME}
+      - INIT_DB_USERNAME=${OPENLIT_DB_USER}
+      - INIT_DB_PASSWORD=${OPENLIT_DB_PASSWORD}
+    volumes:
+      - ./docker/openlit/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+    networks:
+      - edi_network
+
+  openlit-ui:
+    image: ghcr.io/openlit/openlit:latest
+    container_name: openlit-ui
+    depends_on:
+      - openlit-otel-collector
+    environment:
+      - INIT_DB_HOST=openlit-db
+      - INIT_DB_PORT=8123
+      - INIT_DB_DATABASE=${OPENLIT_DB_NAME}
+      - INIT_DB_USERNAME=${OPENLIT_DB_USER}
+      - INIT_DB_PASSWORD=${OPENLIT_DB_PASSWORD}
+      - SQLITE_DATABASE_URL=file:/app/client/data/data.db
+    volumes:
+      - openlit-data:/app/client/data
+    networks:
+      - edi_network
+
+volumes:
+  postgres_kc_data: {}
+  postgres_app_data: {}
+  admin-ui-node-modules: {}
+  openlit-db-data: {}
+  openlit-data: {}
 
 networks:
   edi_network:
-    name: edi-lens_edi_network
+    name: edilens_dev_network
     driver: bridge
-
-volumes:
-  postgres_kc_data:
-  postgres_app_data:
-  admin-ui-node-modules:
