@@ -55,7 +55,24 @@ FULL_COMMAND=$1; shift
 # Handle special non-Docker commands first
 if [[ "$FULL_COMMAND" == "test:unit" ]]; then
     info "Running local unit tests (no Docker)..."
+    
+    # --- THIS IS THE FIX ---
+    # Load the test environment variables before running pytest locally.
+    TEST_ENV_FILE=".env.test"
+    if [ ! -f "$TEST_ENV_FILE" ]; then
+        if [ -f "$TEST_ENV_FILE.example" ]; then
+            warn "Creating .env.test from example for unit test run."
+            cp "$TEST_ENV_FILE.example" "$TEST_ENV_FILE"
+        else
+            error "Could not find '$TEST_ENV_FILE' or its .example file. Cannot run unit tests."
+        fi
+    fi
+    info "Loading .env.test for local unit test session..."
+    set -a; source "$TEST_ENV_FILE"; set +a
+    # --- END OF FIX ---
+    
     (cd backend && poetry run pytest -m "unit" "$@")
+    
     success "Unit tests finished."
     exit 0
 fi
@@ -107,11 +124,17 @@ case "$ACTION" in
         ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} build "$@"
         ;;
     "migrate:make" | "migrate:run" | "setup:keycloak" | "setup:testdata")
-        if [ "$ENV_CONTEXT" != "dev" ]; then error "'$ACTION' is only for the 'dev' environment."; fi
+        # These commands are now available for BOTH dev and test environments.
+        if [ "$ACTION" == "migrate:make" ] && [ -z "$1" ]; then
+            error "Migration message is required. Usage: ./scripts/run_app.sh dev:migrate:make \"your message\""
+        fi
+
+        info "Executing '$ACTION' on the $ENV_CONTEXT environment..."
+        # Ensure the backend service and its dependencies are running
         ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} up -d --wait "$BACKEND_SERVICE"
+
         CMD_TO_RUN=""
         if [ "$ACTION" == "migrate:make" ]; then
-            if [ -z "$1" ]; then error "Migration message is required."; fi
             CMD_TO_RUN="alembic -c alembic.ini revision --autogenerate -m \"$1\""
         elif [ "$ACTION" == "migrate:run" ]; then
             CMD_TO_RUN="alembic -c alembic.ini upgrade head"
@@ -120,11 +143,14 @@ case "$ACTION" in
         elif [ "$ACTION" == "setup:testdata" ]; then
             CMD_TO_RUN="python -m scripts.seed $@"
         fi
+
         ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec "$BACKEND_SERVICE" $CMD_TO_RUN
+        success "'$ACTION' completed successfully for the $ENV_CONTEXT environment."
         ;;
     "integration")
         if [ "$ENV_CONTEXT" != "test" ]; then error "'integration' command is only for the 'test' environment."; fi
         info "Running integration tests..."
+        # Use `exec` to run the pytest command inside the running backend-test container.
         ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec "$BACKEND_SERVICE" pytest -m "integration" "$@"
         ;;
     *)

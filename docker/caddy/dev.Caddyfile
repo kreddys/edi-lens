@@ -1,4 +1,4 @@
-# FILE: docker/Caddyfile.local
+# FILE: docker/dev.Caddyfile
 # This configuration file is for the LOCAL development environment.
 
 {
