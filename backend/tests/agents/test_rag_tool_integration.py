@@ -13,6 +13,34 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 LIGHTRAG_TEST_URL = "http://lightrag-server-test:9621"
 
+async def wait_for_pipeline_completion(client: httpx.AsyncClient):
+    # ... (this helper function is correct and unchanged) ...
+    print("Waiting for RAG pipeline to start processing...")
+    job_started = False
+    for _ in range(10): 
+        try:
+            status_response = await client.get("/documents/pipeline_status")
+            if status_response.json().get("busy", False):
+                print("Pipeline is now busy. Processing has begun.")
+                job_started = True
+                break
+        except httpx.RequestError:
+            pass 
+        await asyncio.sleep(1)
+    
+    if not job_started:
+        pytest.fail("Pipeline did not become busy after upload. Ingestion likely failed to start.")
+
+    print("Waiting for RAG pipeline to finish processing...")
+    for _ in range(60): 
+        status_response = await client.get("/documents/pipeline_status")
+        if not status_response.json().get("busy", True):
+            print("Pipeline is now idle. Processing complete.")
+            return
+        await asyncio.sleep(1)
+
+    pytest.fail("Pipeline did not become idle within the timeout period.")
+
 @pytest.fixture(scope="module")
 def sample_guide_path() -> Path:
     return Path(__file__).parent.parent / "data/test_guides/rag_test_guide.txt"
@@ -44,47 +72,23 @@ async def test_ingestion_and_query_lifecycle(
     lightrag_client: httpx.AsyncClient,
     sample_guide_path: Path
 ):
-    """
-    Tests the full RAG lifecycle: ingestion, processing, and querying.
-    """
-    # 1. INGESTION - Restore the API-based upload logic
     with open(sample_guide_path, "rb") as f:
         files = {"file": (sample_guide_path.name, f, "text/plain")}
         response = await lightrag_client.post("/documents/upload", files=files)
     assert response.status_code == 200, f"Upload failed: {response.text}"
     
-    # 2. POLLING - Wait for the pipeline to finish processing the uploaded file.
-    max_wait_seconds = 60
-    poll_interval_seconds = 5
-    is_ready = False
-    for i in range(max_wait_seconds // poll_interval_seconds):
-        print(f"Polling LightRAG pipeline status (attempt {i+1})...")
-        try:
-            status_response = await lightrag_client.get("/documents/pipeline_status")
-            status_data = status_response.json()
-            
-            if not status_data.get("busy", True):
-                print("LightRAG pipeline is idle. Document processing should be complete.")
-                is_ready = True
-                break
-            
-            print(f"Pipeline is busy. Status: {status_data.get('latest_message', 'N/A')}")
-        except httpx.RequestError as e:
-            print(f"Could not connect to LightRAG to poll status: {e}")
+    await wait_for_pipeline_completion(lightrag_client)
 
-        await asyncio.sleep(poll_interval_seconds)
-
-    assert is_ready, "LightRAG pipeline did not become idle within the timeout period."
-
-    # 3. QUERY with the agent tool
     rag_tool = KnowledgeBaseTool()
     rag_tool.LIGHTRAG_API_URL = LIGHTRAG_TEST_URL
     
     answer_nmi = rag_tool._run(query="What is the secret code for the NMI segment?")
     print(f"Received LightRAG response for NMI query: '{answer_nmi}'")
-    assert "Blue Penguin" in answer_nmi
+    # --- THIS IS THE FIX: Case-insensitive check ---
+    assert "blue penguin" in answer_nmi.lower()
 
     answer_dmx = rag_tool._run(query="What is the purpose of the DMX segment?")
     print(f"Received LightRAG response for DMX query: '{answer_dmx}'")
-    assert "Date/Time information" in answer_dmx
-    assert "Yellow Giraffe" in answer_dmx
+    assert "date/time information" in answer_dmx.lower()
+    assert "yellow giraffe" in answer_dmx.lower()
+    # --- END OF FIX ---

@@ -1,0 +1,4 @@
+# Guide Alpha
+This document discusses the color of the sky.
+The sky is blue.
+The primary secret code is Alpha.
