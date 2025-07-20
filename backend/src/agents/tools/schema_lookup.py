@@ -37,9 +37,7 @@ class EDI_Schema_Lookup_Tool(BaseTool):
         """
         Looks up a segment's base and contextual definitions and synthesizes the effective definition.
         """
-        # --- THIS IS THE FIX ---
         self._ensure_schema_loaded()
-        # --- END OF FIX ---
         
         schema = schema_manager.get_schema("005010X222A1")
         if not schema:
@@ -54,6 +52,7 @@ class EDI_Schema_Lookup_Tool(BaseTool):
             "error": None
         }
 
+        # The schema uses Pydantic models, so we access them as attributes
         base_def_model = schema.segmentDefinitions.get(segment_id)
         if not base_def_model:
             response["error"] = f"Base definition for segment '{segment_id}' not found."
@@ -72,12 +71,10 @@ class EDI_Schema_Lookup_Tool(BaseTool):
             for el_xid, overrides in context_def_dict.get("elements", {}).items():
                 for i, base_el in enumerate(effective_def.get("elements", [])):
                     if base_el.get("xid") == el_xid:
-                        if overrides.get("valid_codes"):
-                            effective_def["elements"][i]["valid_codes"] = overrides["valid_codes"]
-                        if overrides.get("description"):
-                             effective_def["elements"][i]["description"] = overrides["description"]
-                        if overrides.get("usage"):
-                             effective_def["elements"][i]["usage"] = overrides["usage"]
+                        # Merge override properties into the element
+                        for key, value in overrides.items():
+                            if value is not None:
+                                effective_def["elements"][i][key] = value
                         break
         
         response["effectiveDefinition"] = effective_def

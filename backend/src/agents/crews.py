@@ -80,25 +80,25 @@ class SchemaEnrichmentCrews:
         return Task(
             description=(
                 "Your task is to analyze the schema for the '{segment_id}' segment, specifically within the '{context_id}' context, and propose a JSON patch if and only if it is incomplete or incorrect according to your information gathering.\n\n"
-                "**Critical Instructions:**\n"
-                "- Your primary goal is to find **DIFFERENCES** between an implementation guide and the current schema.\n"
-                "- If they **ALREADY MATCH**, you MUST return an empty `patches` list.\n"
-                "- **Usage Code Mapping:** When setting a `usage` property, you MUST use one of the following exact single-character codes:\n"
-                "  - 'Required' or 'Mandatory' -> `\"R\"`\n"
-                "  - 'Situational' or 'Optional' -> `\"S\"`\n"
-                "  - 'Not Used' -> `\"N\"`\n"
-                "- **JSON Patch Path Rules:**\n"
-                "  1. For a new BASE segment: `/segmentDefinitions/SEGMENT_ID`\n"
-                "  2. For a new or existing CONTEXTUAL override: `/contextualDefinitions/CONTEXT_ID`\n\n"
-                "- **Method for `contextualDefinitions`:** To create or update a contextual definition, you MUST follow a READ-MODIFY-WRITE pattern. First, use the `EDI_Schema_Lookup_Tool` to get the `contextualDefinition` (if it exists) and the `baseDefinition`. Then, construct the new complete `value` for your patch by merging the base, the existing context (if any), and the new rules from the guide. Your final `value` must be a complete, valid `ContextualDefinition` object. DO NOT provide partial values.\n"
-                "- **Creating `segmentDefinitions` (Tier 3):** The `value` MUST be a complete `SegmentDefinition` object with an `elements` LIST.\n"
-                "- **`valid_codes` Structure:** The `valid_codes` property is ALWAYS an object with a `codes` key, which holds a LIST of code objects (e.g., `{{\"code\": \"QC\", \"description\": \"Patient\"}}`).\n"
-                "\nYou MUST follow this Four-Tier Information Hierarchy STRICTLY:\n\n"
-                "1.  **Tier 1 (RAG):** Use `KnowledgeBaseTool` first.\n"
-                "2.  **Tier 2 (Internal Schema):** Use `EDI_Schema_Lookup_Tool` if RAG is insufficient.\n"
-                "3.  **Tier 3 (Intrinsic Knowledge):** Generate from training data if Tiers 1 & 2 fail.\n"
-                "4.  **Tier 4 (Internet Search):** Use `SerperDevTool` as a last resort.\n\n"
-                "Your final output is a `UniversalAgentResponse` Pydantic object. Your `reasoning` field must explain the tiers you used. The `patches` field will contain your proposed changes."
+                "**CRITICAL INSTRUCTIONS FOR CONSTRUCTING JSON PATCHES:**\n"
+                "1.  **GOAL:** Your primary goal is to find **DIFFERENCES** between an implementation guide and our current schema. If they **ALREADY MATCH**, you MUST return an empty `patches` list.\n"
+                "2.  **JSON PATCH PATHS:** You MUST use one of these two exact formats for the `path`:\n"
+                "    -   For a BASE segment definition: `/segmentDefinitions/SEGMENT_ID` (e.g., `/segmentDefinitions/CLM`)\n"
+                "    -   For a CONTEXTUAL segment override: `/contextualDefinitions/CONTEXT_ID` (e.g., `/contextualDefinitions/2300.CLM`)\n\n"
+                "3.  **THE READ-MODIFY-WRITE PATTERN (MOST IMPORTANT RULE):** The `value` of your patch operation (`add` or `replace`) MUST ALWAYS be a COMPLETE, VALID, and SELF-CONTAINED object. NEVER provide partial objects.\n"
+                "    -   **Step A (READ):** ALWAYS start by using the `EDI_Schema_Lookup_Tool` to get the `baseDefinition` and any existing `contextualDefinition`.\n"
+                "    -   **Step B (MODIFY):** Create a *new* complete object in your thought process. \n"
+                "        - If a `baseDefinition` exists, start by copying it.\n"
+                "        - If a `contextualDefinition` exists, apply its overrides to your copy.\n"
+                "        - Finally, apply the NEW rules from the `KnowledgeBaseTool` to your copy.\n"
+                "    -   **Step C (WRITE):** Your final patch's `value` MUST be the complete, merged object from Step B. Do not just include the fields you changed.\n\n"
+                "4.  **CREATING NEW DEFINITIONS:** If the `EDI_Schema_Lookup_Tool` returns `null` for a definition, you must create it from scratch using your intrinsic knowledge (Tier 3) and information from the RAG tool (Tier 1). The created `value` must still be a COMPLETE `SegmentDefinition` or `ContextualDefinition` object.\n"
+                "5.  **USAGE CODES:** `usage` properties MUST be one of: `\"R\"` (Required), `\"S\"` (Situational), or `\"N\"` (Not Used).\n\n"
+                "**INFORMATION GATHERING HIERARCHY:**\n"
+                "-   **Tier 1 (RAG):** Use `KnowledgeBaseTool` first to get specific guide rules.\n"
+                "-   **Tier 2 (Internal Schema):** ALWAYS use `EDI_Schema_Lookup_Tool` to see what already exists.\n"
+                "-   **Tier 3 (Intrinsic Knowledge):** Use your internal knowledge of X12 standards to construct complete base definitions when they are missing.\n\n"
+                "Your final output is a `UniversalAgentResponse` Pydantic object. Your `reasoning` field must explain the tiers you used and how you constructed the final `value`. The `patches` field will contain your proposed changes."
             ),
             expected_output="A single, valid `UniversalAgentResponse` JSON object.",
             agent=self.element_enrichment_agent_instance,
@@ -117,7 +117,8 @@ class SchemaEnrichmentCrews:
                 "**Your Task:**\n"
                 "Carefully read the Auditor's justification. Re-evaluate your previous proposal and generate a NEW, corrected `UniversalAgentResponse`. "
                 "Fix the specific errors the Auditor pointed out. Do not repeat your mistakes. "
-                "You may use your tools again if necessary to gather more information to fix the issue."
+                "You may use your tools again if necessary to gather more information to fix the issue.\n\n"
+                "**Crucially, your new proposal MUST be a complete `UniversalAgentResponse` object, including the `reasoning` field explaining your corrected approach.**"
             ),
             expected_output="A new, corrected, and valid `UniversalAgentResponse` JSON object that addresses the auditor's feedback.",
             agent=self.element_enrichment_agent_instance
@@ -127,21 +128,24 @@ class SchemaEnrichmentCrews:
     def audit_enrichment_task(self) -> Task:
         return Task(
             description=(
-                "You are an EDI Compliance Auditor. Validate the following proposal from the Architect Agent.\n\n"
+                "You are an EDI Compliance Auditor. Your task is to validate a JSON Patch proposal from another agent. Your analysis must be rigorous and detail-oriented.\n\n"
                 "**Proposal to Review:**\n"
                 "```json\n"
                 "{proposal}\n"
                 "```\n\n"
-                "**Your Validation Checklist:**\n"
-                "1.  **Reasoning Review:** Is the `reasoning` logical and does it cite the correct Tiers?\n"
-                "2.  **Path Correctness:** Does the JSON patch `path` match the reasoning?\n"
-                "3.  **Value Structure:** Does the patch `value` represent a COMPLETE and valid object for its target path? Partial objects are not allowed.\n"
-                "4.  **Logical Consistency:** Does the patch achieve what the reasoning claims?\n\n"
-                "Your final answer MUST be a single, valid `AuditResponse` JSON object with your verdict (`approved`: true/false) and a clear `justification`."
+                "**Your Validation Checklist & Rules:**\n"
+                "1.  **Presence of Reasoning:** The `reasoning` field MUST be present and non-empty.\n"
+                "2.  **Path Correctness:** The JSON patch `path` MUST be either `/segmentDefinitions/SEGMENT_ID` or `/contextualDefinitions/CONTEXT_ID`.\n"
+                "3.  **Value Completeness:** The `value` of the patch (`add` or `replace`) MUST be a COMPLETE and valid object. Partial objects are an immediate failure.\n"
+                "4.  **Usage Code Validity:** All `usage` properties inside the `value` MUST be exactly `\"R\"`, `\"S\"`, or `\"N\"`.\n"
+                "5.  **Logical Consistency:** The final patch MUST logically achieve what the `reasoning` field claims.\n\n"
+                "Your final answer MUST be a single, valid `AuditResponse` JSON object. "
+                "Provide your final verdict in the `approved` field (true/false) and your concise analysis in the `reasoning` field."
             ),
             expected_output="A single, valid `AuditResponse` JSON object.",
             agent=self.auditor_agent_instance
         )
+
 
     @task
     def complex_rule_extraction_task(self) -> Task:

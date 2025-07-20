@@ -5,7 +5,10 @@ from typing import Literal, Optional, Any, List, Dict
 class AuditResponse(BaseModel):
     """The structured response from the Auditor Agent."""
     approved: bool = Field(..., description="Whether the proposal is approved or rejected.")
-    justification: str = Field(..., description="A clear explanation for the approval or rejection decision.")
+    # Renaming 'justification' to 'reasoning' for consistency with other models
+    reasoning: str = Field(..., description="A clear explanation for the approval or rejection decision.")
+
+
 
 class ElementEnrichment(BaseModel):
     """A JSON Patch operation to enrich a segment definition."""
