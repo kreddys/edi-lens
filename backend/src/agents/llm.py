@@ -25,7 +25,7 @@ def get_llm() -> CrewLLM:
 
     logger.info(f"Configuring LLM for model: '{model_name}'")
 
-    llm_config = {"model": model_name}
+    llm_config = {"model": model_name, "temperature": 0.0}
 
     if model_name.startswith("openrouter/"):
         llm_config["base_url"] = "https://openrouter.ai/api/v1"
