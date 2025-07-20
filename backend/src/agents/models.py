@@ -2,16 +2,16 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Literal, Optional, Any, List, Dict
 
-# --- Core Proposal Models (remain unchanged) ---
+class AuditResponse(BaseModel):
+    """The structured response from the Auditor Agent."""
+    approved: bool = Field(..., description="Whether the proposal is approved or rejected.")
+    justification: str = Field(..., description="A clear explanation for the approval or rejection decision.")
+
 class ElementEnrichment(BaseModel):
     """A JSON Patch operation to enrich a segment definition."""
     op: Literal["add", "replace", "remove"]
     path: str
     value: Optional[Any] = None
-
-class ElementEnrichmentProposal(BaseModel):
-    """The final JSON Patch proposal."""
-    patches: List[ElementEnrichment] = Field(default_factory=list)
 
 class RuleExpression(BaseModel):
     """A single condition, e.g., 'field CLM05-03 equals 7'."""
@@ -43,16 +43,10 @@ class ComplexRuleProposal(BaseModel):
     """The final list of extracted complex rules."""
     rules: List[ComplexRule] = Field(default_factory=list, description="A list of all complex rules extracted from the text.")
 
-
-# --- THIS IS THE NEW UNIVERSAL PARENT OBJECT ---
 class UniversalAgentResponse(BaseModel):
     """
-    A standardized response schema for all agents. Forces a consistent output structure
-    and includes a field for Chain-of-Thought reasoning.
+    A standardized response schema for agents that propose changes.
     """
     reasoning: str = Field(..., description="A step-by-step explanation of the agent's thought process, outlining how it reached its conclusion and generated the final data.")
-    
-    # One of the following fields should be populated, based on the agent's task.
-    # The other must be null.
-    element_enrichment: Optional[ElementEnrichmentProposal] = Field(None, description="The final JSON Patch proposal. To be used ONLY by the Element Enrichment agent.")
-    complex_rules: Optional[ComplexRuleProposal] = Field(None, description="The final list of extracted complex rules. To be used ONLY by the Complex Rule Extraction agent.")
+    patches: List[ElementEnrichment] = Field(default_factory=list, description="A list of JSON Patch operations. This can be an empty list if no changes are needed.")
+    complex_rules: Optional[ComplexRuleProposal] = Field(None, description="The final list of extracted complex rules.")

@@ -1,79 +1,99 @@
+# FILE: backend/src/edi_schemas/edi_guide.py
 from pydantic import BaseModel, Field
-from typing import List, Optional, Union, Dict, Any, Annotated, Literal
+from typing import List, Optional, Union, Dict, Any, Literal, Annotated
+
+class RuleDefinition(BaseModel):
+    """Represents a single, codified complex validation rule."""
+    ruleId: str
+    description: str
+    type: str
+    target: Optional[Dict[str, Any]] = None
+    conditions: Optional[List[Dict[str, Any]]] = None
+    action: Dict[str, Any]
+
+class CodeDefinition(BaseModel):
+    """Represents a single valid code and its optional description."""
+    code: Any
+    description: Optional[str] = None
 
 class ValidCodes(BaseModel):
-    """Defines the list of valid codes for a specific element."""
-    code: List[Union[str, int]]
+    """A container for a list of valid code definitions."""
+    codes: List[CodeDefinition]
 
-class ElementDefinition(BaseModel):
-    """Defines a single data element within a segment."""
+class ContextualElementOverride(BaseModel):
+    """Defines the properties of an element that can be overridden in a specific context."""
+    valid_codes: Optional[ValidCodes] = None
+    description: Optional[str] = None
+    usage: Optional[str] = None
+
+class ContextualDefinition(BaseModel):
+    """Defines a set of overrides for a segment within a specific loop context."""
+    name: str
+    description: Optional[str] = None
+    elements: Dict[str, ContextualElementOverride]
+
+class BaseElement(BaseModel):
+    """Defines a single data element within a base segment definition."""
     xid: str
     data_ele: Union[str, int]
     name: str
     usage: str
     seq: str
+    dataType: str
+    description: Optional[str] = None
+    minLength: Optional[int] = None
+    maxLength: Optional[int] = None
+    format: Optional[str] = None
     valid_codes: Optional[ValidCodes] = None
-    elements: Optional[List['ElementDefinition']] = None
+    elements: Optional[List['BaseElement']] = None # For composite elements
 
 class SegmentDefinition(BaseModel):
-    """Defines the structure and rules for a single segment (e.g., NM1, CLM)."""
+    """Defines the structure and rules for a single base segment (e.g., NM1, CLM)."""
     name: str
+    description: str
     usage: str
-    pos: str
-    max_use: int
-    elements: List[ElementDefinition]
-    elementsByXid: Dict[str, ElementDefinition] = Field(..., alias='elementsByXid')
-    syntax: Optional[List[Optional[str]]] = None
+    elements: List[BaseElement]
+    syntax: Optional[List[str]] = None
 
-class StructureLoopDefinition(BaseModel):
+class StructureSegment(BaseModel):
+    """Represents a segment's position within the EDI structure."""
+    type: Literal['segment']
+    xid: str
+    usage: str
+    max_use: int
+    baseDefinitionId: str
+    contextId: Optional[str] = None
+
+class StructureLoop(BaseModel):
     """Represents a loop within the EDI structure (e.g., 2000A)."""
     type: Literal['loop']
     xid: str
     name: str
     usage: str
-    pos: str
     repeat: Union[str, int]
-    # --- THIS IS THE FIX ---
-    # The 'children' field now defaults to an empty list if it's missing in the JSON file.
     children: List['StructureChild'] = Field(default_factory=list)
 
-class StructureSegmentDefinition(BaseModel):
-    """Represents a segment's position within the EDI structure."""
-    type: Literal['segment']
-    xid: str
-    pos: str
-    usage: str
-    max_use: int = Field(..., alias='max_use')
-    name: str
-    definitionId: Optional[str] = None
-
 StructureChild = Annotated[
-    Union[StructureLoopDefinition, StructureSegmentDefinition],
+    Union[StructureLoop, StructureSegment],
     Field(discriminator='type')
 ]
 
-# Rebuild the model to resolve the forward references.
-StructureLoopDefinition.model_rebuild()
-ElementDefinition.model_rebuild()
-
-
 class ImplementationGuideSchema(BaseModel):
     """
-    The top-level model representing a complete implementation guide schema,
-    parsed from a JSON definition file.
+    The top-level model representing a complete implementation guide schema.
     """
-    transactionName: str = Field(..., alias='transactionName')
-    segmentDefinitions: Dict[str, SegmentDefinition] = Field(..., alias='segmentDefinitions')
-    structure: List[StructureChild]
+    transactionName: str
+    version: str
+    description: str
+    rules: List[RuleDefinition] = Field(default_factory=list)
+    contextualDefinitions: Dict[str, ContextualDefinition] = Field(default_factory=dict)
+    segmentDefinitions: Dict[str, SegmentDefinition] = Field(default_factory=dict)
+    structure: List[StructureLoop]
 
-    def get_gs08_version(self) -> Optional[str]:
-        """
-        Helper method to extract the GS08 version identifier from the schema,
-        which is used as the primary key for loading guides.
-        """
-        gs_def = self.segmentDefinitions.get("GS")
-        if gs_def:
-            gs08_def = gs_def.elementsByXid.get("GS08")
-            if gs08_def and gs08_def.valid_codes:
-                return str(gs08_def.valid_codes.code[0])
-        return None
+    def get_version_key(self) -> str:
+        """Helper to get the primary key for the schema manager."""
+        return self.version
+
+# Rebuild models for forward references.
+BaseElement.model_rebuild()
+StructureLoop.model_rebuild()

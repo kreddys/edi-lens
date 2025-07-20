@@ -40,12 +40,12 @@ class SchemaManager:
                     schema = ImplementationGuideSchema.model_validate(schema_data)
                     
                     # Use the GS08 version as the key (e.g., '005010X222A1')
-                    schema_key = schema.get_gs08_version()
+                    schema_key = schema.get_version_key()
                     if schema_key:
                         self._schemas[schema_key] = schema
                         logger.info(f"Successfully loaded schema: {schema.transactionName} (Version: {schema_key})")
                     else:
-                        logger.warning(f"Could not determine GS08 version key for schema file: {file_path.name}")
+                        logger.warning(f"Could not determine version key for schema file: {file_path.name}")
             except Exception as e:
                 logger.error(f"Failed to load or parse schema from {file_path.name}: {e}", exc_info=True)
         
