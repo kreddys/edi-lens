@@ -1,6 +1,7 @@
 # FILE: backend/src/agents/tools/rag.py
 import httpx
 import logging
+import os
 from pydantic import BaseModel, Field
 from crewai.tools import BaseTool
 
@@ -10,7 +11,8 @@ from openlit.semcov import SemanticConvention
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer("edi_lens_rag_tool_tracer")
 
-LIGHTRAG_API_URL = "http://lightrag-server:9621"
+DEFAULT_LIGHTRAG_URL = "http://lightrag-server:9621"
+LIGHTRAG_API_URL = os.getenv("LIGHTRAG_API_URL", DEFAULT_LIGHTRAG_URL)
 
 class KnowledgeBaseQueryInput(BaseModel):
     query: str = Field(..., description="A clear, natural language question to ask the EDI implementation guide.")

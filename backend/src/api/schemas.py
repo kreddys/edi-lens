@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import List, Optional
+from typing import List, Optional, Literal
+from src.agents.models import UniversalAgentResponse
 
 from src.models.profile_criterion import FieldSource, Operator
 
@@ -102,3 +103,20 @@ class ValidationResponse(BaseModel):
     ta1_acknowledgement: Optional[str] = None
     ack999_acknowledgement: Optional[str] = None
     # parsed_segments is no longer needed as the CDM is an internal structure
+
+class EnrichmentAnalysisRequest(BaseModel):
+    """Request to start a new schema enrichment analysis job."""
+    schema_name: str = Field(..., description="The name of the schema file to analyze, e.g., '837.5010.X222.A1.json'.")
+    segment_id: str = Field(..., description="The segment ID to focus the analysis on, e.g., 'CLM'.")
+    context_id: str = Field(..., description="The specific contextual ID for the segment, e.g., '2300.CLM'.")
+
+class EnrichmentJobStartResponse(BaseModel):
+    """Response containing the ID of the started analysis job."""
+    job_id: str
+
+class EnrichmentJobStatusResponse(BaseModel):
+    """Response describing the status and result of an analysis job."""
+    job_id: str
+    status: Literal["running", "complete", "failed"]
+    result: Optional[UniversalAgentResponse] = None # We need to import UniversalAgentResponse
+    error: Optional[str] = None    
