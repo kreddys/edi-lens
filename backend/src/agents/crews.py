@@ -1,6 +1,7 @@
 # FILE: backend/src/agents/crews.py
 import logging
 import os
+import json
 from crewai import Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task
 
@@ -10,16 +11,16 @@ from .models import ElementEnrichmentProposal, ComplexRuleProposal
 
 logger = logging.getLogger(__name__)
 
+# We no longer need the schema here; the few-shot example is more effective.
+
 def _is_verbose_mode_enabled():
-    """Helper to control verbosity based on a single environment variable."""
+    # ... (this function is fine)
     return os.getenv('AGENT_VERBOSE', 'false').lower() == 'true'
 
 @CrewBase
 class SchemaEnrichmentCrews:
-    """
-    A collection of specialized agent crews that form a "Schema Assembly Line"
-    to generate and enrich an EDI schema from an implementation guide.
-    """
+    # ... (agent definitions and __init__ are fine) ...
+    # ...
     def __init__(self):
         self.rag_tool = KnowledgeBaseTool()
         self.llm = get_llm()
@@ -33,10 +34,10 @@ class SchemaEnrichmentCrews:
             goal="Generate a precise JSON patch to align a given JSON definition with the guide's specifications by first consulting the documentation, then identifying discrepancies, and finally creating the patch.",
             backstory=(
                 "You are a meticulous and obedient JSON Patch specialist for EDI schemas. "
-                "Your thought process MUST begin with using the 'EDI Guide Knowledge Base Tool' to find the specifications for the given segment. This is not optional. "
-                "After retrieving the documentation, your primary job is to compare the provided JSON to that documentation and generate a JSON patch array (`op`, `path`, `value`) to fix it. "
-                "You ONLY generate patches for what is explicitly different or missing. If the definition is already correct after consulting the guide, you return an empty patch array. "
-                "You do not hallucinate or add properties not mentioned in the guide."
+                "You work with two pieces of information: the 'current_definition_json' and the 'guide_text' retrieved from a tool. "
+                "Your ONLY job is to generate a JSON patch array (`op`, `path`, `value`) to make the `current_definition_json` match the rules described in the `guide_text`. "
+                "You ONLY generate patches for what is explicitly different or missing. If the definition is already correct, you return an empty patch array. "
+                "You never invent information or modify elements not mentioned in the guide text."
             ),
             tools=[self.rag_tool],
             llm=self.llm,
@@ -51,9 +52,10 @@ class SchemaEnrichmentCrews:
             role="EDI Complex Rule Analyst",
             goal="Extract all complex, conditional, and relational validation rules from the implementation guide and codify them into a structured, machine-readable JSON format, adhering strictly to the provided Pydantic model.",
             backstory=(
-                "You are a logic and syntax expert. You read between the lines of the implementation guide, searching for the complex business rules that govern the entire transaction. "
-                "You ignore simple element properties and focus on sentences containing keywords like 'if', 'when', 'then', 'required', 'must not', and 'must balance'. "
-                "Your sole purpose is to translate this complex business logic into a clear, data-driven JSON format that a validation engine can execute. You follow the requested output format perfectly."
+                "You are an expert at translating complex business logic from text into perfectly structured JSON. "
+                "Your SOLE purpose is to generate a JSON object that strictly conforms to the provided `ComplexRuleProposal` schema. "
+                "You pay extremely close attention to the required fields and the allowed values in `Literal` types within the schema. "
+                "Your output will be machine-validated, so precision is paramount. Do not add any conversational text or explanations around the final JSON object."
             ),
             tools=[self.rag_tool],
             llm=self.llm,
@@ -66,21 +68,48 @@ class SchemaEnrichmentCrews:
     def element_enrichment_task(self) -> Task:
         return Task(
             description=(
-                "You are a JSON Patch specialist for EDI schemas. Your task is to align the JSON definition for the '{segment_id}' segment.\n"
-                "The current definition is: {current_definition_json}\n\n"
-                "Your process MUST be:\n"
-                "1. Use the 'EDI Guide Knowledge Base Tool' to get the ground-truth specifications for the '{segment_id}' segment. Your query must be specific to '{segment_id}'.\n"
-                "2. Compare the `current_definition_json` against the documentation you retrieved. Pay close attention to keywords.\n"
-                "   - The word 'Required' in the guide MUST map to a 'usage' value of 'R'.\n"
-                "   - The word 'Situational' or 'Optional' in the guide MUST map to a 'usage' value of 'S'.\n"
-                "3. Generate a list of JSON Patch operations to correct any discrepancies for the '{segment_id}' segment.\n"
-                "4. CRITICAL: If the definition is already correct, you MUST return an empty list `[]`.\n"
-                "5. Your final output MUST be a valid JSON object matching the `ElementEnrichmentProposal` model."
+                # --- THIS IS THE FIX ---
+                # We are adding a strong few-shot example to show the agent EXACTLY how to
+                # construct the 'value' for an 'add' operation. This is the most effective
+                # way to prevent the "lazy" behavior of only adding the 'xid'.
+                "Your task is to create a JSON Patch to modify a `current_definition_json` to match the rules in your retrieved `guide_text`. Follow these steps and the example precisely.\n\n"
+                "**EXAMPLE:**\n"
+                "--------\n"
+                "**`current_definition_json`:**\n"
+                "`{{\"elements\": [{{\"xid\": \"CLM01\"}}]}}`\n\n"
+                "**`guide_text` from tool:**\n"
+                "'The CLM segment contains CLM09 Release of Information, which is Situational.'\n\n"
+                "**Correct JSON Patch Output:**\n"
+                "```json\n"
+                '{{\n'
+                '  "patches": [\n'
+                '    {{\n'
+                '      "op": "add",\n'
+                '      "path": "/elements/1",\n'
+                '      "value": {{\n'
+                '        "xid": "CLM09",\n'
+                '        "name": "Release of Information",\n'
+                '        "usage": "S"\n'
+                '      }}\n'
+                '    }}\n'
+                '  ]\n'
+                '}}\n'
+                "```\n"
+                "**Logic**: The example shows that you must create a complete element object for the `add` operation's `value`. You must infer the `name` from the text and correctly map the word 'Situational' to a `usage` of 'S'.\n"
+                "--------\n\n"
+                "**YOUR TASK:**\n"
+                "Now, apply this exact same logic to the following inputs for the '{segment_id}' segment:\n"
+                "**`current_definition_json`**: {current_definition_json}\n\n"
+                "**INSTRUCTIONS**:\n"
+                "1. Use the 'EDI Guide Knowledge Base Tool' to get the official `guide_text` for the '{segment_id}' segment.\n"
+                "2. Assume the retrieved text is the complete source of truth.\n"
+                "3. Compare the `current_definition_json` to the `guide_text`.\n"
+                "4. Generate the JSON Patch to fix any issues, following the format from the example above. Remember to map 'Required' to `usage: 'R'` and 'Situational' to `usage: 'S'`.\n"
+                "5. If no changes are needed, return `{{\"patches\": []}}`."
+                # --- END OF FIX ---
             ),
             expected_output=(
-                "A single, valid JSON object matching the `ElementEnrichmentProposal` Pydantic model, "
-                "containing a list of JSON Patch operations for the '{segment_id}' segment. For example: "
-                '`{"patches": [{"op": "replace", "path": "/elements/0/usage", "value": "R"}]}` or `{"patches": []}` if no changes are needed.'
+                "A single, valid JSON object that perfectly matches the `ElementEnrichmentProposal` model."
             ),
             agent=self.element_enrichment_agent_instance,
             output_json=ElementEnrichmentProposal
@@ -90,16 +119,52 @@ class SchemaEnrichmentCrews:
     def complex_rule_extraction_task(self) -> Task:
         return Task(
             description=(
-                "Analyze the provided `guide_text_chunk`. Your goal is to identify and extract ONLY complex, conditional, or relational rules. "
-                "Ignore simple properties like data types or code lists. Focus on rules that span multiple elements or segments (e.g., 'If X, then Y is required').\n"
-                "For each rule found, create a `ComplexRule` object, filling in all fields, especially the `type`, `conditions`, and `action`.\n"
-                "Your final output must be a `ComplexRuleProposal` object containing a list of all such extracted rules."
+                # --- THIS IS THE FIX for the 'rule extraction' failure ---
+                # We remove the huge, overwhelming JSON schema and replace it with a concise,
+                # powerful few-shot example. This is much easier for the LLM to follow.
+                "Analyze the `guide_text_chunk` to identify and extract all complex, conditional, or relational rules. "
+                "Your final output MUST be a single JSON object that strictly conforms to the `ComplexRuleProposal` Pydantic model. "
+                "Follow the format in this example precisely.\n\n"
+                "**EXAMPLE:**\n"
+                "--------\n"
+                "**Input Text:**\n"
+                "'When the REF01 element contains the code 'G2', then the REF02 element is required.'\n\n"
+                "**Correct JSON Output:**\n"
+                "```json\n"
+                '{{\n'
+                '  "rules": [\n'
+                '    {{\n'
+                '      "ruleId": "REF_G2_Requirement",\n'
+                '      "description": "If REF01 is \'G2\', then REF02 must be present.",\n'
+                '      "citation": "From guide text",\n'
+                '      "appliesTo": {{"segment": "REF"}},\n'
+                '      "conditions": {{\n'
+                '        "logicalOperator": "AND",\n'
+                '        "expressions": [\n'
+                '          {{\n'
+                '            "field": "REF01",\n'
+                '            "operator": "equals",\n'
+                '            "value": "G2"\n'
+                '          }}\n'
+                '        ]\n'
+                '      }},\n'
+                '      "action": {{\n'
+                '        "type": "REQUIRE_ELEMENT",\n'
+                '        "details": {{"element": "REF02"}}\n'
+                '      }}\n'
+                '    }}\n'
+                '  ]\n'
+                '}}\n'
+                "```\n"
+                "--------\n"
+                "Now, apply this exact same logic and structure to the current `guide_text_chunk`."
+                # --- END OF FIX ---
             ),
-            expected_output="A single, valid JSON object matching the `ComplexRuleProposal` Pydantic model.",
+            expected_output="A single, valid JSON object that perfectly matches the example's structure.",
             agent=self.complex_rule_extraction_agent_instance,
             output_json=ComplexRuleProposal
         )
-
+    # ... (crews are fine) ...
     @crew
     def element_enrichment_crew(self) -> Crew:
         return Crew(
