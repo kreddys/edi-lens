@@ -17,10 +17,11 @@ def get_llm() -> CrewLLM:
     """
     Dynamically configures and returns a CrewAI LLM instance based on environment variables.
     """
-    model_name = os.getenv("LLM_MODEL")
+    model_name = os.getenv("LLM_AGENT_MODEL")
     if not model_name:
-        logger.warning("LLM_MODEL environment variable not set. Defaulting to 'anthropic/claude-3-sonnet-20240229'.")
-        model_name = "anthropic/claude-3-sonnet-20240229"
+        # The warning message is also updated to reflect the correct variable.
+        logger.warning("LLM_AGENT_MODEL environment variable not set. Defaulting to 'openrouter/openai/gpt-4.1-mini'.")
+        model_name = "openrouter/openai/gpt-4.1-mini"
 
     logger.info(f"Configuring LLM for model: '{model_name}'")
 

@@ -63,3 +63,4 @@ postgres-data/
 keycloak-config/realm-export.json
 
 logs/
+tmp/
