@@ -229,6 +229,13 @@
           }
         }
       }
+    },
+    "2300.CLM": {
+      "id": "2300.CLM",
+      "segmentId": "CLM",
+      "usage": "R",
+      "maxUse": 1,
+      "description": "Contextual override for CLM segment in 2300 Claim Information Loop, required once."
     }
   },
   "segmentDefinitions": {
@@ -551,97 +558,104 @@
     "CLM": {
       "id": "CLM",
       "name": "Claim Information",
-      "description": "To transmit claim information",
+      "description": "Specifies essential data about the claim being processed.",
+      "segmentType": "segment",
       "elements": [
         {
           "id": "CLM01",
-          "name": "Claim Submitter's Identifier",
+          "name": "Patient Control Number",
+          "ref": "1028",
           "type": "AN",
           "minLength": 1,
           "maxLength": 38,
           "usage": "R",
-          "description": "Identifies the claim"
+          "description": "Identifier used to track a claim from creation by the health care provider through payment."
         },
         {
           "id": "CLM02",
-          "name": "Monetary Amount",
+          "name": "Total Claim Charge Amount",
+          "ref": "782",
           "type": "R",
           "minLength": 1,
-          "maxLength": 18,
+          "maxLength": 15,
           "usage": "R",
-          "description": "Total claim charge amount"
+          "description": "Total amount of all submitted charges of service segments for this claim."
         },
         {
           "id": "CLM03",
           "name": "Claim Filing Indicator Code",
+          "ref": "1032",
           "type": "ID",
           "minLength": 2,
           "maxLength": 2,
-          "usage": "R",
-          "description": "Code indicating the type of claim"
+          "usage": "S",
+          "description": "Code indicating the type of claim."
         },
         {
           "id": "CLM04",
           "name": "Non-Institutional Claim Type Code",
+          "ref": "1069",
           "type": "ID",
           "minLength": 1,
           "maxLength": 2,
           "usage": "S",
-          "description": "Type of non-institutional claim"
+          "description": "Code indicating the type of non-institutional claim."
         },
         {
           "id": "CLM05",
-          "name": "Provider Signature Indicator",
+          "name": "Health Care Service Location Information",
+          "ref": "C023",
           "type": "ID",
-          "minLength": 1,
-          "maxLength": 1,
           "usage": "S",
-          "description": "Indicates if provider signature is on file"
+          "description": "Identifies the place of service or the type of bill related to the location at which a health care service was rendered."
         },
         {
           "id": "CLM06",
-          "name": "Benefits Assignment Certification Indicator",
+          "name": "Provider or Supplier Signature Indicator",
+          "ref": "1073",
           "type": "ID",
-          "minLength": 1,
-          "maxLength": 1,
           "usage": "S",
-          "description": "Indicates if benefits assignment is certified"
+          "description": "Indicates whether a provider's signature is on file for a claim."
         },
         {
           "id": "CLM07",
-          "name": "Release of Information Code",
+          "name": "Assignment or Plan Participation Code",
+          "ref": "1359",
           "type": "ID",
-          "minLength": 1,
-          "maxLength": 1,
           "usage": "S",
-          "description": "Indicates if release of information is authorized"
+          "description": "Indicates whether the provider accepts assignment."
         },
         {
           "id": "CLM08",
-          "name": "Patient Signature Source Code",
+          "name": "Benefits Assignment Certification Indicator",
+          "ref": "1073",
           "type": "ID",
-          "minLength": 1,
-          "maxLength": 1,
           "usage": "S",
-          "description": "Source of patient signature"
+          "description": "Indicates if the insured has authorized the plan to remit payment directly to the provider."
         },
         {
           "id": "CLM09",
-          "name": "Related Causes Code",
+          "name": "Release of Information Code",
+          "ref": "1363",
           "type": "ID",
-          "minLength": 1,
-          "maxLength": 2,
           "usage": "S",
-          "description": "Code indicating related causes"
+          "description": "Indicates whether the provider has on file a signed statement by the patient authorizing the release of medical data to other organizations."
         },
         {
           "id": "CLM10",
-          "name": "Special Program Indicator",
+          "name": "Patient Signature Source Code",
+          "ref": "1351",
           "type": "ID",
-          "minLength": 1,
-          "maxLength": 1,
           "usage": "S",
-          "description": "Indicates special program"
+          "description": "Code indicating how the patient or subscriber authorization signatures were obtained and how they are being retained by the provider."
+        },
+        {
+          "id": "CLM11",
+          "name": "Related Causes Information",
+          "ref": "C024",
+          "type": "ID",
+          "usage": "S",
+          "description": "Optional information to identify related causes of an illness or accident."
         }
       ]
     }
