@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional, Literal
-from src.agents.models import UniversalAgentResponse
 
+from src.agents.models import UniversalAgentResponse, ElementEnrichment
 from src.models.profile_criterion import FieldSource, Operator
 
 # --- THIS IS THE NEW SECTION ---
@@ -120,3 +120,8 @@ class EnrichmentJobStatusResponse(BaseModel):
     status: Literal["running", "complete", "failed"]
     result: Optional[UniversalAgentResponse] = None # We need to import UniversalAgentResponse
     error: Optional[str] = None    
+
+class EnrichmentApplyRequest(BaseModel):
+    """Request to apply a single JSON patch to a schema."""
+    schema_name: str
+    patch: ElementEnrichment    

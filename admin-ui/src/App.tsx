@@ -13,6 +13,8 @@ import { dataProvider, authProvider, accessControlProvider, ThemeProvider } from
 import { TradingPartnerList, TradingPartnerCreate, TradingPartnerEdit, TradingPartnerShow } from "./pages/tradingPartners";
 import { SchemaEditorList } from "./pages/schemaEditor/SchemaEditorList";
 
+import { EnrichmentPage } from "./pages/enrichment/list";
+
 function App() {
   return (
     <BrowserRouter>
@@ -40,7 +42,14 @@ function App() {
                       label: "Schema Editor",
                       canDelete: false 
                     }
-                }
+                },
+                {
+                    name: "enrichment",
+                    list: "/enrichment",
+                    meta: {
+                        label: "Schema Co-Pilot"
+                    }
+                }                
               ]}
               options={{ syncWithLocation: true, warnWhenUnsavedChanges: true }}
             >
@@ -54,6 +63,7 @@ function App() {
                     <Route path="show/:id" element={<TradingPartnerShow />} />
                   </Route>
                   <Route path="/schema-editor" element={<SchemaEditorList />} />
+                  <Route path="/enrichment" element={<EnrichmentPage />} />
                   <Route path="*" element={<ErrorComponent />} />
                 </Route>
               </Routes>

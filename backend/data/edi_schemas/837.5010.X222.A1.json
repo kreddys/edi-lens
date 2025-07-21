@@ -90,41 +90,144 @@
       "name": "Submitter Name",
       "description": "Identifies the entity submitting the transaction set.",
       "elements": {
-        "NM101": { "valid_codes": { "codes": [ { "code": "41", "description": "Submitter" } ] } },
-        "NM108": { "valid_codes": { "codes": [ { "code": "46", "description": "Electronic Transmitter Identification Number (ETIN)" } ] } }
+        "NM101": {
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "41",
+                "description": "Submitter"
+              }
+            ]
+          }
+        },
+        "NM108": {
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "46",
+                "description": "Electronic Transmitter Identification Number (ETIN)"
+              }
+            ]
+          }
+        }
       }
     },
     "1000B.NM1": {
       "name": "Receiver Name",
       "description": "Identifies the entity intended to receive the transaction set.",
       "elements": {
-        "NM101": { "valid_codes": { "codes": [ { "code": "40", "description": "Receiver" } ] } },
-        "NM102": { "valid_codes": { "codes": [ { "code": 2, "description": "Non-Person Entity" } ] } },
-        "NM108": { "valid_codes": { "codes": [ { "code": "46", "description": "Electronic Transmitter Identification Number (ETIN)" } ] } }
+        "NM101": {
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "40",
+                "description": "Receiver"
+              }
+            ]
+          }
+        },
+        "NM102": {
+          "valid_codes": {
+            "codes": [
+              {
+                "code": 2,
+                "description": "Non-Person Entity"
+              }
+            ]
+          }
+        },
+        "NM108": {
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "46",
+                "description": "Electronic Transmitter Identification Number (ETIN)"
+              }
+            ]
+          }
+        }
       }
     },
     "2010AA.NM1": {
       "name": "Billing Provider Name",
       "description": "Identifies the provider to be paid for the services rendered.",
       "elements": {
-        "NM101": { "valid_codes": { "codes": [ { "code": "85", "description": "Billing Provider" } ] } },
-        "NM108": { "valid_codes": { "codes": [ { "code": "XX", "description": "National Provider Identifier (NPI)" } ] } }
+        "NM101": {
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "85",
+                "description": "Billing Provider"
+              }
+            ]
+          }
+        },
+        "NM108": {
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "XX",
+                "description": "National Provider Identifier (NPI)"
+              }
+            ]
+          }
+        }
       }
     },
     "2010BA.NM1": {
       "name": "Subscriber Name",
       "description": "Identifies the person who is the policyholder for the insurance.",
       "elements": {
-        "NM101": { "valid_codes": { "codes": [ { "code": "IL", "description": "Insured or Subscriber" } ] } },
-        "NM108": { "valid_codes": { "codes": [ { "code": "II", "description": "Health Insurance Claim (HIC) Number" }, { "code": "MI", "description": "Member Identification Number" } ] } }
+        "NM101": {
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "IL",
+                "description": "Insured or Subscriber"
+              }
+            ]
+          }
+        },
+        "NM108": {
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "II",
+                "description": "Health Insurance Claim (HIC) Number"
+              },
+              {
+                "code": "MI",
+                "description": "Member Identification Number"
+              }
+            ]
+          }
+        }
       }
     },
     "2010CA.NM1": {
       "name": "Patient Name",
       "description": "Identifies the person who received the medical services, if different from the subscriber.",
       "elements": {
-        "NM101": { "valid_codes": { "codes": [ { "code": "QC", "description": "Patient" } ] } },
-        "NM102": { "valid_codes": { "codes": [ { "code": 1, "description": "Person" } ] } }
+        "NM101": {
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "QC",
+                "description": "Patient"
+              }
+            ]
+          }
+        },
+        "NM102": {
+          "valid_codes": {
+            "codes": [
+              {
+                "code": 1,
+                "description": "Person"
+              }
+            ]
+          }
+        }
       }
     }
   },
@@ -134,22 +237,213 @@
       "description": "To start and identify an interchange of zero or more functional groups and interchange-related control segments.",
       "usage": "R",
       "elements": [
-        { "xid": "ISA01", "data_ele": "I01", "name": "Authorization Information Qualifier", "usage": "R", "seq": "01", "dataType": "Identifier", "valid_codes": { "codes": [ { "code": "00", "description": "No Authorization Information Present" }, { "code": "03", "description": "Additional Data Identification" } ] } },
-        { "xid": "ISA02", "data_ele": "I02", "name": "Authorization Information", "usage": "R", "seq": "02", "dataType": "String", "minLength": 10, "maxLength": 10 },
-        { "xid": "ISA03", "data_ele": "I03", "name": "Security Information Qualifier", "usage": "R", "seq": "03", "dataType": "Identifier", "valid_codes": { "codes": [ { "code": "00", "description": "No Security Information Present" }, { "code": "01", "description": "Password" } ] } },
-        { "xid": "ISA04", "data_ele": "I04", "name": "Security Information", "usage": "R", "seq": "04", "dataType": "String", "minLength": 10, "maxLength": 10 },
-        { "xid": "ISA05", "data_ele": "I05", "name": "Interchange ID Qualifier", "usage": "R", "seq": "05", "dataType": "Identifier", "minLength": 2, "maxLength": 2 },
-        { "xid": "ISA06", "data_ele": "I06", "name": "Interchange Sender ID", "usage": "R", "seq": "06", "dataType": "String", "minLength": 15, "maxLength": 15 },
-        { "xid": "ISA07", "data_ele": "I05", "name": "Interchange ID Qualifier", "usage": "R", "seq": "07", "dataType": "Identifier", "minLength": 2, "maxLength": 2 },
-        { "xid": "ISA08", "data_ele": "I07", "name": "Interchange Receiver ID", "usage": "R", "seq": "08", "dataType": "String", "minLength": 15, "maxLength": 15 },
-        { "xid": "ISA09", "data_ele": "I08", "name": "Interchange Date", "usage": "R", "seq": "09", "dataType": "Date", "format": "YYMMDD" },
-        { "xid": "ISA10", "data_ele": "I09", "name": "Interchange Time", "usage": "R", "seq": "10", "dataType": "Time", "format": "HHMM" },
-        { "xid": "ISA11", "data_ele": "I65", "name": "Repetition Separator", "usage": "R", "seq": "11", "dataType": "String", "minLength": 1, "maxLength": 1 },
-        { "xid": "ISA12", "data_ele": "I11", "name": "Interchange Control Version Number", "usage": "R", "seq": "12", "dataType": "Identifier", "valid_codes": { "codes": [ { "code": "00501" } ] } },
-        { "xid": "ISA13", "data_ele": "I12", "name": "Interchange Control Number", "usage": "R", "seq": "13", "dataType": "Numeric", "minLength": 9, "maxLength": 9 },
-        { "xid": "ISA14", "data_ele": "I13", "name": "Acknowledgment Requested", "usage": "R", "seq": "14", "dataType": "Identifier", "valid_codes": { "codes": [ { "code": 0, "description": "No Acknowledgment Requested" }, { "code": 1, "description": "Interchange Acknowledgment Requested" } ] } },
-        { "xid": "ISA15", "data_ele": "I14", "name": "Interchange Usage Indicator", "usage": "R", "seq": "15", "dataType": "Identifier", "valid_codes": { "codes": [ { "code": "I", "description": "Information" }, { "code": "P", "description": "Production Data" }, { "code": "T", "description": "Test Data" } ] } },
-        { "xid": "ISA16", "data_ele": "I15", "name": "Component Element Separator", "usage": "R", "seq": "16", "dataType": "String", "minLength": 1, "maxLength": 1 }
+        {
+          "xid": "ISA01",
+          "data_ele": "I01",
+          "name": "Authorization Information Qualifier",
+          "usage": "R",
+          "seq": "01",
+          "dataType": "Identifier",
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "00",
+                "description": "No Authorization Information Present"
+              },
+              {
+                "code": "03",
+                "description": "Additional Data Identification"
+              }
+            ]
+          }
+        },
+        {
+          "xid": "ISA02",
+          "data_ele": "I02",
+          "name": "Authorization Information",
+          "usage": "R",
+          "seq": "02",
+          "dataType": "String",
+          "minLength": 10,
+          "maxLength": 10
+        },
+        {
+          "xid": "ISA03",
+          "data_ele": "I03",
+          "name": "Security Information Qualifier",
+          "usage": "R",
+          "seq": "03",
+          "dataType": "Identifier",
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "00",
+                "description": "No Security Information Present"
+              },
+              {
+                "code": "01",
+                "description": "Password"
+              }
+            ]
+          }
+        },
+        {
+          "xid": "ISA04",
+          "data_ele": "I04",
+          "name": "Security Information",
+          "usage": "R",
+          "seq": "04",
+          "dataType": "String",
+          "minLength": 10,
+          "maxLength": 10
+        },
+        {
+          "xid": "ISA05",
+          "data_ele": "I05",
+          "name": "Interchange ID Qualifier",
+          "usage": "R",
+          "seq": "05",
+          "dataType": "Identifier",
+          "minLength": 2,
+          "maxLength": 2
+        },
+        {
+          "xid": "ISA06",
+          "data_ele": "I06",
+          "name": "Interchange Sender ID",
+          "usage": "R",
+          "seq": "06",
+          "dataType": "String",
+          "minLength": 15,
+          "maxLength": 15
+        },
+        {
+          "xid": "ISA07",
+          "data_ele": "I05",
+          "name": "Interchange ID Qualifier",
+          "usage": "R",
+          "seq": "07",
+          "dataType": "Identifier",
+          "minLength": 2,
+          "maxLength": 2
+        },
+        {
+          "xid": "ISA08",
+          "data_ele": "I07",
+          "name": "Interchange Receiver ID",
+          "usage": "R",
+          "seq": "08",
+          "dataType": "String",
+          "minLength": 15,
+          "maxLength": 15
+        },
+        {
+          "xid": "ISA09",
+          "data_ele": "I08",
+          "name": "Interchange Date",
+          "usage": "R",
+          "seq": "09",
+          "dataType": "Date",
+          "format": "YYMMDD"
+        },
+        {
+          "xid": "ISA10",
+          "data_ele": "I09",
+          "name": "Interchange Time",
+          "usage": "R",
+          "seq": "10",
+          "dataType": "Time",
+          "format": "HHMM"
+        },
+        {
+          "xid": "ISA11",
+          "data_ele": "I65",
+          "name": "Repetition Separator",
+          "usage": "R",
+          "seq": "11",
+          "dataType": "String",
+          "minLength": 1,
+          "maxLength": 1
+        },
+        {
+          "xid": "ISA12",
+          "data_ele": "I11",
+          "name": "Interchange Control Version Number",
+          "usage": "R",
+          "seq": "12",
+          "dataType": "Identifier",
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "00501"
+              }
+            ]
+          }
+        },
+        {
+          "xid": "ISA13",
+          "data_ele": "I12",
+          "name": "Interchange Control Number",
+          "usage": "R",
+          "seq": "13",
+          "dataType": "Numeric",
+          "minLength": 9,
+          "maxLength": 9
+        },
+        {
+          "xid": "ISA14",
+          "data_ele": "I13",
+          "name": "Acknowledgment Requested",
+          "usage": "R",
+          "seq": "14",
+          "dataType": "Identifier",
+          "valid_codes": {
+            "codes": [
+              {
+                "code": 0,
+                "description": "No Acknowledgment Requested"
+              },
+              {
+                "code": 1,
+                "description": "Interchange Acknowledgment Requested"
+              }
+            ]
+          }
+        },
+        {
+          "xid": "ISA15",
+          "data_ele": "I14",
+          "name": "Interchange Usage Indicator",
+          "usage": "R",
+          "seq": "15",
+          "dataType": "Identifier",
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "I",
+                "description": "Information"
+              },
+              {
+                "code": "P",
+                "description": "Production Data"
+              },
+              {
+                "code": "T",
+                "description": "Test Data"
+              }
+            ]
+          }
+        },
+        {
+          "xid": "ISA16",
+          "data_ele": "I15",
+          "name": "Component Element Separator",
+          "usage": "R",
+          "seq": "16",
+          "dataType": "String",
+          "minLength": 1,
+          "maxLength": 1
+        }
       ]
     },
     "GS": {
@@ -157,18 +451,202 @@
       "description": "To indicate the beginning of a functional group and to provide control information.",
       "usage": "R",
       "elements": [
-        { "xid": "GS01", "data_ele": 479, "name": "Functional Identifier Code", "usage": "R", "seq": "01", "dataType": "Identifier", "valid_codes": { "codes": [ { "code": "HC", "description": "Health Care Claim (837)" } ] } },
-        { "xid": "GS02", "data_ele": 142, "name": "Application Sender's Code", "usage": "R", "seq": "02", "dataType": "String", "minLength": 2, "maxLength": 15 },
-        { "xid": "GS03", "data_ele": 124, "name": "Application Receiver's Code", "usage": "R", "seq": "03", "dataType": "String", "minLength": 2, "maxLength": 15 },
-        { "xid": "GS04", "data_ele": 373, "name": "Date", "usage": "R", "seq": "04", "dataType": "Date", "format": "CCYYMMDD" },
-        { "xid": "GS05", "data_ele": 337, "name": "Time", "usage": "R", "seq": "05", "dataType": "Time", "format": "HHMM" },
-        { "xid": "GS06", "data_ele": 28, "name": "Group Control Number", "usage": "R", "seq": "06", "dataType": "Numeric", "minLength": 1, "maxLength": 9 },
-        { "xid": "GS07", "data_ele": 455, "name": "Responsible Agency Code", "usage": "R", "seq": "07", "dataType": "Identifier", "valid_codes": { "codes": [ { "code": "X", "description": "Accredited Standards Committee X12" } ] } },
-        { "xid": "GS08", "data_ele": 480, "name": "Version / Release / Industry Identifier Code", "usage": "R", "seq": "08", "dataType": "String", "valid_codes": { "codes": [ { "code": "005010X222A1" } ] } }
+        {
+          "xid": "GS01",
+          "data_ele": 479,
+          "name": "Functional Identifier Code",
+          "usage": "R",
+          "seq": "01",
+          "dataType": "Identifier",
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "HC",
+                "description": "Health Care Claim (837)"
+              }
+            ]
+          }
+        },
+        {
+          "xid": "GS02",
+          "data_ele": 142,
+          "name": "Application Sender's Code",
+          "usage": "R",
+          "seq": "02",
+          "dataType": "String",
+          "minLength": 2,
+          "maxLength": 15
+        },
+        {
+          "xid": "GS03",
+          "data_ele": 124,
+          "name": "Application Receiver's Code",
+          "usage": "R",
+          "seq": "03",
+          "dataType": "String",
+          "minLength": 2,
+          "maxLength": 15
+        },
+        {
+          "xid": "GS04",
+          "data_ele": 373,
+          "name": "Date",
+          "usage": "R",
+          "seq": "04",
+          "dataType": "Date",
+          "format": "CCYYMMDD"
+        },
+        {
+          "xid": "GS05",
+          "data_ele": 337,
+          "name": "Time",
+          "usage": "R",
+          "seq": "05",
+          "dataType": "Time",
+          "format": "HHMM"
+        },
+        {
+          "xid": "GS06",
+          "data_ele": 28,
+          "name": "Group Control Number",
+          "usage": "R",
+          "seq": "06",
+          "dataType": "Numeric",
+          "minLength": 1,
+          "maxLength": 9
+        },
+        {
+          "xid": "GS07",
+          "data_ele": 455,
+          "name": "Responsible Agency Code",
+          "usage": "R",
+          "seq": "07",
+          "dataType": "Identifier",
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "X",
+                "description": "Accredited Standards Committee X12"
+              }
+            ]
+          }
+        },
+        {
+          "xid": "GS08",
+          "data_ele": 480,
+          "name": "Version / Release / Industry Identifier Code",
+          "usage": "R",
+          "seq": "08",
+          "dataType": "String",
+          "valid_codes": {
+            "codes": [
+              {
+                "code": "005010X222A1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "CLM": {
+      "id": "CLM",
+      "name": "Claim Information",
+      "description": "To transmit claim information",
+      "elements": [
+        {
+          "id": "CLM01",
+          "name": "Claim Submitter's Identifier",
+          "type": "AN",
+          "minLength": 1,
+          "maxLength": 38,
+          "usage": "R",
+          "description": "Identifies the claim"
+        },
+        {
+          "id": "CLM02",
+          "name": "Monetary Amount",
+          "type": "R",
+          "minLength": 1,
+          "maxLength": 18,
+          "usage": "R",
+          "description": "Total claim charge amount"
+        },
+        {
+          "id": "CLM03",
+          "name": "Claim Filing Indicator Code",
+          "type": "ID",
+          "minLength": 2,
+          "maxLength": 2,
+          "usage": "R",
+          "description": "Code indicating the type of claim"
+        },
+        {
+          "id": "CLM04",
+          "name": "Non-Institutional Claim Type Code",
+          "type": "ID",
+          "minLength": 1,
+          "maxLength": 2,
+          "usage": "S",
+          "description": "Type of non-institutional claim"
+        },
+        {
+          "id": "CLM05",
+          "name": "Provider Signature Indicator",
+          "type": "ID",
+          "minLength": 1,
+          "maxLength": 1,
+          "usage": "S",
+          "description": "Indicates if provider signature is on file"
+        },
+        {
+          "id": "CLM06",
+          "name": "Benefits Assignment Certification Indicator",
+          "type": "ID",
+          "minLength": 1,
+          "maxLength": 1,
+          "usage": "S",
+          "description": "Indicates if benefits assignment is certified"
+        },
+        {
+          "id": "CLM07",
+          "name": "Release of Information Code",
+          "type": "ID",
+          "minLength": 1,
+          "maxLength": 1,
+          "usage": "S",
+          "description": "Indicates if release of information is authorized"
+        },
+        {
+          "id": "CLM08",
+          "name": "Patient Signature Source Code",
+          "type": "ID",
+          "minLength": 1,
+          "maxLength": 1,
+          "usage": "S",
+          "description": "Source of patient signature"
+        },
+        {
+          "id": "CLM09",
+          "name": "Related Causes Code",
+          "type": "ID",
+          "minLength": 1,
+          "maxLength": 2,
+          "usage": "S",
+          "description": "Code indicating related causes"
+        },
+        {
+          "id": "CLM10",
+          "name": "Special Program Indicator",
+          "type": "ID",
+          "minLength": 1,
+          "maxLength": 1,
+          "usage": "S",
+          "description": "Indicates special program"
+        }
       ]
     }
   },
-"structure": [
+  "structure": [
     {
       "type": "loop",
       "xid": "ISA_LOOP",
@@ -176,7 +654,13 @@
       "usage": "R",
       "repeat": ">1",
       "children": [
-        { "type": "segment", "xid": "ISA", "usage": "R", "max_use": 1, "baseDefinitionId": "ISA" },
+        {
+          "type": "segment",
+          "xid": "ISA",
+          "usage": "R",
+          "max_use": 1,
+          "baseDefinitionId": "ISA"
+        },
         {
           "type": "loop",
           "xid": "GS_LOOP",
@@ -184,7 +668,13 @@
           "usage": "R",
           "repeat": ">1",
           "children": [
-            { "type": "segment", "xid": "GS", "usage": "R", "max_use": 1, "baseDefinitionId": "GS" },
+            {
+              "type": "segment",
+              "xid": "GS",
+              "usage": "R",
+              "max_use": 1,
+              "baseDefinitionId": "GS"
+            },
             {
               "type": "loop",
               "xid": "ST_LOOP",
@@ -192,7 +682,13 @@
               "usage": "R",
               "repeat": ">1",
               "children": [
-                { "type": "segment", "xid": "ST", "usage": "R", "max_use": 1, "baseDefinitionId": "ST" },
+                {
+                  "type": "segment",
+                  "xid": "ST",
+                  "usage": "R",
+                  "max_use": 1,
+                  "baseDefinitionId": "ST"
+                },
                 {
                   "type": "loop",
                   "xid": "HEADER",
@@ -200,7 +696,13 @@
                   "usage": "R",
                   "repeat": 1,
                   "children": [
-                    { "type": "segment", "xid": "BHT", "usage": "R", "max_use": 1, "baseDefinitionId": "BHT" },
+                    {
+                      "type": "segment",
+                      "xid": "BHT",
+                      "usage": "R",
+                      "max_use": 1,
+                      "baseDefinitionId": "BHT"
+                    },
                     {
                       "type": "loop",
                       "xid": "1000A",
@@ -208,8 +710,21 @@
                       "usage": "R",
                       "repeat": 1,
                       "children": [
-                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1", "contextId": "1000A.NM1" },
-                        { "type": "segment", "xid": "PER", "usage": "R", "max_use": 2, "baseDefinitionId": "PER" }
+                        {
+                          "type": "segment",
+                          "xid": "NM1",
+                          "usage": "R",
+                          "max_use": 1,
+                          "baseDefinitionId": "NM1",
+                          "contextId": "1000A.NM1"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "PER",
+                          "usage": "R",
+                          "max_use": 2,
+                          "baseDefinitionId": "PER"
+                        }
                       ]
                     },
                     {
@@ -219,7 +734,14 @@
                       "usage": "R",
                       "repeat": 1,
                       "children": [
-                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1", "contextId": "1000B.NM1" }
+                        {
+                          "type": "segment",
+                          "xid": "NM1",
+                          "usage": "R",
+                          "max_use": 1,
+                          "baseDefinitionId": "NM1",
+                          "contextId": "1000B.NM1"
+                        }
                       ]
                     }
                   ]
@@ -238,9 +760,27 @@
                       "usage": "R",
                       "repeat": ">1",
                       "children": [
-                        { "type": "segment", "xid": "HL", "usage": "R", "max_use": 1, "baseDefinitionId": "HL" },
-                        { "type": "segment", "xid": "PRV", "usage": "S", "max_use": 1, "baseDefinitionId": "PRV" },
-                        { "type": "segment", "xid": "CUR", "usage": "S", "max_use": 1, "baseDefinitionId": "CUR" },
+                        {
+                          "type": "segment",
+                          "xid": "HL",
+                          "usage": "R",
+                          "max_use": 1,
+                          "baseDefinitionId": "HL"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "PRV",
+                          "usage": "S",
+                          "max_use": 1,
+                          "baseDefinitionId": "PRV"
+                        },
+                        {
+                          "type": "segment",
+                          "xid": "CUR",
+                          "usage": "S",
+                          "max_use": 1,
+                          "baseDefinitionId": "CUR"
+                        },
                         {
                           "type": "loop",
                           "xid": "2010AA",
@@ -248,12 +788,49 @@
                           "usage": "R",
                           "repeat": 1,
                           "children": [
-                            { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1", "contextId": "2010AA.NM1" },
-                            { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
-                            { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" },
-                            { "type": "segment", "xid": "REF", "usage": "R", "max_use": 1, "baseDefinitionId": "REF" },
-                            { "type": "segment", "xid": "REF", "usage": "S", "max_use": 2, "baseDefinitionId": "REF" },
-                            { "type": "segment", "xid": "PER", "usage": "S", "max_use": 2, "baseDefinitionId": "PER" }
+                            {
+                              "type": "segment",
+                              "xid": "NM1",
+                              "usage": "R",
+                              "max_use": 1,
+                              "baseDefinitionId": "NM1",
+                              "contextId": "2010AA.NM1"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "N3",
+                              "usage": "R",
+                              "max_use": 1,
+                              "baseDefinitionId": "N3"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "N4",
+                              "usage": "R",
+                              "max_use": 1,
+                              "baseDefinitionId": "N4"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "REF",
+                              "usage": "R",
+                              "max_use": 1,
+                              "baseDefinitionId": "REF"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "REF",
+                              "usage": "S",
+                              "max_use": 2,
+                              "baseDefinitionId": "REF"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "PER",
+                              "usage": "S",
+                              "max_use": 2,
+                              "baseDefinitionId": "PER"
+                            }
                           ]
                         },
                         {
@@ -263,9 +840,27 @@
                           "usage": "S",
                           "repeat": 1,
                           "children": [
-                            { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                            { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
-                            { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" }
+                            {
+                              "type": "segment",
+                              "xid": "NM1",
+                              "usage": "R",
+                              "max_use": 1,
+                              "baseDefinitionId": "NM1"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "N3",
+                              "usage": "R",
+                              "max_use": 1,
+                              "baseDefinitionId": "N3"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "N4",
+                              "usage": "R",
+                              "max_use": 1,
+                              "baseDefinitionId": "N4"
+                            }
                           ]
                         },
                         {
@@ -275,11 +870,41 @@
                           "usage": "S",
                           "repeat": 1,
                           "children": [
-                            { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                            { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
-                            { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" },
-                            { "type": "segment", "xid": "REF", "usage": "S", "max_use": 1, "baseDefinitionId": "REF" },
-                            { "type": "segment", "xid": "REF", "usage": "R", "max_use": 1, "baseDefinitionId": "REF" }
+                            {
+                              "type": "segment",
+                              "xid": "NM1",
+                              "usage": "R",
+                              "max_use": 1,
+                              "baseDefinitionId": "NM1"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "N3",
+                              "usage": "R",
+                              "max_use": 1,
+                              "baseDefinitionId": "N3"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "N4",
+                              "usage": "R",
+                              "max_use": 1,
+                              "baseDefinitionId": "N4"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "REF",
+                              "usage": "S",
+                              "max_use": 1,
+                              "baseDefinitionId": "REF"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "REF",
+                              "usage": "R",
+                              "max_use": 1,
+                              "baseDefinitionId": "REF"
+                            }
                           ]
                         },
                         {
@@ -289,9 +914,27 @@
                           "usage": "R",
                           "repeat": ">1",
                           "children": [
-                            { "type": "segment", "xid": "HL", "usage": "R", "max_use": 1, "baseDefinitionId": "HL" },
-                            { "type": "segment", "xid": "SBR", "usage": "R", "max_use": 1, "baseDefinitionId": "SBR" },
-                            { "type": "segment", "xid": "PAT", "usage": "S", "max_use": 1, "baseDefinitionId": "PAT" },
+                            {
+                              "type": "segment",
+                              "xid": "HL",
+                              "usage": "R",
+                              "max_use": 1,
+                              "baseDefinitionId": "HL"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "SBR",
+                              "usage": "R",
+                              "max_use": 1,
+                              "baseDefinitionId": "SBR"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "PAT",
+                              "usage": "S",
+                              "max_use": 1,
+                              "baseDefinitionId": "PAT"
+                            },
                             {
                               "type": "loop",
                               "xid": "2010BA",
@@ -299,13 +942,56 @@
                               "usage": "R",
                               "repeat": 1,
                               "children": [
-                                { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1", "contextId": "2010BA.NM1" },
-                                { "type": "segment", "xid": "N3", "usage": "S", "max_use": 1, "baseDefinitionId": "N3" },
-                                { "type": "segment", "xid": "N4", "usage": "S", "max_use": 1, "baseDefinitionId": "N4" },
-                                { "type": "segment", "xid": "DMG", "usage": "S", "max_use": 1, "baseDefinitionId": "DMG" },
-                                { "type": "segment", "xid": "REF", "usage": "S", "max_use": 1, "baseDefinitionId": "REF" },
-                                { "type": "segment", "xid": "REF", "usage": "S", "max_use": 1, "baseDefinitionId": "REF" },
-                                { "type": "segment", "xid": "PER", "usage": "S", "max_use": 1, "baseDefinitionId": "PER" }
+                                {
+                                  "type": "segment",
+                                  "xid": "NM1",
+                                  "usage": "R",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "NM1",
+                                  "contextId": "2010BA.NM1"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "N3",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "N3"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "N4",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "N4"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "DMG",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "DMG"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "REF"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "REF"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "PER",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "PER"
+                                }
                               ]
                             },
                             {
@@ -315,11 +1001,42 @@
                               "usage": "R",
                               "repeat": 1,
                               "children": [
-                                { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1", "contextId": "2010BB.NM1" },
-                                { "type": "segment", "xid": "N3", "usage": "S", "max_use": 1, "baseDefinitionId": "N3" },
-                                { "type": "segment", "xid": "N4", "usage": "S", "max_use": 1, "baseDefinitionId": "N4" },
-                                { "type": "segment", "xid": "REF", "usage": "S", "max_use": 3, "baseDefinitionId": "REF" },
-                                { "type": "segment", "xid": "REF", "usage": "S", "max_use": 2, "baseDefinitionId": "REF" }
+                                {
+                                  "type": "segment",
+                                  "xid": "NM1",
+                                  "usage": "R",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "NM1",
+                                  "contextId": "2010BB.NM1"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "N3",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "N3"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "N4",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "N4"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "usage": "S",
+                                  "max_use": 3,
+                                  "baseDefinitionId": "REF"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "usage": "S",
+                                  "max_use": 2,
+                                  "baseDefinitionId": "REF"
+                                }
                               ]
                             },
                             {
@@ -329,8 +1046,20 @@
                               "usage": "S",
                               "repeat": ">1",
                               "children": [
-                                { "type": "segment", "xid": "HL", "usage": "R", "max_use": 1, "baseDefinitionId": "HL" },
-                                { "type": "segment", "xid": "PAT", "usage": "R", "max_use": 1, "baseDefinitionId": "PAT" },
+                                {
+                                  "type": "segment",
+                                  "xid": "HL",
+                                  "usage": "R",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "HL"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "PAT",
+                                  "usage": "R",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "PAT"
+                                },
                                 {
                                   "type": "loop",
                                   "xid": "2010CA",
@@ -338,13 +1067,56 @@
                                   "usage": "R",
                                   "repeat": 1,
                                   "children": [
-                                    { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1", "contextId": "2010CA.NM1" },
-                                    { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
-                                    { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" },
-                                    { "type": "segment", "xid": "DMG", "usage": "R", "max_use": 1, "baseDefinitionId": "DMG" },
-                                    { "type": "segment", "xid": "REF", "usage": "S", "max_use": 1, "baseDefinitionId": "REF" },
-                                    { "type": "segment", "xid": "REF", "usage": "S", "max_use": 1, "baseDefinitionId": "REF" },
-                                    { "type": "segment", "xid": "PER", "usage": "S", "max_use": 1, "baseDefinitionId": "PER" }
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "NM1",
+                                      "contextId": "2010CA.NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N3",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "N3"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N4",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "N4"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "DMG",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "DMG"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "REF"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "REF"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "PER",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "PER"
+                                    }
                                   ]
                                 }
                               ]
@@ -356,19 +1128,97 @@
                               "usage": "R",
                               "repeat": 100,
                               "children": [
-                                { "type": "segment", "xid": "CLM", "usage": "R", "max_use": 1, "baseDefinitionId": "CLM" },
-                                { "type": "segment", "xid": "DTP", "usage": "S", "max_use": 15, "baseDefinitionId": "DTP" },
-                                { "type": "segment", "xid": "PWK", "usage": "S", "max_use": 10, "baseDefinitionId": "PWK" },
-                                { "type": "segment", "xid": "CN1", "usage": "S", "max_use": 1, "baseDefinitionId": "CN1" },
-                                { "type": "segment", "xid": "AMT", "usage": "S", "max_use": 1, "baseDefinitionId": "AMT" },
-                                { "type": "segment", "xid": "REF", "usage": "S", "max_use": 15, "baseDefinitionId": "REF" },
-                                { "type": "segment", "xid": "K3", "usage": "S", "max_use": 10, "baseDefinitionId": "K3" },
-                                { "type": "segment", "xid": "NTE", "usage": "S", "max_use": 1, "baseDefinitionId": "NTE" },
-                                { "type": "segment", "xid": "CR1", "usage": "S", "max_use": 1, "baseDefinitionId": "CR1" },
-                                { "type": "segment", "xid": "CR2", "usage": "S", "max_use": 1, "baseDefinitionId": "CR2" },
-                                { "type": "segment", "xid": "CRC", "usage": "S", "max_use": 5, "baseDefinitionId": "CRC" },
-                                { "type": "segment", "xid": "HI", "usage": "R", "max_use": 4, "baseDefinitionId": "HI" },
-                                { "type": "segment", "xid": "HCP", "usage": "S", "max_use": 1, "baseDefinitionId": "HCP" },
+                                {
+                                  "type": "segment",
+                                  "xid": "CLM",
+                                  "usage": "R",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "CLM"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "DTP",
+                                  "usage": "S",
+                                  "max_use": 15,
+                                  "baseDefinitionId": "DTP"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "PWK",
+                                  "usage": "S",
+                                  "max_use": 10,
+                                  "baseDefinitionId": "PWK"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "CN1",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "CN1"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "AMT",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "AMT"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "usage": "S",
+                                  "max_use": 15,
+                                  "baseDefinitionId": "REF"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "K3",
+                                  "usage": "S",
+                                  "max_use": 10,
+                                  "baseDefinitionId": "K3"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "NTE",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "NTE"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "CR1",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "CR1"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "CR2",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "CR2"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "CRC",
+                                  "usage": "S",
+                                  "max_use": 5,
+                                  "baseDefinitionId": "CRC"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "HI",
+                                  "usage": "R",
+                                  "max_use": 4,
+                                  "baseDefinitionId": "HI"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "HCP",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "baseDefinitionId": "HCP"
+                                },
                                 {
                                   "type": "loop",
                                   "xid": "2310A",
@@ -376,8 +1226,20 @@
                                   "usage": "S",
                                   "repeat": 2,
                                   "children": [
-                                    { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                    { "type": "segment", "xid": "REF", "usage": "S", "max_use": 3, "baseDefinitionId": "REF" }
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "usage": "S",
+                                      "max_use": 3,
+                                      "baseDefinitionId": "REF"
+                                    }
                                   ]
                                 },
                                 {
@@ -387,9 +1249,27 @@
                                   "usage": "S",
                                   "repeat": 1,
                                   "children": [
-                                    { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                    { "type": "segment", "xid": "PRV", "usage": "S", "max_use": 1, "baseDefinitionId": "PRV" },
-                                    { "type": "segment", "xid": "REF", "usage": "S", "max_use": 4, "baseDefinitionId": "REF" }
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "PRV",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "PRV"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "usage": "S",
+                                      "max_use": 4,
+                                      "baseDefinitionId": "REF"
+                                    }
                                   ]
                                 },
                                 {
@@ -399,11 +1279,41 @@
                                   "usage": "S",
                                   "repeat": 1,
                                   "children": [
-                                    { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                    { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
-                                    { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" },
-                                    { "type": "segment", "xid": "REF", "usage": "S", "max_use": 3, "baseDefinitionId": "REF" },
-                                    { "type": "segment", "xid": "PER", "usage": "S", "max_use": 1, "baseDefinitionId": "PER" }
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N3",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "N3"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N4",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "N4"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "usage": "S",
+                                      "max_use": 3,
+                                      "baseDefinitionId": "REF"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "PER",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "PER"
+                                    }
                                   ]
                                 },
                                 {
@@ -413,8 +1323,20 @@
                                   "usage": "S",
                                   "repeat": 1,
                                   "children": [
-                                    { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                    { "type": "segment", "xid": "REF", "usage": "S", "max_use": 4, "baseDefinitionId": "REF" }
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "usage": "S",
+                                      "max_use": 4,
+                                      "baseDefinitionId": "REF"
+                                    }
                                   ]
                                 },
                                 {
@@ -424,9 +1346,27 @@
                                   "usage": "S",
                                   "repeat": 1,
                                   "children": [
-                                    { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                    { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
-                                    { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" }
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N3",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "N3"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N4",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "N4"
+                                    }
                                   ]
                                 },
                                 {
@@ -436,9 +1376,27 @@
                                   "usage": "S",
                                   "repeat": 1,
                                   "children": [
-                                    { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                    { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
-                                    { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" }
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N3",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "N3"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N4",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "N4"
+                                    }
                                   ]
                                 },
                                 {
@@ -448,11 +1406,41 @@
                                   "usage": "S",
                                   "repeat": 10,
                                   "children": [
-                                    { "type": "segment", "xid": "SBR", "usage": "R", "max_use": 1, "baseDefinitionId": "SBR" },
-                                    { "type": "segment", "xid": "CAS", "usage": "S", "max_use": 5, "baseDefinitionId": "CAS" },
-                                    { "type": "segment", "xid": "AMT", "usage": "S", "max_use": 3, "baseDefinitionId": "AMT" },
-                                    { "type": "segment", "xid": "OI", "usage": "R", "max_use": 1, "baseDefinitionId": "OI" },
-                                    { "type": "segment", "xid": "MOA", "usage": "S", "max_use": 1, "baseDefinitionId": "MOA" },
+                                    {
+                                      "type": "segment",
+                                      "xid": "SBR",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "SBR"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "CAS",
+                                      "usage": "S",
+                                      "max_use": 5,
+                                      "baseDefinitionId": "CAS"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "AMT",
+                                      "usage": "S",
+                                      "max_use": 3,
+                                      "baseDefinitionId": "AMT"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "OI",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "OI"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "MOA",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "MOA"
+                                    },
                                     {
                                       "type": "loop",
                                       "xid": "2330A",
@@ -460,10 +1448,34 @@
                                       "usage": "R",
                                       "repeat": 1,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "N3", "usage": "S", "max_use": 1, "baseDefinitionId": "N3" },
-                                        { "type": "segment", "xid": "N4", "usage": "S", "max_use": 1, "baseDefinitionId": "N4" },
-                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 1, "baseDefinitionId": "REF" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "N3",
+                                          "usage": "S",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "N3"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "N4",
+                                          "usage": "S",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "N4"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "usage": "S",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "REF"
+                                        }
                                       ]
                                     },
                                     {
@@ -473,11 +1485,41 @@
                                       "usage": "R",
                                       "repeat": 1,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "N3", "usage": "S", "max_use": 1, "baseDefinitionId": "N3" },
-                                        { "type": "segment", "xid": "N4", "usage": "S", "max_use": 1, "baseDefinitionId": "N4" },
-                                        { "type": "segment", "xid": "DTP", "usage": "S", "max_use": 1, "baseDefinitionId": "DTP" },
-                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 5, "baseDefinitionId": "REF" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "N3",
+                                          "usage": "S",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "N3"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "N4",
+                                          "usage": "S",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "N4"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "DTP",
+                                          "usage": "S",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "DTP"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "usage": "S",
+                                          "max_use": 5,
+                                          "baseDefinitionId": "REF"
+                                        }
                                       ]
                                     },
                                     {
@@ -487,8 +1529,20 @@
                                       "usage": "S",
                                       "repeat": 2,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "REF", "usage": "R", "max_use": 3, "baseDefinitionId": "REF" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "usage": "R",
+                                          "max_use": 3,
+                                          "baseDefinitionId": "REF"
+                                        }
                                       ]
                                     },
                                     {
@@ -498,8 +1552,20 @@
                                       "usage": "S",
                                       "repeat": 1,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "REF", "usage": "R", "max_use": 3, "baseDefinitionId": "REF" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "usage": "R",
+                                          "max_use": 3,
+                                          "baseDefinitionId": "REF"
+                                        }
                                       ]
                                     },
                                     {
@@ -509,8 +1575,20 @@
                                       "usage": "S",
                                       "repeat": 1,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "REF", "usage": "R", "max_use": 3, "baseDefinitionId": "REF" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "usage": "R",
+                                          "max_use": 3,
+                                          "baseDefinitionId": "REF"
+                                        }
                                       ]
                                     },
                                     {
@@ -520,8 +1598,20 @@
                                       "usage": "S",
                                       "repeat": 1,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "REF", "usage": "R", "max_use": 3, "baseDefinitionId": "REF" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "usage": "R",
+                                          "max_use": 3,
+                                          "baseDefinitionId": "REF"
+                                        }
                                       ]
                                     },
                                     {
@@ -531,8 +1621,20 @@
                                       "usage": "S",
                                       "repeat": 1,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "REF", "usage": "R", "max_use": 2, "baseDefinitionId": "REF" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "usage": "R",
+                                          "max_use": 2,
+                                          "baseDefinitionId": "REF"
+                                        }
                                       ]
                                     }
                                   ]
@@ -544,23 +1646,125 @@
                                   "usage": "R",
                                   "repeat": 50,
                                   "children": [
-                                    { "type": "segment", "xid": "LX", "usage": "R", "max_use": 1, "baseDefinitionId": "LX" },
-                                    { "type": "segment", "xid": "SV1", "usage": "R", "max_use": 1, "baseDefinitionId": "SV1" },
-                                    { "type": "segment", "xid": "SV5", "usage": "S", "max_use": 1, "baseDefinitionId": "SV5" },
-                                    { "type": "segment", "xid": "PWK", "usage": "S", "max_use": 11, "baseDefinitionId": "PWK" },
-                                    { "type": "segment", "xid": "CR1", "usage": "S", "max_use": 1, "baseDefinitionId": "CR1" },
-                                    { "type": "segment", "xid": "CR3", "usage": "S", "max_use": 1, "baseDefinitionId": "CR3" },
-                                    { "type": "segment", "xid": "CRC", "usage": "S", "max_use": 3, "baseDefinitionId": "CRC" },
-                                    { "type": "segment", "xid": "DTP", "usage": "R", "max_use": 11, "baseDefinitionId": "DTP" },
-                                    { "type": "segment", "xid": "QTY", "usage": "S", "max_use": 2, "baseDefinitionId": "QTY" },
-                                    { "type": "segment", "xid": "MEA", "usage": "S", "max_use": 5, "baseDefinitionId": "MEA" },
-                                    { "type": "segment", "xid": "CN1", "usage": "S", "max_use": 1, "baseDefinitionId": "CN1" },
-                                    { "type": "segment", "xid": "REF", "usage": "S", "max_use": 10, "baseDefinitionId": "REF" },
-                                    { "type": "segment", "xid": "AMT", "usage": "S", "max_use": 2, "baseDefinitionId": "AMT" },
-                                    { "type": "segment", "xid": "K3", "usage": "S", "max_use": 10, "baseDefinitionId": "K3" },
-                                    { "type": "segment", "xid": "NTE", "usage": "S", "max_use": 2, "baseDefinitionId": "NTE" },
-                                    { "type": "segment", "xid": "PS1", "usage": "S", "max_use": 1, "baseDefinitionId": "PS1" },
-                                    { "type": "segment", "xid": "HCP", "usage": "S", "max_use": 1, "baseDefinitionId": "HCP" },
+                                    {
+                                      "type": "segment",
+                                      "xid": "LX",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "LX"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "SV1",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "SV1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "SV5",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "SV5"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "PWK",
+                                      "usage": "S",
+                                      "max_use": 11,
+                                      "baseDefinitionId": "PWK"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "CR1",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "CR1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "CR3",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "CR3"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "CRC",
+                                      "usage": "S",
+                                      "max_use": 3,
+                                      "baseDefinitionId": "CRC"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "DTP",
+                                      "usage": "R",
+                                      "max_use": 11,
+                                      "baseDefinitionId": "DTP"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "QTY",
+                                      "usage": "S",
+                                      "max_use": 2,
+                                      "baseDefinitionId": "QTY"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "MEA",
+                                      "usage": "S",
+                                      "max_use": 5,
+                                      "baseDefinitionId": "MEA"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "CN1",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "CN1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "usage": "S",
+                                      "max_use": 10,
+                                      "baseDefinitionId": "REF"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "AMT",
+                                      "usage": "S",
+                                      "max_use": 2,
+                                      "baseDefinitionId": "AMT"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "K3",
+                                      "usage": "S",
+                                      "max_use": 10,
+                                      "baseDefinitionId": "K3"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "NTE",
+                                      "usage": "S",
+                                      "max_use": 2,
+                                      "baseDefinitionId": "NTE"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "PS1",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "PS1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "HCP",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "baseDefinitionId": "HCP"
+                                    },
                                     {
                                       "type": "loop",
                                       "xid": "2410",
@@ -568,9 +1772,27 @@
                                       "usage": "S",
                                       "repeat": 1,
                                       "children": [
-                                        { "type": "segment", "xid": "LIN", "usage": "R", "max_use": 1, "baseDefinitionId": "LIN" },
-                                        { "type": "segment", "xid": "CTP", "usage": "R", "max_use": 1, "baseDefinitionId": "CTP" },
-                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 1, "baseDefinitionId": "REF" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "LIN",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "LIN"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "CTP",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "CTP"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "usage": "S",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "REF"
+                                        }
                                       ]
                                     },
                                     {
@@ -580,9 +1802,27 @@
                                       "usage": "S",
                                       "repeat": 1,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "PRV", "usage": "S", "max_use": 1, "baseDefinitionId": "PRV" },
-                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 20, "baseDefinitionId": "REF" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "PRV",
+                                          "usage": "S",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "PRV"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "usage": "S",
+                                          "max_use": 20,
+                                          "baseDefinitionId": "REF"
+                                        }
                                       ]
                                     },
                                     {
@@ -592,8 +1832,20 @@
                                       "usage": "S",
                                       "repeat": 1,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 20, "baseDefinitionId": "REF" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "usage": "S",
+                                          "max_use": 20,
+                                          "baseDefinitionId": "REF"
+                                        }
                                       ]
                                     },
                                     {
@@ -603,10 +1855,34 @@
                                       "usage": "S",
                                       "repeat": 1,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
-                                        { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" },
-                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 3, "baseDefinitionId": "REF" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "N3",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "N3"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "N4",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "N4"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "usage": "S",
+                                          "max_use": 3,
+                                          "baseDefinitionId": "REF"
+                                        }
                                       ]
                                     },
                                     {
@@ -616,8 +1892,20 @@
                                       "usage": "S",
                                       "repeat": 1,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 20, "baseDefinitionId": "REF" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "usage": "S",
+                                          "max_use": 20,
+                                          "baseDefinitionId": "REF"
+                                        }
                                       ]
                                     },
                                     {
@@ -627,11 +1915,41 @@
                                       "usage": "S",
                                       "repeat": 1,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "N3", "usage": "S", "max_use": 1, "baseDefinitionId": "N3" },
-                                        { "type": "segment", "xid": "N4", "usage": "S", "max_use": 1, "baseDefinitionId": "N4" },
-                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 20, "baseDefinitionId": "REF" },
-                                        { "type": "segment", "xid": "PER", "usage": "S", "max_use": 1, "baseDefinitionId": "PER" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "N3",
+                                          "usage": "S",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "N3"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "N4",
+                                          "usage": "S",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "N4"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "usage": "S",
+                                          "max_use": 20,
+                                          "baseDefinitionId": "REF"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "PER",
+                                          "usage": "S",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "PER"
+                                        }
                                       ]
                                     },
                                     {
@@ -641,8 +1959,20 @@
                                       "usage": "S",
                                       "repeat": 2,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "REF", "usage": "S", "max_use": 20, "baseDefinitionId": "REF" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "REF",
+                                          "usage": "S",
+                                          "max_use": 20,
+                                          "baseDefinitionId": "REF"
+                                        }
                                       ]
                                     },
                                     {
@@ -652,9 +1982,27 @@
                                       "usage": "S",
                                       "repeat": 1,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
-                                        { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "N3",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "N3"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "N4",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "N4"
+                                        }
                                       ]
                                     },
                                     {
@@ -664,9 +2012,27 @@
                                       "usage": "S",
                                       "repeat": 1,
                                       "children": [
-                                        { "type": "segment", "xid": "NM1", "usage": "R", "max_use": 1, "baseDefinitionId": "NM1" },
-                                        { "type": "segment", "xid": "N3", "usage": "R", "max_use": 1, "baseDefinitionId": "N3" },
-                                        { "type": "segment", "xid": "N4", "usage": "R", "max_use": 1, "baseDefinitionId": "N4" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "NM1",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "NM1"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "N3",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "N3"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "N4",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "N4"
+                                        }
                                       ]
                                     },
                                     {
@@ -676,10 +2042,34 @@
                                       "usage": "S",
                                       "repeat": 15,
                                       "children": [
-                                        { "type": "segment", "xid": "SVD", "usage": "R", "max_use": 1, "baseDefinitionId": "SVD" },
-                                        { "type": "segment", "xid": "CAS", "usage": "S", "max_use": 5, "baseDefinitionId": "CAS" },
-                                        { "type": "segment", "xid": "DTP", "usage": "R", "max_use": 1, "baseDefinitionId": "DTP" },
-                                        { "type": "segment", "xid": "AMT", "usage": "S", "max_use": 1, "baseDefinitionId": "AMT" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "SVD",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "SVD"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "CAS",
+                                          "usage": "S",
+                                          "max_use": 5,
+                                          "baseDefinitionId": "CAS"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "DTP",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "DTP"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "AMT",
+                                          "usage": "S",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "AMT"
+                                        }
                                       ]
                                     },
                                     {
@@ -689,8 +2079,20 @@
                                       "usage": "S",
                                       "repeat": ">1",
                                       "children": [
-                                        { "type": "segment", "xid": "LQ", "usage": "R", "max_use": 1, "baseDefinitionId": "LQ" },
-                                        { "type": "segment", "xid": "FRM", "usage": "R", "max_use": 99, "baseDefinitionId": "FRM" }
+                                        {
+                                          "type": "segment",
+                                          "xid": "LQ",
+                                          "usage": "R",
+                                          "max_use": 1,
+                                          "baseDefinitionId": "LQ"
+                                        },
+                                        {
+                                          "type": "segment",
+                                          "xid": "FRM",
+                                          "usage": "R",
+                                          "max_use": 99,
+                                          "baseDefinitionId": "FRM"
+                                        }
                                       ]
                                     }
                                   ]
@@ -703,13 +2105,31 @@
                     }
                   ]
                 },
-                { "type": "segment", "xid": "SE", "usage": "R", "max_use": 1, "baseDefinitionId": "SE" }
+                {
+                  "type": "segment",
+                  "xid": "SE",
+                  "usage": "R",
+                  "max_use": 1,
+                  "baseDefinitionId": "SE"
+                }
               ]
             },
-            { "type": "segment", "xid": "GE", "usage": "R", "max_use": 1, "baseDefinitionId": "GE" }
+            {
+              "type": "segment",
+              "xid": "GE",
+              "usage": "R",
+              "max_use": 1,
+              "baseDefinitionId": "GE"
+            }
           ]
         },
-        { "type": "segment", "xid": "IEA", "usage": "R", "max_use": 1, "baseDefinitionId": "IEA" }
+        {
+          "type": "segment",
+          "xid": "IEA",
+          "usage": "R",
+          "max_use": 1,
+          "baseDefinitionId": "IEA"
+        }
       ]
     }
   ]
