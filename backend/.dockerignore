@@ -66,6 +66,5 @@ test_*.py
 .ruff_cache/
 
 # Data and logs
-data/
 logs/
 *.log

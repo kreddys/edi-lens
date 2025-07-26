@@ -7,7 +7,7 @@ import copy
 from pathlib import Path
 
 from src.core.schema_manager import schema_manager
-from src.core.config import settings # Import settings to get the directory
+from src.core.config import settings
 
 class SchemaLookupInput(BaseModel):
     """Input for the EDI_Schema_Lookup_Tool."""
@@ -22,40 +22,28 @@ class EDI_Schema_Lookup_Tool(BaseTool):
     )
     args_schema: type[BaseModel] = SchemaLookupInput
 
-    def _ensure_schema_loaded(self):
-        """A robust method to ensure the schema is loaded before use."""
-        # Check if the desired schema is already loaded
-        if schema_manager.get_schema("005010X222A1"):
-            return
-        
-        # If not, load it directly.
-        # This makes the tool resilient to different execution contexts.
-        schema_dir = Path(settings.EDI_SCHEMA_DIRECTORY)
-        schema_manager.load_schemas(schema_dir)
-
     def _run(self, segment_id: str, context_id: str) -> str:
         """
-        Looks up a segment's base and contextual definitions and synthesizes the effective definition.
+        Looks up a segment's definitions and synthesizes the effective definition.
+        It intelligently uses the 'in-memory-generation' schema if available.
         """
-        self._ensure_schema_loaded()
-        
-        schema = schema_manager.get_schema("005010X222A1")
+        # Prioritize the in-memory schema used by the generation script
+        schema = schema_manager.get_schema_by_name("in-memory-generation.json")
         if not schema:
-            # This error should now be virtually impossible to hit
-            return json.dumps({"error": "The base 837P X222A1 schema is not loaded, and could not be loaded on demand."})
+            # Fallback for other potential uses
+            schema = schema_manager.get_schema("005010X222A1")
+
+        if not schema:
+            return json.dumps({"error": "No EDI schema is currently loaded in the system."})
 
         response: Dict[str, Any] = {
-            "contextId": context_id,
-            "baseDefinition": None,
-            "contextualDefinition": None,
-            "effectiveDefinition": None,
-            "error": None
+            "contextId": context_id, "baseDefinition": None,
+            "contextualDefinition": None, "effectiveDefinition": None, "error": None
         }
 
-        # The schema uses Pydantic models, so we access them as attributes
         base_def_model = schema.segmentDefinitions.get(segment_id)
         if not base_def_model:
-            response["error"] = f"Base definition for segment '{segment_id}' not found."
+            response["summary"] = f"Lookup successful: No base definition for segment '{segment_id}' found in the current schema state."
             return json.dumps(response, indent=2)
         
         base_def_dict = base_def_model.model_dump(exclude_none=True)
@@ -71,7 +59,6 @@ class EDI_Schema_Lookup_Tool(BaseTool):
             for el_xid, overrides in context_def_dict.get("elements", {}).items():
                 for i, base_el in enumerate(effective_def.get("elements", [])):
                     if base_el.get("xid") == el_xid:
-                        # Merge override properties into the element
                         for key, value in overrides.items():
                             if value is not None:
                                 effective_def["elements"][i][key] = value

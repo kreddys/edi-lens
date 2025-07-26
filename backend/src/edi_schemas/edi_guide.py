@@ -1,55 +1,50 @@
 # FILE: backend/src/edi_schemas/edi_guide.py
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AliasChoices
 from typing import List, Optional, Union, Dict, Any, Literal, Annotated
 
 class CodeDefinition(BaseModel):
-    """Represents a single valid code and its optional description."""
-    code: Any
-    description: Optional[str] = None
-
-class ValidCodes(BaseModel):
-    """A container for a list of valid code definitions."""
-    codes: List[CodeDefinition]
+    """Represents a single valid code and its description."""
+    code: str
+    description: str
 
 class BaseElement(BaseModel):
-    """Defines a single data element within a base segment definition."""
+    """Defines a single data element, with strict data types."""
     xid: str
-    data_ele: Union[str, int]
+    data_ele: int # <-- STRICTLY an integer
     name: str
-    usage: str
+    usage: Literal['R', 'S', 'N'] # <-- STRICTLY one of these three values
     seq: str
-    dataType: str
+    dataType: Literal['ID', 'AN', 'DT', 'TM', 'N0', 'N1', 'N2', 'R'] # <-- Common EDI types
     description: Optional[str] = None
     minLength: Optional[int] = None
     maxLength: Optional[int] = None
-    format: Optional[str] = None
-    valid_codes: Optional[ValidCodes] = None
-    # For composite elements, which are nested lists of BaseElement
+    valid_codes: Optional[List[CodeDefinition]] = None
     elements: Optional[List['BaseElement']] = None
 
 class SegmentDefinition(BaseModel):
-    """Defines the structure and rules for a single base segment (e.g., NM1, CLM)."""
+    """Defines the structure for a segment, with strict data types."""
+    id: str
     name: str
     description: str
-    usage: str # Default usage (e.g., 'S' for Situational)
+    usage: Literal['R', 'S', 'N'] # <-- STRICTLY one of these three values
+    max_use: int = Field(validation_alias=AliasChoices("max_use", "maxUse"), default=1)
     elements: List[BaseElement]
     syntax: Optional[List[str]] = None
 
+# --- MODELS FOR CONTEXTUAL OVERRIDES ---
 class ContextualElementOverride(BaseModel):
-    """Defines the properties of an element that can be overridden in a specific context."""
-    valid_codes: Optional[ValidCodes] = None
-    description: Optional[str] = None
-    usage: Optional[str] = None # e.g., 'R' to make a situational element required
+    usage: Optional[Literal['R', 'S', 'N']] = None # <-- STRICTLY one of these three values
+    valid_codes: Optional[List[CodeDefinition]] = None
 
 class ContextualDefinition(BaseModel):
     """Defines a set of overrides for a segment within a specific loop context."""
+    id: str
     name: str
     description: Optional[str] = None
-    # Dictionary of overrides, keyed by element xid (e.g., "CLM01")
     elements: Dict[str, ContextualElementOverride]
 
+# --- MODELS FOR HIERARCHICAL STRUCTURE (Unchanged) ---
 class StructureSegment(BaseModel):
-    """Represents a segment's position within the EDI structure."""
     type: Literal['segment']
     xid: str
     usage: str
@@ -58,23 +53,16 @@ class StructureSegment(BaseModel):
     contextId: Optional[str] = None
 
 class StructureLoop(BaseModel):
-    """Represents a loop within the EDI structure (e.g., 2000A)."""
     type: Literal['loop']
     xid: str
     name: str
     usage: str
-    repeat: Union[str, int]
+    repeat: Union[str, int] # Keep this flexible as it can be ">1" or an int
     children: List['StructureChild'] = Field(default_factory=list)
 
-StructureChild = Annotated[
-    Union[StructureLoop, StructureSegment],
-    Field(discriminator='type')
-]
+StructureChild = Annotated[Union[StructureLoop, StructureSegment], Field(discriminator='type')]
 
 class ImplementationGuideSchema(BaseModel):
-    """
-    The top-level model for our standardized v2 EDI implementation guide schema.
-    """
     transactionName: str
     version: str
     description: str
@@ -84,16 +72,11 @@ class ImplementationGuideSchema(BaseModel):
     structure: List[StructureLoop]
 
     def get_version_key(self) -> str:
-        """Helper to get the primary key for the schema manager."""
         return self.version
-    
+
     def get_all_structured_segments(self) -> List[Dict[str, str]]:
-        """
-        Traverses the structure and returns a list of all unique segment/context pairs.
-        """
         found = []
         unique_check = set()
-
         def _traverse(nodes: List['StructureChild']):
             for node in nodes:
                 if isinstance(node, StructureSegment):
@@ -103,10 +86,8 @@ class ImplementationGuideSchema(BaseModel):
                         unique_check.add((node.xid, context_id))
                 elif isinstance(node, StructureLoop) and node.children:
                     _traverse(node.children)
-        
         _traverse(self.structure)
-        return found    
+        return found
 
-# Rebuild models to resolve forward references in BaseElement and StructureLoop.
 BaseElement.model_rebuild()
 StructureLoop.model_rebuild()

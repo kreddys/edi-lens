@@ -14,7 +14,7 @@ class SchemaStructureInput(BaseModel):
 class EDI_Schema_Structure_Tool(BaseTool):
     name: str = "EDI Schema Structure Tool"
     description: str = (
-        "Analyzes the entire structure of the loaded 837P schema to determine how many times a specific segment is used. "
+        "Analyzes the entire structure of the currently loaded schema to determine how many times a specific segment is used. "
         "Use this tool first to decide if a segment definition is 'shared' and requires specialization."
     )
     args_schema: type[BaseModel] = SchemaStructureInput
@@ -33,10 +33,16 @@ class EDI_Schema_Structure_Tool(BaseTool):
     def _run(self, segment_id: str) -> str:
         """
         Counts the usage of a segment within the schema and returns the count and contexts.
+        It intelligently uses the 'in-memory-generation' schema if available.
         """
-        schema = schema_manager.get_schema("005010X222A1")
+        # Prioritize the in-memory schema used by the generation script
+        schema = schema_manager.get_schema_by_name("in-memory-generation.json")
         if not schema:
-            return json.dumps({"error": "The base 837P X222A1 schema is not loaded."})
+            # Fallback for other potential uses (though not currently used)
+            schema = schema_manager.get_schema("005010X222A1")
+        
+        if not schema:
+            return json.dumps({"error": "No EDI schema is currently loaded in the system."})
 
         found_contexts: List[str] = []
         self._traverse_structure(schema.structure, segment_id, found_contexts)
