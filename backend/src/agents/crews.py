@@ -6,7 +6,7 @@ from crewai.project import CrewBase, agent, crew, task
 from crewai_tools import SerperDevTool
 
 from .llm import get_llm
-from .tools import KnowledgeBaseTool, EDI_Schema_Lookup_Tool 
+from .tools import KnowledgeBaseTool, EDI_Schema_Lookup_Tool, EDI_Schema_Structure_Tool
 from .models import UniversalAgentResponse, AuditResponse
 
 logger = logging.getLogger(__name__)
@@ -19,6 +19,7 @@ class SchemaEnrichmentCrews:
     def __init__(self):
         self.rag_tool = KnowledgeBaseTool()
         self.schema_lookup_tool = EDI_Schema_Lookup_Tool()
+        self.schema_structure_tool = EDI_Schema_Structure_Tool()
         self.search_tool = SerperDevTool()
         self.llm = get_llm()
         self.element_enrichment_agent_instance = self.element_enrichment_agent()
@@ -35,7 +36,7 @@ class SchemaEnrichmentCrews:
                 "into precise, structured definitions. You are an expert at distinguishing between a segment's base definition and its "
                 "contextual constraints. You follow instructions for JSON structure with perfect accuracy."
             ),
-            tools=[self.rag_tool, self.schema_lookup_tool, self.search_tool],
+            tools=[self.rag_tool, self.schema_lookup_tool, self.schema_structure_tool, self.search_tool],
             llm=self.llm,
             verbose=_is_verbose_mode_enabled(),
             allow_delegation=False,
@@ -80,25 +81,23 @@ class SchemaEnrichmentCrews:
         return Task(
             description=(
                 "Your task is to analyze the schema for the '{segment_id}' segment, specifically within the '{context_id}' context, and propose a JSON patch if and only if it is incomplete or incorrect according to your information gathering.\n\n"
-                "**CRITICAL INSTRUCTIONS FOR CONSTRUCTING JSON PATCHES:**\n"
+                "**STRATEGY FOR UPDATES (VERY IMPORTANT - FOLLOW THESE STEPS IN ORDER):**\n"
+                "1.  **ASSESS USAGE:** Your FIRST action is to use the `EDI_Schema_Structure_Tool` with the `{segment_id}` to determine how many times it is used throughout the entire schema.\n"
+                "2.  **DECIDE PATH:** Based on the `usage_count` from the tool:\n"
+                "    -   If `usage_count` is **greater than 1**, the definition is SHARED. You MUST create a specialized, contextual definition to avoid side effects. Your patch `path` MUST be `/contextualDefinitions/{context_id}`.\n"
+                "    -   If `usage_count` is **1 or 0**, it is SAFE to modify the base definition directly. Your patch `path` MUST be `/segmentDefinitions/{segment_id}`.\n"
+                "3.  **FALLBACK LOGIC:** If the `EDI_Schema_Structure_Tool` fails or returns an empty result, use your intrinsic X12 knowledge. Assume common, reusable segments (like NM1, REF, DTP, PER) are shared and specialize them. Assume transaction-specific segments (like CLM, SV1 in an 837) are NOT shared and modify their base.\n\n"
+                "**CRITICAL INSTRUCTIONS FOR CONSTRUCTING JSON PATCHES (after you have decided the path):**\n"
                 "1.  **GOAL:** Your primary goal is to find **DIFFERENCES** between an implementation guide and our current schema. If they **ALREADY MATCH**, you MUST return an empty `patches` list.\n"
-                "2.  **JSON PATCH PATHS:** You MUST use one of these two exact formats for the `path`:\n"
-                "    -   For a BASE segment definition: `/segmentDefinitions/SEGMENT_ID` (e.g., `/segmentDefinitions/CLM`)\n"
-                "    -   For a CONTEXTUAL segment override: `/contextualDefinitions/CONTEXT_ID` (e.g., `/contextualDefinitions/2300.CLM`)\n\n"
-                "3.  **THE READ-MODIFY-WRITE PATTERN (MOST IMPORTANT RULE):** The `value` of your patch operation (`add` or `replace`) MUST ALWAYS be a COMPLETE, VALID, and SELF-CONTAINED object. NEVER provide partial objects.\n"
-                "    -   **Step A (READ):** ALWAYS start by using the `EDI_Schema_Lookup_Tool` to get the `baseDefinition` and any existing `contextualDefinition`.\n"
-                "    -   **Step B (MODIFY):** Create a *new* complete object in your thought process. \n"
-                "        - If a `baseDefinition` exists, start by copying it.\n"
-                "        - If a `contextualDefinition` exists, apply its overrides to your copy.\n"
-                "        - Finally, apply the NEW rules from the `KnowledgeBaseTool` to your copy.\n"
-                "    -   **Step C (WRITE):** Your final patch's `value` MUST be the complete, merged object from Step B. Do not just include the fields you changed.\n\n"
-                "4.  **CREATING NEW DEFINITIONS:** If the `EDI_Schema_Lookup_Tool` returns `null` for a definition, you must create it from scratch using your intrinsic knowledge (Tier 3) and information from the RAG tool (Tier 1). The created `value` must still be a COMPLETE `SegmentDefinition` or `ContextualDefinition` object.\n"
-                "5.  **USAGE CODES:** `usage` properties MUST be one of: `\"R\"` (Required), `\"S\"` (Situational), or `\"N\"` (Not Used).\n\n"
+                "2.  **READ-MODIFY-WRITE PATTERN:** The `value` of your patch operation (`add` or `replace`) MUST ALWAYS be a COMPLETE, VALID, and SELF-CONTAINED object. NEVER provide partial objects.\n"
+                "    -   **Step A (READ):** ALWAYS use the `EDI_Schema_Lookup_Tool` to get the `baseDefinition` and any existing `contextualDefinition`.\n"
+                "    -   **Step B (MODIFY):** Create a *new* complete object in your thought process by merging the `baseDefinition`, `contextualDefinition` (if any), and the NEW rules from the `KnowledgeBaseTool`.\n"
+                "    -   **Step C (WRITE):** Your final patch's `value` MUST be the complete, merged object from Step B.\n\n"
                 "**INFORMATION GATHERING HIERARCHY:**\n"
-                "-   **Tier 1 (RAG):** Use `KnowledgeBaseTool` first to get specific guide rules.\n"
-                "-   **Tier 2 (Internal Schema):** ALWAYS use `EDI_Schema_Lookup_Tool` to see what already exists.\n"
-                "-   **Tier 3 (Intrinsic Knowledge):** Use your internal knowledge of X12 standards to construct complete base definitions when they are missing.\n\n"
-                "Your final output is a `UniversalAgentResponse` Pydantic object. Your `reasoning` field must explain the tiers you used and how you constructed the final `value`. The `patches` field will contain your proposed changes."
+                "-   **Tier 1 (Schema Structure):** Use `EDI_Schema_Structure_Tool` to decide the update path.\n"
+                "-   **Tier 2 (RAG):** Use `KnowledgeBaseTool` to get specific guide rules for the content.\n"
+                "-   **Tier 3 (Internal Schema):** ALWAYS use `EDI_Schema_Lookup_Tool` to see what already exists.\n\n"
+                "Your final output is a `UniversalAgentResponse` Pydantic object. Your `reasoning` field must explain how you determined the update path (specialized vs. base) and how you constructed the final `value`. The `patches` field will contain your proposed changes."
             ),
             expected_output="A single, valid `UniversalAgentResponse` JSON object.",
             agent=self.element_enrichment_agent_instance,
