@@ -19,32 +19,40 @@ class EDI_Schema_Structure_Tool(BaseTool):
     )
     args_schema: type[BaseModel] = SchemaStructureInput
 
-    def _traverse_structure(self, nodes: List[StructureChild], segment_id: str, found_contexts: List[str]):
-        """Recursively walks the schema structure to find all instances of a segment."""
+    def _traverse_structure(self, nodes: List[StructureChild], segment_id: str, found_contexts: List[str], current_path: str = ""):
+        """
+        Recursively walks the schema structure to find all instances of a segment,
+        using the hierarchical path to generate a unique context if one is not provided.
+        """
         for node in nodes:
+            # Build a unique path for the current node (e.g., "DETAIL/2000A/2010AA")
+            new_path = f"{current_path}/{node.xid}" if current_path else node.xid
+
             if isinstance(node, StructureSegment) and node.xid == segment_id:
-                # Use contextId if available, otherwise construct a path for identification
-                context = node.contextId or f"loop_{node.xid}"
+                # Prioritize the explicit contextId if it exists, otherwise fall back
+                # to the guaranteed unique hierarchical path.
+                context = node.contextId or new_path
                 if context not in found_contexts:
                     found_contexts.append(context)
             elif isinstance(node, StructureLoop) and node.children:
-                self._traverse_structure(node.children, segment_id, found_contexts)
+                # Pass the new path down to the children for the next level of recursion.
+                self._traverse_structure(node.children, segment_id, found_contexts, current_path=new_path)
 
     def _run(self, segment_id: str) -> str:
         """
         Counts the usage of a segment within the schema and returns the count and contexts.
         It intelligently uses the 'in-memory-generation' schema if available.
         """
-        # Prioritize the in-memory schema used by the generation script
+        # This _run method does not need to be changed, as the fix is in the traversal logic.
         schema = schema_manager.get_schema_by_name("in-memory-generation.json")
         if not schema:
-            # Fallback for other potential uses (though not currently used)
             schema = schema_manager.get_schema("005010X222A1")
         
         if not schema:
             return json.dumps({"error": "No EDI schema is currently loaded in the system."})
 
         found_contexts: List[str] = []
+        # The initial call to the updated traversal function
         self._traverse_structure(schema.structure, segment_id, found_contexts)
         
         usage_count = len(found_contexts)

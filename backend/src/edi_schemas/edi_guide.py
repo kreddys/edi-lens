@@ -34,14 +34,30 @@ class SegmentDefinition(BaseModel):
 
 # --- MODELS FOR CONTEXTUAL OVERRIDES ---
 class ContextualElementOverride(BaseModel):
-    usage: Optional[Literal['R', 'S', 'N']] = None # <-- STRICTLY one of these three values
+    """
+    Defines a sparse set of overrides for a single element within a context.
+    Only fields that are different from the base definition should be present.
+    """
+    # --- THIS IS THE FULL, UPDATED LIST OF OVERRIDABLE FIELDS ---
+    usage: Optional[Literal['R', 'S', 'N']] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    dataType: Optional[Literal['ID', 'AN', 'DT', 'TM', 'N0', 'N1', 'N2', 'R']] = None
+    minLength: Optional[int] = None
+    maxLength: Optional[int] = None
+    format: Optional[Union[str, List[str]]] = None
     valid_codes: Optional[List[CodeDefinition]] = None
+    # --- END OF UPDATED LIST ---
 
 class ContextualDefinition(BaseModel):
-    """Defines a set of overrides for a segment within a specific loop context."""
+    """
+    Defines a set of overrides for a segment within a specific loop context.
+    The `id` should match the contextId from the schema structure (e.g., '1000A.NM1').
+    """
     id: str
     name: str
     description: Optional[str] = None
+    # The keys of this dictionary are the element XIDs (e.g., "NM101", "NM108")
     elements: Dict[str, ContextualElementOverride]
 
 # --- MODELS FOR HIERARCHICAL STRUCTURE (Unchanged) ---
