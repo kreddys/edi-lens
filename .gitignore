@@ -64,3 +64,4 @@ keycloak-config/realm-export.json
 
 logs/
 tmp/
+data/

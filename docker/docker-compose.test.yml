@@ -75,9 +75,12 @@ services:
   lightrag-server-test:
     image: ghcr.io/hkuds/lightrag:latest
     container_name: lightrag-server-test
-    depends_on:
-      db-app-test:
-        condition: service_healthy
+    #Enable if LightRAG is configured to use a database
+    #depends_on:
+    #  db-app-test:
+    #    condition: service_healthy
+    volumes:
+      - ./data/lightrag-data-test:/app/data/rag_storage  
     env_file:
       - .env.test
     command: >
