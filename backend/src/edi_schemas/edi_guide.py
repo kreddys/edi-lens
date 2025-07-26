@@ -13,13 +13,13 @@ class BaseElement(BaseModel):
     data_ele: int # <-- STRICTLY an integer
     name: str
     usage: Literal['R', 'S', 'N'] # <-- STRICTLY one of these three values
-    seq: str
+    seq: int
     dataType: Literal['ID', 'AN', 'DT', 'TM', 'N0', 'N1', 'N2', 'R'] # <-- Common EDI types
     description: Optional[str] = None
     minLength: Optional[int] = None
     maxLength: Optional[int] = None
     valid_codes: Optional[List[CodeDefinition]] = None
-    elements: Optional[List['BaseElement']] = None
+    sub_elements: Optional[List['BaseElement']] = Field(default=None, alias="elements")
 
 class SegmentDefinition(BaseModel):
     """Defines the structure for a segment, with strict data types."""

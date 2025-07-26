@@ -10,6 +10,7 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import Tuple, Dict
+from pydantic import ValidationError
 
 # This script is designed to run inside a Docker container where the environment
 # has already been configured by Docker Compose. It does not load .env files itself.
@@ -45,35 +46,35 @@ def get_latest_schema_path(repo_path: Path) -> Path:
 
     return base_schema_path
 
-def finalize_commit(commit_dir: Path, previous_schema_path: Path, new_schema_dict: Dict, report_content: str):
-    """Writes the final schema, report, and diff to a commit directory."""
-    new_schema_path = commit_dir / "schema.json"
-    with open(new_schema_path, 'w') as f:
+def finalize_commit(commit_dir: Path, repo_path: Path, previous_schema_path: Path, new_schema_dict: Dict, report_content: str):
+    """Writes the final schema, report, and diff to a commit directory and updates HEAD."""
+    # Write final schema and report
+    with open(commit_dir / "schema.json", 'w') as f:
         json.dump(new_schema_dict, f, indent=2)
-
-    report_path = commit_dir / "report.md"
-    with open(report_path, 'w') as f:
+    with open(commit_dir / "report.md", 'w') as f:
         f.write(report_content)
     
+    # Write final diff
     diff_path = commit_dir / "changes.diff"
-    with open(previous_schema_path, 'r') as f_prev:
-        previous_content = f_prev.read().splitlines(keepends=True)
-    with open(new_schema_path, 'r') as f_new:
-        new_content = f_new.read().splitlines(keepends=True)
-    diff = difflib.unified_diff(
-        previous_content, 
-        new_content, 
-        fromfile=str(previous_schema_path.name), 
-        tofile=str(new_schema_path.name)
-    )
-    with open(diff_path, 'w') as f_diff:
-        f_diff.writelines(diff)
+    with open(previous_schema_path, 'r') as f_prev, open(commit_dir / "schema.json", 'r') as f_new:
+        diff = difflib.unified_diff(
+            f_prev.read().splitlines(keepends=True),
+            f_new.read().splitlines(keepends=True),
+            fromfile=str(previous_schema_path.relative_to(repo_path)),
+            tofile=str((commit_dir / "schema.json").relative_to(repo_path)),
+        )
+        with open(diff_path, 'w') as f_diff:
+            f_diff.writelines(diff)
+            
+    # Update HEAD symlink
+    head_symlink = repo_path / "HEAD"
+    new_schema_path = commit_dir / "schema.json"
+    if head_symlink.is_symlink() or head_symlink.exists():
+        head_symlink.unlink()
+    head_symlink.symlink_to(new_schema_path.resolve())
 
 def pre_flight_checks(repo_path: Path) -> bool:
-    """
-    Performs critical checks before starting the main generation loop.
-    Returns True if all checks pass, False otherwise.
-    """
+    """Performs critical checks before starting the main generation loop."""
     logger.info("--- Running Pre-flight Checks ---")
     
     latest_schema_path = get_latest_schema_path(repo_path)
@@ -85,10 +86,7 @@ def pre_flight_checks(repo_path: Path) -> bool:
         schema_dict = json.load(f)
     
     try:
-        schema_model = ImplementationGuideSchema.model_validate(schema_dict)
-        # --- THIS IS THE FIX ---
-        # Use the SAME key that the main process and tools will use.
-        schema_manager._schemas_by_filename["in-memory-generation.json"] = schema_model
+        schema_manager._schemas_by_filename["in-memory-generation.json"] = ImplementationGuideSchema.model_validate(schema_dict)
         logger.info("✅ PRE-FLIGHT CHECK 1/3: Base schema loaded and validated successfully.")
     except Exception as e:
         logger.error(f"❌ PRE-FLIGHT CHECK FAILED: Base schema is invalid. Error: {e}")
@@ -96,10 +94,8 @@ def pre_flight_checks(repo_path: Path) -> bool:
 
     try:
         structure_tool = EDI_Schema_Structure_Tool()
-        result_str = structure_tool._run(segment_id="NM1")
-        result_json = json.loads(result_str)
-        if result_json.get("error"):
-            raise RuntimeError(result_json["error"])
+        result_json = json.loads(structure_tool._run(segment_id="NM1"))
+        if result_json.get("error"): raise RuntimeError(result_json["error"])
         logger.info("✅ PRE-FLIGHT CHECK 2/3: Schema Structure Tool executed successfully.")
     except Exception as e:
         logger.error(f"❌ PRE-FLIGHT CHECK FAILED: EDI_Schema_Structure_Tool failed. Error: {e}")
@@ -107,10 +103,8 @@ def pre_flight_checks(repo_path: Path) -> bool:
 
     try:
         lookup_tool = EDI_Schema_Lookup_Tool()
-        result_str = lookup_tool._run(segment_id="NM1", context_id="2010AA.NM1")
-        result_json = json.loads(result_str)
-        if result_json.get("error") is not None:
-            raise RuntimeError(result_json["error"])
+        result_json = json.loads(lookup_tool._run(segment_id="NM1", context_id="2010AA.NM1"))
+        if result_json.get("error") is not None: raise RuntimeError(result_json["error"])
         logger.info("✅ PRE-FLIGHT CHECK 3/3: Schema Lookup Tool executed successfully.")
     except Exception as e:
         logger.error(f"❌ PRE-FLIGHT CHECK FAILED: EDI_Schema_Lookup_Tool failed. Error: {e}")
@@ -121,7 +115,7 @@ def pre_flight_checks(repo_path: Path) -> bool:
 
 def main():
     parser = argparse.ArgumentParser(description="AI-Powered EDI Schema Version Control Generator")
-    parser.add_argument("--repo-path", required=True, help="Path to the schema repository directory (relative to project root).")
+    parser.add_argument("--repo-path", required=True, help="Path to the schema repository directory (relative to the project root).")
     parser.add_argument("--interactive", action="store_true", help="Default. Prompts for approval after each segment.")
     parser.add_argument("--non-interactive", dest='interactive', action='store_false', help="Runs in fully automated mode.")
     parser.set_defaults(interactive=True)
@@ -129,6 +123,7 @@ def main():
     
     project_root_in_container = Path(__file__).parent.parent
     repo_path = project_root_in_container / args.repo_path
+    review_dir = project_root_in_container / "_review"
 
     if not pre_flight_checks(repo_path):
         logger.error("Halting execution due to pre-flight check failures.")
@@ -165,83 +160,92 @@ def main():
         segment_id, context_id = task['segment_id'], task['context_id']
         logger.info(f"[{i+1}/{total_tasks}] Analyzing segment '{segment_id}' in context '{context_id}'...")
         
-        # --- NEW LOGIC: Create the commit directory upfront to store all artifacts ---
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         safe_context = context_id.replace('.', '_').replace(':', '_')
         commit_name = f"{timestamp}_{segment_id}_{safe_context}"
         commit_dir = repo_path / "commits" / commit_name
         
-        proposal = run_segment_analysis(segment_id, context_id, "in-memory-generation.json", commit_dir)
+        proposal_dict, validation_error = run_segment_analysis(segment_id, context_id, "in-memory-generation.json", commit_dir)
         
-        while True:
-            if not proposal or not proposal.patches:
-                logger.info("  -> No changes proposed by AI. Cleaning up temporary artifacts.")
+        # --- THIS IS THE CORRECTED INTERACTIVE LOOP ---
+        interaction_in_progress = True
+        while interaction_in_progress:
+            if not proposal_dict:
+                logger.info("  -> Agent returned no output. Skipping segment.")
                 if commit_dir.exists(): shutil.rmtree(commit_dir)
-                break
-
-            try:
-                potential_next_schema = jsonpatch.apply_patch(dict(live_schema_dict), [p.model_dump(exclude_none=True) for p in proposal.patches])
-            except jsonpatch.JsonPatchException as e:
-                logger.error(f"  -> FAILED to apply patch for {segment_id}: {e}. Skipping.")
-                break
+                interaction_in_progress = False
+                continue
 
             action = 'y'
             if args.interactive:
-                with open(commit_dir / "reasoning.md", "w") as f: f.write(f"# AI Reasoning\n\n{proposal.reasoning}")
-                with open(commit_dir / "proposed_value.json", "w") as f: json.dump(proposal.patches[0].value, f, indent=2)
+                if review_dir.exists(): shutil.rmtree(review_dir)
+                review_dir.mkdir(parents=True, exist_ok=True)
                 
-                logger.info(f"\nChanges proposed for '{segment_id}'. Please review the files and logs in:\n  -> {commit_dir}\n")
-                action = input("Approve [y], Reject [n], Refine [r], Edit [e], Quit [q]? ").lower().strip()
+                with open(review_dir / "agent_proposal.json", "w") as f: json.dump(proposal_dict, f, indent=2)
+                
+                logger.info(f"\n>>>> Changes proposed for '{segment_id}'. Please review the files in `_review/` <<<<")
+                
+                if validation_error:
+                    logger.error("  -> 🚨 This proposal has STRUCTURE ERRORS and cannot be auto-applied.")
+                    with open(review_dir / "validation_errors.txt", "w") as f: f.write(str(validation_error))
+                    logger.error("     See `_review/validation_errors.txt` for details.")
+                    action = input("Reject [n], Refine [r], Edit manually [e], Quit [q]? ").lower().strip()
+                else:
+                    action = input("Approve [y], Reject [n], Refine [r], Edit [e], Quit [q]? ").lower().strip()
             
-            commit_reason, final_schema_to_commit = None, None
-
-            if action == 'y' or action == 'e':
+            # --- Action Handling ---
+            if action == 'y':
+                if validation_error:
+                    logger.error("  -> Cannot approve a proposal with validation errors. Please Edit [e] or Reject [n].")
+                    continue # Stay in loop
+                
+                proposal_obj = UniversalAgentResponse.model_validate(proposal_dict)
+                potential_next_schema = jsonpatch.apply_patch(dict(live_schema_dict), [p.model_dump(exclude_none=True) for p in proposal_obj.patches])
                 commit_reason = "AI Proposal Approved"
-                final_schema_to_commit = potential_next_schema
-                
-                if action == 'e':
-                    editable_file_path = commit_dir / "proposed_value.json"
-                    logger.info(f"--> Please edit this file now in your IDE: {editable_file_path.relative_to(project_root_in_container)}")
-                    input("--> After saving your changes, press Enter here to continue...")
-                    try:
-                        with open(editable_file_path, 'r') as f: user_edited_value = json.load(f)
-                        user_patch = proposal.patches[0].model_copy(update={"value": user_edited_value})
-                        final_schema_to_commit = jsonpatch.apply_patch(dict(live_schema_dict), [user_patch.model_dump(exclude_none=True)])
-                        commit_reason = "User Manual Edit"
-                    except Exception as e:
-                        logger.error(f"  -> ERROR processing edited file: {e}. The proposal will be shown again.")
-                        continue
-
-                final_report = f"# Segment: `{segment_id}` (Context: `{context_id}`)\n\n**Commit Reason:** {commit_reason}\n\n**Original AI Reasoning:**\n> {proposal.reasoning.replace(chr(10), ' ')}"
-                
-                finalize_commit(commit_dir, current_schema_path, final_schema_to_commit, final_report)
-                
-                head_symlink = repo_path / "HEAD"
-                new_schema_path = commit_dir / "schema.json"
-                if head_symlink.is_symlink() or head_symlink.exists():
-                    head_symlink.unlink()
-                head_symlink.symlink_to(new_schema_path.resolve())
+                final_report = f"# Segment: ...\n\n**Commit Reason:** {commit_reason}\n\n**AI Reasoning:**\n> {proposal_obj.reasoning}"
+                finalize_commit(commit_dir, current_schema_path, potential_next_schema, final_report)
                 logger.info(f"  -> COMMITTED version {commit_name}.")
-                break
-
-            elif action == 'n':
-                logger.info(f"  -> REJECTED. Discarding changes for {segment_id}. The commit directory with logs is preserved for review.")
-                # We no longer delete the directory, it becomes a record of a rejected change
-                # To re-run, the user would manually delete this folder.
-                break
+                interaction_in_progress = False
             
+            elif action == 'n':
+                logger.info(f"  -> REJECTED. The commit directory with logs is preserved for review.")
+                interaction_in_progress = False
+
             elif action == 'r':
                 feedback = input("Please provide refinement feedback for the agent: ")
-                proposal = run_human_refinement_analysis(segment_id, context_id, "in-memory-generation.json", proposal, feedback, commit_dir)
+                proposal_dict, validation_error = run_human_refinement_analysis(segment_id, context_id, "in-memory-generation.json", proposal_dict, feedback, commit_dir)
+                # Loop continues to present the new proposal
             
+            elif action == 'e':
+                editable_file_path = review_dir / "agent_proposal.json"
+                logger.info(f"--> Please FIX the errors or make changes in your IDE: {editable_file_path.relative_to(project_root_in_container)}")
+                input("--> After saving your changes, press Enter here to continue...")
+                try:
+                    with open(editable_file_path, 'r') as f: user_edited_dict = json.load(f)
+                    user_proposal = UniversalAgentResponse.model_validate(user_edited_dict)
+                    potential_next_schema = jsonpatch.apply_patch(dict(live_schema_dict), [p.model_dump(exclude_none=True) for p in user_proposal.patches])
+                    commit_reason = "User Manual Edit"
+                    final_report = f"# Segment: ...\n\n**Commit Reason:** {commit_reason}\n\n**Original AI Reasoning:**\n> {user_proposal.reasoning}"
+                    finalize_commit(commit_dir, current_schema_path, potential_next_schema, final_report)
+                    logger.info(f"  -> COMMITTED version {commit_name}.")
+                    interaction_in_progress = False
+                except (ValidationError, json.JSONDecodeError, jsonpatch.JsonPatchException) as e:
+                    logger.error(f"  -> ERROR: Your edited file is still invalid or could not be applied: {e}")
+                    logger.warning("     The proposal will be shown again for you to fix.")
+                    proposal_dict, validation_error = user_edited_dict, e
+                    continue
+
             elif action == 'q':
-                logger.info("Quitting generation process. The last proposed change directory is preserved for review.")
+                logger.info("Quitting generation process.")
                 return
             
             else:
                 logger.warning("Invalid option. Please try again.")
 
+    if review_dir.exists():
+        shutil.rmtree(review_dir)
     logger.info("✅ Schema generation process complete.")
+
 
 if __name__ == "__main__":
     main()

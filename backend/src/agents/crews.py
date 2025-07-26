@@ -8,6 +8,7 @@ from crewai_tools import SerperDevTool
 from .llm import get_llm
 from .tools import KnowledgeBaseTool, EDI_Schema_Lookup_Tool, EDI_Schema_Structure_Tool
 from .models import UniversalAgentResponse, AuditResponse
+from .prompt_utils import get_pydantic_model_schemas
 
 logger = logging.getLogger(__name__)
 
@@ -60,51 +61,57 @@ class SchemaEnrichmentCrews:
     def element_enrichment_task(self) -> Task:
         return Task(
             description=(
-                "Your task is to create a complete and accurate segment definition for '{segment_id}' in the context of '{context_id}' for the schema '{schema_name}'.\n\n"
-                "**KNOWLEDGE HIERARCHY & DECISION PROCESS:**\n"
-                "1.  **Assess Usage:** First, use the `EDI_Schema_Structure_Tool` to determine the `usage_count` for '{segment_id}'.\n"
-                "2.  **Determine Update Strategy & JSON Patch Path:**\n"
-                "    -   If `usage_count` > 1, create a CONTEXTUAL definition. The JSON patch `path` MUST be exactly `/contextualDefinitions/{context_id}`.\n"
-                "    -   If `usage_count` <= 1, create a BASE definition. The JSON patch `path` MUST be exactly `/segmentDefinitions/{segment_id}`.\n"
-                "3.  **Gather Content:** Use the `KnowledgeBaseTool` and `EDI_Schema_Lookup_Tool` to get content.\n"
-                "4.  **Cite Sources:** In your `reasoning`, you MUST state your strategy (BASE or CONTEXTUAL) and cite your knowledge tiers for the content.\n\n"
-                "**FINAL OUTPUT INSTRUCTIONS:**\n"
-                "You MUST respond with a single JSON object. Use the following template and fill in the `__PLACEHOLDER__` sections. Do not deviate from this structure.\n\n"
+                "Your task is to create a complete and accurate segment definition for '{segment_id}' in the context of '{context_id}'.\n\n"
+                "**DECISION PROCESS & PATH CONSTRUCTION (Follow these steps exactly):**\n"
+                "1.  Use `EDI_Schema_Structure_Tool` to find the `usage_count` for '{segment_id}'.\n"
+                "2.  If `usage_count` is 1 or less, you are creating a **BASE definition**. Your JSON patch `path` MUST be `/segmentDefinitions/{segment_id}`. (e.g., `/segmentDefinitions/ISA`).\n"
+                "3.  If `usage_count` is greater than 1, you are creating a **CONTEXTUAL definition**. Your JSON patch `path` MUST be `/contextualDefinitions/{context_id}`. (e.g., `/contextualDefinitions/2010AA.NM1`).\n"
+                "4.  Use `KnowledgeBaseTool` to gather all content. You MUST query for `valid codes WITH DESCRIPTIONS` for any element that has them.\n\n"
+                "**FINAL OUTPUT REQUIREMENTS:**\n"
+                "Your final answer MUST be a single `UniversalAgentResponse` JSON object. The `value` of the patch MUST strictly conform to the models described below.\n\n"
+                "--- `SegmentDefinition` Model ---\n"
+                "`id`: string\n"
+                "`name`: string\n"
+                "`description`: string\n"
+                "`usage`: string (Must be \"R\", \"S\", or \"N\")\n"
+                "`max_use`: integer\n"
+                "`elements`: A list of `BaseElement` objects.\n\n"
+                "--- `BaseElement` Model ---\n"
+                "`xid`: string\n"
+                "`data_ele`: **integer** (The official X12 Data Element Number)\n"
+                "`name`: string\n"
+                "`usage`: string (Must be \"R\", \"S\", \"N\")\n"
+                "`seq`: **integer** (The sequence number, e.g., 1, 2, 3)\n"
+                "`dataType`: string (e.g., \"ID\", \"AN\", \"DT\")\n"
+                "`valid_codes`: (optional) A list of `CodeDefinition` objects.\n\n"
+                "--- `CodeDefinition` Model (VERY IMPORTANT) ---\n"
+                "Each object in the `valid_codes` list MUST have two keys:\n"
+                "1. `code`: string\n"
+                "2. `description`: string\n\n"
+                "**A list of strings like `[\"00\"]` is INVALID for `valid_codes`.**\n\n"
+                "**EXAMPLE of a CORRECT `BaseElement` with `valid_codes`:**\n"
                 "```json\n"
-                "{{\n"
-                "  \"reasoning\": \"__YOUR_REASONING_HERE__\",\n"
-                "  \"patches\": [\n"
-                "    {{\n"
-                "      \"op\": \"__add_or_replace__\",\n"
-                "      \"path\": \"__CORRECT_JSON_PATCH_PATH__\",\n"
-                "      \"value\": {{\n"
-                "        \"id\": \"__SEGMENT_ID__\",\n"
-                "        \"name\": \"__SEGMENT_NAME__\",\n"
-                "        \"description\": \"__SEGMENT_DESCRIPTION__\",\n"
-                "        \"usage\": \"__R_S_OR_N__\",\n"
-                "        \"max_use\": __INTEGER__,\n"
-                "        \"elements\": [\n"
                 "          {{\n"
-                "            \"xid\": \"__ELEMENT_XID__\",\n"
-                "            \"data_ele\": __INTEGER__,\n"
-                "            \"name\": \"__ELEMENT_NAME__\",\n"
-                "            \"usage\": \"__R_S_OR_N__\",\n"
-                "            \"seq\": \"__SEQUENCE_STRING__\",\n"
-                "            \"dataType\": \"__DATATYPE_STRING__\"\n"
+                "            \"xid\": \"BHT02\",\n"
+                "            \"data_ele\": 353,\n"
+                "            \"name\": \"Transaction Set Purpose Code\",\n"
+                "            \"usage\": \"R\",\n"
+                "            \"seq\": 2,\n"
+                "            \"dataType\": \"ID\",\n"
+                "            \"valid_codes\": [\n"
+                "              {{ \"code\": \"00\", \"description\": \"Original\" }},\n"
+                "              {{ \"code\": \"18\", \"description\": \"Reissue\" }}\n"
+                "            ]\n"
                 "          }}\n"
-                "        ]\n"
-                "      }}\n"
-                "    }}\n"
-                "  ]\n"
-                "}}\n"
                 "```"
             ),
-            expected_output="A single, valid `UniversalAgentResponse` JSON object that strictly follows the provided template.",
+            expected_output="A single, valid `UniversalAgentResponse` JSON object that strictly adheres to the specified Pydantic models.",
             agent=self.element_enrichment_agent(),
         )
 
     @task
     def format_correction_task(self) -> Task:
+        """A task for the Architect to correct its JSON formatting based on Pydantic validation errors."""
         return Task(
             description=(
                 "Your previous proposal had an invalid JSON structure. You MUST fix it.\n\n"
@@ -112,9 +119,24 @@ class SchemaEnrichmentCrews:
                 "**Your Previous (INVALID) Proposal:**\n"
                 "```json\n{previous_proposal}\n```\n\n"
                 "**CRITICAL INSTRUCTIONS:**\n"
-                "1.  Review the validation errors. They tell you exactly which fields are wrong (e.g., you used 'id' instead of 'xid').\n"
-                "2.  Your new output MUST be a single JSON object conforming to the `UniversalAgentResponse` structure shown in your original instructions.\n"
-                "3.  Do not change the content, only fix the JSON field names and structure."
+                "Your new output MUST be a single JSON object conforming to the `UniversalAgentResponse` structure. "
+                "You MUST use the following template and insert your previous proposal's content into the correct placeholders. "
+                "The most common error is forgetting to include the top-level `reasoning` and `patches` keys.\n\n"
+                "**TEMPLATE TO FOLLOW:**\n"
+                "```json\n"
+                "{{\n"
+                "  \"reasoning\": \"__YOUR_REASONING_HERE__\",\n"
+                "  \"patches\": [\n"
+                "    {{\n"
+                "      \"op\": \"__add_or_replace__\",\n"
+                "      \"path\": \"__CORRECT_JSON_PATCH_PATH__\",\n"
+                "      \"value\": {{ ... your previously generated segment definition ... }}\n"
+                "    }}\n"
+                "  ]\n"
+                "}}\n"
+                "```\n\n"
+                "**YOUR TASK:**\n"
+                "Generate a NEW, corrected `UniversalAgentResponse`. Do not change the content, only fix the JSON structure by placing it inside the template."
             ),
             expected_output="A new, corrected, and valid `UniversalAgentResponse` JSON object that passes Pydantic validation.",
             agent=self.element_enrichment_agent()
