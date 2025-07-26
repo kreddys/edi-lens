@@ -125,3 +125,12 @@ class EnrichmentApplyRequest(BaseModel):
     """Request to apply a single JSON patch to a schema."""
     schema_name: str
     patch: ElementEnrichment    
+
+class FullEnrichmentAnalysisRequest(BaseModel):
+    """Request to start a new full schema analysis job."""
+    schema_name: str = Field(..., description="The name of the schema file to analyze, e.g., '837.5010.X222.A1.json'.")
+
+class EnrichmentApplyBatchRequest(BaseModel):
+    """Request to apply a batch of JSON patches to a schema."""
+    schema_name: str
+    patches: List[ElementEnrichment]

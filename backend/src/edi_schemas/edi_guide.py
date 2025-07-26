@@ -86,6 +86,26 @@ class ImplementationGuideSchema(BaseModel):
     def get_version_key(self) -> str:
         """Helper to get the primary key for the schema manager."""
         return self.version
+    
+    def get_all_structured_segments(self) -> List[Dict[str, str]]:
+        """
+        Traverses the structure and returns a list of all unique segment/context pairs.
+        """
+        found = []
+        unique_check = set()
+
+        def _traverse(nodes: List['StructureChild']):
+            for node in nodes:
+                if isinstance(node, StructureSegment):
+                    context_id = node.contextId or f"loop_{node.xid}"
+                    if (node.xid, context_id) not in unique_check:
+                        found.append({"segment_id": node.xid, "context_id": context_id})
+                        unique_check.add((node.xid, context_id))
+                elif isinstance(node, StructureLoop) and node.children:
+                    _traverse(node.children)
+        
+        _traverse(self.structure)
+        return found    
 
 # Rebuild models to resolve forward references in BaseElement and StructureLoop.
 BaseElement.model_rebuild()

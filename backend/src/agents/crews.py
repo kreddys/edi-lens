@@ -1,4 +1,4 @@
-# FILE: backend/src/agents/crews.py
+# FILE: backend/agents/crews.py
 import logging
 import os
 from crewai import Agent, Crew, Process, Task
@@ -12,7 +12,11 @@ from .models import UniversalAgentResponse, AuditResponse
 logger = logging.getLogger(__name__)
 
 def _is_verbose_mode_enabled():
-    return os.getenv('AGENT_VERBOSE', 'false').lower() == 'true'
+    """
+    Disables console-based verbosity for CrewAI.
+    We will control logging to files manually.
+    """
+    return False
 
 @CrewBase
 class SchemaEnrichmentCrews:
@@ -80,24 +84,24 @@ class SchemaEnrichmentCrews:
     def element_enrichment_task(self) -> Task:
         return Task(
             description=(
-                "Your task is to analyze the schema for the '{segment_id}' segment, specifically within the '{context_id}' context, and propose a JSON patch if and only if it is incomplete or incorrect according to your information gathering.\n\n"
+                "Your task is to analyze the schema for the '{segment_id}' segment, specifically within the '{context_id}' context of the schema named '{schema_name}', and propose a JSON patch if and only if it is incomplete or incorrect according to your information gathering.\n\n"
                 "**STRATEGY FOR UPDATES (VERY IMPORTANT - FOLLOW THESE STEPS IN ORDER):**\n"
-                "1.  **ASSESS USAGE:** Your FIRST action is to use the `EDI_Schema_Structure_Tool` with the `{segment_id}` to determine how many times it is used throughout the entire schema.\n"
+                "1.  **ASSESS USAGE:** Your FIRST action is to use the `EDI_Schema_Structure_Tool` with the `{segment_id}` and `{schema_name}` to determine how many times it is used throughout the entire schema.\n"
                 "2.  **DECIDE PATH:** Based on the `usage_count` from the tool:\n"
-                "    -   If `usage_count` is **greater than 1**, the definition is SHARED. You MUST create a specialized, contextual definition to avoid side effects. Your patch `path` MUST be `/contextualDefinitions/{context_id}`.\n"
+                "    -   If `usage_count` is **greater than 1**, the definition is SHARED. You MUST create a specialized, contextual definition. Your patch `path` MUST be `/contextualDefinitions/{context_id}`.\n"
                 "    -   If `usage_count` is **1 or 0**, it is SAFE to modify the base definition directly. Your patch `path` MUST be `/segmentDefinitions/{segment_id}`.\n"
-                "3.  **FALLBACK LOGIC:** If the `EDI_Schema_Structure_Tool` fails or returns an empty result, use your intrinsic X12 knowledge. Assume common, reusable segments (like NM1, REF, DTP, PER) are shared and specialize them. Assume transaction-specific segments (like CLM, SV1 in an 837) are NOT shared and modify their base.\n\n"
+                "3.  **FALLBACK LOGIC:** If the `EDI_Schema_Structure_Tool` fails, use your intrinsic X12 knowledge. Assume common segments (NM1, REF, DTP) are shared and specialize them. Assume transaction-specific segments (CLM, SV1) are NOT shared and modify their base.\n\n"
                 "**CRITICAL INSTRUCTIONS FOR CONSTRUCTING JSON PATCHES (after you have decided the path):**\n"
-                "1.  **GOAL:** Your primary goal is to find **DIFFERENCES** between an implementation guide and our current schema. If they **ALREADY MATCH**, you MUST return an empty `patches` list.\n"
-                "2.  **READ-MODIFY-WRITE PATTERN:** The `value` of your patch operation (`add` or `replace`) MUST ALWAYS be a COMPLETE, VALID, and SELF-CONTAINED object. NEVER provide partial objects.\n"
-                "    -   **Step A (READ):** ALWAYS use the `EDI_Schema_Lookup_Tool` to get the `baseDefinition` and any existing `contextualDefinition`.\n"
-                "    -   **Step B (MODIFY):** Create a *new* complete object in your thought process by merging the `baseDefinition`, `contextualDefinition` (if any), and the NEW rules from the `KnowledgeBaseTool`.\n"
+                "1.  **GOAL:** Find **DIFFERENCES** between an implementation guide and our current schema. If they **MATCH**, you MUST return an empty `patches` list.\n"
+                "2.  **READ-MODIFY-WRITE PATTERN:** The `value` of your patch (`add` or `replace`) MUST be a COMPLETE object.\n"
+                "    -   **Step A (READ):** ALWAYS use the `EDI_Schema_Lookup_Tool` with `{schema_name}` to get the `baseDefinition` and any existing `contextualDefinition`.\n"
+                "    -   **Step B (MODIFY):** Create a new object by merging the `baseDefinition`, `contextualDefinition`, and NEW rules from the `KnowledgeBaseTool`.\n"
                 "    -   **Step C (WRITE):** Your final patch's `value` MUST be the complete, merged object from Step B.\n\n"
                 "**INFORMATION GATHERING HIERARCHY:**\n"
                 "-   **Tier 1 (Schema Structure):** Use `EDI_Schema_Structure_Tool` to decide the update path.\n"
                 "-   **Tier 2 (RAG):** Use `KnowledgeBaseTool` to get specific guide rules for the content.\n"
                 "-   **Tier 3 (Internal Schema):** ALWAYS use `EDI_Schema_Lookup_Tool` to see what already exists.\n\n"
-                "Your final output is a `UniversalAgentResponse` Pydantic object. Your `reasoning` field must explain how you determined the update path (specialized vs. base) and how you constructed the final `value`. The `patches` field will contain your proposed changes."
+                "Your final output is a `UniversalAgentResponse` Pydantic object. Your `reasoning` must explain how you determined the update path and constructed the final `value`."
             ),
             expected_output="A single, valid `UniversalAgentResponse` JSON object.",
             agent=self.element_enrichment_agent_instance,
@@ -105,21 +109,20 @@ class SchemaEnrichmentCrews:
 
     @task
     def refinement_task(self) -> Task:
-        """A task for the Architect to correct its own work based on feedback."""
+        """A task for the Architect to correct its own work based on human feedback."""
         return Task(
             description=(
-                "Your previous proposal was rejected by the Auditor. You must correct it.\n\n"
-                "**Original Task:** Analyze the schema for the '{segment_id}' segment within the '{context_id}' context.\n"
+                "Your previous proposal for segment '{segment_id}' was insufficient. You MUST correct it based on the user's feedback.\n\n"
                 "**Your Previous (Rejected) Proposal:**\n"
                 "```json\n{previous_proposal}\n```\n\n"
-                "**Auditor's Rejection Justification:** {audit_feedback}\n\n"
-                "**Your Task:**\n"
-                "Carefully read the Auditor's justification. Re-evaluate your previous proposal and generate a NEW, corrected `UniversalAgentResponse`. "
-                "Fix the specific errors the Auditor pointed out. Do not repeat your mistakes. "
-                "You may use your tools again if necessary to gather more information to fix the issue.\n\n"
-                "**Crucially, your new proposal MUST be a complete `UniversalAgentResponse` object, including the `reasoning` field explaining your corrected approach.**"
+                "**User's Correction Feedback:** {user_feedback}\n\n"
+                "**CRITICAL INSTRUCTIONS FOR YOUR RESPONSE:**\n"
+                "Your FINAL output MUST be a single, valid JSON object that perfectly matches the `UniversalAgentResponse` Pydantic model.\n"
+                "The `reasoning` field MUST be a top-level key. DO NOT nest it.\n\n"
+                "**YOUR TASK:**\n"
+                "Generate a NEW, corrected `UniversalAgentResponse`. Incorporate the user's feedback, and ensure your final JSON response has the correct top-level `reasoning` field."
             ),
-            expected_output="A new, corrected, and valid `UniversalAgentResponse` JSON object that addresses the auditor's feedback.",
+            expected_output="A new, corrected, and valid `UniversalAgentResponse` JSON object that addresses the user's feedback.",
             agent=self.element_enrichment_agent_instance
         )
 
@@ -144,7 +147,6 @@ class SchemaEnrichmentCrews:
             expected_output="A single, valid `AuditResponse` JSON object.",
             agent=self.auditor_agent_instance
         )
-
 
     @task
     def complex_rule_extraction_task(self) -> Task:

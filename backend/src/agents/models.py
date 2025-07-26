@@ -8,13 +8,12 @@ class AuditResponse(BaseModel):
     # Renaming 'justification' to 'reasoning' for consistency with other models
     reasoning: str = Field(..., description="A clear explanation for the approval or rejection decision.")
 
-
-
 class ElementEnrichment(BaseModel):
     """A JSON Patch operation to enrich a segment definition."""
     op: Literal["add", "replace", "remove"]
     path: str
     value: Optional[Any] = None
+    model_config = ConfigDict(extra="ignore")
 
 class RuleExpression(BaseModel):
     """A single condition, e.g., 'field CLM05-03 equals 7'."""

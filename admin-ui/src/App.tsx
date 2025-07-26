@@ -13,7 +13,7 @@ import { dataProvider, authProvider, accessControlProvider, ThemeProvider } from
 import { TradingPartnerList, TradingPartnerCreate, TradingPartnerEdit, TradingPartnerShow } from "./pages/tradingPartners";
 import { SchemaEditorList } from "./pages/schemaEditor/SchemaEditorList";
 
-import { EnrichmentPage } from "./pages/enrichment/list";
+import { EnrichmentPage } from "./pages/enrichment";
 
 function App() {
   return (

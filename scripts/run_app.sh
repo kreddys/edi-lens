@@ -41,9 +41,16 @@ if [ -z "$1" ] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]]; then
     echo "  test:logs [svc...]    Tail logs for running test services."
     echo "  test:stop             Stop the test stack (preserves data)."
     echo "  test:clean            Stop and DELETE ALL TEST DATA."
-    echo "  test:integration [args...] Run in-process integration tests."
+    echo "  test:integration [args...]"
+    echo "                        Run in-process integration tests."
+    echo "                        - Pass a file path to run only that file."
+    echo "                        - No args runs all tests except 'llm'."
     echo "  test:e2e [args...]         Run E2E tests against the running test stack."
-    echo "                             (Resets DB with Alembic before running)."
+    echo ""
+    echo "SHARED COMMANDS (run in either 'dev' or 'test' context):"
+    echo "  [dev|test]:generate:schema [--non-interactive]"
+    echo "                        Use AI to generate a full schema from a base structure."
+    echo "                        Runs in INTERACTIVE mode by default."
     echo ""
     echo "SPECIAL COMMANDS:"
     echo "  test:unit [args...]   Run local unit tests (no Docker needed)."
@@ -104,6 +111,7 @@ if [ ! -f "$ENV_FILE" ]; then cp "$ENV_FILE.example" "$ENV_FILE"; fi
 DC_FLAGS="--project-directory . --env-file ${ENV_FILE}"
 
 # --- Main Command Logic ---
+# --- Main Command Logic ---
 case "$ACTION" in
     "start")
         info "Starting $ENV_CONTEXT services..."
@@ -125,10 +133,29 @@ case "$ACTION" in
     "build")
         ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} build "$@"
         ;;
+    "generate:schema")
+        info "Preparing to run schema generation in '$ENV_CONTEXT' environment..."
+        # Ensure the correct backend service and its dependencies are running
+        ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} up -d --wait "$BACKEND_SERVICE"
+
+        REPO_PATH="data/edi_schemas_repo/837p_x222a1"
+        CMD_TO_RUN="python -m scripts.generate_schema --repo-path ${REPO_PATH} $@"
+
+        # Check if the user wants non-interactive mode. The Python script defaults to interactive.
+        if [[ "$@" == *"--non-interactive"* ]]; then
+             info "Running schema generation in NON-INTERACTIVE mode..."
+             ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec "$BACKEND_SERVICE" ${CMD_TO_RUN}
+        else
+             info "Running schema generation in INTERACTIVE mode..."
+             # Use -it flags to attach a terminal for the Python input() prompt
+             ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec -it "$BACKEND_SERVICE" ${CMD_TO_RUN}
+        fi
+        success "'$ACTION' completed successfully for the '$ENV_CONTEXT' environment."
+        ;;
     "migrate:make" | "migrate:run" | "setup:keycloak" | "setup:testdata")
         # These commands are now available for BOTH dev and test environments.
         if [ "$ACTION" == "migrate:make" ] && [ -z "$1" ]; then
-            error "Migration message is required. Usage: ./scripts/run_app.sh dev:migrate:make \"your message\""
+            error "Migration message is required. Usage: [dev|test]:migrate:make \"your message\""
         fi
 
         info "Executing '$ACTION' on the $ENV_CONTEXT environment..."
@@ -145,17 +172,28 @@ case "$ACTION" in
         elif [ "$ACTION" == "setup:testdata" ]; then
             CMD_TO_RUN="python -m scripts.seed $@"
         fi
+        # NOTE: generate:schema has been moved to its own block
 
         ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec "$BACKEND_SERVICE" $CMD_TO_RUN
         success "'$ACTION' completed successfully for the $ENV_CONTEXT environment."
         ;;
     "integration")
         if [ "$ENV_CONTEXT" != "test" ]; then error "'integration' command is only for the 'test' environment."; fi
-        info "Running IN-PROCESS integration tests..."
+        
+        # If arguments are provided to the script, use them as the test path.
+        # Otherwise, default to running all tests with the "integration" marker.
+        if [ -n "$*" ]; then
+            info "Running specific integration test file(s): $*"
+            TEST_TARGET="$*"
+        else
+            info "Running all IN-PROCESS integration tests (excluding 'llm' tests)..."
+            TEST_TARGET="-m 'integration and not llm'"
+        fi
+
         # This still needs the backend-test service to be running to load settings etc.
         # It assumes the user has run `test:start`.
-        ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec "$BACKEND_SERVICE" pytest -m "integration" "$@"
-        success "In-process integration tests finished."
+        ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec "$BACKEND_SERVICE" pytest ${TEST_TARGET}
+        success "Integration test run finished."
         ;;
     "e2e")
         if [ "$ENV_CONTEXT" != "test" ]; then error "'e2e' command is only for the 'test' environment."; fi
@@ -165,13 +203,10 @@ case "$ACTION" in
         ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} up -d --build --wait
         success "Test environment containers are up."
 
-        # --- THIS IS THE FIX ---
         info "Configuring the test Keycloak instance..."
-        # We need to wait a few seconds for Keycloak's internal startup to be ready for the script.
         sleep 5 
         ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec "$BACKEND_SERVICE" python -m scripts.setup_keycloak_realm
         success "Keycloak is configured."
-        # --- END OF FIX ---
 
         info "Verifying backend health before running tests..."
         BACKEND_HEALTH_URL="http://localhost:3001/api/v1/health"
