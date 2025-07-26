@@ -8,7 +8,7 @@ from crewai_tools import SerperDevTool
 from .llm import get_llm
 from .tools import KnowledgeBaseTool, EDI_Schema_Lookup_Tool, EDI_Schema_Structure_Tool
 from .models import UniversalAgentResponse, AuditResponse
-from .prompt_utils import get_pydantic_model_schemas
+from .prompt_utils import get_focused_schema_for_enrichment
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class SchemaEnrichmentCrews:
     @task
     def element_enrichment_task(self) -> Task:
         # Generate the schema string once when the task is defined
-        MODEL_JSON_SCHEMA = get_pydantic_model_schemas()
+        MODEL_JSON_SCHEMA = get_focused_schema_for_enrichment()
 
         return Task(
             description=(
@@ -69,27 +69,21 @@ class SchemaEnrichmentCrews:
                 "1.  Use `EDI_Schema_Structure_Tool` to determine the `usage_count` for '{segment_id}'.\n"
                 "2.  Based on `usage_count`, decide your strategy (BASE or CONTEXTUAL) and determine the correct JSON patch `path`.\n"
                 "    -   **IF `usage_count` is 1 or 0:** You are creating a **BASE definition**. The JSON patch `path` **MUST** be `/segmentDefinitions/{segment_id}`.\n"
-                "    -   **ELSE (if `usage_count` > 1):** You are creating a **CONTEXTUAL definition**. The JSON patch `path` **MUST** be `/contextualDefinitions/{context_id}`.\n\n"
-                
+                "    -   **ELSE (if `usage_count` > 1):** You are creating a **CONTEXTUAL definition**. The JSON patch `path` **MUST** be `/contextualDefinitions/{context_id}`.\n\n"                
                 "**Step 2: Broad Segment Query.**\n"
                 "1.  Perform an initial query using `KnowledgeBaseTool` to get the general definition and a list of all elements for the '{segment_id}' segment.\n\n"
-
-                "**Step 3: Rigorous Element-by-Element Verification.**\n"
+                "**Step 3: Verify Element Count.**\n"
+                "**CRITICAL:** After your initial query, you MUST verify that the number of elements found matches the official X12 standard for the '{segment_id}' segment. Use your intrinsic knowledge or the `SerperDevTool` if the knowledge base is unclear. \n"
+                "For example, a standard 'ST' segment has 3 elements (ST01, ST02, ST03). If your query in Step 2 only returned 2 elements, you MUST perform a new, more specific query to find the definition for the missing element.\n\n"
+                "**Step 4: Rigorous Element-by-Element Verification.**\n"
                 "**This is the most important step.** For EACH element identified in Step 2, you MUST verify you have all required details. If ANY detail is missing, you MUST use the `KnowledgeBaseTool` again with a MORE SPECIFIC query targeting that single element.\n"
                 "   - **Checklist per element:** `xid`, `data_ele`, `name`, `usage`, `seq`, `dataType`, `minLength`, `maxLength`.\n"
-                
-                # --- THIS IS THE FIX ---
-                # We have removed the {element_xid} placeholder and replaced it with a static example.
                 "   - **`valid_codes` Check:** If an element is of type `ID`, it is CRITICAL that you find its list of valid codes. If the first query did not provide them, perform a new, targeted query. For example, you could ask: "
                 "`What are all the valid codes and their descriptions for element NM101 in segment {segment_id}?`\n"
-                # --- END OF FIX ---
-
                 "   - **Repeat this process for every single element** until your information is complete.\n\n"
-
-                "**Step 4: Construct the Final JSON Output.**\n"
+                "**Step 5: Construct the Final JSON Output.**\n"
                 "Assemble all the verified information into a single, valid JSON object that strictly conforms to the `UniversalAgentResponse` JSON Schema. Do not add any text or explanation after the final closing brace `}}` of the JSON object.\n\n"
                 "-   **For Date (DT) or Time (TM) elements:** You MUST include a `format` field. If the guide specifies multiple valid formats (e.g., 'HHMM, HHMMSS'), you MUST provide them as a JSON array of strings: `\"format\": [\"HHMM\", \"HHMMSS\"]`.\n\n"
-
                 "Examples of data_ele field are I01, I03, I65, 479, 142 etc. If the knowledge base did not return the data_ele details , leave the field as null or use your intrinsic knowledge to populate value for this field \n\n"
                 "**JSON SCHEMA FOR YOUR OUTPUT:**\n"
                 "```json\n"
