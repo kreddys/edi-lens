@@ -10,7 +10,7 @@ class CodeDefinition(BaseModel):
 class BaseElement(BaseModel):
     """Defines a single data element, with strict data types."""
     xid: str
-    data_ele: int # <-- STRICTLY an integer
+    data_ele: str
     name: str
     usage: Literal['R', 'S', 'N'] # <-- STRICTLY one of these three values
     seq: int
@@ -18,6 +18,7 @@ class BaseElement(BaseModel):
     description: Optional[str] = None
     minLength: Optional[int] = None
     maxLength: Optional[int] = None
+    format: Optional[Union[str, List[str]]] = None
     valid_codes: Optional[List[CodeDefinition]] = None
     sub_elements: Optional[List['BaseElement']] = Field(default=None, alias="elements")
 
@@ -80,7 +81,7 @@ class ImplementationGuideSchema(BaseModel):
         def _traverse(nodes: List['StructureChild']):
             for node in nodes:
                 if isinstance(node, StructureSegment):
-                    context_id = node.contextId or f"loop_{node.xid}"
+                    context_id = node.contextId or f"loop:{node.xid}"
                     if (node.xid, context_id) not in unique_check:
                         found.append({"segment_id": node.xid, "context_id": context_id})
                         unique_check.add((node.xid, context_id))
