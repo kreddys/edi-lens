@@ -7,13 +7,6 @@ from src.edi_schemas.edi_guide import ImplementationGuideSchema
 
 pytestmark = pytest.mark.unit
 
-@pytest.fixture
-def x222a1_schema() -> ImplementationGuideSchema:
-    """Loads the 837P schema for the parser."""
-    schema_path = Path(__file__).parent.parent / "data/test_schemas/837.5010.X222.A1.json"
-    with open(schema_path, 'r') as f:
-        return ImplementationGuideSchema.model_validate(json.load(f))
-
 # A valid ISA segment of the correct length (106 chars) using standard delimiters
 VALID_ISA_STD_DELIMITERS = "ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *240715*1200*^*00501*000000001*0*P*:"
 
@@ -50,49 +43,49 @@ EMPTY_GROUP_EDI = f"{VALID_ISA_STD_DELIMITERS}~GS*HC*SENDER*RECEIVER*240715*1200
 
 
 # --- Existing Tests ---
-def test_parser_handles_multiple_functional_groups(x222a1_schema: ImplementationGuideSchema):
-    parser = EdiParser(edi_string=MULTI_GROUP_EDI, schema=x222a1_schema)
+def test_parser_handles_multiple_functional_groups(standalone_schema: ImplementationGuideSchema):
+    parser = EdiParser(edi_string=MULTI_GROUP_EDI, schema=standalone_schema)
     interchange = parser.parse()
     assert interchange is not None
     assert len(interchange.errors) == 0
     assert len(interchange.functional_groups) == 2
 
-def test_parser_handles_mixed_line_endings(x222a1_schema: ImplementationGuideSchema):
-    parser = EdiParser(edi_string=MIXED_LINE_ENDINGS_EDI, schema=x222a1_schema)
+def test_parser_handles_mixed_line_endings(standalone_schema: ImplementationGuideSchema):
+    parser = EdiParser(edi_string=MIXED_LINE_ENDINGS_EDI, schema=standalone_schema)
     assert len(parser.all_segments) == 6
     interchange = parser.parse()
     assert len(interchange.errors) == 0
 
-def test_parser_is_not_responsible_for_control_number_validation(x222a1_schema: ImplementationGuideSchema):
-    parser = EdiParser(edi_string=MISMATCHED_CONTROL_NUMBERS_EDI, schema=x222a1_schema)
+def test_parser_is_not_responsible_for_control_number_validation(standalone_schema: ImplementationGuideSchema):
+    parser = EdiParser(edi_string=MISMATCHED_CONTROL_NUMBERS_EDI, schema=standalone_schema)
     interchange = parser.parse()
     assert len(interchange.errors) == 0
 
-def test_parser_ignores_trailing_data_after_iea(x222a1_schema: ImplementationGuideSchema):
-    parser = EdiParser(edi_string=TRAILING_DATA_EDI, schema=x222a1_schema)
+def test_parser_ignores_trailing_data_after_iea(standalone_schema: ImplementationGuideSchema):
+    parser = EdiParser(edi_string=TRAILING_DATA_EDI, schema=standalone_schema)
     assert len(parser.all_segments) == 6
     interchange = parser.parse()
     assert len(interchange.errors) == 0
 
-def test_parser_handles_single_line_edi(x222a1_schema: ImplementationGuideSchema):
-    parser = EdiParser(edi_string=SINGLE_LINE_EDI, schema=x222a1_schema)
+def test_parser_handles_single_line_edi(standalone_schema: ImplementationGuideSchema):
+    parser = EdiParser(edi_string=SINGLE_LINE_EDI, schema=standalone_schema)
     assert len(parser.all_segments) == 6
     interchange = parser.parse()
     assert len(interchange.errors) == 0
 
-def test_parser_handles_newline_segment_terminator(x222a1_schema: ImplementationGuideSchema):
-    parser = EdiParser(edi_string=NEWLINE_TERMINATOR_EDI, schema=x222a1_schema)
+def test_parser_handles_newline_segment_terminator(standalone_schema: ImplementationGuideSchema):
+    parser = EdiParser(edi_string=NEWLINE_TERMINATOR_EDI, schema=standalone_schema)
     assert len(parser.all_segments) == 6
     interchange = parser.parse()
     assert len(interchange.errors) == 0
 
 # --- New Tests ---
-def test_parser_ignores_empty_segments(x222a1_schema: ImplementationGuideSchema):
+def test_parser_ignores_empty_segments(standalone_schema: ImplementationGuideSchema):
     """
     Ensures that consecutive segment terminators (e.g., '~~') result in the
     empty segment being ignored, not causing a parse failure.
     """
-    parser = EdiParser(edi_string=EMPTY_SEGMENTS_EDI, schema=x222a1_schema)
+    parser = EdiParser(edi_string=EMPTY_SEGMENTS_EDI, schema=standalone_schema)
     # The empty segment '~~' should be ignored, resulting in 6 total segments.
     assert len(parser.all_segments) == 6
     interchange = parser.parse()
@@ -101,23 +94,23 @@ def test_parser_ignores_empty_segments(x222a1_schema: ImplementationGuideSchema)
     assert len(interchange.functional_groups[0].transactions) == 1
     assert interchange.functional_groups[0].transactions[0].header.segment_id == "ST"
 
-def test_parser_handles_envelope_only_file(x222a1_schema: ImplementationGuideSchema):
+def test_parser_handles_envelope_only_file(standalone_schema: ImplementationGuideSchema):
     """
     Verifies the parser can handle a file that contains only an ISA/IEA
     and no functional groups, which is a valid scenario.
     """
-    parser = EdiParser(edi_string=ENVELOPE_ONLY_EDI, schema=x222a1_schema)
+    parser = EdiParser(edi_string=ENVELOPE_ONLY_EDI, schema=standalone_schema)
     assert len(parser.all_segments) == 2
     interchange = parser.parse()
     assert len(interchange.errors) == 0
     assert len(interchange.functional_groups) == 0
 
-def test_parser_handles_empty_functional_group(x222a1_schema: ImplementationGuideSchema):
+def test_parser_handles_empty_functional_group(standalone_schema: ImplementationGuideSchema):
     """
     Verifies the parser can handle a file with a GS/GE group that contains
     no ST/SE transactions. This is a validation issue, not a parsing one.
     """
-    parser = EdiParser(edi_string=EMPTY_GROUP_EDI, schema=x222a1_schema)
+    parser = EdiParser(edi_string=EMPTY_GROUP_EDI, schema=standalone_schema)
     assert len(parser.all_segments) == 4
     interchange = parser.parse()
     assert len(interchange.errors) == 0

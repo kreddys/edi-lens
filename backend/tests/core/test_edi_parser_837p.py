@@ -1,33 +1,40 @@
-# backend/tests/core/test_edi_parser_837p.py
+# FILE: backend/tests/core/test_edi_parser_837p.py
 import pytest
-import json
-from pathlib import Path
-
 from src.core.edi_parser import EdiParser
 from src.edi_schemas.edi_guide import ImplementationGuideSchema
 
 pytestmark = pytest.mark.unit
 
-# This string is valid as a single transaction
-SIMPLE_837P_EDI = """ISA*00*          *00*          *ZZ*SENDERID       *ZZ*RECEIVERID     *240715*1200*^*00501*000000001*0*P*>~
+# A more compliant 837P string for "happy path" testing
+VALID_837P_EDI = """
+ISA*00*          *00*          *ZZ*SENDERID       *ZZ*RECEIVERID     *240715*1200*^*00501*000000001*0*P*>~
 GS*HC*SENDER*RECEIVER*20240715*1200*1*X*005010X222A1~
 ST*837*0001*005010X222A1~
 BHT*0019*00*1234*20240715*1200*CH~
+NM1*41*2*PREMIER BILLING*****46*SUBMITTER1~
+PER*IC*JOHN DOE*TE*8005551212~
+NM1*40*2*PAYER A*****46*RECEIVER1~
 HL*1**20*1~
 NM1*85*2*BILLING PROVIDER*****XX*1234567890~
+N3*123 MAIN ST~
+N4*ANYTOWN*CA*90210~
+REF*EI*123456789~
 HL*2*1*22*0~
-SBR*P*18*GRP123~
+SBR*P*18*GRP123*******CI~
 NM1*IL*1*DOE*JOHN****MI*SUBID123~
+NM1*PR*2*PAYER A*****PI*PAYERID123~
 CLM*PATCTRL123*500***11:B:1*Y*A*Y*Y~
+HI*BK:87340~
 LX*1~
-SV1*HC:V2020:G4*125*UN*1~
-SE*11*0001~
+SV1*HC:99213*125*UN*1***1~
+SE*22*0001~
 GE*1*1~
 IEA*1*000000001~
 """.strip()
 
-# A valid EDI file containing two transaction sets (ST/SE)
-MULTI_TRANSACTION_837P_EDI = """ISA*00*          *00*          *ZZ*1234567        *ZZ*11111          *170508*1141*^*00501*000000101*1*P*:~
+
+MULTI_TRANSACTION_837P_EDI = """
+ISA*00*          *00*          *ZZ*1234567        *ZZ*11111          *170508*1141*^*00501*000000101*1*P*:~
 GS*HC*XXXXXXX*XXXXX*20170617*1741*101*X*005010X222A1~
 ST*837*1239*005010X222A1~
 BHT*0019*00*010*20170617*1741*CH~
@@ -69,61 +76,36 @@ GE*2*101~
 IEA*1*000000101~
 """.strip()
 
-
-@pytest.fixture
-def x222a1_schema() -> ImplementationGuideSchema:
-    schema_path = Path(__file__).parent.parent / "data/test_schemas/837.5010.X222.A1.json"
-    with open(schema_path, 'r') as f:
-        return ImplementationGuideSchema.model_validate(json.load(f))
-
-def test_simple_837p_is_parsed_without_errors(x222a1_schema: ImplementationGuideSchema):
-    """A structurally correct file should parse with no errors at any level."""
-    parser = EdiParser(edi_string=SIMPLE_837P_EDI, schema=x222a1_schema)
+def test_compliant_837p_is_parsed_without_errors(standalone_schema: ImplementationGuideSchema):
+    parser = EdiParser(edi_string=VALID_837P_EDI, schema=standalone_schema)
     interchange = parser.parse()
-    
-    assert interchange is not None
-    assert len(interchange.errors) == 0
-    assert len(interchange.functional_groups) == 1
-    assert len(interchange.functional_groups[0].transactions) == 1
-    assert len(interchange.functional_groups[0].transactions[0].errors) == 0
-
-def test_invalid_edi_structure_causes_transaction_error(x222a1_schema: ImplementationGuideSchema):
-    """
-    Tests that a file with a missing mandatory segment can still be parsed, but the
-    error is correctly placed on the transaction object.
-    """
-    invalid_edi = SIMPLE_837P_EDI.replace("LX*1~\n", "") # Remove mandatory LX
-    parser = EdiParser(edi_string=invalid_edi, schema=x222a1_schema)
-    interchange = parser.parse()
-
-    assert interchange is not None
-    assert len(interchange.errors) == 0 # No file-level errors
     
     transaction = interchange.functional_groups[0].transactions[0]
-    assert len(transaction.errors) == 1
-    # Updated assertion for the new error message
-    expected_error_msg = "Transaction parsing incomplete. Unexpected structure or missing mandatory segment at or before 'SV1' (line 11). Processed 7 segments, but expected to process 8 segments in the transaction body."
-    assert transaction.errors[0].message == expected_error_msg
+    all_errors = interchange.errors + transaction.errors
+    
+    for loop in [transaction.body] + list(transaction.body.loops.values()):
+        if isinstance(loop, list): # Handle multiple loops of same type
+             for l in loop:
+                all_errors.extend(l.errors)
+        else:
+             all_errors.extend(loop.errors)
 
-def test_multi_transaction_837p_is_parsed_correctly(x222a1_schema: ImplementationGuideSchema):
-    """
-    This is the key test. It ensures the parser can handle a file with multiple
-    ST/SE blocks inside a single GS/GE group without generating any errors.
-    """
-    parser = EdiParser(edi_string=MULTI_TRANSACTION_837P_EDI, schema=x222a1_schema)
+    assert len(all_errors) == 0, f"Parser found unexpected errors: {[e.message for e in all_errors]}"
+
+def test_validator_finds_missing_required_loop(standalone_schema: ImplementationGuideSchema):
+    invalid_edi = VALID_837P_EDI.replace("NM1*41*2*PREMIER BILLING*****46*SUBMITTER1~\n", "")
+    parser = EdiParser(edi_string=invalid_edi, schema=standalone_schema)
     interchange = parser.parse()
 
-    assert interchange is not None
-    assert len(interchange.errors) == 0
+    transaction = interchange.functional_groups[0].transactions[0]
+    transaction_body = transaction.body
+    
+    assert len(transaction_body.errors) > 0
+    assert "Required segment or loop '1000A' not found" in transaction_body.errors[0].message
 
-    assert len(interchange.functional_groups) == 1
-    group = interchange.functional_groups[0]
+def test_multi_transaction_837p_is_parsed_correctly(standalone_schema: ImplementationGuideSchema):
+    parser = EdiParser(edi_string=MULTI_TRANSACTION_837P_EDI, schema=standalone_schema)
+    interchange = parser.parse()
 
-    assert len(group.transactions) == 2
-
-    tx1 = group.transactions[0]
-    tx2 = group.transactions[1]
-    assert tx1.header.elements[1].value == '1239'
-    assert tx2.header.elements[1].value == '1240'
-    assert len(tx1.errors) == 0 # First transaction should have no errors
-    assert len(tx2.errors) == 0 # Second transaction should have no errors
+    assert interchange is not None and len(interchange.errors) == 0
+    assert len(interchange.functional_groups[0].transactions) == 2

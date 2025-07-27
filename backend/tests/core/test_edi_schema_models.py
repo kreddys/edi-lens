@@ -1,59 +1,46 @@
-# backend/tests/core/test_edi_schema_models.py
+# FILE: backend/tests/core/test_edi_schema_models.py
 import pytest
+from src.edi_schemas.edi_guide import ImplementationGuideSchema
 
-from src.edi_schemas.edi_guide import ImplementationGuideSchema, SegmentDefinition
-
-# Mark this entire file as belonging to the 'unit' test suite
 pytestmark = pytest.mark.unit
 
-def test_get_gs08_version_success():
-    """
-    Tests that the helper method correctly extracts the GS08 version code
-    from a mock schema object.
-    """
-    mock_schema_data = {
-        "transactionName": "Test 837P",
-        "segmentDefinitions": {
-            "GS": {
-                "name": "Functional Group Header", "usage": "R", "pos": "100", "max_use": 1,
-                "elements": [],
-                "elementsByXid": {
-                    "GS08": {
-                        "xid": "GS08", "data_ele": 480, "name": "Version", "usage": "R", "seq": "08",
-                        "valid_codes": { "code": ["005010X222A1"] }
-                    }
-                }
-            }
-        },
-        "structure": []
-    }
-    schema = ImplementationGuideSchema.model_validate(mock_schema_data)
-    assert schema.get_gs08_version() == "005010X222A1"
+# --- THIS IS THE FIX: A minimal, but structurally VALID, mock schema ---
+# It includes the 'version' and 'description' fields, and a valid 'structure' array.
+VALID_MOCK_SCHEMA_DATA = {
+    "transactionName": "Test 837P",
+    "version": "005010X222A1",
+    "description": "A valid mock schema for testing.",
+    "segmentDefinitions": {
+        "GS": {
+            "id": "GS", "name": "Functional Group Header", "description": "", "usage": "R", "max_use": 1,
+            "elements": [
+                { "xid": "GS08", "data_ele": "480", "name": "Version", "usage": "R", "seq": 8, "dataType": "AN",
+                  "valid_codes": [{"code": "005010X222A1", "description": "Version"}] }
+            ]
+        }
+    },
+    "structure": [] # An empty structure is valid
+}
 
-def test_get_gs08_version_returns_none_if_missing():
-    """
-    Tests that the helper method returns None if the GS or GS08 definition is missing.
-    """
-    # Schema missing GS segment completely
-    mock_schema_data = {
-        "transactionName": "Test 837P",
-        "segmentDefinitions": {},
-        "structure": []
-    }
-    schema = ImplementationGuideSchema.model_validate(mock_schema_data)
-    assert schema.get_gs08_version() is None
+MINIMAL_INVALID_SCHEMA = {
+    "transactionName": "Test 837P",
+    "version": "005010X222A1",
+    "description": "An invalid mock schema for testing.",
+    "segmentDefinitions": {},
+    "structure": []
+}
 
-    # Schema with GS but missing GS08
-    mock_schema_data_no_gs08 = {
-        "transactionName": "Test 837P",
-        "segmentDefinitions": {
-            "GS": {
-                "name": "Functional Group Header", "usage": "R", "pos": "100", "max_use": 1,
-                "elements": [],
-                "elementsByXid": {}
-            }
-        },
-        "structure": []
-    }
-    schema = ImplementationGuideSchema.model_validate(mock_schema_data_no_gs08)
-    assert schema.get_gs08_version() is None
+def test_get_version_key_success():
+    """
+    Tests that the helper method correctly extracts the version key.
+    """
+    schema = ImplementationGuideSchema.model_validate(VALID_MOCK_SCHEMA_DATA)
+    assert schema.get_version_key() == "005010X222A1"
+
+def test_get_version_key_returns_version():
+    """
+    Tests that the helper returns the version even if GS is missing,
+    as it's a top-level required field now.
+    """
+    schema = ImplementationGuideSchema.model_validate(MINIMAL_INVALID_SCHEMA)
+    assert schema.get_version_key() == "005010X222A1"

@@ -1,4 +1,4 @@
-# FILE: docker/dev.Caddyfile
+# FILE: docker/caddy/dev.Caddyfile
 # This configuration file is for the LOCAL development environment.
 
 {
@@ -6,8 +6,8 @@
 }
 
 # --- Main Application ---
-# Mapped to http://localhost:3000
-http://localhost:3000 {
+# Mapped to http://localhost:3001
+http://localhost:3001 {
     handle /api/* {
         reverse_proxy backend:8000
     }
@@ -17,19 +17,9 @@ http://localhost:3000 {
 }
 
 # --- Keycloak Admin UI ---
-# Mapped to http://localhost:8080
-http://localhost:8080 {
+# Mapped to http://localhost:8081
+http://localhost:8081 {
     reverse_proxy keycloak:8080
 }
 
-# --- OpenLIT Observability UI ---
-# Mapped to http://localhost:3300
-http://localhost:3300 {
-    reverse_proxy openlit-ui:3000
-}
-
-# --- LightRAG UI & API ---
-# Mapped to http://localhost:3400
-http://localhost:3400 {
-    reverse_proxy lightrag-server:9621
-}
+# --- REMOVED OpenLIT and LightRAG Blocks ---
