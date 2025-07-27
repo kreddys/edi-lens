@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# EDI LENS - APPLICATION RUNNER SCRIPT (v4)
+# EDI LENS - APPLICATION RUNNER SCRIPT (v5)
 # ==============================================================================
 # Manages all Docker-based environments using an explicit "environment:action"
 # command structure (e.g., 'dev:start', 'test:integration').
@@ -25,34 +25,39 @@ if [ -z "$1" ] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]]; then
     echo ""
     echo "USAGE: ./scripts/run_app.sh [environment:action] [options...]"
     echo ""
-    echo "DEV ENVIRONMENT (uses .env.dev):"
+    echo "=============================================================================="
+    echo " ENVIRONMENT-SPECIFIC COMMANDS"
+    echo "=============================================================================="
+    echo ""
+    echo "--- DEVELOPMENT (dev, uses .env.dev) ---"
     echo "  dev:start             Start all dev services with hot-reloading."
-    echo "  dev:logs [svc...]     Tail logs for running dev services."
     echo "  dev:stop              Stop all dev services (preserves data)."
     echo "  dev:clean             Stop services and DELETE ALL DEV DATA."
     echo "  dev:build [svc...]    Build images for the dev environment."
-    echo "  dev:migrate:make \"msg\" Create a new database migration."
-    echo "  dev:migrate:run       Apply migrations to the dev database."
-    echo "  dev:setup:keycloak    Configure the dev Keycloak."
-    echo "  dev:setup:testdata    Seed the dev database."
     echo ""
-    echo "TEST ENVIRONMENT (uses .env.test):"
+    echo "--- TESTING (test, uses .env.test) ---"
     echo "  test:start            Start the complete, isolated test stack."
-    echo "  test:logs [svc...]    Tail logs for running test services."
     echo "  test:stop             Stop the test stack (preserves data)."
     echo "  test:clean            Stop and DELETE ALL TEST DATA."
     echo "  test:integration [args...]"
-    echo "                        Run in-process integration tests."
-    echo "                        - Pass a file path to run only that file."
-    echo "                        - No args runs all tests except 'llm'."
-    echo "  test:e2e [args...]         Run E2E tests against the running test stack."
+    echo "                        Run in-process integration tests against the test stack."
+    echo "  test:e2e [args...]    Run E2E tests against the running test stack."
     echo ""
-    echo "SHARED COMMANDS (run in either 'dev' or 'test' context):"
-    echo "  [dev|test]:generate:schema [--non-interactive]"
-    echo "                        Use AI to generate a full schema from a base structure."
-    echo "                        Runs in INTERACTIVE mode by default."
+    echo "=============================================================================="
+    echo " SHARED COMMANDS (can be run with 'dev' or 'test' prefix)"
+    echo "=============================================================================="
+    echo "  Examples: dev:logs, test:migrate:run"
     echo ""
-    echo "SPECIAL COMMANDS:"
+    echo "  <env>:logs [svc...]      Tail logs for the specified environment's services."
+    echo "  <env>:migrate:make \"msg\"  Create a new database migration file."
+    echo "  <env>:migrate:run        Apply migrations to the database."
+    echo "  <env>:setup:keycloak     Configure the Keycloak realm, clients, and users."
+    echo "  <env>:setup:testdata     Seed the database with sample trading partners."
+    echo "  <env>:schema:review      Analyze and validate the primary 837p schema file."
+    echo ""
+    echo "=============================================================================="
+    echo " SPECIAL COMMANDS (No environment prefix needed)"
+    echo "=============================================================================="
     echo "  test:unit [args...]   Run local unit tests (no Docker needed)."
     echo ""
     exit 0
@@ -65,8 +70,6 @@ FULL_COMMAND=$1; shift
 if [[ "$FULL_COMMAND" == "test:unit" ]]; then
     info "Running local unit tests (no Docker)..."
     
-    # --- THIS IS THE FIX ---
-    # Load the test environment variables before running pytest locally.
     TEST_ENV_FILE=".env.test"
     if [ ! -f "$TEST_ENV_FILE" ]; then
         if [ -f "$TEST_ENV_FILE.example" ]; then
@@ -78,7 +81,6 @@ if [[ "$FULL_COMMAND" == "test:unit" ]]; then
     fi
     info "Loading .env.test for local unit test session..."
     set -a; source "$TEST_ENV_FILE"; set +a
-    # --- END OF FIX ---
     
     (cd backend && poetry run pytest -m "unit" "$@")
     
@@ -111,7 +113,6 @@ if [ ! -f "$ENV_FILE" ]; then cp "$ENV_FILE.example" "$ENV_FILE"; fi
 DC_FLAGS="--project-directory . --env-file ${ENV_FILE}"
 
 # --- Main Command Logic ---
-# --- Main Command Logic ---
 case "$ACTION" in
     "start")
         info "Starting $ENV_CONTEXT services..."
@@ -133,26 +134,7 @@ case "$ACTION" in
     "build")
         ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} build "$@"
         ;;
-    "generate:schema")
-        info "Preparing to run schema generation in '$ENV_CONTEXT' environment..."
-        # Ensure the correct backend service and its dependencies are running
-        ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} up -d --wait "$BACKEND_SERVICE"
-
-        REPO_PATH="data/edi_schemas_repo/837p_x222a1"
-        CMD_TO_RUN="python -m scripts.generate_schema --repo-path ${REPO_PATH} $@"
-
-        # Check if the user wants non-interactive mode. The Python script defaults to interactive.
-        if [[ "$@" == *"--non-interactive"* ]]; then
-             info "Running schema generation in NON-INTERACTIVE mode..."
-             ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec "$BACKEND_SERVICE" ${CMD_TO_RUN}
-        else
-             info "Running schema generation in INTERACTIVE mode..."
-             # Use -it flags to attach a terminal for the Python input() prompt
-             ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec -it "$BACKEND_SERVICE" ${CMD_TO_RUN}
-        fi
-        success "'$ACTION' completed successfully for the '$ENV_CONTEXT' environment."
-        ;;
-    "migrate:make" | "migrate:run" | "setup:keycloak" | "setup:testdata")
+    "schema:review" | "migrate:make" | "migrate:run" | "setup:keycloak" | "setup:testdata")
         # These commands are now available for BOTH dev and test environments.
         if [ "$ACTION" == "migrate:make" ] && [ -z "$1" ]; then
             error "Migration message is required. Usage: [dev|test]:migrate:make \"your message\""
@@ -171,17 +153,17 @@ case "$ACTION" in
             CMD_TO_RUN="python -m scripts.setup_keycloak_realm"
         elif [ "$ACTION" == "setup:testdata" ]; then
             CMD_TO_RUN="python -m scripts.seed $@"
+        elif [ "$ACTION" == "schema:review" ]; then
+            SCHEMA_FILE_PATH="data/edi_schemas_repo/837p_x222a1/manual-validation/schema.json"
+            CMD_TO_RUN="python -m scripts.review_schema --schema-file ${SCHEMA_FILE_PATH}"
         fi
-        # NOTE: generate:schema has been moved to its own block
 
         ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec "$BACKEND_SERVICE" $CMD_TO_RUN
-        success "'$ACTION' completed successfully for the $ENV_CONTEXT environment."
+        success "'$ACTION' completed successfully for the '$ENV_CONTEXT' environment."
         ;;
     "integration")
         if [ "$ENV_CONTEXT" != "test" ]; then error "'integration' command is only for the 'test' environment."; fi
         
-        # If arguments are provided to the script, use them as the test path.
-        # Otherwise, default to running all tests with the "integration" marker.
         if [ -n "$*" ]; then
             info "Running specific integration test file(s): $*"
             TEST_TARGET="$*"
@@ -190,8 +172,6 @@ case "$ACTION" in
             TEST_TARGET="-m 'integration and not llm'"
         fi
 
-        # This still needs the backend-test service to be running to load settings etc.
-        # It assumes the user has run `test:start`.
         ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} exec "$BACKEND_SERVICE" pytest ${TEST_TARGET}
         success "Integration test run finished."
         ;;
@@ -238,6 +218,9 @@ case "$ACTION" in
         info "Tearing down E2E test environment..."
         ${DC_COMMAND} ${DC_FLAGS} ${DC_FILES} down --volumes
         success "E2E tests finished."
+        ;;
+    *)
+        error "Unknown action: '$ACTION' for environment '$ENV_CONTEXT'. Run with 'help' for available commands."
         ;;
 esac
 

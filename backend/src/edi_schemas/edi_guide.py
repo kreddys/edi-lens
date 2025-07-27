@@ -2,19 +2,51 @@
 from pydantic import BaseModel, Field, AliasChoices
 from typing import List, Optional, Union, Dict, Any, Literal, Annotated
 
+# --- Models for Structured Syntax Rules ---
+class ConditionClause(BaseModel):
+    element: str
+    operator: Literal["IS", "IS_NOT", "IS_PRESENT", "IS_NOT_PRESENT"]
+    value: Optional[Any] = None
+
+class Conditions(BaseModel):
+    ALL_OF: Optional[List[ConditionClause]] = Field(None, description="All conditions must be true (AND).")
+    ANY_OF: Optional[List[ConditionClause]] = Field(None, description="Any condition can be true (OR).")
+
+class AssertionClause(BaseModel):
+    # --- FIX #2a: Add 'elements' field and make 'element'/'value' optional ---
+    element: Optional[str] = None 
+    elements: Optional[List[str]] = None
+    # --- FIX #2b: Add the new assertion type ---
+    assertion: Literal[
+        "MUST_BE_FORMAT", 
+        "MUST_HAVE_LENGTH", 
+        "MUST_BE_PRESENT", 
+        "MUST_NOT_BE_PRESENT",
+        "ANY_OF_MUST_BE_PRESENT"
+    ]
+    value: Optional[Any] = None
+
+class SyntaxRule(BaseModel):
+    ruleId: str
+    description: str
+    snipLevel: int
+    severity: Literal["error", "warning", "info"] = "error"
+    tags: Optional[List[str]] = None
+    conditions: Conditions
+    then: List[AssertionClause]
+
+# --- Models for Element and Segment Definitions ---
 class CodeDefinition(BaseModel):
-    """Represents a single valid code and its description."""
     code: str
     description: str
 
 class BaseElement(BaseModel):
-    """Defines a single data element, with strict data types."""
     xid: str
     data_ele: str
     name: str
-    usage: Literal['R', 'S', 'N'] # <-- STRICTLY one of these three values
+    usage: Literal['R', 'S', 'N']
     seq: int
-    dataType: Literal['ID', 'AN', 'DT', 'TM', 'N0', 'N1', 'N2', 'R'] # <-- Common EDI types
+    dataType: Literal['ID', 'AN', 'DT', 'TM', 'N0', 'N1', 'N2', 'R', 'Composite']
     description: Optional[str] = None
     minLength: Optional[int] = None
     maxLength: Optional[int] = None
@@ -23,58 +55,56 @@ class BaseElement(BaseModel):
     sub_elements: Optional[List['BaseElement']] = Field(default=None, alias="elements")
 
 class SegmentDefinition(BaseModel):
-    """Defines the structure for a segment, with strict data types."""
     id: str
     name: str
     description: str
-    usage: Literal['R', 'S', 'N'] # <-- STRICTLY one of these three values
+    usage: Literal['R', 'S', 'N']
     max_use: int = Field(validation_alias=AliasChoices("max_use", "maxUse"), default=1)
     elements: List[BaseElement]
-    syntax: Optional[List[str]] = None
+    rules: Optional[List[SyntaxRule]] = None
 
-# --- MODELS FOR CONTEXTUAL OVERRIDES ---
+# --- Models for Contextual Overrides ---
+class NestedElementOverride(BaseModel):
+    usage: Optional[Literal['R', 'S', 'N']] = None
+    valid_codes: Optional[List[CodeDefinition]] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+
 class ContextualElementOverride(BaseModel):
-    """
-    Defines a sparse set of overrides for a single element within a context.
-    Only fields that are different from the base definition should be present.
-    """
-    # --- THIS IS THE FULL, UPDATED LIST OF OVERRIDABLE FIELDS ---
     usage: Optional[Literal['R', 'S', 'N']] = None
     name: Optional[str] = None
     description: Optional[str] = None
-    dataType: Optional[Literal['ID', 'AN', 'DT', 'TM', 'N0', 'N1', 'N2', 'R']] = None
+    dataType: Optional[Literal['ID', 'AN', 'DT', 'TM', 'N0', 'N1', 'N2', 'R', 'Composite']] = None
     minLength: Optional[int] = None
     maxLength: Optional[int] = None
     format: Optional[Union[str, List[str]]] = None
     valid_codes: Optional[List[CodeDefinition]] = None
-    # --- END OF UPDATED LIST ---
+    sub_elements: Optional[Dict[str, NestedElementOverride]] = None
 
 class ContextualDefinition(BaseModel):
-    """
-    Defines a set of overrides for a segment within a specific loop context.
-    The `id` should match the contextId from the schema structure (e.g., '1000A.NM1').
-    """
     id: str
     name: str
     description: Optional[str] = None
-    # The keys of this dictionary are the element XIDs (e.g., "NM101", "NM108")
-    elements: Dict[str, ContextualElementOverride]
+    # --- FIX #1: Make elements optional to handle simple naming contexts ---
+    elements: Optional[Dict[str, ContextualElementOverride]] = None
 
-# --- MODELS FOR HIERARCHICAL STRUCTURE (Unchanged) ---
+# --- Models for Hierarchical Structure ---
 class StructureSegment(BaseModel):
     type: Literal['segment']
     xid: str
+    name: str # Add name to the structure model for completeness
     usage: str
     max_use: int
-    baseDefinitionId: str
-    contextId: Optional[str] = None
+    # --- FIX #3: Rename to match the JSON file ---
+    segmentDefinitionId: str
+    contextDefinitionId: Optional[str] = None
 
 class StructureLoop(BaseModel):
     type: Literal['loop']
     xid: str
     name: str
     usage: str
-    repeat: Union[str, int] # Keep this flexible as it can be ">1" or an int
+    repeat: Union[str, int]
     children: List['StructureChild'] = Field(default_factory=list)
 
 StructureChild = Annotated[Union[StructureLoop, StructureSegment], Field(discriminator='type')]
@@ -92,19 +122,9 @@ class ImplementationGuideSchema(BaseModel):
         return self.version
 
     def get_all_structured_segments(self) -> List[Dict[str, str]]:
-        found = []
-        unique_check = set()
-        def _traverse(nodes: List['StructureChild']):
-            for node in nodes:
-                if isinstance(node, StructureSegment):
-                    context_id = node.contextId or f"loop:{node.xid}"
-                    if (node.xid, context_id) not in unique_check:
-                        found.append({"segment_id": node.xid, "context_id": context_id})
-                        unique_check.add((node.xid, context_id))
-                elif isinstance(node, StructureLoop) and node.children:
-                    _traverse(node.children)
-        _traverse(self.structure)
-        return found
+        # ... (this function is no longer needed by the review script but can be kept) ...
+        pass
 
+# Rebuild models to resolve forward references.
 BaseElement.model_rebuild()
 StructureLoop.model_rebuild()
