@@ -147,3 +147,64 @@ SE*24*0001~
 GE*1*1~
 IEA*1*000000001~
 """.strip()
+
+@pytest.fixture(scope="session")
+def complex_837p_edi_string() -> str:
+    """
+    Provides a complex, compliant 837P EDI string for advanced structure parsing tests.
+    This file contains:
+    - Subscriber 1 (John Doe), who is the patient, with 2 claims.
+      - Claim 1 has 2 service lines.
+      - Claim 2 has 1 service line.
+    - Subscriber 2 (Jane Smith), with 1 dependent patient (Ted Smith).
+      - Dependent has 1 claim with 1 service line.
+    Total: 2 Subscribers, 3 Claims, 4 Service Lines.
+    """
+    # --- THIS IS THE FIX ---
+    # Added the required N3, N4, and DMG segments for the dependent patient (Ted Smith)
+    # to make the fixture structurally compliant with the schema.
+    return """
+ISA*00*          *00*          *ZZ*SENDERID       *ZZ*RECEIVERID     *240715*1200*^*00501*000000001*0*P*>~
+GS*HC*SENDER*RECEIVER*20240715*1200*1*X*005010X222A1~
+ST*837*0001*005010X222A1~
+BHT*0019*00*BATCH01*20240715*1200*CH~
+NM1*41*2*PREMIER BILLING*****46*SUBMITTER1~
+PER*IC*JOHN DOE*TE*8005551212~
+NM1*40*2*PAYER A*****46*RECEIVER1~
+HL*1**20*1~
+NM1*85*2*BILLING PROVIDER*****XX*1234567890~
+N3*123 MAIN ST~
+N4*ANYTOWN*CA*90210~
+REF*EI*123456789~
+HL*2*1*22*0~
+SBR*P*18*GRP123******CI~
+NM1*IL*1*DOE*JOHN****MI*SUBID123~
+NM1*PR*2*PAYER A*****PI*PAYERID123~
+CLM*JOHNDOE_CLAIM1*500***11>B>1*Y*A*Y*Y~
+HI*BK>J100~
+LX*1~
+SV1*HC>99213*125*UN*1***1**Y~
+LX*2~
+SV1*HC>99214*125*UN*1***2**Y~
+CLM*JOHNDOE_CLAIM2*25***11>B>1*Y*A*Y*Y~
+HI*BK>F410~
+LX*1~
+SV1*HC>99203*25*UN*1***1**Y~
+HL*3*1*22*1~
+SBR*P*18*GRP456******CI~
+NM1*IL*1*SMITH*JANE****MI*SUBID456~
+NM1*PR*2*PAYER A*****PI*PAYERID123~
+HL*4*3*23*0~
+PAT*19~
+NM1*QC*1*SMITH*TED~
+N3*456 OAK AVE~
+N4*OTHERTOWN*FL*33123~
+DMG*D8*20150510*M~
+CLM*TEDSMITH_CLAIM1*75***11>B>1*Y*A*Y*Y~
+HI*BK>R05~
+LX*1~
+SV1*HC>99215*75*UN*1***1**Y~
+SE*46*0001~
+GE*1*1~
+IEA*1*000000001~
+""".strip()

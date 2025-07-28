@@ -475,6 +475,34 @@ class EdiParser:
                 segment_id=error_seg_id
             ))
         return transaction
+    
+    def _collect_all_errors(self, interchange: CdmInterchange) -> List[Tuple[str, CdmValidationError]]:
+        """A helper to recursively gather all errors for the summary."""
+        all_errors: List[Tuple[str, CdmValidationError]] = []
+
+        for error in interchange.errors:
+            all_errors.append( ("Interchange", error) )
+        
+        for group in interchange.functional_groups:
+            for error in group.errors:
+                all_errors.append( ("Functional Group", error) )
+            for transaction in group.transactions:
+                for error in transaction.errors:
+                    all_errors.append( ("Transaction", error) )
+                
+                def collect_loop_errors(loop: CdmLoop, path: str):
+                    for error in loop.errors:
+                        all_errors.append( (f"Loop {path}", error) )
+                    for segment in loop.segments:
+                        for error in segment.errors:
+                            all_errors.append( (f"Segment {segment.raw_segment} (Line: {segment.line_number})", error) )
+                    for loop_id, sub_loops in loop.loops.items():
+                        for i, sub_loop in enumerate(sub_loops):
+                            collect_loop_errors(sub_loop, f"{path}/{loop_id}[{i}]")
+                
+                collect_loop_errors(transaction.body, "ST_LOOP")
+        
+        return all_errors    
 
     def parse(self) -> CdmInterchange:
         self.errors.clear()
@@ -532,4 +560,18 @@ class EdiParser:
                 ts_cursor = se_idx + 1
             interchange.functional_groups.append(func_group)
             cursor = ge_idx + 1
+
+        all_errors = self._collect_all_errors(interchange)
+        if all_errors:
+            logger.warning("--- EDI PARSE & VALIDATION SUMMARY: ERRORS FOUND ---")
+            logger.warning(f"Total Errors: {len(all_errors)}")
+            for location, error in all_errors:
+                logger.warning(f"  - Location: {location}")
+                logger.warning(f"    - Error: {error.message}")
+            logger.warning("--- END OF SUMMARY ---")
+        else:
+            logger.info("--- EDI PARSE & VALIDATION SUMMARY: SUCCESS ---")
+            logger.info("No errors found in the document.")
+            logger.info("--- END OF SUMMARY ---")
+
         return interchange
