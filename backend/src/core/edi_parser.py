@@ -138,11 +138,18 @@ class SegmentValidator:
         return errors
 
     def _validate_element_recursively(self, element_def: Dict[str, Any], value: str, indent: str, parent_xid: Optional[str] = None) -> List[CdmValidationError]:
+        """
+        A unified, recursive function to validate an element or sub-element.
+        """
         errors: List[CdmValidationError] = []
         xid = element_def.get("xid")
         full_xid = f"{parent_xid}-{xid}" if parent_xid else xid
         usage = element_def.get("usage", "S")
-        is_present = value.strip() != ""
+        
+        # --- THIS IS THE FIX ---
+        # Change the presence check from strip() != "" to just != ""
+        # This correctly treats a field of spaces as "present" for length validation.
+        is_present = value != ""
         
         log_line_intro = f"{indent}Validating {full_xid} (Usage: {usage}): Data='{value}'"
 
@@ -153,17 +160,16 @@ class SegmentValidator:
             return errors
         
         if not is_present:
-            logger.debug(f"{log_line_intro} -> [PASS] Optional element is not present.")
+            if usage != 'N':
+                 logger.debug(f"{log_line_intro} -> [PASS] Optional element is not present.")
             return errors
 
         data_type = element_def.get('dataType')
         if data_type == 'Composite':
-            # --- FINAL FIX & ENHANCED LOGGING ---
             logger.debug(f"{log_line_intro} -> [INFO] Is Composite. Splitting with delimiter '{self.component_separator}'. Validating sub-elements.")
             sub_element_values = value.split(self.component_separator)
             sub_element_defs = element_def.get('sub_elements', [])
             
-            # This handles both LIST and DICT structures for sub-elements
             if isinstance(sub_element_defs, list):
                 for sub_def in sub_element_defs:
                     sub_pos = sub_def.get('seq')
@@ -173,7 +179,6 @@ class SegmentValidator:
             elif isinstance(sub_element_defs, dict):
                 for sub_xid, sub_def in sub_element_defs.items():
                     try:
-                        # Derive position from XID like "HI01-1" -> 1
                         sub_pos = int(sub_xid.split('-')[-1])
                     except (ValueError, IndexError):
                         continue
@@ -388,8 +393,17 @@ class EdiParser:
             dummy_isa = CdmSegment(segment_id='ISA', elements=[], line_number=0, raw_segment='')
             dummy_iea = CdmSegment(segment_id='IEA', elements=[], line_number=0, raw_segment='')
             return CdmInterchange(header=dummy_isa, trailer=dummy_iea, errors=self.errors)
-
-        interchange = CdmInterchange(header=self.all_segments[isa_idx], trailer=self.all_segments[iea_idx])
+        
+        # --- THIS IS THE FIX ---
+        # Validate the ISA and IEA segments after they are found.
+        isa_segment = self.all_segments[isa_idx]
+        iea_segment = self.all_segments[iea_idx]
+        isa_segment.errors.extend(self.validator.validate(isa_segment))
+        iea_segment.errors.extend(self.validator.validate(iea_segment))
+        
+        interchange = CdmInterchange(header=isa_segment, trailer=iea_segment)
+        # --- END OF FIX ---
+        
         group_segments = self.all_segments[isa_idx + 1:iea_idx]
         cursor = 0
         while cursor < len(group_segments):
@@ -399,7 +413,17 @@ class EdiParser:
             if ge_idx == -1:
                 interchange.errors.append(CdmValidationError(message=f"Unclosed functional group at line {group_segments[gs_idx].line_number}."))
                 break
-            func_group = CdmFunctionalGroup(header=group_segments[gs_idx], trailer=group_segments[ge_idx])
+
+            # --- THIS IS THE FIX ---
+            # Validate the GS and GE segments after they are found.
+            gs_segment = group_segments[gs_idx]
+            ge_segment = group_segments[ge_idx]
+            gs_segment.errors.extend(self.validator.validate(gs_segment))
+            ge_segment.errors.extend(self.validator.validate(ge_segment))
+            
+            func_group = CdmFunctionalGroup(header=gs_segment, trailer=ge_segment)
+            # --- END OF FIX ---
+            
             transaction_segments = group_segments[gs_idx + 1:ge_idx]
             ts_cursor = 0
             while ts_cursor < len(transaction_segments):

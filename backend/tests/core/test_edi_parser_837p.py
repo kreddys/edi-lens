@@ -5,38 +5,13 @@ from src.edi_schemas.edi_guide import ImplementationGuideSchema
 
 pytestmark = pytest.mark.unit
 
-# A fully compliant 837P string that satisfies all schema requirements
-VALID_837P_EDI = """
-ISA*00*          *00*          *ZZ*SENDERID       *ZZ*RECEIVERID     *240715*1200*^*00501*000000001*0*P*>~
-GS*HC*SENDER*RECEIVER*20240715*1200*1*X*005010X222A1~
-ST*837*0001*005010X222A1~
-BHT*0019*00*1234*20240715*1200*CH~
-NM1*41*2*PREMIER BILLING*****46*SUBMITTER1~
-PER*IC*JOHN DOE*TE*8005551212~
-NM1*40*2*PAYER A*****46*RECEIVER1~
-HL*1**20*1~
-NM1*85*2*BILLING PROVIDER*****XX*1234567890~
-N3*123 MAIN ST~
-N4*ANYTOWN*CA*90210~
-REF*EI*123456789~
-HL*2*1*22*0~
-SBR*P*18*GRP123******CI~
-NM1*IL*1*DOE*JOHN****MI*SUBID123~
-NM1*PR*2*PAYER A*****PI*PAYERID123~
-CLM*PATCTRL123*500***11>B>1*Y*A*Y*Y~
-HI*BK>87340~
-LX*1~
-SV1*HC>99213*125*UN*1***1**Y~
-SE*22*0001~
-GE*1*1~
-IEA*1*000000001~
-""".strip()
+# --- Basic Compliance and Structural Tests ---
 
-def test_compliant_837p_is_parsed_without_errors(standalone_schema: ImplementationGuideSchema):
+def test_compliant_837p_is_parsed_without_errors(standalone_schema: ImplementationGuideSchema, valid_837p_edi_string: str):
     """
     Tests that a compliant EDI file is parsed with no structural or content validation errors.
     """
-    parser = EdiParser(edi_string=VALID_837P_EDI, schema=standalone_schema)
+    parser = EdiParser(edi_string=valid_837p_edi_string, schema=standalone_schema)
     interchange = parser.parse()
     
     transaction = interchange.functional_groups[0].transactions[0]
@@ -54,11 +29,11 @@ def test_compliant_837p_is_parsed_without_errors(standalone_schema: Implementati
     all_errors.extend(collect_errors(transaction.body))
     assert len(all_errors) == 0, f"Parser found unexpected errors: {[e.message for e in all_errors]}"
 
-def test_validator_finds_missing_required_loop(standalone_schema: ImplementationGuideSchema):
+def test_validator_finds_missing_required_loop(standalone_schema: ImplementationGuideSchema, valid_837p_edi_string: str):
     """
     Tests that the parser correctly identifies a missing required loop (e.g., 1000A Submitter).
     """
-    invalid_edi = VALID_837P_EDI.replace("NM1*41*2*PREMIER BILLING*****46*SUBMITTER1~\n", "")
+    invalid_edi = valid_837p_edi_string.replace("NM1*41*2*PREMIER BILLING*****46*SUBMITTER1~\n", "")
     parser = EdiParser(edi_string=invalid_edi, schema=standalone_schema)
     interchange = parser.parse()
 
@@ -68,15 +43,41 @@ def test_validator_finds_missing_required_loop(standalone_schema: Implementation
     assert len(transaction_body.errors) > 0
     assert "Required segment or loop '1000A' not found" in transaction_body.errors[0].message
 
-def test_validator_finds_invalid_code_value(standalone_schema: ImplementationGuideSchema):
+# --- Advanced Data-Level Validation Tests ---
+
+def test_validator_fails_on_min_length_error(standalone_schema: ImplementationGuideSchema, valid_837p_edi_string: str):
+    """
+    Tests that an element (BHT04) with a required length of 8 fails when the data is too short.
+    """
+    invalid_edi = valid_837p_edi_string.replace("*20240715*", "*202407*")
+    parser = EdiParser(edi_string=invalid_edi, schema=standalone_schema)
+    interchange = parser.parse()
+
+    bht_segment = interchange.functional_groups[0].transactions[0].body.get_segment("BHT")
+    assert len(bht_segment.errors) > 0
+    error_messages = [e.message for e in bht_segment.errors]
+    assert any("BHT04" in msg and "shorter than min length 8" in msg for msg in error_messages)
+
+def test_validator_fails_on_max_length_error(standalone_schema: ImplementationGuideSchema, valid_837p_edi_string: str):
+    """
+    Tests that an element (BHT04) with a required length of 8 fails when the data is too long.
+    """
+    invalid_edi = valid_837p_edi_string.replace("*20240715*", "*2024071500*")
+    parser = EdiParser(edi_string=invalid_edi, schema=standalone_schema)
+    interchange = parser.parse()
+
+    bht_segment = interchange.functional_groups[0].transactions[0].body.get_segment("BHT")
+    assert len(bht_segment.errors) > 0
+    error_messages = [e.message for e in bht_segment.errors]
+    assert any("BHT04" in msg and "longer than max length 8" in msg for msg in error_messages)
+
+def test_validator_finds_invalid_code_value(standalone_schema: ImplementationGuideSchema, valid_837p_edi_string: str):
     """
     Tests that the validator correctly identifies an element with a value not in its defined code set.
     """
-    # --- THIS IS THE FIX ---
-    # Be very specific about the replacement to ensure only SV110 is changed.
     valid_sv1 = "SV1*HC>99213*125*UN*1***1**Y~"
-    invalid_sv1 = "SV1*HC>99213*125*UN*1***1**X~" # Note the X in the SV110 position
-    invalid_edi = VALID_837P_EDI.replace(valid_sv1, invalid_sv1)
+    invalid_sv1 = "SV1*HC>99213*125*UN*1***1**X~"
+    invalid_edi = valid_837p_edi_string.replace(valid_sv1, invalid_sv1)
     
     parser = EdiParser(edi_string=invalid_edi, schema=standalone_schema)
     interchange = parser.parse()
@@ -87,3 +88,51 @@ def test_validator_finds_invalid_code_value(standalone_schema: ImplementationGui
     assert len(sv1_segment.errors) > 0
     error_messages = [e.message for e in sv1_segment.errors]
     assert any("Element 'SV109'" in msg and "Invalid code value" in msg for msg in error_messages)
+
+def test_validator_fails_on_date_format_error(standalone_schema: ImplementationGuideSchema, valid_837p_edi_string: str):
+    """
+    Tests that a date element (BHT04) with a required CCYYMMDD format fails validation with an invalid format.
+    """
+    invalid_edi = valid_837p_edi_string.replace("20240715", "INVALID_")
+    parser = EdiParser(edi_string=invalid_edi, schema=standalone_schema)
+    interchange = parser.parse()
+
+    bht_segment = interchange.functional_groups[0].transactions[0].body.get_segment("BHT")
+    assert len(bht_segment.errors) > 0
+    error_messages = [e.message for e in bht_segment.errors]
+    assert any("BHT04" in msg and "does not match expected format 'CCYYMMDD'" in msg for msg in error_messages)
+
+def test_validator_fails_on_contextual_code_error(standalone_schema: ImplementationGuideSchema, valid_837p_edi_string: str):
+    """
+    Tests that a contextual code validation fails. The base NM1 allows many codes for NM101,
+    but in the 2010AA loop, it must be '85'.
+    """
+    invalid_edi = valid_837p_edi_string.replace(
+        "NM1*85*2*BILLING PROVIDER*****XX*1234567890~",
+        "NM1*87*2*WRONG PROVIDER*****XX*1234567890~"
+    )
+    parser = EdiParser(edi_string=invalid_edi, schema=standalone_schema)
+    interchange = parser.parse()
+
+    billing_provider_loop = interchange.functional_groups[0].transactions[0].body.get_loop("2000A")
+    billing_provider_name_loop = billing_provider_loop.get_loop("2010AA")
+    nm1_segment = billing_provider_name_loop.get_segment("NM1")
+
+    assert len(nm1_segment.errors) > 0
+    error_messages = [e.message for e in nm1_segment.errors]
+    assert any("NM101" in msg and "Invalid code value" in msg and "Allowed: 85" in msg for msg in error_messages)
+
+def test_validator_fails_on_composite_sub_element_error(standalone_schema: ImplementationGuideSchema, valid_837p_edi_string: str):
+    """
+    Tests that validation fails for an invalid code in a composite sub-element (CLM05-2).
+    """
+    invalid_edi = valid_837p_edi_string.replace("11>B>1", "11>Z>1")
+    parser = EdiParser(edi_string=invalid_edi, schema=standalone_schema)
+    interchange = parser.parse()
+
+    claim_loop = interchange.functional_groups[0].transactions[0].body.get_loop("2000A").get_loop("2000B").get_loop("2300")
+    clm_segment = claim_loop.get_segment("CLM")
+
+    assert len(clm_segment.errors) > 0
+    error_messages = [e.message for e in clm_segment.errors]
+    assert any("CLM05-2" in msg and "Invalid code value" in msg and "Allowed: B" in msg for msg in error_messages)

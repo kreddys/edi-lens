@@ -105,9 +105,6 @@ def standalone_schema() -> ImplementationGuideSchema:
     This ensures true isolation for parser tests.
     """
     try:
-        # Construct the path relative to THIS conftest.py file.
-        # This works reliably whether running locally or in Docker.
-        # Path(__file__) is /path/to/backend/tests/conftest.py
         project_root = Path(__file__).parent.parent
         schema_path = project_root / "data/edi_schemas/837.5010.X222.A1.json"
         
@@ -119,3 +116,32 @@ def standalone_schema() -> ImplementationGuideSchema:
             return ImplementationGuideSchema.model_validate(schema_data)
     except Exception as e:
         pytest.fail(f"Failed to load or parse the schema for unit tests: {e}")
+
+@pytest.fixture(scope="session")
+def valid_837p_edi_string() -> str:
+    """Provides a shared, compliant 837P EDI string for parser unit tests."""
+    return """
+ISA*00*          *00*          *ZZ*SENDERID       *ZZ*RECEIVERID     *240715*1200*^*00501*000000001*0*P*>~
+GS*HC*SENDER*RECEIVER*20240715*1200*1*X*005010X222A1~
+ST*837*0001*005010X222A1~
+BHT*0019*00*1234*20240715*1200*CH~
+NM1*41*2*PREMIER BILLING*****46*SUBMITTER1~
+PER*IC*JOHN DOE*TE*8005551212~
+NM1*40*2*PAYER A*****46*RECEIVER1~
+HL*1**20*1~
+NM1*85*2*BILLING PROVIDER*****XX*1234567890~
+N3*123 MAIN ST~
+N4*ANYTOWN*CA*90210~
+REF*EI*123456789~
+HL*2*1*22*0~
+SBR*P*18*GRP123******CI~
+NM1*IL*1*DOE*JOHN****MI*SUBID123~
+NM1*PR*2*PAYER A*****PI*PAYERID123~
+CLM*PATCTRL123*500***11>B>1*Y*A*Y*Y~
+HI*BK>87340~
+LX*1~
+SV1*HC>99213*125*UN*1***1**Y~
+SE*22*0001~
+GE*1*1~
+IEA*1*000000001~
+""".strip()
