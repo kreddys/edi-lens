@@ -246,6 +246,12 @@ class SegmentValidator:
         
         log_line_intro = f"{indent}Validating {full_xid} (Usage: {usage}): Data='{value}'"
 
+        if usage == 'N' and is_present:
+            err_msg = f"Element '{full_xid}' is Not Used and should not contain data."
+            logger.debug(f"{log_line_intro} -> [FAIL] {err_msg}")
+            errors.append(CdmValidationError(message=err_msg))
+            # Continue other checks to provide max feedback, but this is a definite error.
+
         if usage == 'R' and not is_present:
             err_msg = f"Required element '{full_xid}' is missing."
             logger.debug(f"{log_line_intro} -> [FAIL] {err_msg}")
@@ -396,8 +402,7 @@ class EdiParser:
                                    (isinstance(schema_node, StructureLoop) and self._get_starting_segment_id(schema_node) == current_segment_for_repeat.segment_id)
 
                     if not repeat_match:
-                        expected_id = schema_node.xid if isinstance(schema_node, StructureSegment) else self._get_starting_segment_id(schema_node)
-                        logger.debug(f"{indent}  -> Repeat loop for '{expected_id}' terminated. Next segment '{current_segment_for_repeat.segment_id}' does not match.")
+                        logger.debug(f"{indent}  -> Repeat loop for '{schema_node.xid}' terminated. Next segment '{current_segment_for_repeat.segment_id}' does not match.")
                         break
 
                     if isinstance(schema_node, StructureSegment):
@@ -424,7 +429,6 @@ class EdiParser:
                     
         finish_reason = "End of segments" if cursor >= len(segments) else "End of schema nodes"
         
-        # After loop, check if any remaining required nodes were not met
         if schema_node_index < len(schema_nodes):
             finish_reason = "End of schema nodes"
             for i in range(schema_node_index, len(schema_nodes)):
@@ -456,12 +460,14 @@ class EdiParser:
         st_loop_children = [child for child in st_loop_schema.children if child.xid not in ('ST', 'SE')]
         logger.debug("Found ST_LOOP. Parsing transaction body...")
 
+        # The top-level call to _build_tree
         body_loop, consumed_count = self._build_tree(transaction_body_segments, st_loop_children, depth=1, parent_loop_id="ST_LOOP")
 
         transaction = CdmTransaction(header=st_segment, trailer=se_segment, body=body_loop)
         transaction.errors.extend(body_loop.errors)
 
         if consumed_count != len(transaction_body_segments):
+            # ... (error handling remains the same)
             error_line, error_seg_id = None, None
             if consumed_count < len(transaction_body_segments):
                 problematic_segment = transaction_body_segments[consumed_count]
