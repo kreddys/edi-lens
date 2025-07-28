@@ -1,6 +1,8 @@
 # FILE: backend/src/core/edi_parser.py
 import logging
 import copy
+import re
+from datetime import datetime
 from typing import List, Optional, Tuple, Dict, Any
 
 from src.edi_schemas.edi_guide import ImplementationGuideSchema, StructureLoop, StructureSegment, StructureChild
@@ -8,7 +10,41 @@ from src.core.cdm import CdmInterchange, CdmFunctionalGroup, CdmTransaction, Cdm
 
 logger = logging.getLogger(__name__)
 
+# --- Validation Helpers ---
+def _validate_data_type(value: str, data_type: str) -> bool:
+    if data_type == 'Composite':
+        return True # Composites are validated structurally
+    if data_type in ['AN', 'ID']:
+        return True # Assume valid for now, code/format checks will handle specifics
+    if data_type in ('N0', 'N1', 'N2', 'R'):
+        if not value: return True # Allow empty for optional numeric/decimal
+        # Check if it can be converted to a number
+        try:
+            float(value)
+            return True
+        except ValueError:
+            return False
+    # For DT and TM, format validation is the real test
+    if data_type in ('DT', 'TM'):
+        return True
+    return False
+
+def _validate_format(value: str, data_format: str) -> bool:
+    if not value: return True # Don't format-check empty optional fields
+    if data_format == 'CCYYMMDD':
+        if not (len(value) == 8 and value.isdigit()): return False
+        try:
+            datetime.strptime(value, '%Y%m%d')
+            return True
+        except ValueError:
+            return False
+    if data_format == 'HHMM':
+        if not (len(value) == 4 and value.isdigit()): return False
+        return 0 <= int(value[:2]) <= 23 and 0 <= int(value[2:]) <= 59
+    return True # Default to true if format is unknown
+
 def get_guide_version_from_edi(edi_string: str) -> Optional[str]:
+    # ... (this function is correct and unchanged) ...
     element_delimiter = '*'
     segment_delimiter = '~'
     clean_edi = edi_string.strip()
@@ -26,28 +62,54 @@ def get_guide_version_from_edi(edi_string: str) -> Optional[str]:
             if len(parts) > 8: return parts[8]
     return None
 
+# In backend/src/core/edi_parser.py
+
 def _get_effective_definition(base_def: Dict[str, Any], context_def: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if not context_def:
         return base_def
+    
     effective = copy.deepcopy(base_def)
     context_elements = context_def.get("elements", {})
     if not context_elements:
         return effective
+
     for i, base_el in enumerate(effective.get("elements", [])):
         el_xid = base_el.get("xid")
         if el_xid in context_elements:
-            for key, value in context_elements[el_xid].items():
+            overrides = context_elements[el_xid]
+            
+            # --- THIS IS THE DEEP MERGE FIX ---
+            if 'sub_elements' in overrides and 'sub_elements' in base_el:
+                # If both have sub-elements, merge them deeply.
+                base_sub_elements = base_el['sub_elements']
+                override_sub_elements = overrides['sub_elements']
+                
+                # Handle both list and dict structures for sub-elements
+                if isinstance(base_sub_elements, list) and isinstance(override_sub_elements, dict):
+                    for j, base_sub_el in enumerate(base_sub_elements):
+                        sub_el_xid = base_sub_el.get("xid")
+                        if sub_el_xid in override_sub_elements:
+                            # Apply the override to the base sub-element
+                            base_sub_elements[j].update(override_sub_elements[sub_el_xid])
+                
+                # Remove sub_elements from the main override dict so it's not shallow-copied later
+                del overrides['sub_elements']
+
+            # Apply all other (non-sub-element) overrides
+            for key, value in overrides.items():
                 if value is not None:
                     effective["elements"][i][key] = value
+
     return effective
 
 class SegmentValidator:
-    def __init__(self, schema: ImplementationGuideSchema):
+    def __init__(self, schema: ImplementationGuideSchema, component_separator: str):
         self.schema = schema
+        self.component_separator = component_separator
 
     def validate(self, segment: CdmSegment, context_id: Optional[str] = None, depth=0) -> List[CdmValidationError]:
         indent = "  " * depth
-        logger.debug(f"{indent}--- Starting validation for segment '{segment.segment_id}' (Context: {context_id or 'None'}) ---")
+        logger.debug(f"{indent}--- Validating Segment: '{segment.raw_segment}' (Context: {context_id or 'None'}) ---")
         errors: List[CdmValidationError] = []
         base_def_model = self.schema.segmentDefinitions.get(segment.segment_id)
         if not base_def_model:
@@ -59,40 +121,104 @@ class SegmentValidator:
         context_def = context_def_model.model_dump(exclude_none=True) if context_def_model else None
         
         effective_def = _get_effective_definition(base_def, context_def)
-        logger.debug(f"{indent}Effective definition created. Validating {len(effective_def.get('elements', []))} elements.")
-        
         elements_in_data = {el.position: el.value for el in segment.elements}
+        element_indent = indent + "  "
 
-        for i, element_def in enumerate(effective_def.get("elements", [])):
-            el_pos = i + 1
-            el_xid = element_def.get("xid")
-            
-            is_present_in_data = el_pos in elements_in_data and elements_in_data[el_pos].strip() != ""
-            
-            if element_def.get("usage") == 'R' and not is_present_in_data:
-                err_msg = f"Required element '{el_xid}' is missing."
-                logger.debug(f"{indent}  [FAIL] {err_msg}")
-                errors.append(CdmValidationError(message=err_msg))
-                continue
-            
-            if not is_present_in_data:
-                continue
+        logger.debug(f"{element_indent}Processing {len(effective_def.get('elements', []))} defined elements...")
 
-            if "valid_codes" in element_def and element_def["valid_codes"]:
-                allowed_codes = {str(code['code']) for code in element_def["valid_codes"]}
-                value_in_data = elements_in_data[el_pos]
-                if value_in_data not in allowed_codes:
-                    err_msg = f"Element '{el_xid}' has an invalid value '{value_in_data}'. Allowed values are: {', '.join(sorted(list(allowed_codes)))}."
-                    logger.debug(f"{indent}  [FAIL] {err_msg}")
-                    errors.append(CdmValidationError(message=err_msg))
+        for element_def in effective_def.get("elements", []):
+            el_pos = element_def.get('seq')
+            if not el_pos: continue
+
+            value_in_data = elements_in_data.get(el_pos, "")
+            
+            errors.extend(self._validate_element_recursively(element_def, value_in_data, element_indent))
         
         logger.debug(f"{indent}--- Validation for '{segment.segment_id}' complete. Found {len(errors)} errors. ---")
+        return errors
+
+    def _validate_element_recursively(self, element_def: Dict[str, Any], value: str, indent: str, parent_xid: Optional[str] = None) -> List[CdmValidationError]:
+        errors: List[CdmValidationError] = []
+        xid = element_def.get("xid")
+        full_xid = f"{parent_xid}-{xid}" if parent_xid else xid
+        usage = element_def.get("usage", "S")
+        is_present = value.strip() != ""
+        
+        log_line_intro = f"{indent}Validating {full_xid} (Usage: {usage}): Data='{value}'"
+
+        if usage == 'R' and not is_present:
+            err_msg = f"Required element '{full_xid}' is missing."
+            logger.debug(f"{log_line_intro} -> [FAIL] {err_msg}")
+            errors.append(CdmValidationError(message=err_msg))
+            return errors
+        
+        if not is_present:
+            logger.debug(f"{log_line_intro} -> [PASS] Optional element is not present.")
+            return errors
+
+        data_type = element_def.get('dataType')
+        if data_type == 'Composite':
+            # --- FINAL FIX & ENHANCED LOGGING ---
+            logger.debug(f"{log_line_intro} -> [INFO] Is Composite. Splitting with delimiter '{self.component_separator}'. Validating sub-elements.")
+            sub_element_values = value.split(self.component_separator)
+            sub_element_defs = element_def.get('sub_elements', [])
+            
+            # This handles both LIST and DICT structures for sub-elements
+            if isinstance(sub_element_defs, list):
+                for sub_def in sub_element_defs:
+                    sub_pos = sub_def.get('seq')
+                    if not sub_pos: continue
+                    sub_value = sub_element_values[sub_pos - 1] if sub_pos - 1 < len(sub_element_values) else ""
+                    errors.extend(self._validate_element_recursively(sub_def, sub_value, indent + "  ", parent_xid=full_xid))
+            elif isinstance(sub_element_defs, dict):
+                for sub_xid, sub_def in sub_element_defs.items():
+                    try:
+                        # Derive position from XID like "HI01-1" -> 1
+                        sub_pos = int(sub_xid.split('-')[-1])
+                    except (ValueError, IndexError):
+                        continue
+                    sub_value = sub_element_values[sub_pos - 1] if sub_pos - 1 < len(sub_element_values) else ""
+                    sub_def_with_xid = {'xid': sub_xid, **sub_def}
+                    errors.extend(self._validate_element_recursively(sub_def_with_xid, sub_value, indent + "  ", parent_xid=full_xid))
+            
+            return errors
+
+        validation_passed = True
+        
+        min_len, max_len = element_def.get('minLength'), element_def.get('maxLength')
+        if min_len is not None and len(value) < min_len:
+            errors.append(CdmValidationError(message=f"Element '{full_xid}': Value is shorter than min length {min_len}."))
+            validation_passed = False
+        if max_len is not None and len(value) > max_len:
+            errors.append(CdmValidationError(message=f"Element '{full_xid}': Value is longer than max length {max_len}."))
+            validation_passed = False
+
+        if data_type and not _validate_data_type(value, data_type):
+            errors.append(CdmValidationError(message=f"Element '{full_xid}': Value does not match expected data type '{data_type}'."))
+            validation_passed = False
+        data_format = element_def.get('format')
+        if data_format and not _validate_format(value, data_format):
+            errors.append(CdmValidationError(message=f"Element '{full_xid}': Value does not match expected format '{data_format}'."))
+            validation_passed = False
+
+        if "valid_codes" in element_def and element_def["valid_codes"]:
+            allowed_codes = {str(c['code']) for c in element_def["valid_codes"]}
+            if value not in allowed_codes:
+                errors.append(CdmValidationError(message=f"Element '{full_xid}': Invalid code value. Allowed: {', '.join(sorted(list(allowed_codes)))}."))
+                validation_passed = False
+
+        if validation_passed:
+            logger.debug(f"{log_line_intro} -> [PASS]")
+        else:
+            logger.debug(f"{log_line_intro} -> [FAIL] One or more validation checks failed.")
+
         return errors
 
 class EdiParser:
     def __init__(self, edi_string: str, schema: ImplementationGuideSchema):
         self.schema = schema
-        self.validator = SegmentValidator(schema)
+        _, _, component_separator = self._detect_delimiters(edi_string)
+        self.validator = SegmentValidator(schema, component_separator)
         self.all_segments: List[CdmSegment] = self._segmentize_and_parse(edi_string)
         self.errors: List[CdmValidationError] = []
         logger.debug(f"Parser initialized with {len(self.all_segments)} segments.")
@@ -117,9 +243,14 @@ class EdiParser:
         for i, seg_str in enumerate(raw_segments):
             clean_seg = seg_str.strip()
             if not clean_seg: continue
+            
             parts = clean_seg.split(element_delimiter)
             segment_id = parts[0]
-            elements = [CdmElement(value=val, position=i + 1) for i, val in enumerate(parts[1:])]
+            
+            elements: List[CdmElement] = []
+            for idx, value in enumerate(parts[1:]):
+                elements.append(CdmElement(value=value, position=idx + 1))
+
             segments.append(CdmSegment(segment_id=segment_id, elements=elements, line_number=i + 1, raw_segment=clean_seg))
             if segment_id == 'IEA': break
         return segments
@@ -137,33 +268,27 @@ class EdiParser:
             return self._get_starting_segment_id(node.children[0])
         return None
 
-    def _build_tree(self, segments: List[CdmSegment], schema_nodes: List[StructureChild], depth=0) -> Tuple[CdmLoop, int]:
+    def _build_tree(self, segments: List[CdmSegment], schema_nodes: List[StructureChild], depth=0, parent_loop_id: str = "root") -> Tuple[CdmLoop, int]:
         indent = "  " * depth
-        cdm_loop = CdmLoop(loop_id="level_content")
+        cdm_loop = CdmLoop(loop_id=parent_loop_id)
         cursor = 0
         schema_node_index = 0
+        
+        logger.debug(f"{indent}[START LOOP PARSE: {parent_loop_id}] Processing {len(segments)} segments against {len(schema_nodes)} schema nodes.")
 
-        while schema_node_index < len(schema_nodes):
-            if cursor >= len(segments):
-                for i in range(schema_node_index, len(schema_nodes)):
-                    remaining_node = schema_nodes[i]
-                    if remaining_node.usage == 'R':
-                        error_msg = f"Required segment or loop '{remaining_node.xid}' is missing at the end of its parent loop."
-                        logger.debug(f"{indent}[FAIL] {error_msg}")
-                        cdm_loop.errors.append(CdmValidationError(message=error_msg))
-                break
-
+        while cursor < len(segments) and schema_node_index < len(schema_nodes):
             schema_node = schema_nodes[schema_node_index]
             current_segment = segments[cursor]
             
-            logger.debug(f"{indent}Cursor {cursor} ('{current_segment.segment_id}'): Evaluating Schema Node '{schema_node.xid}' (Usage: {schema_node.usage})")
+            repeat_val = getattr(schema_node, 'repeat', getattr(schema_node, 'max_use', 1))
+            logger.debug(f"{indent}Cursor={cursor} ('{current_segment.segment_id}'): Evaluating Schema Node='{schema_node.xid}' (Usage: {schema_node.usage}, Repeat: {repeat_val})")
 
             is_match = (isinstance(schema_node, StructureSegment) and current_segment.segment_id == schema_node.xid) or \
                        (isinstance(schema_node, StructureLoop) and self._get_starting_segment_id(schema_node) == current_segment.segment_id)
 
             if is_match:
                 logger.debug(f"{indent}  -> MATCH FOUND.")
-                max_repeats = schema_node.max_use if isinstance(schema_node, StructureSegment) else 99999
+                max_repeats = schema_node.max_use if isinstance(schema_node, StructureSegment) else (99999 if not isinstance(schema_node.repeat, int) else schema_node.repeat)
                 
                 for i in range(max_repeats):
                     if cursor >= len(segments): break
@@ -172,7 +297,10 @@ class EdiParser:
                     repeat_match = (isinstance(schema_node, StructureSegment) and current_segment_for_repeat.segment_id == schema_node.xid) or \
                                    (isinstance(schema_node, StructureLoop) and self._get_starting_segment_id(schema_node) == current_segment_for_repeat.segment_id)
 
-                    if not repeat_match: break
+                    if not repeat_match:
+                        expected_id = schema_node.xid if isinstance(schema_node, StructureSegment) else self._get_starting_segment_id(schema_node)
+                        logger.debug(f"{indent}  -> Repeat loop for '{expected_id}' terminated. Next segment '{current_segment_for_repeat.segment_id}' does not match.")
+                        break
 
                     if isinstance(schema_node, StructureSegment):
                         validation_errors = self.validator.validate(current_segment_for_repeat, schema_node.contextDefinitionId, depth + 1)
@@ -180,8 +308,7 @@ class EdiParser:
                         cdm_loop.segments.append(current_segment_for_repeat)
                         cursor += 1
                     elif isinstance(schema_node, StructureLoop):
-                        sub_loop, segments_consumed = self._build_tree(segments[cursor:], schema_node.children, depth + 1)
-                        sub_loop.loop_id = schema_node.xid
+                        sub_loop, segments_consumed = self._build_tree(segments[cursor:], schema_node.children, depth + 1, parent_loop_id=schema_node.xid)
                         cdm_loop.errors.extend(sub_loop.errors)
                         cdm_loop.add_loop(sub_loop)
                         cursor += segments_consumed
@@ -192,13 +319,24 @@ class EdiParser:
                     error_msg = f"Required segment or loop '{schema_node.xid}' not found. Found '{current_segment.segment_id}' instead."
                     logger.debug(f"{indent}[FAIL] {error_msg}")
                     cdm_loop.errors.append(CdmValidationError(message=error_msg, line_number=current_segment.line_number, segment_id=current_segment.segment_id))
-                    # DO NOT CONSUME THE SEGMENT. Just advance the schema pointer to see if the current segment matches the next rule.
                     schema_node_index += 1
-                else: # Situational ('S') node not found
+                else: # Situational ('S') node not found, advance schema and retry with same segment
                     logger.debug(f"{indent}  -> Skipping optional schema node '{schema_node.xid}'.")
-                    # DO NOT CONSUME THE SEGMENT. Just advance the schema pointer.
                     schema_node_index += 1
                     
+        finish_reason = "End of segments" if cursor >= len(segments) else "End of schema nodes"
+        
+        # After loop, check if any remaining required nodes were not met
+        if schema_node_index < len(schema_nodes):
+            finish_reason = "End of schema nodes"
+            for i in range(schema_node_index, len(schema_nodes)):
+                remaining_node = schema_nodes[i]
+                if remaining_node.usage == 'R':
+                    error_msg = f"Required segment or loop '{remaining_node.xid}' is missing at the end of its parent loop."
+                    logger.debug(f"{indent}[FAIL] {error_msg}")
+                    cdm_loop.errors.append(CdmValidationError(message=error_msg))
+        
+        logger.debug(f"{indent}[END LOOP PARSE: {parent_loop_id}] Consumed {cursor} segments. Reason: {finish_reason}.")
         return cdm_loop, cursor
 
     def _parse_transaction_set(self, segments: List[CdmSegment]) -> CdmTransaction:
@@ -220,8 +358,7 @@ class EdiParser:
         st_loop_children = [child for child in st_loop_schema.children if child.xid not in ('ST', 'SE')]
         logger.debug("Found ST_LOOP. Parsing transaction body...")
 
-        body_loop, consumed_count = self._build_tree(transaction_body_segments, st_loop_children, depth=1)
-        body_loop.loop_id = "ST_LOOP"
+        body_loop, consumed_count = self._build_tree(transaction_body_segments, st_loop_children, depth=1, parent_loop_id="ST_LOOP")
 
         transaction = CdmTransaction(header=st_segment, trailer=se_segment, body=body_loop)
         transaction.errors.extend(body_loop.errors)
@@ -232,8 +369,8 @@ class EdiParser:
                 problematic_segment = transaction_body_segments[consumed_count]
                 error_line, error_seg_id = problematic_segment.line_number, problematic_segment.segment_id
             
-            error_msg = "Parser did not consume all segments in the transaction."
-            logger.warning(f"{error_msg} Unconsumed segment starts at or near line {error_line} ('{error_seg_id}').")
+            error_msg = f"Transaction parsing incomplete. Unexpected structure or missing mandatory segment at or before '{error_seg_id}' (line {error_line})."
+            logger.warning(error_msg)
             transaction.errors.append(CdmValidationError(
                 message=error_msg,
                 line_number=error_line,

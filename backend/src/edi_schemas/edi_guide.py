@@ -52,7 +52,7 @@ class BaseElement(BaseModel):
     maxLength: Optional[int] = None
     format: Optional[Union[str, List[str]]] = None
     valid_codes: Optional[List[CodeDefinition]] = None
-    sub_elements: Optional[List['BaseElement']] = Field(default=None, alias="elements")
+    sub_elements: Optional[List['BaseElement']] = None
 
 class SegmentDefinition(BaseModel):
     id: str
