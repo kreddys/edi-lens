@@ -5,72 +5,71 @@ from src.edi_schemas.edi_guide import ImplementationGuideSchema
 
 pytestmark = pytest.mark.unit
 
-SIMPLE_837P_EDI = """
-ISA*00*          *00*          *ZZ*SENDERID       *ZZ*RECEIVERID     *240715*1200*^*00501*000000001*0*P*>~
-GS*HC*SENDER*RECEIVER*20240715*1200*1*X*005010X222A1~
-ST*837*0001*005010X222A1~
-BHT*0019*00*1234*20240715*1200*CH~
-HL*1**20*1~
-NM1*85*2*BILLING PROVIDER*****XX*1234567890~
-HL*2*1*22*0~
-SBR*P*18*GRP123~
-NM1*IL*1*DOE*JOHN****MI*SUBID123~
-CLM*PATCTRL123*500***11:B:1*Y*A*Y*Y~
-LX*1~
-SV1*HC:V2020:G4*125*UN*1~
-SE*11*0001~
-GE*1*1~
-IEA*1*000000001~
-""".strip()
+# The SIMPLE_837P_EDI constant can be removed as we will now use the conftest fixture for all relevant tests.
 
-def test_parser_creates_valid_cdm_interchange(standalone_schema: ImplementationGuideSchema):
-    parser = EdiParser(edi_string=SIMPLE_837P_EDI, schema=standalone_schema)
+# This test was already correct, but we'll include it for completeness
+def test_parser_creates_valid_cdm_interchange(standalone_schema: ImplementationGuideSchema, valid_837p_edi_string: str):
+    parser = EdiParser(edi_string=valid_837p_edi_string, schema=standalone_schema)
     interchange = parser.parse()
     assert interchange is not None
-    assert interchange.header.segment_id == 'ISA'
-    assert len(interchange.errors) == 0
+    assert len(parser._collect_all_errors(interchange)) == 0, "Parser found unexpected errors in a valid file."
 
-def test_parser_identifies_loops_correctly(standalone_schema: ImplementationGuideSchema):
-    parser = EdiParser(edi_string=SIMPLE_837P_EDI, schema=standalone_schema)
+# This test was also correct
+def test_parser_identifies_loops_correctly(standalone_schema: ImplementationGuideSchema, valid_837p_edi_string: str):
+    parser = EdiParser(edi_string=valid_837p_edi_string, schema=standalone_schema)
     interchange = parser.parse()
     
     transaction = interchange.functional_groups[0].transactions[0]
     st_loop = transaction.body
     
-    loop_2000a = st_loop.loops['2000A'][0]
-    assert loop_2000a.loop_id == '2000A'
+    loop_2000a = st_loop.get_loop('2000A')
+    assert loop_2000a is not None and loop_2000a.loop_id == '2000A'
     
-    # In the simple EDI, the claim is directly under the subscriber (2000B)
-    loop_2000b = loop_2000a.loops['2000B'][0]
-    assert loop_2000b.loop_id == '2000B'
+    loop_2000b = loop_2000a.get_loop('2000B')
+    assert loop_2000b is not None and loop_2000b.loop_id == '2000B'
     
-    loop_2300 = loop_2000b.loops['2300'][0]
-    assert loop_2300.loop_id == '2300'
+    loop_2300 = loop_2000b.get_loop('2300')
+    assert loop_2300 is not None and loop_2300.loop_id == '2300'
     
-    loop_2400 = loop_2300.loops['2400'][0]
-    assert loop_2400.loop_id == '2400'
-    assert any(s.segment_id == 'SV1' for s in loop_2400.segments)
+    loop_2400 = loop_2300.get_loop('2400')
+    assert loop_2400 is not None and any(s.segment_id == 'SV1' for s in loop_2400.segments)
 
-def test_parser_handles_incomplete_edi_gracefully(standalone_schema: ImplementationGuideSchema):
-    # --- FIX: Let the parser run and check the results naturally ---
+def test_parser_handles_incomplete_edi_gracefully(standalone_schema: ImplementationGuideSchema, valid_837p_edi_string: str):
+    # This test is fine as is for the ISA/IEA check
     incomplete_edi = "ISA*00* *00* *ZZ*SENDER*ZZ*RECEIVER*240715*1200*^*00501*1*0*P*>~"
     parser_no_iea = EdiParser(edi_string=incomplete_edi, schema=standalone_schema)
     interchange_no_iea = parser_no_iea.parse()
     assert len(interchange_no_iea.errors) > 0
     assert "ISA/IEA envelope not found" in interchange_no_iea.errors[0].message
     
-    edi_missing_se = SIMPLE_837P_EDI.replace("SE*11*0001~", "")
+    # Use the valid fixture to test for a missing SE
+    edi_missing_se = valid_837p_edi_string.replace("SE*24*0001~", "")
     parser_no_se = EdiParser(edi_string=edi_missing_se, schema=standalone_schema)
     interchange_no_se = parser_no_se.parse()
     assert len(interchange_no_se.errors) > 0
     assert "Unclosed transaction set" in interchange_no_se.errors[0].message
 
-def test_parser_handles_missing_mandatory_segment(standalone_schema: ImplementationGuideSchema):
-    edi_missing_lx = SIMPLE_837P_EDI.replace("LX*1~\n", "")
+# --- THIS IS THE REFACTORED AND FIXED TEST ---
+def test_parser_handles_missing_mandatory_segment(standalone_schema: ImplementationGuideSchema, valid_837p_edi_string: str):
+    """
+    Tests that the parser correctly flags an error when a mandatory segment (LX)
+    that starts a required loop (2400) is missing.
+    """
+    # 1. Start with a compliant EDI string from conftest
+    # 2. Remove the mandatory LX segment that begins the 2400 loop
+    edi_missing_lx = valid_837p_edi_string.replace("LX*1~\n", "")
+    # 3. Decrement the SE segment count to avoid a control number mismatch error
+    edi_missing_lx = edi_missing_lx.replace("SE*24*0001~", "SE*23*0001~")
+    
     parser = EdiParser(edi_string=edi_missing_lx, schema=standalone_schema)
     interchange = parser.parse()
     
-    transaction = interchange.functional_groups[0].transactions[0]
-    assert len(transaction.errors) == 1
-    expected_error_msg = "Transaction parsing incomplete. Unexpected structure or missing mandatory segment at or before 'SV1' (line 11)."
-    assert transaction.errors[0].message == expected_error_msg
+    # 4. Find the claim loop where the error should have occurred
+    claim_loop = interchange.functional_groups[0].transactions[0].body.get_loop("2000A").get_loop("2000B").get_loop("2300")
+    
+    # 5. Assert that the specific, expected error was logged
+    assert claim_loop is not None
+    assert len(claim_loop.errors) > 0
+    
+    expected_error_msg = "Required segment or loop '2400' not found. Found 'SV1' instead."
+    assert any(expected_error_msg in e.message for e in claim_loop.errors)

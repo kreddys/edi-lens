@@ -213,7 +213,10 @@
               "description": "Pay-to Provider"
             }
           ]
-        }
+        },
+        "NM103": {
+          "usage": "S"
+        }        
       }
     },
     "2010AC.NM1": {

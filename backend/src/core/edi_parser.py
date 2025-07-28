@@ -62,8 +62,6 @@ def get_guide_version_from_edi(edi_string: str) -> Optional[str]:
             if len(parts) > 8: return parts[8]
     return None
 
-# In backend/src/core/edi_parser.py
-
 def _get_effective_definition(base_def: Dict[str, Any], context_def: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if not context_def:
         return base_def

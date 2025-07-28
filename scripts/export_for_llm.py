@@ -33,7 +33,6 @@ IGNORE_PATHS = [
 # Filenames to always ignore by default.
 IGNORE_FILENAMES = {
     '.env.dev',
-    '837.5010.X222.A1.json',
     'poetry.lock',
     'package-lock.json',
 }
@@ -140,7 +139,7 @@ def main():
             '.gitignore', 'README.md',
             '.env.dev.example', '.env.test.example', '.env.prod.example',
             'docker',
-            'scripts/run_app.sh', 'scripts/queries.sql', 'docs', 'backend/data/knowledge'
+            'run.sh', 'scripts/queries.sql', 'docs', 'backend/data/knowledge', 'backend/data/edi_schemas/837.5010.X222.A1.json'
         ])
     
     unique_paths = list(dict.fromkeys(paths_to_scan))
