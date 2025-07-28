@@ -113,6 +113,7 @@ class SegmentValidator:
         errors: List[CdmValidationError] = []
         base_def_model = self.schema.segmentDefinitions.get(segment.segment_id)
         if not base_def_model:
+            # ... (rest of the initial setup is unchanged)
             logger.warning(f"{indent}Validation FAILED: Base definition for '{segment.segment_id}' not found in schema.")
             return [CdmValidationError(message=f"Base definition for segment '{segment.segment_id}' not found in schema.")]
         
@@ -125,16 +126,108 @@ class SegmentValidator:
         element_indent = indent + "  "
 
         logger.debug(f"{element_indent}Processing {len(effective_def.get('elements', []))} defined elements...")
-
         for element_def in effective_def.get("elements", []):
             el_pos = element_def.get('seq')
             if not el_pos: continue
-
             value_in_data = elements_in_data.get(el_pos, "")
-            
             errors.extend(self._validate_element_recursively(element_def, value_in_data, element_indent))
         
+        # Syntax rules should be checked regardless of individual element validity.
+        errors.extend(self._validate_syntax_rules(segment, effective_def, element_indent))
+
         logger.debug(f"{indent}--- Validation for '{segment.segment_id}' complete. Found {len(errors)} errors. ---")
+        return errors
+
+    def _validate_syntax_rules(self, segment: CdmSegment, effective_def: Dict[str, Any], indent: str) -> List[CdmValidationError]:
+        """Validates inter-element syntax rules for a segment."""
+        errors: List[CdmValidationError] = []
+        rules = effective_def.get("rules", [])
+        if not rules:
+            return errors
+
+        logger.debug(f"{indent}Processing {len(rules)} syntax rule(s)...")
+        for rule in rules:
+            conditions_met = self._evaluate_conditions(segment, rule.get("conditions", {}))
+            if conditions_met:
+                logger.debug(f"{indent}  Rule '{rule.get('ruleId')}': Conditions met, executing assertions.")
+                for assertion in rule.get("then", []):
+                    errors.extend(self._execute_assertion(segment, assertion, rule.get('ruleId')))
+            else:
+                logger.debug(f"{indent}  Rule '{rule.get('ruleId')}': Conditions not met, skipping.")
+        return errors
+
+    def _evaluate_conditions(self, segment: CdmSegment, conditions: Dict[str, Any]) -> bool:
+        """Evaluates the ALL_OF or ANY_OF condition blocks."""
+        if "ALL_OF" in conditions:
+            return all(self._evaluate_condition_clause(segment, clause) for clause in conditions["ALL_OF"])
+        if "ANY_OF" in conditions:
+            return any(self._evaluate_condition_clause(segment, clause) for clause in conditions["ANY_OF"])
+        return True # No conditions means the rule always applies
+
+    def _evaluate_condition_clause(self, segment: CdmSegment, clause: Dict[str, Any]) -> bool:
+        """Evaluates a single condition clause with detailed logging."""
+        element_id = clause["element"]
+        pos = int(re.sub(r'\D', '', element_id))
+        value = segment.get_element(pos) or ""
+        op = clause["operator"]
+        
+        result = False
+        log_detail = ""
+
+        if op == "IS_PRESENT":
+            result = value.strip() != ""
+            log_detail = f"Checking if '{element_id}' is present. Data='{value}'. Result: {result}"
+        elif op == "IS_NOT_PRESENT":
+            result = value.strip() == ""
+            log_detail = f"Checking if '{element_id}' is not present. Data='{value}'. Result: {result}"
+        elif op == "IS":
+            expected_value = clause["value"]
+            result = value == expected_value
+            log_detail = f"Checking if '{element_id}' IS '{expected_value}'. Data='{value}'. Result: {result}"
+        elif op == "IS_NOT":
+            expected_value = clause["value"]
+            result = value != expected_value
+            log_detail = f"Checking if '{element_id}' IS NOT '{expected_value}'. Data='{value}'. Result: {result}"
+        
+        logger.debug(f"        Clause evaluation: {log_detail}")
+        return result
+
+    def _execute_assertion(self, segment: CdmSegment, assertion: Dict[str, Any], rule_id: str) -> List[CdmValidationError]:
+        """Executes a single assertion with detailed logging and returns errors if it fails."""
+        errors: List[CdmValidationError] = []
+        assertion_type = assertion["assertion"]
+        
+        log_detail = ""
+        assertion_failed = False
+
+        if assertion_type == "MUST_BE_PRESENT":
+            element_id = assertion["element"]
+            pos = int(re.sub(r'\D', '', element_id))
+            value = segment.get_element(pos) or ""
+            if not (value and value.strip()):
+                assertion_failed = True
+            log_detail = f"Asserting {element_id} MUST BE PRESENT. Data='{value}'. Result: {'FAIL' if assertion_failed else 'PASS'}"
+
+        elif assertion_type == "MUST_HAVE_LENGTH":
+            element_id = assertion["element"]
+            pos = int(re.sub(r'\D', '', element_id))
+            value = segment.get_element(pos) or ""
+            expected_length = assertion["value"]
+            if len(value) != expected_length:
+                assertion_failed = True
+            log_detail = f"Asserting {element_id} MUST HAVE LENGTH {expected_length}. Data='{value}' (length={len(value)}). Result: {'FAIL' if assertion_failed else 'PASS'}"
+        
+        elif assertion_type == "ANY_OF_MUST_BE_PRESENT":
+            element_ids = assertion["elements"]
+            positions = [int(re.sub(r'\D', '', el_id)) for el_id in element_ids]
+            if not any(segment.get_element(pos) for pos in positions):
+                assertion_failed = True
+            log_detail = f"Asserting ANY OF {', '.join(element_ids)} MUST BE PRESENT. Result: {'FAIL' if assertion_failed else 'PASS'}"
+
+        logger.debug(f"          Assertion execution: {log_detail}")
+        if assertion_failed:
+            errors.append(CdmValidationError(message=f"Syntax Rule Failed ({rule_id}): {log_detail}"))
+            
         return errors
 
     def _validate_element_recursively(self, element_def: Dict[str, Any], value: str, indent: str, parent_xid: Optional[str] = None) -> List[CdmValidationError]:
