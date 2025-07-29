@@ -361,49 +361,30 @@ class EdiParser:
         
         usage_counts = {i: 0 for i in range(len(schema_nodes))}
 
-        logger.debug(f"{indent}[PARSE START - LOOP {parent_loop_id}] Processing {len(segments)} segments against {len(schema_nodes)} schema nodes.")
+        logger.debug(f"{indent}[PARSE START - LOOP {parent_loop_id}] Processing {len(segments)} data segments against {len(schema_nodes)} schema nodes.")
 
-        # The main loop iterates through the data segments
         while cursor < len(segments):
             current_segment = segments[cursor]
             
-            # This inner loop finds the correct schema_node for the current_segment
-            # by advancing the schema_node_index, skipping optional nodes as needed.
-            found_match = False
-            while schema_node_index < len(schema_nodes):
-                schema_node = schema_nodes[schema_node_index]
-                
-                max_repeats = getattr(schema_node, 'max_use', getattr(schema_node, 'repeat', 1))
-                if not isinstance(max_repeats, int): max_repeats = 99999
+            # If we've exhausted our schema, this segment belongs to a parent loop.
+            if schema_node_index >= len(schema_nodes):
+                logger.debug(f"{indent}  -> No more schema nodes in '{parent_loop_id}'. Segment '{current_segment.segment_id}' is for a parent. Breaking.")
+                break
 
-                # If this schema node is maxed out, it can't be a match. Advance to the next one.
-                if usage_counts.get(schema_node_index, 0) >= max_repeats:
-                    schema_node_index += 1
-                    continue
+            schema_node = schema_nodes[schema_node_index]
+            max_repeats = getattr(schema_node, 'max_use', getattr(schema_node, 'repeat', 1))
+            if not isinstance(max_repeats, int): max_repeats = 99999
+            
+            # If the current schema node is maxed out, advance the schema pointer and retry the same data segment.
+            if usage_counts.get(schema_node_index, 0) >= max_repeats:
+                schema_node_index += 1
+                continue
 
-                is_id_match = (isinstance(schema_node, StructureSegment) and current_segment.segment_id == schema_node.xid) or \
-                            (isinstance(schema_node, StructureLoop) and self._get_starting_segment_id(schema_node) == current_segment.segment_id)
-
-                if not is_id_match:
-                    # The segment ID does not match. If the current schema node was optional, we can skip it.
-                    is_truly_required = schema_node.usage == 'R' and usage_counts.get(schema_node_index, 0) == 0
-                    if is_truly_required:
-                        # We've hit a required node that doesn't match the data. This is a structural error.
-                        error_msg = f"Required segment or loop '{schema_node.xid}' ({schema_node.name}) not found. Found '{current_segment.segment_id}' instead."
-                        logger.warning(f"{indent}[FAIL] {error_msg}")
-                        cdm_loop.errors.append(CdmValidationError(message=error_msg, line_number=current_segment.line_number, segment_id=current_segment.segment_id))
-                        # We must advance the schema pointer past the missing required node.
-                        schema_node_index += 1
-                        # Since the data didn't match, we exit the inner loop to report that this segment couldn't be placed.
-                        found_match = False
-                        break
-                    else:
-                        # The schema node is optional, so we skip it and try the next one.
-                        logger.debug(f"{indent}  -> Skipping optional schema node '{schema_node.xid}' ({schema_node.name}).")
-                        schema_node_index += 1
-                        continue
-
-                # ID matches. For segments, we must also confirm the context is correct.
+            is_id_match = (isinstance(schema_node, StructureSegment) and current_segment.segment_id == schema_node.xid) or \
+                        (isinstance(schema_node, StructureLoop) and self._get_starting_segment_id(schema_node) == current_segment.segment_id)
+            
+            if is_id_match:
+                # For segments, we must confirm the context is correct via trial validation.
                 if isinstance(schema_node, StructureSegment):
                     validation_errors = self.validator.validate(current_segment, schema_node.contextDefinitionId)
                     if validation_errors:
@@ -412,37 +393,40 @@ class EdiParser:
                             for node in schema_nodes[schema_node_index + 1:]
                         )
                         if ambiguous_match_possible:
-                            logger.debug(f"{indent}  -> Ambiguous segment '{current_segment.segment_id}' failed for context '{schema_node.contextDefinitionId}'. Trying next.")
+                            # Ambiguous (like REF). Skip this schema context and try the next one.
                             schema_node_index += 1
-                            continue # Retry the same data segment against the next schema node.
+                            continue # Retry same data segment
                         else:
-                            logger.warning(f"{indent}  -> Unambiguous match for '{current_segment.segment_id}' has content errors. Committing.")
+                            # Unambiguous (like PAT). Commit the match with its errors.
                             current_segment.errors.extend(validation_errors)
 
-                # If we reach here, it's a confirmed match.
-                found_match = True
-                break # Exit the inner while loop to process this match.
-            
-            # After the inner loop, process the result
-            if found_match:
-                # Re-fetch the node in case the index changed
-                schema_node = schema_nodes[schema_node_index]
+                # --- Confirmed Match Processing ---
                 logger.debug(f"{indent}  -> [MATCH CONFIRMED] for '{current_segment.segment_id}' with schema node '{schema_node.xid}'.")
-                
                 if isinstance(schema_node, StructureSegment):
                     cdm_loop.segments.append(current_segment)
                     cursor += 1
-                    usage_counts[schema_node_index] = usage_counts.get(schema_node_index, 0) + 1
                 elif isinstance(schema_node, StructureLoop):
                     sub_loop, segments_consumed = self._build_tree(segments[cursor:], schema_node.children, depth + 1, parent_loop_id=schema_node.xid)
                     cdm_loop.add_loop(sub_loop)
                     cdm_loop.errors.extend(sub_loop.errors)
                     cursor += segments_consumed
-                    usage_counts[schema_node_index] = usage_counts.get(schema_node_index, 0) + 1
-            else:
-                # The current_segment could not be matched against any remaining schema nodes in this loop.
-                logger.debug(f"{indent}  -> Segment '{current_segment.segment_id}' is unexpected here. Ending parse for loop '{parent_loop_id}'.")
-                break # Exit the main 'while cursor < len(segments)' loop.
+
+                usage_counts[schema_node_index] = usage_counts.get(schema_node_index, 0) + 1
+            
+            else: # The data segment does NOT match the current schema node.
+                is_truly_required = schema_node.usage == 'R' and usage_counts.get(schema_node_index, 0) == 0
+                if is_truly_required:
+                    error_msg = f"Required segment or loop '{schema_node.xid}' ({schema_node.name}) not found. Found '{current_segment.segment_id}' instead."
+                    logger.warning(f"{indent}[FAIL] {error_msg}")
+                    cdm_loop.errors.append(CdmValidationError(message=error_msg, line_number=current_segment.line_number, segment_id=current_segment.segment_id))
+                    # This is the key change: we break from the loop and return the current cursor,
+                    # indicating that this loop is structurally broken and parsing cannot continue within it.
+                    break
+                else:
+                    # The schema node was optional or a used repeating required node.
+                    # Skip the schema node and retry the same data segment against the next one.
+                    logger.debug(f"{indent}  -> Data '{current_segment.segment_id}' does not match optional/repeating schema node '{schema_node.xid}'. Skipping schema node.")
+                    schema_node_index += 1
 
         # After the loop, check for any unsatisfied required nodes at the end.
         for i in range(schema_node_index, len(schema_nodes)):
