@@ -187,8 +187,13 @@ def test_parser_correctly_counts_loops_in_complex_file(parsed_complex_transactio
     assert len(subscriber_loops) == 2
 
     assert len(subscriber_loops[0].get_loops("2300")) == 2
-    # --- FIX: This now correctly accounts for both claims being attached to the subscriber ---
-    assert len(subscriber_loops[1].get_loops("2300")) == 2
+    
+    # Subscriber 2 (Jane Smith) has 1 claim (from her dependent Ted Smith)
+    assert len(subscriber_loops[1].get_loops("2300")) == 1
+    
+    # Check that subscriber 2 has a patient loop (dependent Ted Smith)
+    patient_loops = subscriber_loops[1].get_loops("2000C")
+    assert len(patient_loops) == 1
 
 def test_parser_retrieves_deeply_nested_data_in_complex_file(parsed_complex_transaction_body: CdmLoop):
     first_subscriber_loop = parsed_complex_transaction_body.get_loop("2000A").get_loops("2000B")[0]
@@ -231,3 +236,175 @@ def test_parser_maintains_hierarchical_integrity_in_complex_file(parsed_complex_
     
     assert "TEDSMITH_CLAIM1" not in first_subscriber_claim_ids
     assert "JOHNDOE_CLAIM1" not in second_subscriber_total_claim_ids
+
+# ==============================================================================
+# MULTIPLE BILLING PROVIDERS WITH MIXED CLAIM SCENARIOS TESTS
+# ==============================================================================
+
+def test_multiple_billing_providers_structure(standalone_schema: ImplementationGuideSchema, multiple_billing_providers_mixed_claims_837p_edi_string: str):
+    """Test that multiple billing providers within a single transaction set are parsed correctly."""
+    parser = EdiParser(edi_string=multiple_billing_providers_mixed_claims_837p_edi_string, schema=standalone_schema)
+    interchange = parser.parse()
+    
+    all_errors = parser._collect_all_errors(interchange)
+    assert not all_errors, f"Multiple billing providers fixture failed to parse cleanly: {[e.message for _, e in all_errors]}"
+    
+    transaction_body = interchange.functional_groups[0].transactions[0].body
+    
+    # Should have 2 billing providers (2000A loops)
+    billing_provider_loops = transaction_body.get_loops("2000A")
+    assert len(billing_provider_loops) == 2
+    
+    # Verify provider names
+    provider1_name = billing_provider_loops[0].get_loop("2010AA").get_segment("NM1").get_element(3)
+    provider2_name = billing_provider_loops[1].get_loop("2010AA").get_segment("NM1").get_element(3)
+    assert provider1_name == "PRIMARY CARE CLINIC"
+    assert provider2_name == "SPECIALTY CLINIC"
+
+def test_mixed_claim_scenarios_subscriber_vs_patient_level(standalone_schema: ImplementationGuideSchema, multiple_billing_providers_mixed_claims_837p_edi_string: str):
+    """Test various combinations of subscriber-level and patient-level claims."""
+    parser = EdiParser(edi_string=multiple_billing_providers_mixed_claims_837p_edi_string, schema=standalone_schema)
+    interchange = parser.parse()
+    transaction_body = interchange.functional_groups[0].transactions[0].body
+    
+    billing_providers = transaction_body.get_loops("2000A")
+    
+    # BILLING PROVIDER 1 TESTS
+    provider1_subscribers = billing_providers[0].get_loops("2000B")
+    assert len(provider1_subscribers) == 2
+    
+    # Subscriber 1 (Sarah Wilson) - self as patient, 2 direct subscriber claims
+    subscriber1 = provider1_subscribers[0]
+    subscriber1_claims = subscriber1.get_loops("2300")
+    assert len(subscriber1_claims) == 2
+    subscriber1_patients = subscriber1.get_loops("2000C")
+    assert len(subscriber1_patients) == 0  # No separate patient loop (self-patient)
+    
+    # Verify claim IDs for subscriber 1
+    sub1_claim_ids = {claim.get_segment("CLM").get_element(1) for claim in subscriber1_claims}
+    assert "WILSON_OFFICE1" in sub1_claim_ids
+    assert "WILSON_OFFICE2" in sub1_claim_ids
+    
+    # Subscriber 2 (Maria Garcia) - 1 direct subscriber claim + 1 dependent patient claim
+    subscriber2 = provider1_subscribers[1]
+    subscriber2_claims = subscriber2.get_loops("2300")
+    assert len(subscriber2_claims) == 2  # 1 direct + 1 from dependent
+    subscriber2_patients = subscriber2.get_loops("2000C")
+    assert len(subscriber2_patients) == 1  # 1 dependent patient
+    
+    # Verify claim IDs for subscriber 2
+    sub2_claim_ids = {claim.get_segment("CLM").get_element(1) for claim in subscriber2_claims}
+    assert "GARCIA_SELF" in sub2_claim_ids  # Direct subscriber claim
+    assert "PEDRO_CHECKUP" in sub2_claim_ids  # Dependent's claim
+    
+    # BILLING PROVIDER 2 TESTS
+    provider2_subscribers = billing_providers[1].get_loops("2000B")
+    assert len(provider2_subscribers) == 2
+    
+    # Subscriber 3 (James Thompson) - NO direct claims, only dependent patient claims
+    subscriber3 = provider2_subscribers[0]
+    subscriber3_claims = subscriber3.get_loops("2300")
+    assert len(subscriber3_claims) == 2  # All from dependent patient
+    subscriber3_patients = subscriber3.get_loops("2000C")
+    assert len(subscriber3_patients) == 1  # 1 dependent patient
+    
+    # Verify claim IDs for subscriber 3 (all should be from dependent Emily)
+    sub3_claim_ids = {claim.get_segment("CLM").get_element(1) for claim in subscriber3_claims}
+    assert "EMILY_EXAM1" in sub3_claim_ids
+    assert "EMILY_EXAM2" in sub3_claim_ids
+    
+    # Subscriber 4 (Michael Davis) - self as patient, 1 direct subscriber claim
+    subscriber4 = provider2_subscribers[1]
+    subscriber4_claims = subscriber4.get_loops("2300")
+    assert len(subscriber4_claims) == 1
+    subscriber4_patients = subscriber4.get_loops("2000C")
+    assert len(subscriber4_patients) == 0  # No separate patient loop (self-patient)
+    
+    # Verify claim ID for subscriber 4
+    sub4_claim_ids = {claim.get_segment("CLM").get_element(1) for claim in subscriber4_claims}
+    assert "DAVIS_CONSULT" in sub4_claim_ids
+
+def test_claim_count_validation_across_multiple_providers(standalone_schema: ImplementationGuideSchema, multiple_billing_providers_mixed_claims_837p_edi_string: str):
+    """Test comprehensive claim counting across multiple billing providers."""
+    parser = EdiParser(edi_string=multiple_billing_providers_mixed_claims_837p_edi_string, schema=standalone_schema)
+    interchange = parser.parse()
+    transaction_body = interchange.functional_groups[0].transactions[0].body
+    
+    billing_providers = transaction_body.get_loops("2000A")
+    
+    # Count claims per billing provider
+    provider1_total_claims = 0
+    provider2_total_claims = 0
+    
+    # Provider 1 claim counting
+    for subscriber in billing_providers[0].get_loops("2000B"):
+        provider1_total_claims += len(subscriber.get_loops("2300"))
+    
+    # Provider 2 claim counting  
+    for subscriber in billing_providers[1].get_loops("2000B"):
+        provider2_total_claims += len(subscriber.get_loops("2300"))
+    
+    # Verify expected totals based on fixture design
+    assert provider1_total_claims == 4  # Wilson(2) + Garcia(1+1)
+    assert provider2_total_claims == 3  # Thompson(0+2) + Davis(1)
+    
+    # Grand total verification
+    total_claims = provider1_total_claims + provider2_total_claims
+    assert total_claims == 7
+
+def test_service_line_counting_across_mixed_scenarios(standalone_schema: ImplementationGuideSchema, multiple_billing_providers_mixed_claims_837p_edi_string: str):
+    """Test service line counting across different claim scenarios."""
+    parser = EdiParser(edi_string=multiple_billing_providers_mixed_claims_837p_edi_string, schema=standalone_schema)
+    interchange = parser.parse()
+    transaction_body = interchange.functional_groups[0].transactions[0].body
+    
+    billing_providers = transaction_body.get_loops("2000A")
+    total_service_lines = 0
+    
+    # Count service lines across all billing providers and subscribers
+    for provider in billing_providers:
+        for subscriber in provider.get_loops("2000B"):
+            for claim in subscriber.get_loops("2300"):
+                service_lines = claim.get_loops("2400")
+                total_service_lines += len(service_lines)
+    
+    # Verify expected total: 8 service lines as documented in fixture
+    # Wilson(1+1) + Garcia(1) + Pedro(1) + Emily(1+2) + Davis(1) = 8
+    assert total_service_lines == 8
+
+def test_hierarchical_integrity_across_multiple_providers(standalone_schema: ImplementationGuideSchema, multiple_billing_providers_mixed_claims_837p_edi_string: str):
+    """Test that hierarchical relationships are maintained across multiple providers."""
+    parser = EdiParser(edi_string=multiple_billing_providers_mixed_claims_837p_edi_string, schema=standalone_schema)
+    interchange = parser.parse()
+    transaction_body = interchange.functional_groups[0].transactions[0].body
+    
+    billing_providers = transaction_body.get_loops("2000A")
+    
+    # Collect all claim IDs across all providers
+    all_claim_ids = set()
+    provider_claim_mapping = {}
+    
+    for i, provider in enumerate(billing_providers):
+        provider_claims = set()
+        for subscriber in provider.get_loops("2000B"):
+            for claim in subscriber.get_loops("2300"):
+                claim_id = claim.get_segment("CLM").get_element(1)
+                all_claim_ids.add(claim_id)
+                provider_claims.add(claim_id)
+        provider_claim_mapping[i] = provider_claims
+    
+    # Verify no claim ID overlap between providers
+    provider1_claims = provider_claim_mapping[0]
+    provider2_claims = provider_claim_mapping[1]
+    overlap = provider1_claims.intersection(provider2_claims)
+    assert len(overlap) == 0, f"Found overlapping claims between providers: {overlap}"
+    
+    # Verify expected claim distribution
+    expected_provider1_claims = {"WILSON_OFFICE1", "WILSON_OFFICE2", "GARCIA_SELF", "PEDRO_CHECKUP"}
+    expected_provider2_claims = {"EMILY_EXAM1", "EMILY_EXAM2", "DAVIS_CONSULT"}
+    
+    assert provider1_claims == expected_provider1_claims
+    assert provider2_claims == expected_provider2_claims
+    
+    # Verify total unique claims
+    assert len(all_claim_ids) == 7
