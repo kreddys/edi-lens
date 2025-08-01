@@ -10,6 +10,7 @@
       "elements": {
         "NM101": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "41",
@@ -34,6 +35,7 @@
       "elements": {
         "NM101": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "40",
@@ -88,6 +90,7 @@
         },
         "HL03": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "20",
@@ -139,6 +142,7 @@
       "elements": {
         "NM101": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "85",
@@ -171,7 +175,8 @@
               "code": "SY",
               "description": "Social Security Number"
             }
-          ]
+          ],
+          "is_identifier": true
         },
         "REF02": {
           "usage": "R"
@@ -193,7 +198,8 @@
               "code": "1G",
               "description": "Provider UPIN Number"
             }
-          ]
+          ],
+          "is_identifier": true
         },
         "REF02": {
           "usage": "R"
@@ -207,6 +213,7 @@
       "elements": {
         "NM101": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "87",
@@ -216,7 +223,7 @@
         },
         "NM103": {
           "usage": "S"
-        }        
+        }
       }
     },
     "2010AC.NM1": {
@@ -226,6 +233,7 @@
       "elements": {
         "NM101": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "PE",
@@ -285,7 +293,8 @@
               "code": "NF",
               "description": "National Association of Insurance Commissioners (NAIC) Code"
             }
-          ]
+          ],
+          "is_identifier": true
         },
         "REF02": {
           "usage": "R"
@@ -304,7 +313,8 @@
               "code": "EI",
               "description": "Employer's Identification Number"
             }
-          ]
+          ],
+          "is_identifier": true
         },
         "REF02": {
           "usage": "R"
@@ -320,6 +330,7 @@
         },
         "HL03": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "22",
@@ -348,6 +359,7 @@
       "elements": {
         "NM101": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "IL",
@@ -397,7 +409,8 @@
               "code": "SY",
               "description": "Social Security Number"
             }
-          ]
+          ],
+          "is_identifier": true
         },
         "REF02": {
           "usage": "R"
@@ -415,7 +428,8 @@
               "code": "Y4",
               "description": "Agency Claim Number"
             }
-          ]
+          ],
+          "is_identifier": true
         },
         "REF02": {
           "usage": "R"
@@ -459,6 +473,7 @@
       "elements": {
         "NM101": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "PR",
@@ -520,7 +535,8 @@
               "code": "NF",
               "description": "National Association of Insurance Commissioners (NAIC) Code"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -538,7 +554,8 @@
               "code": "LU",
               "description": "Location Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -551,6 +568,7 @@
         },
         "HL03": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "23",
@@ -619,6 +637,7 @@
       "elements": {
         "NM101": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "QC",
@@ -655,7 +674,8 @@
               "code": "Y4",
               "description": "Agency Claim Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -673,7 +693,8 @@
               "code": "SY",
               "description": "Social Security Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -687,7 +708,8 @@
               "code": "439",
               "description": "Accident"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -701,7 +723,8 @@
               "code": "453",
               "description": "Acute Manifestation of a Chronic Condition"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -715,7 +738,8 @@
               "code": "435",
               "description": "Admission"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -733,7 +757,8 @@
               "code": "091",
               "description": "Relinquished Care Date"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -755,7 +780,8 @@
               "code": "361",
               "description": "Initial Disability Period End"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -769,7 +795,8 @@
               "code": "096",
               "description": "Discharge"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -783,7 +810,8 @@
               "code": "471",
               "description": "Prescription"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -797,7 +825,8 @@
               "code": "484",
               "description": "Last Menstrual Period"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -811,7 +840,8 @@
               "code": "431",
               "description": "Onset of Current Symptoms or Illness"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -825,7 +855,8 @@
               "code": "454",
               "description": "Initial Treatment"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -839,7 +870,8 @@
               "code": "304",
               "description": "Latest Visit or Consultation"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -853,7 +885,23 @@
               "code": "297",
               "description": "Initial Disability Period Last Day Worked"
             }
-          ]
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2300.DTP_AuthorizedReturnToWork": {
+      "id": "2300.DTP_AuthorizedReturnToWork",
+      "name": "Date - Authorized Return To Work",
+      "elements": {
+        "DTP01": {
+          "valid_codes": [
+            {
+              "code": "296",
+              "description": "Initial Disability Period Last Day Worked"
+            }
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -867,7 +915,8 @@
               "code": "455",
               "description": "Last X-Ray"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -881,7 +930,8 @@
               "code": "444",
               "description": "First Visit or Consultation"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -895,7 +945,8 @@
               "code": "050",
               "description": "Received"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -909,7 +960,8 @@
               "code": "X4",
               "description": "Clinical Laboratory Improvement Amendment Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -923,7 +975,8 @@
               "code": "9C",
               "description": "Adjusted Repriced Claim Reference Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -937,7 +990,8 @@
               "code": "1J",
               "description": "Facility ID Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -951,7 +1005,8 @@
               "code": "P4",
               "description": "Project Code"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -965,7 +1020,8 @@
               "code": "LX",
               "description": "Qualified Products List"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -979,7 +1035,8 @@
               "code": "D9",
               "description": "Claim Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -993,7 +1050,8 @@
               "code": "EW",
               "description": "Mammography Certification Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1007,7 +1065,8 @@
               "code": "F5",
               "description": "Medicare Version Code"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1021,7 +1080,8 @@
               "code": "G1",
               "description": "Prior Authorization Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1035,7 +1095,8 @@
               "code": "F8",
               "description": "Original Reference Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1049,7 +1110,8 @@
               "code": "9F",
               "description": "Referral Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1063,7 +1125,8 @@
               "code": "9A",
               "description": "Repriced Claim Reference Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1077,7 +1140,8 @@
               "code": "EA",
               "description": "Medical Record Identification Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1091,7 +1155,8 @@
               "code": "4N",
               "description": "Special Payment Reference Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1351,6 +1416,7 @@
       "elements": {
         "NM101": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "DN",
@@ -1400,7 +1466,8 @@
               "code": "G2",
               "description": "Provider Commercial Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1410,6 +1477,7 @@
       "elements": {
         "NM101": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "82",
@@ -1490,7 +1558,8 @@
               "code": "LU",
               "description": "Location Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1500,6 +1569,7 @@
       "elements": {
         "NM101": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "77",
@@ -1567,7 +1637,8 @@
               "code": "LU",
               "description": "Location Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1607,6 +1678,7 @@
       "elements": {
         "NM101": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "DQ",
@@ -1656,7 +1728,8 @@
               "code": "LU",
               "description": "Location Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1666,6 +1739,7 @@
       "elements": {
         "NM101": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "PW",
@@ -1708,6 +1782,7 @@
       "elements": {
         "NM101": {
           "usage": "R",
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "45",
@@ -1885,7 +1960,8 @@
               "code": "SY",
               "description": "Social Security Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1944,7 +2020,8 @@
               "code": "573",
               "description": "Date Claim Paid"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1970,7 +2047,8 @@
               "code": "NF",
               "description": "National Association of Insurance Commissioners (NAIC) Code"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1984,7 +2062,8 @@
               "code": "G1",
               "description": "Prior Authorization Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -1998,7 +2077,8 @@
               "code": "9F",
               "description": "Referral Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -2012,7 +2092,8 @@
               "code": "T4",
               "description": "Signal Code"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -2026,7 +2107,8 @@
               "code": "F8",
               "description": "Original Reference Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -2035,6 +2117,7 @@
       "name": "Other Payer Referring Provider",
       "elements": {
         "NM101": {
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "DN",
@@ -2053,6 +2136,27 @@
               "description": "Person"
             }
           ]
+        },
+        "NM103": {
+          "usage": "N"
+        },
+        "NM104": {
+          "usage": "N"
+        },
+        "NM105": {
+          "usage": "N"
+        },
+        "NM106": {
+          "usage": "N"
+        },
+        "NM107": {
+          "usage": "N"
+        },
+        "NM108": {
+          "usage": "N"
+        },
+        "NM109": {
+          "usage": "N"
         }
       }
     },
@@ -2074,7 +2178,8 @@
               "code": "G2",
               "description": "Provider Commercial Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -2083,6 +2188,7 @@
       "name": "Other Payer Rendering Provider",
       "elements": {
         "NM101": {
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "82",
@@ -2101,6 +2207,27 @@
               "description": "Non-Person Entity"
             }
           ]
+        },
+        "NM103": {
+          "usage": "N"
+        },
+        "NM104": {
+          "usage": "N"
+        },
+        "NM105": {
+          "usage": "N"
+        },
+        "NM106": {
+          "usage": "N"
+        },
+        "NM107": {
+          "usage": "N"
+        },
+        "NM108": {
+          "usage": "N"
+        },
+        "NM109": {
+          "usage": "N"
         }
       }
     },
@@ -2126,7 +2253,8 @@
               "code": "LU",
               "description": "Location Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -2135,6 +2263,7 @@
       "name": "Other Payer Service Facility Location",
       "elements": {
         "NM101": {
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "77",
@@ -2149,6 +2278,27 @@
               "description": "Non-Person Entity"
             }
           ]
+        },
+        "NM103": {
+          "usage": "N"
+        },
+        "NM104": {
+          "usage": "N"
+        },
+        "NM105": {
+          "usage": "N"
+        },
+        "NM106": {
+          "usage": "N"
+        },
+        "NM107": {
+          "usage": "N"
+        },
+        "NM108": {
+          "usage": "N"
+        },
+        "NM109": {
+          "usage": "N"
         }
       }
     },
@@ -2170,7 +2320,8 @@
               "code": "LU",
               "description": "Location Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -2179,6 +2330,7 @@
       "name": "Other Payer Supervising Provider",
       "elements": {
         "NM101": {
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "DQ",
@@ -2193,6 +2345,27 @@
               "description": "Person"
             }
           ]
+        },
+        "NM103": {
+          "usage": "N"
+        },
+        "NM104": {
+          "usage": "N"
+        },
+        "NM105": {
+          "usage": "N"
+        },
+        "NM106": {
+          "usage": "N"
+        },
+        "NM107": {
+          "usage": "N"
+        },
+        "NM108": {
+          "usage": "N"
+        },
+        "NM109": {
+          "usage": "N"
         }
       }
     },
@@ -2218,7 +2391,8 @@
               "code": "LU",
               "description": "Location Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -2227,6 +2401,7 @@
       "name": "Other Payer Billing Provider",
       "elements": {
         "NM101": {
+          "is_identifier": true,
           "valid_codes": [
             {
               "code": "85",
@@ -2245,6 +2420,27 @@
               "description": "Non-Person Entity"
             }
           ]
+        },
+        "NM103": {
+          "usage": "N"
+        },
+        "NM104": {
+          "usage": "N"
+        },
+        "NM105": {
+          "usage": "N"
+        },
+        "NM106": {
+          "usage": "N"
+        },
+        "NM107": {
+          "usage": "N"
+        },
+        "NM108": {
+          "usage": "N"
+        },
+        "NM109": {
+          "usage": "N"
         }
       }
     },
@@ -2262,7 +2458,8 @@
               "code": "LU",
               "description": "Location Number"
             }
-          ]
+          ],
+          "is_identifier": true
         }
       }
     },
@@ -2273,248 +2470,187 @@
         "PWK01": {
           "valid_codes": [
             {
-              "code": "03",
-              "description": "Report Justifying Treatment Beyond Utilization Guidelines"
+              "code": "03"
             },
             {
-              "code": "04",
-              "description": "Drugs Administered"
+              "code": "04"
             },
             {
-              "code": "05",
-              "description": "Treatment Diagnosis"
+              "code": "05"
             },
             {
-              "code": "06",
-              "description": "Initial Assessment"
+              "code": "06"
             },
             {
-              "code": "07",
-              "description": "Functional Goals"
+              "code": "07"
             },
             {
-              "code": "08",
-              "description": "Plan of Treatment"
+              "code": "08"
             },
             {
-              "code": "09",
-              "description": "Progress Report"
+              "code": "09"
             },
             {
-              "code": "10",
-              "description": "Continued Treatment"
+              "code": "10"
             },
             {
-              "code": "11",
-              "description": "Chemical Analysis"
+              "code": "11"
             },
             {
-              "code": "13",
-              "description": "Certified Test Report"
+              "code": "13"
             },
             {
-              "code": "15",
-              "description": "Justification for Admission"
+              "code": "15"
             },
             {
-              "code": "21",
-              "description": "Recovery Plan"
+              "code": "21"
             },
             {
-              "code": "A3",
-              "description": "Allergies/Sensitivities Document"
+              "code": "A3"
             },
             {
-              "code": "A4",
-              "description": "Autopsy Report"
+              "code": "A4"
             },
             {
-              "code": "AM",
-              "description": "Ambulance Certification"
+              "code": "AM"
             },
             {
-              "code": "AS",
-              "description": "Admission Summary"
+              "code": "AS"
             },
             {
-              "code": "B2",
-              "description": "Prescription"
+              "code": "B2"
             },
             {
-              "code": "B3",
-              "description": "Physician Order"
+              "code": "B3"
             },
             {
-              "code": "B4",
-              "description": "Referral Form"
+              "code": "B4"
             },
             {
-              "code": "BR",
-              "description": "Benchmark Testing Results"
+              "code": "BR"
             },
             {
-              "code": "BS",
-              "description": "Baseline"
+              "code": "BS"
             },
             {
-              "code": "BT",
-              "description": "Blanket Test Results"
+              "code": "BT"
             },
             {
-              "code": "CB",
-              "description": "Chiropractic Justification"
+              "code": "CB"
             },
             {
-              "code": "CK",
-              "description": "Consent Form(s)"
+              "code": "CK"
             },
             {
-              "code": "CT",
-              "description": "Certification"
+              "code": "CT"
             },
             {
-              "code": "D2",
-              "description": "Drug Profile Document"
+              "code": "D2"
             },
             {
-              "code": "DA",
-              "description": "Dental Models"
+              "code": "DA"
             },
             {
-              "code": "DB",
-              "description": "Durable Medical Equipment Prescription"
+              "code": "DB"
             },
             {
-              "code": "DG",
-              "description": "Diagnostic Report"
+              "code": "DG"
             },
             {
-              "code": "DJ",
-              "description": "Discharge Monitoring Report"
+              "code": "DJ"
             },
             {
-              "code": "DS",
-              "description": "Discharge Summary"
+              "code": "DS"
             },
             {
-              "code": "EB",
-              "description": "Explanation of Benefits"
+              "code": "EB"
             },
             {
-              "code": "HC",
-              "description": "Health Certificate"
+              "code": "HC"
             },
             {
-              "code": "HR",
-              "description": "Health Clinic Records"
+              "code": "HR"
             },
             {
-              "code": "I5",
-              "description": "Immunization Record"
+              "code": "I5"
             },
             {
-              "code": "IR",
-              "description": "State School Immunization Records"
+              "code": "IR"
             },
             {
-              "code": "LA",
-              "description": "Laboratory Results"
+              "code": "LA"
             },
             {
-              "code": "M1",
-              "description": "Medical Record Attachment"
+              "code": "M1"
             },
             {
-              "code": "MT",
-              "description": "Models"
+              "code": "MT"
             },
             {
-              "code": "NN",
-              "description": "Nursing Notes"
+              "code": "NN"
             },
             {
-              "code": "OB",
-              "description": "Operative Note"
+              "code": "OB"
             },
             {
-              "code": "OC",
-              "description": "Oxygen Content Averaging Report"
+              "code": "OC"
             },
             {
-              "code": "OD",
-              "description": "Orders and Treatments Document"
+              "code": "OD"
             },
             {
-              "code": "OE",
-              "description": "Objective Physical Examination Document"
+              "code": "OE"
             },
             {
-              "code": "OX",
-              "description": "Oxygen Therapy Certification"
+              "code": "OX"
             },
             {
-              "code": "OZ",
-              "description": "Support Data for Claim"
+              "code": "OZ"
             },
             {
-              "code": "P4",
-              "description": "Pathology Report"
+              "code": "P4"
             },
             {
-              "code": "P5",
-              "description": "Patient Medical History Document"
+              "code": "P5"
             },
             {
-              "code": "PE",
-              "description": "Parenteral or Enteral Certification"
+              "code": "PE"
             },
             {
-              "code": "PN",
-              "description": "Physical Therapy Notes"
+              "code": "PN"
             },
             {
-              "code": "PO",
-              "description": "Prosthetics or Orthotic Certification"
+              "code": "PO"
             },
             {
-              "code": "PQ",
-              "description": "Paramedical Results"
+              "code": "PQ"
             },
             {
-              "code": "PY",
-              "description": "Physician's Report"
+              "code": "PY"
             },
             {
-              "code": "PZ",
-              "description": "Physical Therapy Certification"
+              "code": "PZ"
             },
             {
-              "code": "RB",
-              "description": "Radiology Films"
+              "code": "RB"
             },
             {
-              "code": "RR",
-              "description": "Radiology Reports"
+              "code": "RR"
             },
             {
-              "code": "RT",
-              "description": "Report of Tests and Analysis Report"
+              "code": "RT"
             },
             {
-              "code": "RX",
-              "description": "Renewable Oxygen Content Averaging Report"
+              "code": "RX"
             },
             {
-              "code": "SG",
-              "description": "Symptoms Document"
+              "code": "SG"
             },
             {
-              "code": "V5",
-              "description": "Death Notification"
+              "code": "V5"
             },
             {
-              "code": "XP",
-              "description": "Photographs"
+              "code": "XP"
             }
           ]
         }
@@ -2527,32 +2663,26 @@
         "PWK01": {
           "valid_codes": [
             {
-              "code": "CT",
-              "description": "Certification"
+              "code": "CT"
             }
           ]
         },
         "PWK02": {
           "valid_codes": [
             {
-              "code": "AB",
-              "description": "Previously Submitted to Payer"
+              "code": "AB"
             },
             {
-              "code": "AD",
-              "description": "Certification Included in this Claim"
+              "code": "AD"
             },
             {
-              "code": "AF",
-              "description": "Narrative Segment Included in this Claim"
+              "code": "AF"
             },
             {
-              "code": "AG",
-              "description": "No Documentation is Required"
+              "code": "AG"
             },
             {
-              "code": "NS",
-              "description": "Not Specified"
+              "code": "NS"
             }
           ]
         }
@@ -2560,56 +2690,44 @@
     },
     "2400.CR1": {
       "id": "2400.CR1",
-      "name": "Line Level Ambulance Transport Information",
-      "description": "To supply ambulance transport information specific to this service line, overriding claim-level details."
+      "name": "Line Level Ambulance Transport Information"
     },
     "2400.CRC_Ambulance": {
       "id": "2400.CRC_Ambulance",
       "name": "Line Level Ambulance Certification",
-      "description": "To supply ambulance certification information specific to this service line.",
       "elements": {
         "CRC01": {
           "valid_codes": [
             {
-              "code": "07",
-              "description": "Ambulance Certification"
+              "code": "07"
             }
           ]
         },
         "CRC03": {
-          "name": "Condition Code",
           "valid_codes": [
             {
-              "code": "01",
-              "description": "Patient was admitted to a hospital"
+              "code": "01"
             },
             {
-              "code": "04",
-              "description": "Patient was moved by stretcher"
+              "code": "04"
             },
             {
-              "code": "05",
-              "description": "Patient was unconscious or in shock"
+              "code": "05"
             },
             {
-              "code": "06",
-              "description": "Patient was transported in an emergency situation"
+              "code": "06"
             },
             {
-              "code": "07",
-              "description": "Patient had to be physically restrained"
+              "code": "07"
             },
             {
-              "code": "08",
-              "description": "Patient had visible hemorrhaging"
+              "code": "08"
             },
             {
-              "code": "09",
-              "description": "Ambulance service was medically necessary"
+              "code": "09"
             },
             {
-              "code": "12",
-              "description": "Patient is confined to a bed or chair"
+              "code": "12"
             }
           ]
         }
@@ -2622,20 +2740,14 @@
         "CRC01": {
           "valid_codes": [
             {
-              "code": "70",
-              "description": "Hospice"
+              "code": "70"
             }
           ]
         },
-        "CRC02": {
-          "name": "Hospice Employed Provider Indicator"
-        },
         "CRC03": {
-          "name": "Condition Indicator",
           "valid_codes": [
             {
-              "code": "65",
-              "description": "Open"
+              "code": "65"
             }
           ]
         }
@@ -2648,291 +2760,17 @@
         "CRC01": {
           "valid_codes": [
             {
-              "code": "09",
-              "description": "Durable Medical Equipment Certification"
+              "code": "09"
             }
           ]
         },
         "CRC03": {
-          "name": "Condition Indicator",
           "valid_codes": [
             {
-              "code": "38",
-              "description": "Certification signed by the physician is on file at the supplier's office"
+              "code": "38"
             },
             {
-              "code": "ZV",
-              "description": "Replacement Item"
-            }
-          ]
-        }
-      }
-    },
-    "2400.DTP_ServiceDate": {
-      "id": "2400.DTP_ServiceDate",
-      "name": "Date - Service Date",
-      "elements": {
-        "DTP01": {
-          "valid_codes": [
-            {
-              "code": "472",
-              "description": "Service"
-            }
-          ]
-        }
-      }
-    },
-    "2400.DTP_PrescriptionDate": {
-      "id": "2400.DTP_PrescriptionDate",
-      "name": "Date - Prescription Date",
-      "elements": {
-        "DTP01": {
-          "valid_codes": [
-            {
-              "code": "471",
-              "description": "Prescription"
-            }
-          ]
-        }
-      }
-    },
-    "2400.DTP_CertificationRevisionDate": {
-      "id": "2400.DTP_CertificationRevisionDate",
-      "name": "DATE - Certification Revision/Recertification Date",
-      "elements": {
-        "DTP01": {
-          "valid_codes": [
-            {
-              "code": "607",
-              "description": "Certification Revision"
-            }
-          ]
-        }
-      }
-    },
-    "2400.DTP_BeginTherapyDate": {
-      "id": "2400.DTP_BeginTherapyDate",
-      "name": "Date - Begin Therapy Date",
-      "elements": {
-        "DTP01": {
-          "valid_codes": [
-            {
-              "code": "463",
-              "description": "Begin Therapy"
-            }
-          ]
-        }
-      }
-    },
-    "2400.DTP_InitialTreatmentDate": {
-      "id": "2400.DTP_InitialTreatmentDate",
-      "name": "Date - Initial Treatment Date",
-      "elements": {
-        "DTP01": {
-          "valid_codes": [
-            {
-              "code": "454",
-              "description": "Initial Treatment"
-            }
-          ]
-        }
-      }
-    },
-    "2400.DTP_LastCertificationDate": {
-      "id": "2400.DTP_LastCertificationDate",
-      "name": "Date - Last Certification Date",
-      "elements": {
-        "DTP01": {
-          "valid_codes": [
-            {
-              "code": "461",
-              "description": "Last Certification"
-            }
-          ]
-        }
-      }
-    },
-    "2400.DTP_LastSeenDate": {
-      "id": "2400.DTP_LastSeenDate",
-      "name": "Date - Last Seen Date",
-      "elements": {
-        "DTP01": {
-          "valid_codes": [
-            {
-              "code": "304",
-              "description": "Latest Visit or Consultation"
-            }
-          ]
-        }
-      }
-    },
-    "2400.DTP_LastXRayDate": {
-      "id": "2400.DTP_LastXRayDate",
-      "name": "Date - Last X-ray Date",
-      "elements": {
-        "DTP01": {
-          "valid_codes": [
-            {
-              "code": "455",
-              "description": "Last X-Ray"
-            }
-          ]
-        }
-      }
-    },
-    "2400.DTP_ShippedDate": {
-      "id": "2400.DTP_ShippedDate",
-      "name": "Date - Shipped Date",
-      "elements": {
-        "DTP01": {
-          "valid_codes": [
-            {
-              "code": "011",
-              "description": "Shipped"
-            }
-          ]
-        }
-      }
-    },
-    "2400.DTP_TestDate": {
-      "id": "2400.DTP_TestDate",
-      "name": "Date - Test Date",
-      "elements": {
-        "DTP01": {
-          "valid_codes": [
-            {
-              "code": "738",
-              "description": "Most Recent Hemoglobin or Hematocrit or Both"
-            },
-            {
-              "code": "739",
-              "description": "Most Recent Serum Creatine"
-            }
-          ]
-        }
-      }
-    },
-    "2400.REF_CLIA": {
-      "id": "2400.REF_CLIA",
-      "name": "Line Level Clinical Laboratory Improvement Amendment (CLIA) Number",
-      "elements": {
-        "REF01": {
-          "valid_codes": [
-            {
-              "code": "X4",
-              "description": "Clinical Laboratory Improvement Amendment Number"
-            }
-          ]
-        }
-      }
-    },
-    "2400.REF_ImmunizationBatch": {
-      "id": "2400.REF_ImmunizationBatch",
-      "name": "Immunization Batch Number",
-      "elements": {
-        "REF01": {
-          "valid_codes": [
-            {
-              "code": "BT",
-              "description": "Batch Number"
-            }
-          ]
-        }
-      }
-    },
-    "2400.REF_LineItemControl": {
-      "id": "2400.REF_LineItemControl",
-      "name": "Line Item Control Number",
-      "elements": {
-        "REF01": {
-          "valid_codes": [
-            {
-              "code": "6R",
-              "description": "Provider Control Number"
-            }
-          ]
-        }
-      }
-    },
-    "2400.REF_MammographyCert": {
-      "id": "2400.REF_MammographyCert",
-      "name": "Line Level Mammography Certification Number",
-      "elements": {
-        "REF01": {
-          "valid_codes": [
-            {
-              "code": "EW",
-              "description": "Mammography Certification Number"
-            }
-          ]
-        }
-      }
-    },
-    "2400.REF_Referral": {
-      "id": "2400.REF_Referral",
-      "name": "Line Level Referral Number",
-      "elements": {
-        "REF01": {
-          "valid_codes": [
-            {
-              "code": "9F",
-              "description": "Referral Number"
-            }
-          ]
-        }
-      }
-    },
-    "2400.REF_ReferringCLIA": {
-      "id": "2400.REF_ReferringCLIA",
-      "name": "Referring Clinical Laboratory Improvement Amendment (CLIA) Facility Identification",
-      "elements": {
-        "REF01": {
-          "valid_codes": [
-            {
-              "code": "F4",
-              "description": "Facility Certification Number"
-            }
-          ]
-        }
-      }
-    },
-    "2400.REF_RepricedLineItem": {
-      "id": "2400.REF_RepricedLineItem",
-      "name": "Repriced Line Item Reference Number",
-      "elements": {
-        "REF01": {
-          "valid_codes": [
-            {
-              "code": "9B",
-              "description": "Repriced Line Item Reference Number"
-            }
-          ]
-        }
-      }
-    },
-    "2400.REF_AdjustedRepricedLineItem": {
-      "id": "2400.REF_AdjustedRepricedLineItem",
-      "name": "Adjusted Repriced Line Item Reference Number",
-      "elements": {
-        "REF01": {
-          "valid_codes": [
-            {
-              "code": "9D",
-              "description": "Adjusted Repriced Line Item Reference Number"
-            }
-          ]
-        }
-      }
-    },
-    "2400.REF_PriorAuth": {
-      "id": "2400.REF_PriorAuth",
-      "name": "Line Level Prior Authorization",
-      "elements": {
-        "REF01": {
-          "valid_codes": [
-            {
-              "code": "G1",
-              "description": "Prior Authorization Number"
+              "code": "ZV"
             }
           ]
         }
@@ -2943,10 +2781,10 @@
       "name": "Sales Tax Amount",
       "elements": {
         "AMT01": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "T",
-              "description": "Tax"
+              "code": "T"
             }
           ]
         }
@@ -2957,10 +2795,10 @@
       "name": "Postage Claimed Amount",
       "elements": {
         "AMT01": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "F4",
-              "description": "Postage Claimed"
+              "code": "F4"
             }
           ]
         }
@@ -2971,14 +2809,13 @@
       "name": "Prescription or Compound Drug Association Number",
       "elements": {
         "REF01": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "VY",
-              "description": "Link Sequence Number"
+              "code": "VY"
             },
             {
-              "code": "XZ",
-              "description": "Pharmacy Prescription Number"
+              "code": "XZ"
             }
           ]
         }
@@ -2989,22 +2826,20 @@
       "name": "Line Level Rendering Provider Name",
       "elements": {
         "NM101": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "82",
-              "description": "Rendering Provider"
+              "code": "82"
             }
           ]
         },
         "NM102": {
           "valid_codes": [
             {
-              "code": "1",
-              "description": "Person"
+              "code": "1"
             },
             {
-              "code": "2",
-              "description": "Non-Person Entity"
+              "code": "2"
             }
           ]
         }
@@ -3017,16 +2852,14 @@
         "PRV01": {
           "valid_codes": [
             {
-              "code": "PE",
-              "description": "Performing"
+              "code": "PE"
             }
           ]
         },
         "PRV02": {
           "valid_codes": [
             {
-              "code": "PXC",
-              "description": "Health Care Provider Taxonomy Code"
+              "code": "PXC"
             }
           ]
         }
@@ -3037,22 +2870,19 @@
       "name": "Line Level Rendering Provider Secondary ID",
       "elements": {
         "REF01": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "0B",
-              "description": "State License Number"
+              "code": "0B"
             },
             {
-              "code": "1G",
-              "description": "Provider UPIN Number"
+              "code": "1G"
             },
             {
-              "code": "G2",
-              "description": "Provider Commercial Number"
+              "code": "G2"
             },
             {
-              "code": "LU",
-              "description": "Location Number"
+              "code": "LU"
             }
           ]
         }
@@ -3063,22 +2893,20 @@
       "name": "Purchased Service Provider Name",
       "elements": {
         "NM101": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "QB",
-              "description": "Purchase Service Provider"
+              "code": "QB"
             }
           ]
         },
         "NM102": {
           "valid_codes": [
             {
-              "code": "1",
-              "description": "Person"
+              "code": "1"
             },
             {
-              "code": "2",
-              "description": "Non-Person Entity"
+              "code": "2"
             }
           ]
         }
@@ -3089,18 +2917,16 @@
       "name": "Purchased Service Provider Secondary ID",
       "elements": {
         "REF01": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "0B",
-              "description": "State License Number"
+              "code": "0B"
             },
             {
-              "code": "1G",
-              "description": "Provider UPIN Number"
+              "code": "1G"
             },
             {
-              "code": "G2",
-              "description": "Provider Commercial Number"
+              "code": "G2"
             }
           ]
         }
@@ -3111,18 +2937,17 @@
       "name": "Line Level Service Facility Location",
       "elements": {
         "NM101": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "77",
-              "description": "Service Location"
+              "code": "77"
             }
           ]
         },
         "NM102": {
           "valid_codes": [
             {
-              "code": "2",
-              "description": "Non-Person Entity"
+              "code": "2"
             }
           ]
         }
@@ -3151,14 +2976,13 @@
       "name": "Line Level Service Facility Secondary ID",
       "elements": {
         "REF01": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "G2",
-              "description": "Provider Commercial Number"
+              "code": "G2"
             },
             {
-              "code": "LU",
-              "description": "Location Number"
+              "code": "LU"
             }
           ]
         }
@@ -3169,18 +2993,17 @@
       "name": "Line Level Supervising Provider",
       "elements": {
         "NM101": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "DQ",
-              "description": "Supervising Physician"
+              "code": "DQ"
             }
           ]
         },
         "NM102": {
           "valid_codes": [
             {
-              "code": "1",
-              "description": "Person"
+              "code": "1"
             }
           ]
         }
@@ -3191,22 +3014,19 @@
       "name": "Line Level Supervising Provider Secondary ID",
       "elements": {
         "REF01": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "0B",
-              "description": "State License Number"
+              "code": "0B"
             },
             {
-              "code": "1G",
-              "description": "Provider UPIN Number"
+              "code": "1G"
             },
             {
-              "code": "G2",
-              "description": "Provider Commercial Number"
+              "code": "G2"
             },
             {
-              "code": "LU",
-              "description": "Location Number"
+              "code": "LU"
             }
           ]
         }
@@ -3217,18 +3037,17 @@
       "name": "Ordering Provider Name",
       "elements": {
         "NM101": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "DK",
-              "description": "Ordering Physician"
+              "code": "DK"
             }
           ]
         },
         "NM102": {
           "valid_codes": [
             {
-              "code": "1",
-              "description": "Person"
+              "code": "1"
             }
           ]
         }
@@ -3239,18 +3058,16 @@
       "name": "Ordering Provider Secondary ID",
       "elements": {
         "REF01": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "0B",
-              "description": "State License Number"
+              "code": "0B"
             },
             {
-              "code": "1G",
-              "description": "Provider UPIN Number"
+              "code": "1G"
             },
             {
-              "code": "G2",
-              "description": "Provider Commercial Number"
+              "code": "G2"
             }
           ]
         }
@@ -3263,24 +3080,20 @@
         "PER01": {
           "valid_codes": [
             {
-              "code": "IC",
-              "description": "Information Contact"
+              "code": "IC"
             }
           ]
         },
         "PER03": {
           "valid_codes": [
             {
-              "code": "EM",
-              "description": "E-Mail"
+              "code": "EM"
             },
             {
-              "code": "FX",
-              "description": "Facsimile"
+              "code": "FX"
             },
             {
-              "code": "TE",
-              "description": "Telephone"
+              "code": "TE"
             }
           ]
         }
@@ -3291,22 +3104,20 @@
       "name": "Line Level Referring Provider",
       "elements": {
         "NM101": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "DN",
-              "description": "Referring Provider"
+              "code": "DN"
             },
             {
-              "code": "P3",
-              "description": "Primary Care Provider"
+              "code": "P3"
             }
           ]
         },
         "NM102": {
           "valid_codes": [
             {
-              "code": "1",
-              "description": "Person"
+              "code": "1"
             }
           ]
         }
@@ -3317,18 +3128,16 @@
       "name": "Line Level Referring Provider Secondary ID",
       "elements": {
         "REF01": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "0B",
-              "description": "State License Number"
+              "code": "0B"
             },
             {
-              "code": "1G",
-              "description": "Provider UPIN Number"
+              "code": "1G"
             },
             {
-              "code": "G2",
-              "description": "Provider Commercial Number"
+              "code": "G2"
             }
           ]
         }
@@ -3339,12 +3148,297 @@
       "name": "Line Check or Remittance Date",
       "elements": {
         "DTP01": {
+          "is_identifier": true,
           "valid_codes": [
             {
-              "code": "573",
-              "description": "Date Claim Paid"
+              "code": "573"
             }
           ]
+        }
+      }
+    },
+    "2400.DTP_ServiceDate": {
+      "id": "2400.DTP_ServiceDate",
+      "name": "Date - Service Date",
+      "elements": {
+        "DTP01": {
+          "valid_codes": [
+            {
+              "code": "472",
+              "description": "Service"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.DTP_PrescriptionDate": {
+      "id": "2400.DTP_PrescriptionDate",
+      "name": "Date - Prescription Date",
+      "elements": {
+        "DTP01": {
+          "valid_codes": [
+            {
+              "code": "471",
+              "description": "Prescription"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.DTP_CertificationRevisionDate": {
+      "id": "2400.DTP_CertificationRevisionDate",
+      "name": "Date - Certification Revision/Recertification Date",
+      "elements": {
+        "DTP01": {
+          "valid_codes": [
+            {
+              "code": "607",
+              "description": "Revision/Recertification"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.DTP_BeginTherapyDate": {
+      "id": "2400.DTP_BeginTherapyDate",
+      "name": "Date - Begin Therapy Date",
+      "elements": {
+        "DTP01": {
+          "valid_codes": [
+            {
+              "code": "463",
+              "description": "Begin Therapy"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.DTP_LastCertificationDate": {
+      "id": "2400.DTP_LastCertificationDate",
+      "name": "Date - Last Certification Date",
+      "elements": {
+        "DTP01": {
+          "valid_codes": [
+            {
+              "code": "461",
+              "description": "Last Certification"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.DTP_LastSeenDate": {
+      "id": "2400.DTP_LastSeenDate",
+      "name": "Date - Last Seen Date",
+      "elements": {
+        "DTP01": {
+          "valid_codes": [
+            {
+              "code": "304",
+              "description": "Latest Visit or Consultation"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.DTP_TestDate": {
+      "id": "2400.DTP_TestDate",
+      "name": "Date - Test Date",
+      "elements": {
+        "DTP01": {
+          "valid_codes": [
+            {
+              "code": "738",
+              "description": "Test"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.DTP_ShippedDate": {
+      "id": "2400.DTP_ShippedDate",
+      "name": "Date - Shipped Date",
+      "elements": {
+        "DTP01": {
+          "valid_codes": [
+            {
+              "code": "011",
+              "description": "Shipped"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.DTP_LastXRayDate": {
+      "id": "2400.DTP_LastXRayDate",
+      "name": "Date - Last X-ray Date",
+      "elements": {
+        "DTP01": {
+          "valid_codes": [
+            {
+              "code": "455",
+              "description": "Last X-Ray"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.DTP_InitialTreatmentDate": {
+      "id": "2400.DTP_InitialTreatmentDate",
+      "name": "Date - Initial Treatment Date",
+      "elements": {
+        "DTP01": {
+          "valid_codes": [
+            {
+              "code": "454",
+              "description": "Initial Treatment"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.REF_RepricedLineItem": {
+      "id": "2400.REF_RepricedLineItem",
+      "name": "Repriced Line Item Reference Number",
+      "elements": {
+        "REF01": {
+          "valid_codes": [
+            {
+              "code": "9B",
+              "description": "Repriced Line Item Reference Number"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.REF_AdjustedRepricedLineItem": {
+      "id": "2400.REF_AdjustedRepricedLineItem",
+      "name": "Adjusted Repriced Line Item Reference Number",
+      "elements": {
+        "REF01": {
+          "valid_codes": [
+            {
+              "code": "9D",
+              "description": "Adjusted Repriced Line Item Reference Number"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.REF_PriorAuth": {
+      "id": "2400.REF_PriorAuth",
+      "name": "Prior Authorization",
+      "elements": {
+        "REF01": {
+          "valid_codes": [
+            {
+              "code": "G1",
+              "description": "Prior Authorization Number"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.REF_LineItemControl": {
+      "id": "2400.REF_LineItemControl",
+      "name": "Line Item Control Number",
+      "elements": {
+        "REF01": {
+          "valid_codes": [
+            {
+              "code": "6R",
+              "description": "Line Item Control Number"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.REF_MammographyCert": {
+      "id": "2400.REF_MammographyCert",
+      "name": "Mammography Certification Number",
+      "elements": {
+        "REF01": {
+          "valid_codes": [
+            {
+              "code": "EW",
+              "description": "Mammography Certification Number"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.REF_CLIA": {
+      "id": "2400.REF_CLIA",
+      "name": "Clinical Laboratory Improvement Amendment (CLIA) Number",
+      "elements": {
+        "REF01": {
+          "valid_codes": [
+            {
+              "code": "X4",
+              "description": "Clinical Laboratory Improvement Amendment Number"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.REF_ReferringCLIA": {
+      "id": "2400.REF_ReferringCLIA",
+      "name": "Referring Clinical Laboratory Improvement Amendment (CLIA) Facility Identification",
+      "elements": {
+        "REF01": {
+          "valid_codes": [
+            {
+              "code": "F4",
+              "description": "Referring CLIA Facility Identification"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.REF_ImmunizationBatch": {
+      "id": "2400.REF_ImmunizationBatch",
+      "name": "Immunization Batch Number",
+      "elements": {
+        "REF01": {
+          "valid_codes": [
+            {
+              "code": "BT",
+              "description": "Batch Number"
+            }
+          ],
+          "is_identifier": true
+        }
+      }
+    },
+    "2400.REF_Referral": {
+      "id": "2400.REF_Referral",
+      "name": "Referral Number",
+      "elements": {
+        "REF01": {
+          "valid_codes": [
+            {
+              "code": "9F",
+              "description": "Referral Number"
+            }
+          ],
+          "is_identifier": true
         }
       }
     }
@@ -8672,6 +8766,33 @@
                             {
                               "type": "segment",
                               "xid": "DTP",
+                              "name": "Date - Authorized Return To Work",
+                              "usage": "S",
+                              "max_use": 1,
+                              "segmentDefinitionId": "DTP",
+                              "contextDefinitionId": "2300.DTP_AuthorizedReturnToWork"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "DTP",
+                              "name": "Date - Admission",
+                              "usage": "S",
+                              "max_use": 1,
+                              "segmentDefinitionId": "DTP",
+                              "contextDefinitionId": "2300.DTP_Admission"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "DTP",
+                              "name": "Date - Discharge",
+                              "usage": "S",
+                              "max_use": 1,
+                              "segmentDefinitionId": "DTP",
+                              "contextDefinitionId": "2300.DTP_Discharge"
+                            },
+                            {
+                              "type": "segment",
+                              "xid": "DTP",
                               "name": "Date - Assumed and Relinquished Care Dates",
                               "usage": "S",
                               "max_use": 2,
@@ -8695,24 +8816,6 @@
                               "max_use": 1,
                               "segmentDefinitionId": "DTP",
                               "contextDefinitionId": "2300.DTP_RepricerReceived"
-                            },
-                            {
-                              "type": "segment",
-                              "xid": "DTP",
-                              "name": "Date - Admission",
-                              "usage": "S",
-                              "max_use": 1,
-                              "segmentDefinitionId": "DTP",
-                              "contextDefinitionId": "2300.DTP_Admission"
-                            },
-                            {
-                              "type": "segment",
-                              "xid": "DTP",
-                              "name": "Date - Discharge",
-                              "usage": "S",
-                              "max_use": 1,
-                              "segmentDefinitionId": "DTP",
-                              "contextDefinitionId": "2300.DTP_Discharge"
                             },
                             {
                               "type": "segment",
@@ -9339,7 +9442,7 @@
                                       "xid": "REF",
                                       "name": "Other Payer Secondary Identifier",
                                       "usage": "S",
-                                      "max_use": 1,
+                                      "max_use": 2,
                                       "segmentDefinitionId": "REF",
                                       "contextDefinitionId": "2330B.REF_SecondaryID"
                                     },
@@ -9551,12 +9654,29 @@
                                 },
                                 {
                                   "type": "segment",
+                                  "xid": "PWK",
+                                  "name": "Line Supplemental Information",
+                                  "usage": "S",
+                                  "max_use": 10,
+                                  "segmentDefinitionId": "PWK",
+                                  "contextDefinitionId": "2400.PWK_SupplementalInfo"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "PWK",
+                                  "name": "Durable Medical Equipment Certificate of Medical Necessity Indicator",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "PWK",
+                                  "contextDefinitionId": "2400.PWK_DME_CMN"
+                                },
+                                {
+                                  "type": "segment",
                                   "xid": "CR1",
                                   "name": "Ambulance Transport Information",
                                   "usage": "S",
                                   "max_use": 1,
-                                  "segmentDefinitionId": "CR1",
-                                  "contextDefinitionId": "2400.CR1"
+                                  "segmentDefinitionId": "CR1"
                                 },
                                 {
                                   "type": "segment",
@@ -9571,7 +9691,7 @@
                                   "xid": "CRC",
                                   "name": "Ambulance Certification",
                                   "usage": "S",
-                                  "max_use": 1,
+                                  "max_use": 3,
                                   "segmentDefinitionId": "CRC",
                                   "contextDefinitionId": "2400.CRC_Ambulance"
                                 },
@@ -9595,551 +9715,9 @@
                                 },
                                 {
                                   "type": "segment",
-                                  "xid": "QTY",
-                                  "name": "Quantity Information",
-                                  "usage": "S",
-                                  "max_use": 2,
-                                  "segmentDefinitionId": "QTY"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "MEA",
-                                  "name": "Test Result",
-                                  "usage": "S",
-                                  "max_use": 5,
-                                  "segmentDefinitionId": "MEA"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "CN1",
-                                  "name": "Contract Information",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "CN1"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "REF",
-                                  "name": "Repriced Line Item Reference Number",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "REF",
-                                  "contextDefinitionId": "2400.REF_RepricedLineItem"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "REF",
-                                  "name": "Adjusted Repriced Line Item Reference Number",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "REF",
-                                  "contextDefinitionId": "2400.REF_AdjustedRepricedLineItem"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "REF",
-                                  "name": "Prior Authorization",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "REF",
-                                  "contextDefinitionId": "2400.REF_PriorAuth"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "REF",
-                                  "name": "Line Item Control Number",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "REF",
-                                  "contextDefinitionId": "2400.REF_LineItemControl"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "REF",
-                                  "name": "Mammography Certification Number",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "REF",
-                                  "contextDefinitionId": "2400.REF_MammographyCert"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "REF",
-                                  "name": "Clinical Laboratory Improvement Amendment (CLIA) Number",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "REF",
-                                  "contextDefinitionId": "2400.REF_CLIA"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "REF",
-                                  "name": "Referring Clinical Laboratory Improvement Amendment (CLIA) Facility Identification",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "REF",
-                                  "contextDefinitionId": "2400.REF_ReferringCLIA"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "REF",
-                                  "name": "Immunization Batch Number",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "REF",
-                                  "contextDefinitionId": "2400.REF_ImmunizationBatch"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "REF",
-                                  "name": "Referral Number",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "REF",
-                                  "contextDefinitionId": "2400.REF_Referral"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "AMT",
-                                  "name": "Sales Tax Amount",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "AMT",
-                                  "contextDefinitionId": "2400.AMT_SalesTax"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "AMT",
-                                  "name": "Postage Claimed Amount",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "AMT",
-                                  "contextDefinitionId": "2400.AMT_Postage"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "K3",
-                                  "name": "File Information",
-                                  "usage": "S",
-                                  "max_use": 10,
-                                  "segmentDefinitionId": "K3"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "NTE",
-                                  "name": "Line Note",
-                                  "usage": "S",
-                                  "max_use": 2,
-                                  "segmentDefinitionId": "NTE"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "PS1",
-                                  "name": "Purchased Service Information",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "PS1"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "HCP",
-                                  "name": "Line Pricing/Repricing Information",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "HCP"
-                                },
-                                {
-                                  "type": "loop",
-                                  "xid": "2410",
-                                  "name": "DRUG IDENTIFICATION",
-                                  "usage": "S",
-                                  "repeat": 1,
-                                  "children": [
-                                    {
-                                      "type": "segment",
-                                      "xid": "LIN",
-                                      "name": "Drug Identification",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "LIN"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "CTP",
-                                      "name": "Drug Quantity",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "CTP"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "REF",
-                                      "name": "Prescription or Compound Drug Association Number",
-                                      "usage": "S",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "REF",
-                                      "contextDefinitionId": "2410.REF"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "loop",
-                                  "xid": "2420A",
-                                  "name": "RENDERING PROVIDER NAME",
-                                  "usage": "S",
-                                  "repeat": 1,
-                                  "children": [
-                                    {
-                                      "type": "segment",
-                                      "xid": "NM1",
-                                      "name": "Rendering Provider Name",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "NM1",
-                                      "contextDefinitionId": "2420A.NM1"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "PRV",
-                                      "name": "Rendering Provider Specialty Information",
-                                      "usage": "S",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "PRV",
-                                      "contextDefinitionId": "2420A.PRV"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "REF",
-                                      "name": "Rendering Provider Secondary Identification",
-                                      "usage": "S",
-                                      "max_use": 20,
-                                      "segmentDefinitionId": "REF",
-                                      "contextDefinitionId": "2420A.REF"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "loop",
-                                  "xid": "2420B",
-                                  "name": "PURCHASED SERVICE PROVIDER NAME",
-                                  "usage": "S",
-                                  "repeat": 1,
-                                  "children": [
-                                    {
-                                      "type": "segment",
-                                      "xid": "NM1",
-                                      "name": "Purchased Service Provider Name",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "NM1",
-                                      "contextDefinitionId": "2420B.NM1"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "REF",
-                                      "name": "Purchased Service Provider Secondary Identification",
-                                      "usage": "S",
-                                      "max_use": 20,
-                                      "segmentDefinitionId": "REF",
-                                      "contextDefinitionId": "2420B.REF"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "loop",
-                                  "xid": "2420C",
-                                  "name": "SERVICE FACILITY LOCATION",
-                                  "usage": "S",
-                                  "repeat": 1,
-                                  "children": [
-                                    {
-                                      "type": "segment",
-                                      "xid": "NM1",
-                                      "name": "Service Facility Location",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "NM1",
-                                      "contextDefinitionId": "2420C.NM1"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "N3",
-                                      "name": "Service Facility Location Address",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "N3",
-                                      "contextDefinitionId": "2420C.N3"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "N4",
-                                      "name": "Service Facility Location City, State, ZIP",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "N4",
-                                      "contextDefinitionId": "2420C.N4"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "REF",
-                                      "name": "Service Facility Location Secondary ID",
-                                      "usage": "S",
-                                      "max_use": 3,
-                                      "segmentDefinitionId": "REF",
-                                      "contextDefinitionId": "2420C.REF"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "loop",
-                                  "xid": "2420D",
-                                  "name": "SUPERVISING PROVIDER NAME",
-                                  "usage": "S",
-                                  "repeat": 1,
-                                  "children": [
-                                    {
-                                      "type": "segment",
-                                      "xid": "NM1",
-                                      "name": "Supervising Provider Name",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "NM1",
-                                      "contextDefinitionId": "2420D.NM1"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "REF",
-                                      "name": "Supervising Provider Secondary ID",
-                                      "usage": "S",
-                                      "max_use": 20,
-                                      "segmentDefinitionId": "REF",
-                                      "contextDefinitionId": "2420D.REF"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "loop",
-                                  "xid": "2420E",
-                                  "name": "ORDERING PROVIDER NAME",
-                                  "usage": "S",
-                                  "repeat": 1,
-                                  "children": [
-                                    {
-                                      "type": "segment",
-                                      "xid": "NM1",
-                                      "name": "Ordering Provider Name",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "NM1",
-                                      "contextDefinitionId": "2420E.NM1"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "N3",
-                                      "name": "Ordering Provider Address",
-                                      "usage": "S",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "N3"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "N4",
-                                      "name": "Ordering Provider City, State, ZIP",
-                                      "usage": "S",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "N4"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "REF",
-                                      "name": "Ordering Provider Secondary ID",
-                                      "usage": "S",
-                                      "max_use": 20,
-                                      "segmentDefinitionId": "REF",
-                                      "contextDefinitionId": "2420E.REF"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "PER",
-                                      "name": "Ordering Provider Contact Information",
-                                      "usage": "S",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "PER",
-                                      "contextDefinitionId": "2420E.PER"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "loop",
-                                  "xid": "2420F",
-                                  "name": "REFERRING PROVIDER NAME",
-                                  "usage": "S",
-                                  "repeat": 2,
-                                  "children": [
-                                    {
-                                      "type": "segment",
-                                      "xid": "NM1",
-                                      "name": "Referring Provider Name",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "NM1",
-                                      "contextDefinitionId": "2420F.NM1"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "REF",
-                                      "name": "Referring Provider Secondary ID",
-                                      "usage": "S",
-                                      "max_use": 20,
-                                      "segmentDefinitionId": "REF",
-                                      "contextDefinitionId": "2420F.REF"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "loop",
-                                  "xid": "2420G",
-                                  "name": "AMBULANCE PICK-UP LOCATION",
-                                  "usage": "S",
-                                  "repeat": 1,
-                                  "children": [
-                                    {
-                                      "type": "segment",
-                                      "xid": "NM1",
-                                      "name": "Ambulance Pick-up Location",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "NM1",
-                                      "contextDefinitionId": "2310E.NM1"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "N3",
-                                      "name": "Ambulance Pick-up Address",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "N3",
-                                      "contextDefinitionId": "2310E.N3"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "loop",
-                                  "xid": "2420H",
-                                  "name": "AMBULANCE DROP-OFF LOCATION",
-                                  "usage": "S",
-                                  "repeat": 1,
-                                  "children": [
-                                    {
-                                      "type": "segment",
-                                      "xid": "NM1",
-                                      "name": "Ambulance Drop-off Location",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "NM1",
-                                      "contextDefinitionId": "2310F.NM1"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "N3",
-                                      "name": "Ambulance Drop-off Address",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "N3",
-                                      "contextDefinitionId": "2310F.N3"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "loop",
-                                  "xid": "2430",
-                                  "name": "LINE ADJUDICATION INFORMATION",
-                                  "usage": "S",
-                                  "repeat": 15,
-                                  "children": [
-                                    {
-                                      "type": "segment",
-                                      "xid": "SVD",
-                                      "name": "Line Adjudication Information",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "SVD"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "CAS",
-                                      "name": "Line Adjustment",
-                                      "usage": "S",
-                                      "max_use": 5,
-                                      "segmentDefinitionId": "CAS"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "DTP",
-                                      "name": "Line Check or Remittance Date",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "DTP",
-                                      "contextDefinitionId": "2430.DTP"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "AMT",
-                                      "name": "Remaining Patient Liability",
-                                      "usage": "S",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "AMT"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "loop",
-                                  "xid": "2440",
-                                  "name": "FORM IDENTIFICATION CODE",
-                                  "usage": "S",
-                                  "repeat": ">1",
-                                  "children": [
-                                    {
-                                      "type": "segment",
-                                      "xid": "LQ",
-                                      "name": "Form Identification Code",
-                                      "usage": "R",
-                                      "max_use": 1,
-                                      "segmentDefinitionId": "LQ"
-                                    },
-                                    {
-                                      "type": "segment",
-                                      "xid": "FRM",
-                                      "name": "Supporting Documentation",
-                                      "usage": "R",
-                                      "max_use": 99,
-                                      "segmentDefinitionId": "FRM"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "PWK",
-                                  "name": "Line Supplemental Information",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "PWK",
-                                  "contextDefinitionId": "2400.PWK_SupplementalInfo"
-                                },
-                                {
-                                  "type": "segment",
-                                  "xid": "PWK",
-                                  "name": "Durable Medical Equipment Certificate of Medical Necessity Indicator",
-                                  "usage": "S",
-                                  "max_use": 1,
-                                  "segmentDefinitionId": "PWK",
-                                  "contextDefinitionId": "2400.PWK_DME_CMN"
-                                },
-                                {
-                                  "type": "segment",
                                   "xid": "DTP",
                                   "name": "Date - Service Date",
-                                  "usage": "S",
+                                  "usage": "R",
                                   "max_use": 1,
                                   "segmentDefinitionId": "DTP",
                                   "contextDefinitionId": "2400.DTP_ServiceDate"
@@ -10224,6 +9802,560 @@
                                   "max_use": 1,
                                   "segmentDefinitionId": "DTP",
                                   "contextDefinitionId": "2400.DTP_InitialTreatmentDate"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "QTY",
+                                  "name": "Ambulance Patient Count",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "QTY"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "QTY",
+                                  "name": "Obstetric Anesthesia Additional Units",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "QTY"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "MEA",
+                                  "name": "Test Result",
+                                  "usage": "S",
+                                  "max_use": 5,
+                                  "segmentDefinitionId": "MEA"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "CN1",
+                                  "name": "Contract Information",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "CN1"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "name": "Repriced Line Item Reference Number",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "REF",
+                                  "contextDefinitionId": "2400.REF_RepricedLineItem"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "name": "Adjusted Repriced Line Item Reference Number",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "REF",
+                                  "contextDefinitionId": "2400.REF_AdjustedRepricedLineItem"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "name": "Prior Authorization",
+                                  "usage": "S",
+                                  "max_use": 5,
+                                  "segmentDefinitionId": "REF",
+                                  "contextDefinitionId": "2400.REF_PriorAuth"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "name": "Line Item Control Number",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "REF",
+                                  "contextDefinitionId": "2400.REF_LineItemControl"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "name": "Mammography Certification Number",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "REF",
+                                  "contextDefinitionId": "2400.REF_MammographyCert"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "name": "Clinical Laboratory Improvement Amendment (CLIA) Number",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "REF",
+                                  "contextDefinitionId": "2400.REF_CLIA"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "name": "Referring Clinical Laboratory Improvement Amendment (CLIA) Facility Identification",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "REF",
+                                  "contextDefinitionId": "2400.REF_ReferringCLIA"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "name": "Immunization Batch Number",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "REF",
+                                  "contextDefinitionId": "2400.REF_ImmunizationBatch"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "REF",
+                                  "name": "Referral Number",
+                                  "usage": "S",
+                                  "max_use": 5,
+                                  "segmentDefinitionId": "REF",
+                                  "contextDefinitionId": "2400.REF_Referral"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "AMT",
+                                  "name": "Sales Tax Amount",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "AMT",
+                                  "contextDefinitionId": "2400.AMT_SalesTax"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "AMT",
+                                  "name": "Postage Claimed Amount",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "AMT",
+                                  "contextDefinitionId": "2400.AMT_Postage"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "K3",
+                                  "name": "File Information",
+                                  "usage": "S",
+                                  "max_use": 10,
+                                  "segmentDefinitionId": "K3"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "NTE",
+                                  "name": "Line Note",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "NTE"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "NTE",
+                                  "name": "Third Party Organization Notes",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "NTE"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "PS1",
+                                  "name": "Purchased Service Information",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "PS1"
+                                },
+                                {
+                                  "type": "segment",
+                                  "xid": "HCP",
+                                  "name": "Line Pricing/Repricing Information",
+                                  "usage": "S",
+                                  "max_use": 1,
+                                  "segmentDefinitionId": "HCP"
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2410",
+                                  "name": "DRUG IDENTIFICATION",
+                                  "usage": "S",
+                                  "repeat": 1,
+                                  "children": [
+                                    {
+                                      "type": "segment",
+                                      "xid": "LIN",
+                                      "name": "Drug Identification",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "LIN"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "CTP",
+                                      "name": "Drug Quantity",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "CTP"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "name": "Prescription or Compound Drug Association Number",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "REF",
+                                      "contextDefinitionId": "2410.REF"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2420A",
+                                  "name": "RENDERING PROVIDER NAME",
+                                  "usage": "S",
+                                  "repeat": 1,
+                                  "children": [
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "name": "Rendering Provider Name",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "NM1",
+                                      "contextDefinitionId": "2420A.NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "PRV",
+                                      "name": "Rendering Provider Specialty Information",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "PRV",
+                                      "contextDefinitionId": "2420A.PRV"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "name": "Rendering Provider Secondary Identification",
+                                      "usage": "S",
+                                      "max_use": 20,
+                                      "segmentDefinitionId": "REF",
+                                      "contextDefinitionId": "2420A.REF"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2420B",
+                                  "name": "PURCHASED SERVICE PROVIDER NAME",
+                                  "usage": "S",
+                                  "repeat": 1,
+                                  "children": [
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "name": "Purchased Service Provider Name",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "NM1",
+                                      "contextDefinitionId": "2420B.NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "name": "Purchased Service Provider Secondary Identification",
+                                      "usage": "S",
+                                      "max_use": 20,
+                                      "segmentDefinitionId": "REF",
+                                      "contextDefinitionId": "2420B.REF"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2420C",
+                                  "name": "SERVICE FACILITY LOCATION",
+                                  "usage": "S",
+                                  "repeat": 1,
+                                  "children": [
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "name": "Service Facility Location Name",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "NM1",
+                                      "contextDefinitionId": "2420C.NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N3",
+                                      "name": "Service Facility Location Address",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "N3",
+                                      "contextDefinitionId": "2420C.N3"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N4",
+                                      "name": "Service Facility Location City, State, ZIP",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "N4",
+                                      "contextDefinitionId": "2420C.N4"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "name": "Service Facility Location Secondary ID",
+                                      "usage": "S",
+                                      "max_use": 3,
+                                      "segmentDefinitionId": "REF",
+                                      "contextDefinitionId": "2420C.REF"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2420D",
+                                  "name": "SUPERVISING PROVIDER NAME",
+                                  "usage": "S",
+                                  "repeat": 1,
+                                  "children": [
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "name": "Supervising Provider Name",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "NM1",
+                                      "contextDefinitionId": "2420D.NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "name": "Supervising Provider Secondary ID",
+                                      "usage": "S",
+                                      "max_use": 20,
+                                      "segmentDefinitionId": "REF",
+                                      "contextDefinitionId": "2420D.REF"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2420E",
+                                  "name": "ORDERING PROVIDER NAME",
+                                  "usage": "S",
+                                  "repeat": 1,
+                                  "children": [
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "name": "Ordering Provider Name",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "NM1",
+                                      "contextDefinitionId": "2420E.NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N3",
+                                      "name": "Ordering Provider Address",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "N3"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N4",
+                                      "name": "Ordering Provider City, State, ZIP",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "N4"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "name": "Ordering Provider Secondary ID",
+                                      "usage": "S",
+                                      "max_use": 20,
+                                      "segmentDefinitionId": "REF",
+                                      "contextDefinitionId": "2420E.REF"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "PER",
+                                      "name": "Ordering Provider Contact Information",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "PER",
+                                      "contextDefinitionId": "2420E.PER"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2420F",
+                                  "name": "REFERRING PROVIDER NAME",
+                                  "usage": "S",
+                                  "repeat": 2,
+                                  "children": [
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "name": "Referring Provider Name",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "NM1",
+                                      "contextDefinitionId": "2420F.NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "REF",
+                                      "name": "Referring Provider Secondary ID",
+                                      "usage": "S",
+                                      "max_use": 20,
+                                      "segmentDefinitionId": "REF",
+                                      "contextDefinitionId": "2420F.REF"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2420G",
+                                  "name": "AMBULANCE PICK-UP LOCATION",
+                                  "usage": "S",
+                                  "repeat": 1,
+                                  "children": [
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "name": "Ambulance Pick-up Location",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "NM1",
+                                      "contextDefinitionId": "2310E.NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N3",
+                                      "name": "Ambulance Pick-up Location Address",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "N3"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N4",
+                                      "name": "Ambulance Pick-up Location City, State, ZIP",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "N4"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2420H",
+                                  "name": "AMBULANCE DROP-OFF LOCATION",
+                                  "usage": "S",
+                                  "repeat": 1,
+                                  "children": [
+                                    {
+                                      "type": "segment",
+                                      "xid": "NM1",
+                                      "name": "Ambulance Drop-off Location",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "NM1",
+                                      "contextDefinitionId": "2310F.NM1"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N3",
+                                      "name": "Ambulance Drop-off Location Address",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "N3"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "N4",
+                                      "name": "Ambulance Drop-off Location City, State, ZIP Code",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "N4"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2430",
+                                  "name": "LINE ADJUDICATION INFORMATION",
+                                  "usage": "S",
+                                  "repeat": 15,
+                                  "children": [
+                                    {
+                                      "type": "segment",
+                                      "xid": "SVD",
+                                      "name": "Line Adjudication Information",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "SVD"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "CAS",
+                                      "name": "Line Adjustment",
+                                      "usage": "S",
+                                      "max_use": 5,
+                                      "segmentDefinitionId": "CAS"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "DTP",
+                                      "name": "Line Check or Remittance Date",
+                                      "usage": "R",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "DTP",
+                                      "contextDefinitionId": "2430.DTP"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "AMT",
+                                      "name": "Remaining Patient Liability",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "AMT"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "loop",
+                                  "xid": "2440",
+                                  "name": "FORM IDENTIFICATION CODE",
+                                  "usage": "S",
+                                  "repeat": ">1",
+                                  "children": [
+                                    {
+                                      "type": "segment",
+                                      "xid": "LQ",
+                                      "name": "Form Identification Code",
+                                      "usage": "S",
+                                      "max_use": 1,
+                                      "segmentDefinitionId": "LQ"
+                                    },
+                                    {
+                                      "type": "segment",
+                                      "xid": "FRM",
+                                      "name": "Supporting Documentation",
+                                      "usage": "R",
+                                      "max_use": 99,
+                                      "segmentDefinitionId": "FRM"
+                                    }
+                                  ]
                                 }
                               ]
                             }

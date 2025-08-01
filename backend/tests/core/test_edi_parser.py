@@ -43,7 +43,7 @@ def test_parser_handles_incomplete_edi_gracefully(standalone_schema: Implementat
     assert "ISA/IEA envelope not found" in interchange_no_iea.errors[0].message
     
     # Use the valid fixture to test for a missing SE
-    edi_missing_se = valid_837p_edi_string.replace("SE*24*0001~", "")
+    edi_missing_se = valid_837p_edi_string.replace("SE*25*0001~", "")
     parser_no_se = EdiParser(edi_string=edi_missing_se, schema=standalone_schema)
     interchange_no_se = parser_no_se.parse()
     assert len(interchange_no_se.errors) > 0
@@ -59,7 +59,7 @@ def test_parser_handles_missing_mandatory_segment(standalone_schema: Implementat
     # 2. Remove the mandatory LX segment that begins the 2400 loop
     edi_missing_lx = valid_837p_edi_string.replace("LX*1~\n", "")
     # 3. Decrement the SE segment count to avoid a control number mismatch error
-    edi_missing_lx = edi_missing_lx.replace("SE*24*0001~", "SE*23*0001~")
+    edi_missing_lx = edi_missing_lx.replace("SE*25*0001~", "SE*24*0001~")
     
     parser = EdiParser(edi_string=edi_missing_lx, schema=standalone_schema)
     interchange = parser.parse()
@@ -71,5 +71,5 @@ def test_parser_handles_missing_mandatory_segment(standalone_schema: Implementat
     assert claim_loop is not None
     assert len(claim_loop.errors) > 0
     
-    expected_error_msg = "Required segment or loop '2400' not found. Found 'SV1' instead."
-    assert any(expected_error_msg in e.message for e in claim_loop.errors)
+    expected_error_msg = "Required segment or loop '2400'"
+    assert any(expected_error_msg in e.message and "not found" in e.message and "SV1" in e.message for e in claim_loop.errors)

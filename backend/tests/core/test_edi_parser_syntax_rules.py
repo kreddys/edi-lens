@@ -60,12 +60,12 @@ def test_syntax_rule_at_least_one_of_fail(standalone_schema: ImplementationGuide
     # We find the SV1 segment and inject the 2440 loop (LQ and FRM) right after it.
     # This is a valid structural position according to the schema.
     injection_point = "SV1*HC>99213*125*UN*1***1**Y~"
-    invalid_structure = injection_point + "\nLQ*UT*ABC~\nFRM*1~" # Valid LQ, Invalid FRM
+    invalid_structure = injection_point + "\nDTP*472*D8*20240715~\nLQ*UT*ABC~\nFRM*1~" # Valid LQ, Invalid FRM
     
     invalid_edi = valid_837p_edi_string.replace(injection_point, invalid_structure)
     
-    # Adjust segment count in SE (we added 2 segments)
-    invalid_edi = invalid_edi.replace("SE*24*0001~", "SE*26*0001~")
+    # Adjust segment count in SE (we added 3 segments)
+    invalid_edi = invalid_edi.replace("SE*25*0001~", "SE*28*0001~")
     
     parser = EdiParser(edi_string=invalid_edi, schema=standalone_schema)
     interchange = parser.parse()

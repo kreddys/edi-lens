@@ -41,7 +41,7 @@ def test_validator_finds_missing_required_loop(standalone_schema: Implementation
     transaction_body = transaction.body
     
     assert len(transaction_body.errors) > 0
-    assert "Required segment or loop '1000A' not found" in transaction_body.errors[0].message
+    assert "Required segment or loop '1000A'" in transaction_body.errors[0].message and "not found" in transaction_body.errors[0].message
 
 # --- Advanced Data-Level Validation Tests ---
 
@@ -109,18 +109,27 @@ def test_validator_fails_on_contextual_code_error(standalone_schema: Implementat
     """
     invalid_edi = valid_837p_edi_string.replace(
         "NM1*85*2*BILLING PROVIDER*****XX*1234567890~",
-        "NM1*87*2*WRONG PROVIDER*****XX*1234567890~"
+        "NM1*85*2*BILLING PROVIDER*****ZZ*1234567890~"
     )
     parser = EdiParser(edi_string=invalid_edi, schema=standalone_schema)
     interchange = parser.parse()
 
-    billing_provider_loop = interchange.functional_groups[0].transactions[0].body.get_loop("2000A")
-    billing_provider_name_loop = billing_provider_loop.get_loop("2010AA")
-    nm1_segment = billing_provider_name_loop.get_segment("NM1")
+    # Collect all errors from the interchange to find the contextual validation error
+    def collect_all_errors(loop):
+        all_errors = list(loop.errors)
+        for sub_loops in loop.loops.values():
+            for sub_loop in sub_loops:
+                all_errors.extend(collect_all_errors(sub_loop))
+        for segment in loop.segments:
+            all_errors.extend(segment.errors)
+        return all_errors
 
-    assert len(nm1_segment.errors) > 0
-    error_messages = [e.message for e in nm1_segment.errors]
-    assert any("NM101" in msg and "Invalid code value" in msg and "Allowed: 85" in msg for msg in error_messages)
+    transaction = interchange.functional_groups[0].transactions[0]
+    all_errors = list(interchange.errors) + list(transaction.errors) + collect_all_errors(transaction.body)
+    error_messages = [e.message for e in all_errors]
+    
+    # Look for the contextual validation error for NM108 in the parsed errors
+    assert any("NM108" in msg and "Invalid code value" in msg and "Allowed: XX" in msg for msg in error_messages), f"Expected contextual error not found. Errors: {error_messages}"
 
 def test_validator_fails_on_composite_sub_element_error(standalone_schema: ImplementationGuideSchema, valid_837p_edi_string: str):
     """

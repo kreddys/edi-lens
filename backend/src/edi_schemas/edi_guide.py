@@ -51,6 +51,7 @@ class BaseElement(BaseModel):
     format: Optional[Union[str, List[str]]] = None
     valid_codes: Optional[List[CodeDefinition]] = None
     sub_elements: Optional[List['BaseElement']] = None
+    is_identifier: bool = Field(False, description="Indicates if this element is a critical identifier for its context.") # <-- ADD THIS
 
 class SegmentDefinition(BaseModel):
     id: str
@@ -59,11 +60,9 @@ class SegmentDefinition(BaseModel):
     usage: Literal['R', 'S', 'N']
     max_use: int = Field(validation_alias=AliasChoices("max_use", "maxUse"), default=1)
     elements: List[BaseElement]
-    # --- UPDATE: Add the rules field to the segment definition ---
     rules: Optional[List[SyntaxRule]] = None
 
-# --- The rest of the models are unchanged ---
-# ... (ContextualDefinition, StructureSegment, StructureLoop, etc.)
+# --- Contextual and Structural Models ---
 class ContextualDefinition(BaseModel):
     id: str
     name: str
@@ -100,9 +99,6 @@ class ImplementationGuideSchema(BaseModel):
 
     def get_version_key(self) -> str:
         return self.version
-
-    def get_all_structured_segments(self) -> List[Dict[str, str]]:
-        pass
 
 # Rebuild models to resolve forward references.
 BaseElement.model_rebuild()

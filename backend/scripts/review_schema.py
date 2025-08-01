@@ -111,12 +111,16 @@ class SchemaAnalyzer:
                     
                     base_el = base_elements[el_xid]
                     overrides_found = []
-                    if override.usage and override.usage != base_el.usage:
-                        overrides_found.append(f"Usage changed from '{base_el.usage}' to '{override.usage}'")
-                    if override.name and override.name != base_el.name:
-                         overrides_found.append(f"Name changed to '{override.name}'")
-                    if override.valid_codes is not None:
+                    
+                    # Handle override as dictionary - access using dict keys, not attributes
+                    if 'usage' in override and override['usage'] != base_el.usage:
+                        overrides_found.append(f"Usage changed from '{base_el.usage}' to '{override['usage']}'")
+                    if 'name' in override and override['name'] != base_el.name:
+                         overrides_found.append(f"Name changed to '{override['name']}'")
+                    if 'valid_codes' in override and override['valid_codes'] is not None:
                         overrides_found.append(f"Restricts valid codes")
+                    if 'is_identifier' in override and override['is_identifier']:
+                        overrides_found.append(f"Marked as identifier")
 
                     # Only add the line if there are actual overrides to report
                     if overrides_found:
