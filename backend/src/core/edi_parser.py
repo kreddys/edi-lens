@@ -95,8 +95,6 @@ class SegmentValidator:
         self.component_separator = component_separator
 
     def validate(self, segment: CdmSegment, context_id: Optional[str] = None) -> List[CdmValidationError]:
-        # This is the only part of the validator that needs changing.
-        # We add the context_id to the initial log message for clarity.
         logger.debug(f"      --- Validating Segment: '{segment.raw_segment}' (Context: {context_id or 'Base Definition'}) ---")
         
         errors: List[CdmValidationError] = []
@@ -125,12 +123,18 @@ class SegmentValidator:
         errors: List[CdmValidationError] = []
         rules = effective_def.get("rules", [])
         if not rules: return errors
-
+        
+        logger.debug(f"        Syntax Rules: Found {len(rules)} rules for segment '{segment.segment_id}'.")
         for rule in rules:
+            rule_id = rule.get('ruleId', 'UnknownRule')
+            logger.debug(f"          -> Evaluating Rule: {rule_id}")
             conditions_met = self._evaluate_conditions(segment, rule.get("conditions", {}))
             if conditions_met:
+                logger.debug(f"             - Conditions MET. Executing assertions.")
                 for assertion in rule.get("then", []):
-                    errors.extend(self._execute_assertion(segment, assertion, rule.get('ruleId')))
+                    errors.extend(self._execute_assertion(segment, assertion, rule_id))
+            else:
+                logger.debug(f"             - Conditions NOT MET. Skipping assertions.")
         return errors
 
     def _evaluate_conditions(self, segment: CdmSegment, conditions: Dict[str, Any]) -> bool:
@@ -146,11 +150,14 @@ class SegmentValidator:
         value = segment.get_element(pos) or ""
         op = clause["operator"]
         
-        if op == "IS_PRESENT": return value.strip() != ""
-        if op == "IS_NOT_PRESENT": return value.strip() == ""
-        if op == "IS": return value == clause["value"]
-        if op == "IS_NOT": return value != clause["value"]
-        return False
+        result = False
+        if op == "IS_PRESENT": result = value.strip() != ""
+        if op == "IS_NOT_PRESENT": result = value.strip() == ""
+        if op == "IS": result = value == clause["value"]
+        if op == "IS_NOT": result = value != clause["value"]
+
+        logger.debug(f"               - Condition: '{element_id}' ({value}) {op} '{clause.get('value', '')}' -> {'PASS' if result else 'FAIL'}")
+        return result
 
     def _execute_assertion(self, segment: CdmSegment, assertion: Dict[str, Any], rule_id: str) -> List[CdmValidationError]:
         errors: List[CdmValidationError] = []
@@ -181,6 +188,10 @@ class SegmentValidator:
 
         if assertion_failed:
             errors.append(CdmValidationError(message=f"Syntax Rule Failed ({rule_id}): {log_detail}"))
+            logger.debug(f"               - Assertion FAILED: {log_detail}")
+        else:
+            logger.debug(f"               - Assertion PASSED: {log_detail}")
+
         return errors
 
     def _validate_element_recursively(self, element_def: Dict[str, Any], value: str, parent_xid: Optional[str] = None) -> List[CdmValidationError]:
@@ -191,7 +202,7 @@ class SegmentValidator:
         is_present = value != ""
         is_identifier = element_def.get("is_identifier", False)
 
-        log_line_intro = f"      Validating {full_xid} (Usage: {usage}): Data='{value}'"
+        log_line_intro = f"        Validating {full_xid} (Usage: {usage}, ID: {is_identifier}): Data='{value}'"
 
         if usage == 'R' and not is_present:
             err_msg = f"Required element '{full_xid}' is missing."
@@ -223,42 +234,49 @@ class SegmentValidator:
                     errors.extend(self._validate_element_recursively(sub_def, sub_value, parent_xid=full_xid))
             return errors
 
-        validation_passed = True
+        validation_passed_count = 0
         
         min_len, max_len = element_def.get('minLength'), element_def.get('maxLength')
         if min_len is not None and len(value) < min_len:
             errors.append(CdmValidationError(message=f"Element '{full_xid}': Value is shorter than min length {min_len}.", element_xid=full_xid, is_identifier_error=is_identifier))
-            validation_passed = False
+        else:
+            validation_passed_count += 1
         if max_len is not None and len(value) > max_len:
             errors.append(CdmValidationError(message=f"Element '{full_xid}': Value is longer than max length {max_len}.", element_xid=full_xid, is_identifier_error=is_identifier))
-            validation_passed = False
+        else:
+            validation_passed_count += 1
 
         if data_type and not _validate_data_type(value, data_type):
             errors.append(CdmValidationError(message=f"Element '{full_xid}': Value does not match expected data type '{data_type}'.", element_xid=full_xid, is_identifier_error=is_identifier))
-            validation_passed = False
+        else:
+            validation_passed_count += 1
         data_format = element_def.get('format')
         if data_format and not _validate_format(value, data_format):
             errors.append(CdmValidationError(message=f"Element '{full_xid}': Value does not match expected format '{data_format}'.", element_xid=full_xid, is_identifier_error=is_identifier))
-            validation_passed = False
+        else:
+            validation_passed_count += 1
 
         if "valid_codes" in element_def and element_def["valid_codes"]:
             allowed_codes = {str(c['code']) for c in element_def["valid_codes"]}
             if value not in allowed_codes:
                 errors.append(CdmValidationError(message=f"Element '{full_xid}': Invalid code value. Allowed: {', '.join(sorted(list(allowed_codes)))}.", element_xid=full_xid, is_identifier_error=is_identifier))
-                validation_passed = False
+            else:
+                validation_passed_count += 1
+        else:
+             validation_passed_count += 1
 
-        if validation_passed:
+        if validation_passed_count == 5:
             logger.debug(f"{log_line_intro} -> [PASS]")
         else:
-            logger.debug(f"{log_line_intro} -> [FAIL] One or more validation checks failed.")
+            logger.debug(f"{log_line_intro} -> [FAIL] One or more validation checks failed. Errors: {[e.message for e in errors]}")
 
         return errors
 
 class EdiParser:
     def __init__(self, edi_string: str, schema: ImplementationGuideSchema):
         self.schema = schema
-        _, _, component_separator = self._detect_delimiters(edi_string)
-        self.validator = SegmentValidator(schema, component_separator)
+        delims = self._detect_delimiters(edi_string)
+        self.validator = SegmentValidator(schema, delims[2])
         self.all_segments: List[CdmSegment] = self._segmentize_and_parse(edi_string)
         self.errors: List[CdmValidationError] = []
         logger.debug(f"Parser initialized with {len(self.all_segments)} segments.")
@@ -269,6 +287,7 @@ class EdiParser:
             element_delimiter = clean_edi[103]
             segment_terminator = clean_edi[105]
             component_separator = clean_edi[104]
+            logger.debug(f"Delimiters detected: Element='{element_delimiter}', Segment='{segment_terminator}', Component='{component_separator}'")
             return element_delimiter, segment_terminator, component_separator
         logger.warning("Could not find standard ISA segment. Falling back to default delimiters ('*', '~', ':').")
         return '*', '~', ':'
@@ -307,203 +326,119 @@ class EdiParser:
         if isinstance(node, StructureLoop) and node.children:
             return self._get_starting_segment_id(node.children[0])
         return None
-    
+
+    # --- START OF FIX: NEW HELPER FUNCTION ---
     def _find_best_schema_match(
         self,
         current_segment: CdmSegment,
         schema_nodes: List[StructureChild],
         usage_counts: Dict[int, int],
-        start_index: int,
-    ) -> Optional[Tuple[StructureChild, int]]:
+    ) -> Tuple[Optional[StructureChild], int]:
         """
         Finds the best schema node for the current data segment by performing trial validations.
 
-        Iterates through available schema nodes starting from `start_index`.
-        For each node, it checks if the segment ID matches and if a trial validation passes.
-        It returns the first schema node that is a valid match.
+        Iterates through available schema nodes, checking for ID matches and usage limits.
+        For each potential match, it performs a trial validation. The first schema node
+        that validates without any "identifier" errors is considered the best match.
         """
-        for i in range(start_index, len(schema_nodes)):
-            schema_node = schema_nodes[i]
-
+        logger.debug(f"          -> Searching for best match for '{current_segment.segment_id}' among {len(schema_nodes)} schema nodes.")
+        for i, schema_node in enumerate(schema_nodes):
             # 1. Check if the schema node has been used up to its max repeats
-            max_repeats = getattr(schema_node, 'max_use', getattr(schema_node, 'repeat', 1))
-            if not isinstance(max_repeats, int): max_repeats = 99999
-            if usage_counts.get(i, 0) >= max_repeats:
+            max_repeats_str = getattr(schema_node, 'max_use', getattr(schema_node, 'repeat', '1'))
+            try:
+                max_repeats = int(max_repeats_str)
+            except (ValueError, TypeError):
+                max_repeats = 99999 # Corresponds to '>1' or similar
+            
+            current_usage = usage_counts.get(i, 0)
+            if current_usage >= max_repeats:
+                logger.debug(f"             - Skipping node {i} ('{schema_node.xid}'): Max usage ({max_repeats}) reached.")
                 continue
 
             # 2. Check if the segment ID matches (for both segments and loops)
-            is_potential_match = False
-            if isinstance(schema_node, StructureSegment) and current_segment.segment_id == schema_node.xid:
-                is_potential_match = True
-            elif isinstance(schema_node, StructureLoop) and self._get_starting_segment_id(schema_node) == current_segment.segment_id:
-                is_potential_match = True
-            
-            if is_potential_match and isinstance(schema_node, StructureSegment):
-                # 3. Perform a trial validation to see if this is the correct contextual definition
-                trial_errors = self.validator.validate(current_segment, schema_node.contextDefinitionId)
-                if not trial_errors:
-                    # This is a valid match. Return the node and its index.
-                    return schema_node, i
-            elif is_potential_match and isinstance(schema_node, StructureLoop):
-                # For loops, we assume the ID match is sufficient.
-                return schema_node, i
-                
-        return None, -1 # No suitable match found    
+            starting_segment_id = self._get_starting_segment_id(schema_node)
+            if current_segment.segment_id != starting_segment_id:
+                logger.debug(f"             - Skipping node {i} ('{schema_node.xid}'): ID mismatch (expected '{starting_segment_id}').")
+                continue
 
+            logger.debug(f"             - Potential match found for '{current_segment.segment_id}' with schema node {i} ('{schema_node.xid}'). Performing trial validation.")
+            
+            # 3. Perform a trial validation to confirm this is the correct contextual definition
+            context_id = None
+            if isinstance(schema_node, StructureSegment):
+                context_id = schema_node.contextDefinitionId
+            elif isinstance(schema_node, StructureLoop) and schema_node.children:
+                first_child = schema_node.children[0]
+                if isinstance(first_child, StructureSegment):
+                    context_id = first_child.contextDefinitionId
+
+            trial_errors = self.validator.validate(current_segment, context_id)
+            identifier_errors = [e for e in trial_errors if e.is_identifier_error]
+
+            if not identifier_errors:
+                logger.debug(f"               - Trial validation PASSED for node {i} ('{schema_node.xid}') with context '{context_id}'. This is the best match.")
+                return schema_node, i
+            else:
+                logger.debug(f"               - Trial validation FAILED for node {i} ('{schema_node.xid}') with identifier errors: {[e.message for e in identifier_errors]}.")
+                
+        logger.debug(f"          -> No suitable match found for '{current_segment.segment_id}' in this loop.")
+        return None, -1
+    # --- END OF FIX ---
+
+    # --- START OF FIX: REPLACED _build_tree FUNCTION ---
     def _build_tree(self, segments: List[CdmSegment], schema_nodes: List[StructureChild], depth=0, parent_loop_id: str = "root") -> Tuple[CdmLoop, int]:
         indent = "  " * depth
         cdm_loop = CdmLoop(loop_id=parent_loop_id)
         cursor = 0
-        schema_node_index = 0
         usage_counts = {i: 0 for i in range(len(schema_nodes))}
 
         logger.debug(f"{indent}[PARSE START - LOOP {parent_loop_id}] Processing {len(segments)} data segments against {len(schema_nodes)} schema nodes.")
-        logger.debug(f"{indent}Schema nodes: {[f'{node.xid}({node.usage})' for node in schema_nodes]}")
 
-        # Safety mechanism to prevent infinite loops
-        max_iterations = len(segments) * len(schema_nodes) * 2  # Allow some retry attempts
-        iteration_count = 0
-        
-        while cursor < len(segments) and iteration_count < max_iterations:
-            iteration_count += 1
+        while cursor < len(segments):
             current_segment = segments[cursor]
-            logger.debug(f"{indent}[SEGMENT {cursor+1}/{len(segments)}] Processing '{current_segment.segment_id}' (line {current_segment.line_number}) [iteration {iteration_count}]")
-            
-            # Safety check for infinite loops
-            if iteration_count >= max_iterations:
-                logger.error(f"{indent}[INFINITE LOOP DETECTED] Breaking out of parsing loop after {iteration_count} iterations")
-                break
-            
-            if schema_node_index >= len(schema_nodes):
-                logger.debug(f"{indent}  -> No more schema nodes in '{parent_loop_id}'. Segment '{current_segment.segment_id}' cannot be processed here. Breaking to return to parent.")
-                break
+            logger.debug(f"{indent}[SEGMENT {cursor+1}/{len(segments)}] Processing '{current_segment.segment_id}' (line {current_segment.line_number})")
 
-            schema_node = schema_nodes[schema_node_index]
-            max_repeats = getattr(schema_node, 'max_use', getattr(schema_node, 'repeat', 1))
-            if not isinstance(max_repeats, int): max_repeats = 99999
-            current_usage = usage_counts.get(schema_node_index, 0)
-            
-            logger.debug(f"{indent}  -> Trying schema node [{schema_node_index}]: '{schema_node.xid}' ({schema_node.usage}, used {current_usage}/{max_repeats})")
-            
-            if current_usage >= max_repeats:
-                logger.debug(f"{indent}     -> Schema node '{schema_node.xid}' already used maximum times ({max_repeats}). Moving to next.")
-                schema_node_index += 1
-                continue
+            schema_node, schema_node_index = self._find_best_schema_match(
+                current_segment, schema_nodes, usage_counts
+            )
 
-            is_id_match = (isinstance(schema_node, StructureSegment) and current_segment.segment_id == schema_node.xid) or \
-                        (isinstance(schema_node, StructureLoop) and self._get_starting_segment_id(schema_node) == current_segment.segment_id)
-            
-            # Pre-flight validation for loops to prevent infinite recursion on identifier mismatch
-            if is_id_match and isinstance(schema_node, StructureLoop):
-                logger.debug(f"{indent}     -> ID match for LOOP '{schema_node.xid}'. Performing pre-flight validation...")
-                # The first child of a loop must be a segment that defines its identity
-                first_child_segment_def = schema_node.children[0] if schema_node.children else None
-                if isinstance(first_child_segment_def, StructureSegment):
-                    context_id = first_child_segment_def.contextDefinitionId
-                    logger.debug(f"{indent}     -> Validating against first child context: '{context_id}'")
-                    trial_errors = self.validator.validate(current_segment, context_id)
-                    identifier_errors = [e for e in trial_errors if e.is_identifier_error]
-                    
-                    if identifier_errors:
-                        logger.debug(f"{indent}     -> [PRE-FLIGHT FAIL] Identifier validation failed: {[e.message for e in identifier_errors]}")
-                        logger.debug(f"{indent}     -> This is not the correct loop. Trying next schema node.")
-                        schema_node_index += 1
-                        continue
-                    else:
-                        logger.debug(f"{indent}     -> [PRE-FLIGHT PASS] Loop validation successful for '{schema_node.xid}'")
-                else:
-                    logger.debug(f"{indent}     -> Loop '{schema_node.xid}' has no segment children for validation. Accepting ID match.")
-
-            if is_id_match:
-                logger.debug(f"{indent}     -> Processing confirmed ID match...")
-                # This block is now only for segments or confirmed-valid loops
-                validation_errors = []
+            if schema_node:
+                logger.debug(f"{indent}  -> [MATCH FOUND] Data '{current_segment.segment_id}' matched schema node '{schema_node.xid}' (index {schema_node_index})")
+                # A valid node was found, process it.
                 if isinstance(schema_node, StructureSegment):
-                    logger.debug(f"{indent}     -> Validating SEGMENT against context: '{schema_node.contextDefinitionId}'")
+                    # Perform final validation and add segment
                     validation_errors = self.validator.validate(current_segment, schema_node.contextDefinitionId)
-                
-                # A segment-level identifier error is simpler to handle as it doesn't cause a loop
-                has_identifier_error = any(e.is_identifier_error for e in validation_errors)
-                
-                if not has_identifier_error:
-                    logger.debug(f"{indent}     -> [MATCH CONFIRMED] '{current_segment.segment_id}' successfully matched schema node '{schema_node.xid}'")
-                    if validation_errors:
-                        logger.debug(f"{indent}     -> Non-critical validation issues: {len(validation_errors)} errors")
-                    
                     if validation_errors:
                         current_segment.errors.extend(validation_errors)
-                        logger.warning(f"{indent}    -> Segment '{current_segment.segment_id}' matched an unambiguous schema node but failed validation. Accepting with non-critical errors.")
-
-                    if isinstance(schema_node, StructureSegment):
-                        logger.debug(f"{indent}     -> Adding SEGMENT '{current_segment.segment_id}' to loop '{parent_loop_id}'")
-                        cdm_loop.segments.append(current_segment)
-                        cursor += 1
-                    elif isinstance(schema_node, StructureLoop):
-                        logger.debug(f"{indent}     -> Starting sub-loop '{schema_node.xid}' with {len(segments[cursor:])} remaining segments")
-                        sub_loop, segments_consumed = self._build_tree(segments[cursor:], schema_node.children, depth + 1, parent_loop_id=schema_node.xid)
-                        logger.debug(f"{indent}     -> Sub-loop '{schema_node.xid}' consumed {segments_consumed} segments and returned {len(sub_loop.errors)} errors")
-                        cdm_loop.add_loop(sub_loop)
-                        cdm_loop.errors.extend(sub_loop.errors)
-                        cursor += segments_consumed
-
-                    usage_counts[schema_node_index] = usage_counts.get(schema_node_index, 0) + 1
-                    new_usage = usage_counts[schema_node_index]
-                    logger.debug(f"{indent}     -> Schema node '{schema_node.xid}' now used {new_usage}/{max_repeats} times")
-                    if new_usage >= max_repeats:
-                        logger.debug(f"{indent}     -> Schema node '{schema_node.xid}' reached max usage. Moving to next schema node.")
-                        schema_node_index += 1
-                else:
-                    logger.debug(f"{indent}     -> [SEGMENT VALIDATION FAIL] '{current_segment.segment_id}' matched '{schema_node.xid}' by ID but failed identifier validation")
-                    logger.debug(f"{indent}     -> Identifier errors: {[e.message for e in validation_errors if e.is_identifier_error]}")
-                    schema_node_index += 1
-                    continue
-            
+                    cdm_loop.segments.append(current_segment)
+                    cursor += 1
+                
+                elif isinstance(schema_node, StructureLoop):
+                    # Recursively parse the sub-loop
+                    logger.debug(f"{indent}  -> Entering sub-loop '{schema_node.xid}'")
+                    sub_loop, segments_consumed = self._build_tree(segments[cursor:], schema_node.children, depth + 1, parent_loop_id=schema_node.xid)
+                    logger.debug(f"{indent}  -> Exited sub-loop '{schema_node.xid}', consumed {segments_consumed} segments.")
+                    cdm_loop.add_loop(sub_loop)
+                    cdm_loop.errors.extend(sub_loop.errors)
+                    cursor += segments_consumed
+                
+                usage_counts[schema_node_index] += 1
             else:
-                logger.debug(f"{indent}     -> No ID match with '{schema_node.xid}'")
-                is_truly_required = schema_node.usage == 'R' and usage_counts.get(schema_node_index, 0) == 0
-                if is_truly_required:
-                    error_msg = f"Required segment or loop '{schema_node.xid}' ({schema_node.name}) not found. Found '{current_segment.segment_id}' instead."
-                    logger.warning(f"{indent}     -> [STRUCTURAL ERROR] {error_msg}")
-                    cdm_loop.errors.append(CdmValidationError(message=error_msg, line_number=current_segment.line_number, segment_id=current_segment.segment_id))
-                    # Don't break immediately - try to continue parsing for robustness
-                    logger.debug(f"{indent}     -> Attempting to continue parsing despite structural error...")
-                    schema_node_index += 1
-                else:
-                    logger.debug(f"{indent}     -> Schema node '{schema_node.xid}' is optional/already used. Moving to next schema node.")
-                    schema_node_index += 1
-                    
-                    # CRITICAL FIX: If we've tried all schema nodes and none matched this segment,
-                    # we must advance the cursor to prevent infinite loops
-                    if schema_node_index >= len(schema_nodes):
-                        logger.debug(f"{indent}     -> All schema nodes tried for segment '{current_segment.segment_id}'. This segment doesn't belong in loop '{parent_loop_id}'.")
-                        break  # Let the outer logic handle this
-            
-            # Safety check: If we've exhausted all schema nodes, this segment doesn't belong here
-            if schema_node_index >= len(schema_nodes):
-                current_segment = segments[cursor] if cursor < len(segments) else None
-                if current_segment:
-                    logger.warning(f"{indent}[ORPHANED SEGMENT] Cannot place '{current_segment.segment_id}' (line {current_segment.line_number}) in loop '{parent_loop_id}' - exhausted all schema nodes")
-                    logger.debug(f"{indent}This segment likely belongs to a parent loop. Ending current loop processing.")
-                break
+                # No valid schema node could be found for the current data segment in this loop.
+                logger.debug(f"{indent}  -> [NO MATCH] Segment '{current_segment.segment_id}' does not match any remaining valid children of '{parent_loop_id}'. Breaking loop.")
+                break # Exit the loop and return to the parent.
 
-        # Check for missing required elements at the end of the loop
-        missing_required = []
-        for i in range(schema_node_index, len(schema_nodes)):
-            remaining_node = schema_nodes[i]
-            if remaining_node.usage == 'R' and usage_counts.get(i, 0) == 0:
-                missing_required.append(remaining_node.xid)
-                error_msg = f"Required segment or loop '{remaining_node.xid}' ({remaining_node.name}) is missing at the end of its parent loop '{parent_loop_id}'."
-                logger.warning(f"{indent}[MISSING REQUIRED] {error_msg}")
+        # After the loop, check if any mandatory segments/loops were missed.
+        for i, node in enumerate(schema_nodes):
+            if node.usage == 'R' and usage_counts.get(i, 0) == 0:
+                error_msg = f"Required segment or loop '{node.xid}' ({node.name}) is missing from loop '{parent_loop_id}'."
+                logger.warning(f"{indent}[STRUCTURAL ERROR] {error_msg}")
                 cdm_loop.errors.append(CdmValidationError(message=error_msg))
-        
-        if missing_required:
-            logger.debug(f"{indent}Loop '{parent_loop_id}' completed with {len(missing_required)} missing required elements: {missing_required}")
-        else:
-            logger.debug(f"{indent}Loop '{parent_loop_id}' completed successfully - all required elements found")
 
-        logger.debug(f"{indent}[PARSE END - LOOP {parent_loop_id}] Consumed {cursor}/{len(segments)} segments, created {len(cdm_loop.segments)} segments and {sum(len(loops) for loops in cdm_loop.loops.values())} child loops, {len(cdm_loop.errors)} errors")
+        logger.debug(f"{indent}[PARSE END - LOOP {parent_loop_id}] Consumed {cursor}/{len(segments)} segments.")
         return cdm_loop, cursor
-
+    # --- END OF FIX ---
+    
     def _parse_transaction_set(self, segments: List[CdmSegment]) -> CdmTransaction:
         st_segment = segments[0]
         se_segment = segments[-1]
@@ -542,7 +477,7 @@ class EdiParser:
                 logger.info(f"Transaction parsed successfully. Consumed all {consumed_count} segments.")
                 
         except Exception as e:
-            logger.error(f"Critical error parsing transaction set: {str(e)}")
+            logger.error(f"Critical error parsing transaction set: {str(e)}", exc_info=True)
             # Create a minimal transaction with the error
             transaction = CdmTransaction(header=st_segment, trailer=se_segment, body=CdmLoop(loop_id="ST_LOOP"))
             transaction.errors.append(CdmValidationError(message=f"Critical parsing error: {str(e)}", line_number=st_segment.line_number, segment_id=st_segment.segment_id))

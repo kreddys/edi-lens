@@ -41,7 +41,10 @@ def test_validator_finds_missing_required_loop(standalone_schema: Implementation
     transaction_body = transaction.body
     
     assert len(transaction_body.errors) > 0
-    assert "Required segment or loop '1000A'" in transaction_body.errors[0].message and "not found" in transaction_body.errors[0].message
+    
+    # The assertion now matches the new, more descriptive error message.
+    expected_error_msg = "Required segment or loop '1000A' (SUBMITTER NAME) is missing from loop 'ST_LOOP'."
+    assert any(expected_error_msg in e.message for e in transaction_body.errors)
 
 # --- Advanced Data-Level Validation Tests ---
 

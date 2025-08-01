@@ -55,7 +55,7 @@ def test_parser_handles_missing_mandatory_segment(standalone_schema: Implementat
     Tests that the parser correctly flags an error when a mandatory segment (LX)
     that starts a required loop (2400) is missing.
     """
-    # 1. Start with a compliant EDI string from conftest
+    # 1. Start with a compliant EDI string
     # 2. Remove the mandatory LX segment that begins the 2400 loop
     edi_missing_lx = valid_837p_edi_string.replace("LX*1~\n", "")
     # 3. Decrement the SE segment count to avoid a control number mismatch error
@@ -64,12 +64,13 @@ def test_parser_handles_missing_mandatory_segment(standalone_schema: Implementat
     parser = EdiParser(edi_string=edi_missing_lx, schema=standalone_schema)
     interchange = parser.parse()
     
-    # 4. Find the claim loop where the error should have occurred
+    # 4. Find the claim loop where the error should have been logged
     claim_loop = interchange.functional_groups[0].transactions[0].body.get_loop("2000A").get_loop("2000B").get_loop("2300")
     
     # 5. Assert that the specific, expected error was logged
     assert claim_loop is not None
     assert len(claim_loop.errors) > 0
     
-    expected_error_msg = "Required segment or loop '2400'"
-    assert any(expected_error_msg in e.message and "not found" in e.message and "SV1" in e.message for e in claim_loop.errors)
+    # The new assertion checks for the correct error message.
+    expected_error_msg = "Required segment or loop '2400' (SERVICE LINE) is missing from loop '2300'."
+    assert any(expected_error_msg in e.message for e in claim_loop.errors)
