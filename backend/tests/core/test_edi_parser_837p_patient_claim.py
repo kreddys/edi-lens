@@ -58,17 +58,20 @@ def test_parser_extracts_patient_level_claim_data(standalone_schema: Implementat
     parser = EdiParser(edi_string=PATIENT_CLAIM_837P_EDI, schema=standalone_schema)
     interchange = parser.parse()
     
-    patient_loop = interchange.functional_groups[0].transactions[0].body.loops['2000A'][0].loops['2000B'][0].loops['2000C'][0]
-    assert patient_loop.loop_id == '2000C'
+    subscriber_loop = interchange.functional_groups[0].transactions[0].body.get_loop("2000A").get_loop("2000B")
     
-    patient_name_loop = patient_loop.loops['2010CA'][0]
-    nm1_patient = next(s for s in patient_name_loop.segments if s.segment_id == 'NM1')
+    # Patient (2000C) is a child of the subscriber (2000B)
+    patient_loop = subscriber_loop.get_loop('2000C')
+    assert patient_loop is not None and patient_loop.loop_id == '2000C'
+    
+    patient_name_loop = patient_loop.get_loop('2010CA')
+    nm1_patient = patient_name_loop.get_segment('NM1')
     assert nm1_patient.elements[2].value == 'Smith'
     
-    # --- FIX: The claim (2300) is a SIBLING of the patient loop (2000C) ---
-    subscriber_loop = interchange.functional_groups[0].transactions[0].body.loops['2000A'][0].loops['2000B'][0]
-    claim_loop = subscriber_loop.loops['2300'][0]
-    clm_segment = next(s for s in claim_loop.segments if s.segment_id == 'CLM')
+    # The claim (2300) is a SIBLING of the patient (2000C) under subscriber (2000B)
+    claim_loop = subscriber_loop.get_loop('2300')
+    assert claim_loop is not None
+    clm_segment = claim_loop.get_segment('CLM')
     assert clm_segment.elements[0].value == '26463774'
 
 def test_parser_accesses_subscriber_data_in_patient_claim(standalone_schema: ImplementationGuideSchema):
@@ -86,9 +89,10 @@ def test_parser_handles_repeating_service_lines_in_patient_claim(standalone_sche
     parser = EdiParser(edi_string=PATIENT_CLAIM_837P_EDI, schema=standalone_schema)
     interchange = parser.parse()
     
-    # --- FIX: The claim (2300) is a SIBLING of the patient loop (2000C) ---
-    subscriber_loop = interchange.functional_groups[0].transactions[0].body.loops['2000A'][0].loops['2000B'][0]
-    claim_loop = subscriber_loop.loops['2300'][0]
+    # The claim (2300) is a sibling of the patient (2000C) under subscriber (2000B)
+    subscriber_loop = interchange.functional_groups[0].transactions[0].body.get_loop("2000A").get_loop("2000B")
+    claim_loop = subscriber_loop.get_loop('2300')
+
     assert '2400' in claim_loop.loops
     service_lines = claim_loop.loops['2400']
     

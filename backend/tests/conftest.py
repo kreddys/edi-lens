@@ -213,3 +213,281 @@ SE*50*0001~
 GE*1*1~
 IEA*1*000000001~
 """.strip()
+
+@pytest.fixture(scope="session")
+def multiple_transaction_sets_837p_edi_string() -> str:
+    """
+    Provides an 837P EDI string with multiple transaction sets (ST-SE blocks) in a single functional group.
+    This tests the parser's ability to handle multiple transaction sets within one GS-GE envelope.
+    
+    Contains:
+    - 1 Functional Group (GS-GE)
+    - 2 Transaction Sets (ST-SE blocks)
+    - Transaction Set 1: 1 Billing Provider with 1 Subscriber and 1 Claim
+    - Transaction Set 2: 1 Billing Provider with 1 Subscriber and 2 Claims
+    Total: 2 Transaction Sets, 2 Billing Providers, 2 Subscribers, 3 Claims
+    """
+    return """
+ISA*00*          *00*          *ZZ*SENDERID       *ZZ*RECEIVERID     *240715*1200*^*00501*000000001*0*P*>~
+GS*HC*SENDER*RECEIVER*20240715*1200*1*X*005010X222A1~
+ST*837*0001*005010X222A1~
+BHT*0019*00*TXN001*20240715*1200*CH~
+NM1*41*2*PREMIER BILLING*****46*SUBMITTER1~
+PER*IC*JOHN DOE*TE*8005551212~
+NM1*40*2*PAYER A*****46*RECEIVER1~
+HL*1**20*1~
+NM1*85*2*BILLING PROVIDER 1*****XX*1234567890~
+N3*123 MAIN ST~
+N4*ANYTOWN*CA*90210~
+REF*EI*123456789~
+HL*2*1*22*0~
+SBR*P*18*GRP123******CI~
+NM1*IL*1*SMITH*JANE****MI*SUBID001~
+NM1*PR*2*PAYER A*****PI*PAYERID123~
+CLM*TXN001_CLAIM1*300***11>B>1*Y*A*Y*Y~
+DTP*431*D8*20240715~
+HI*BK>Z872~
+LX*1~
+SV1*HC>99213*300*UN*1***1**Y~
+DTP*472*D8*20240715~
+SE*21*0001~
+ST*837*0002*005010X222A1~
+BHT*0019*00*TXN002*20240715*1200*CH~
+NM1*41*2*PREMIER BILLING*****46*SUBMITTER1~
+PER*IC*JOHN DOE*TE*8005551212~
+NM1*40*2*PAYER B*****46*RECEIVER2~
+HL*1**20*1~
+NM1*85*2*BILLING PROVIDER 2*****XX*9876543210~
+N3*456 OAK AVE~
+N4*OTHERCITY*TX*75001~
+REF*EI*987654321~
+HL*2*1*22*0~
+SBR*P*18*GRP456******CI~
+NM1*IL*1*JOHNSON*MIKE****MI*SUBID002~
+NM1*PR*2*PAYER B*****PI*PAYERID456~
+CLM*TXN002_CLAIM1*450***11>B>1*Y*A*Y*Y~
+DTP*431*D8*20240715~
+HI*BK>M545~
+LX*1~
+SV1*HC>99214*200*UN*1***1**Y~
+DTP*472*D8*20240715~
+LX*2~
+SV1*HC>99215*250*UN*1***2**Y~
+DTP*472*D8*20240715~
+CLM*TXN002_CLAIM2*175***11>B>1*Y*A*Y*Y~
+DTP*431*D8*20240716~
+HI*BK>G473~
+LX*1~
+SV1*HC>99203*175*UN*1***1**Y~
+DTP*472*D8*20240716~
+SE*27*0002~
+GE*2*1~
+IEA*1*000000001~
+""".strip()
+
+@pytest.fixture(scope="session")
+def multiple_functional_groups_837p_edi_string() -> str:
+    """
+    Provides an 837P EDI string with multiple functional groups (GS-GE blocks) in a single interchange.
+    This tests the parser's ability to handle multiple functional groups within one ISA-IEA envelope.
+    
+    Contains:
+    - 1 Interchange (ISA-IEA)
+    - 2 Functional Groups (GS-GE blocks)
+    - Group 1: 1 Transaction Set with 1 Billing Provider, 1 Subscriber, 1 Claim
+    - Group 2: 1 Transaction Set with 1 Billing Provider, 1 Subscriber, 2 Claims
+    Total: 2 Functional Groups, 2 Transaction Sets, 2 Billing Providers, 2 Subscribers, 3 Claims
+    """
+    return """
+ISA*00*          *00*          *ZZ*SENDERID       *ZZ*RECEIVERID     *240715*1200*^*00501*000000001*0*P*>~
+GS*HC*SENDER1*RECEIVER1*20240715*1200*1*X*005010X222A1~
+ST*837*0001*005010X222A1~
+BHT*0019*00*GRP1_TXN1*20240715*1200*CH~
+NM1*41*2*PREMIER BILLING*****46*SUBMITTER1~
+PER*IC*JOHN DOE*TE*8005551212~
+NM1*40*2*PAYER A*****46*RECEIVER1~
+HL*1**20*1~
+NM1*85*2*CLINIC A*****XX*1111111111~
+N3*100 FIRST ST~
+N4*FIRSTCITY*CA*90001~
+REF*EI*111111111~
+HL*2*1*22*0~
+SBR*P*18*GRP100******CI~
+NM1*IL*1*WILLIAMS*SARAH****MI*SUB100~
+NM1*PR*2*PAYER A*****PI*PAY100~
+CLM*GRP1_CLAIM1*225***11>B>1*Y*A*Y*Y~
+DTP*431*D8*20240715~
+HI*BK>J449~
+LX*1~
+SV1*HC>99212*225*UN*1***1**Y~
+DTP*472*D8*20240715~
+SE*21*0001~
+GE*1*1~
+GS*HC*SENDER2*RECEIVER2*20240715*1300*2*X*005010X222A1~
+ST*837*0001*005010X222A1~
+BHT*0019*00*GRP2_TXN1*20240715*1300*CH~
+NM1*41*2*ADVANCED BILLING*****46*SUBMITTER2~
+PER*IC*JANE SMITH*TE*8005552222~
+NM1*40*2*PAYER B*****46*RECEIVER2~
+HL*1**20*1~
+NM1*85*2*CLINIC B*****XX*2222222222~
+N3*200 SECOND ST~
+N4*SECONDCITY*NY*10001~
+REF*EI*222222222~
+HL*2*1*22*0~
+SBR*P*18*GRP200******CI~
+NM1*IL*1*BROWN*DAVID****MI*SUB200~
+NM1*PR*2*PAYER B*****PI*PAY200~
+CLM*GRP2_CLAIM1*350***11>B>1*Y*A*Y*Y~
+DTP*431*D8*20240715~
+HI*BK>K219~
+LX*1~
+SV1*HC>99213*150*UN*1***1**Y~
+DTP*472*D8*20240715~
+LX*2~
+SV1*HC>99214*200*UN*1***2**Y~
+DTP*472*D8*20240715~
+CLM*GRP2_CLAIM2*125***11>B>1*Y*A*Y*Y~
+DTP*431*D8*20240716~
+HI*BK>L403~
+LX*1~
+SV1*HC>99211*125*UN*1***1**Y~
+DTP*472*D8*20240716~
+SE*27*0001~
+GE*1*2~
+IEA*2*000000001~
+""".strip()
+
+@pytest.fixture(scope="session") 
+def multiple_claims_per_subscriber_837p_edi_string() -> str:
+    """
+    Provides an 837P EDI string demonstrating multiple claims for a single subscriber.
+    This tests the parser's ability to handle multiple 2300 claim loops under one subscriber.
+    
+    Contains:
+    - 1 Billing Provider
+    - 1 Subscriber with 4 different claims (different dates/diagnoses)
+    - Each claim has different numbers of service lines
+    Total: 1 Subscriber, 4 Claims, 7 Service Lines
+    """
+    return """
+ISA*00*          *00*          *ZZ*SENDERID       *ZZ*RECEIVERID     *240715*1200*^*00501*000000001*0*P*>~
+GS*HC*SENDER*RECEIVER*20240715*1200*1*X*005010X222A1~
+ST*837*0001*005010X222A1~
+BHT*0019*00*MULTICLAIM*20240715*1200*CH~
+NM1*41*2*MULTI CLAIM BILLING*****46*SUBMITTER1~
+PER*IC*BILLING DEPT*TE*8005551212~
+NM1*40*2*INSURANCE CO*****46*RECEIVER1~
+HL*1**20*1~
+NM1*85*2*FAMILY PRACTICE*****XX*5555555555~
+N3*789 MEDICAL BLVD~
+N4*HEALTHCITY*FL*33101~
+REF*EI*555555555~
+HL*2*1*22*0~
+SBR*P*18*POLICY789******CI~
+NM1*IL*1*ANDERSON*ROBERT****MI*PATIENT789~
+NM1*PR*2*INSURANCE CO*****PI*INSURER789~
+CLM*ANDERSON_VISIT1*275***11>B>1*Y*A*Y*Y~
+DTP*431*D8*20240701~
+HI*BK>J069~
+LX*1~
+SV1*HC>99213*275*UN*1***1**Y~
+DTP*472*D8*20240701~
+CLM*ANDERSON_VISIT2*420***11>B>1*Y*A*Y*Y~
+DTP*431*D8*20240708~
+HI*BK>J069~
+LX*1~
+SV1*HC>99214*200*UN*1***1**Y~
+DTP*472*D8*20240708~
+LX*2~
+SV1*HC>93000*120*UN*1***2**Y~
+DTP*472*D8*20240708~
+LX*3~
+SV1*HC>80053*100*UN*1***3**Y~
+DTP*472*D8*20240708~
+CLM*ANDERSON_VISIT3*325***11>B>1*Y*A*Y*Y~
+DTP*431*D8*20240715~
+HI*BK>Z00121~
+LX*1~
+SV1*HC>99215*225*UN*1***1**Y~
+DTP*472*D8*20240715~
+LX*2~
+SV1*HC>90471*100*UN*1***2**Y~
+DTP*472*D8*20240715~
+CLM*ANDERSON_VISIT4*150***11>B>1*Y*A*Y*Y~
+DTP*431*D8*20240722~
+HI*BK>Z515~
+LX*1~
+SV1*HC>99212*150*UN*1***1**Y~
+DTP*472*D8*20240722~
+SE*44*0001~
+GE*1*1~
+IEA*1*000000001~
+""".strip()
+
+
+@pytest.fixture(scope="session")
+def subscriber_vs_patient_837p_edi_string() -> str:
+    """
+    Provides an 837P EDI string demonstrating both subscriber-as-patient and dependent patient scenarios.
+    This tests the parser's ability to handle HL03=22 (subscriber) vs HL03=23 (dependent patient) scenarios.
+    
+    Contains:
+    - 1 Billing Provider
+    - 2 Subscribers:
+      - Subscriber 1: Self-insured (HL03=22, no dependent)
+      - Subscriber 2: Has dependent patient (HL03=22 subscriber + HL03=23 dependent)
+    Total: 2 Subscribers, 1 Dependent Patient, 3 Claims, 4 Service Lines
+    """
+    return """
+ISA*00*          *00*          *ZZ*SENDERID       *ZZ*RECEIVERID     *240715*1200*^*00501*000000001*0*P*>~
+GS*HC*SENDER*RECEIVER*20240715*1200*1*X*005010X222A1~
+ST*837*0001*005010X222A1~
+BHT*0019*00*SUBVSPAT*20240715*1200*CH~
+NM1*41*2*FAMILY BILLING SERVICE*****46*SUBMITTER1~
+PER*IC*BILLING COORDINATOR*TE*8005551212~
+NM1*40*2*FAMILY HEALTH PLAN*****46*RECEIVER1~
+HL*1**20*1~
+NM1*85*2*COMMUNITY HEALTH CENTER*****XX*4444444444~
+N3*400 COMMUNITY DR~
+N4*WELLNESS*OH*44101~
+REF*EI*444444444~
+HL*2*1*22*0~
+SBR*P*18*SELF001******CI~
+NM1*IL*1*SELFINSURED*JOHN****MI*SELF001~
+NM1*PR*2*FAMILY HEALTH PLAN*****PI*FHP001~
+CLM*SELF_CLAIM1*195***11>B>1*Y*A*Y*Y~
+DTP*431*D8*20240715~
+HI*BK>Z00000~
+LX*1~
+SV1*HC>99213*195*UN*1***1**Y~
+DTP*472*D8*20240715~
+HL*3*1*22*1~
+SBR*P*18*FAMILY002******CI~
+NM1*IL*1*SUBSCRIBER*MARY****MI*SUB002~
+NM1*PR*2*FAMILY HEALTH PLAN*****PI*FHP002~
+CLM*SUB_CLAIM1*275***11>B>1*Y*A*Y*Y~
+DTP*431*D8*20240715~
+HI*BK>Z00121~
+LX*1~
+SV1*HC>99214*275*UN*1***1**Y~
+DTP*472*D8*20240715~
+HL*4*3*23*0~
+PAT*19~
+NM1*QC*1*DEPENDENT*CHILD~
+N3*400 COMMUNITY DR~
+N4*WELLNESS*OH*44101~
+DMG*D8*20100515*F~
+CLM*DEP_CLAIM1*125***11>B>1*Y*A*Y*Y~
+DTP*431*D8*20240715~
+HI*BK>Z00129~
+LX*1~
+SV1*HC>99212*75*UN*1***1**Y~
+DTP*472*D8*20240715~
+LX*2~
+SV1*HC>90471*50*UN*1***2**Y~
+DTP*472*D8*20240715~
+SE*39*0001~
+GE*1*1~
+IEA*1*000000001~
+""".strip()

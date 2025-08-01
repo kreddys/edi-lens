@@ -202,9 +202,9 @@ def test_parser_finds_pay_to_plan_loop(parsed_full_837p):
     assert nm1_pay_to_plan.elements[2].value == 'PLAN TO PAY TO'
 
 def test_parser_finds_other_subscriber_info_loop(parsed_full_837p):
-    # --- FIX: The claim (2300) is a SIBLING of the patient loop (2000C) ---
-    subscriber_loop = parsed_full_837p.loops['2000A'][0].loops['2000B'][0]
-    claim_loop = subscriber_loop.loops['2300'][0]
+    # The claim (2300) is a sibling of the patient loop (2000C) under subscriber (2000B)
+    subscriber_loop = parsed_full_837p.get_loop("2000A").get_loop("2000B")
+    claim_loop = subscriber_loop.get_loop("2300")
     assert '2320' in claim_loop.loops
     
     other_subscriber_loop = claim_loop.loops['2320'][0]
@@ -214,9 +214,10 @@ def test_parser_finds_other_subscriber_info_loop(parsed_full_837p):
     assert sbr_segment.elements[3].value == 'PLAN NAME'
 
 def test_parser_finds_line_adjudication_info(parsed_full_837p):
-    # --- FIX: The claim (2300) is a SIBLING of the patient loop (2000C) ---
-    subscriber_loop = parsed_full_837p.loops['2000A'][0].loops['2000B'][0]
-    service_line_loop = subscriber_loop.loops['2300'][0].loops['2400'][3]
+    # The claim (2300) is a sibling of the patient loop (2000C) under subscriber (2000B)
+    subscriber_loop = parsed_full_837p.get_loop("2000A").get_loop("2000B")
+    # There are 4 service lines in the full fixture
+    service_line_loop = subscriber_loop.get_loop("2300").get_loops("2400")[3]
     assert '2430' in service_line_loop.loops
     
     adjudication_loop = service_line_loop.loops['2430'][0]
