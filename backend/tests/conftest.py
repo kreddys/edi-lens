@@ -218,14 +218,16 @@ IEA*1*000000001~
 def multiple_transaction_sets_837p_edi_string() -> str:
     """
     Provides an 837P EDI string with multiple transaction sets (ST-SE blocks) in a single functional group.
-    This tests the parser's ability to handle multiple transaction sets within one GS-GE envelope.
+    This tests the parser's ability to handle multiple transaction sets within one GS-GE envelope,
+    including scenarios where some transactions contain errors.
     
     Contains:
     - 1 Functional Group (GS-GE)
     - 2 Transaction Sets (ST-SE blocks)
-    - Transaction Set 1: 1 Billing Provider with 1 Subscriber and 1 Claim
-    - Transaction Set 2: 1 Billing Provider with 1 Subscriber and 2 Claims
-    Total: 2 Transaction Sets, 2 Billing Providers, 2 Subscribers, 3 Claims
+    - Transaction Set 1: VALID - 1 Billing Provider with 1 Subscriber and 1 Claim
+    - Transaction Set 2: INVALID - Missing required 1000A loop, invalid date length, invalid codes
+      (1 Billing Provider with 1 Subscriber and 2 Claims but with validation errors)
+    Total: 2 Transaction Sets (1 valid, 1 invalid), 2 Billing Providers, 2 Subscribers, 3 Claims
     """
     return """
 ISA*00*          *00*          *ZZ*SENDERID       *ZZ*RECEIVERID     *240715*1200*^*00501*000000001*0*P*>~
@@ -252,8 +254,7 @@ SV1*HC>99213*300*UN*1***1**Y~
 DTP*472*D8*20240715~
 SE*21*0001~
 ST*837*0002*005010X222A1~
-BHT*0019*00*TXN002*20240715*1200*CH~
-NM1*41*2*PREMIER BILLING*****46*SUBMITTER1~
+BHT*0019*00*TXN002*202407*1200*CH~
 PER*IC*JOHN DOE*TE*8005551212~
 NM1*40*2*PAYER B*****46*RECEIVER2~
 HL*1**20*1~
@@ -262,12 +263,12 @@ N3*456 OAK AVE~
 N4*OTHERCITY*TX*75001~
 REF*EI*987654321~
 HL*2*1*22*0~
-SBR*P*18*GRP456******CI~
+SBR*P*18*GRP456******ZZ~
 NM1*IL*1*JOHNSON*MIKE****MI*SUBID002~
 NM1*PR*2*PAYER B*****PI*PAYERID456~
 CLM*TXN002_CLAIM1*450***11>B>1*Y*A*Y*Y~
 DTP*431*D8*20240715~
-HI*BK>M545~
+HI*BK>INVALID_CODE~
 LX*1~
 SV1*HC>99214*200*UN*1***1**Y~
 DTP*472*D8*20240715~
@@ -280,7 +281,7 @@ HI*BK>G473~
 LX*1~
 SV1*HC>99203*175*UN*1***1**Y~
 DTP*472*D8*20240716~
-SE*27*0002~
+SE*26*0002~
 GE*2*1~
 IEA*1*000000001~
 """.strip()
