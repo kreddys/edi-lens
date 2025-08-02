@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { useApiUrl, useCustom, useUpdate, HttpError } from "@refinedev/core";
+import { useApiUrl, useCustom, useUpdate, useCreate, HttpError } from "@refinedev/core";
 import {
     Layout,
     Select,
@@ -14,6 +14,8 @@ import {
     Tooltip,
     notification,
     theme,
+    Modal,
+    Input,
 } from "antd";
 import {
     SaveOutlined,
@@ -21,6 +23,7 @@ import {
     MinusSquareOutlined,
     EditOutlined,
     CloseCircleOutlined,
+    CopyOutlined,
 } from "@ant-design/icons";
 import type { TreeProps } from "antd";
 import { EditableNodeDetails } from "./EditableNodeDetails";
@@ -40,7 +43,6 @@ const getExpandedKeysToDepth = (
     if (currentDepth > maxDepth) {
         return keys;
     }
-
     nodes.forEach((node, index) => {
         if (node.type === "loop") {
             const key = `${parentKey}-${node.type}-${node.xid}-${index}`;
@@ -52,7 +54,6 @@ const getExpandedKeysToDepth = (
             }
         }
     });
-
     return keys;
 };
 
@@ -65,10 +66,12 @@ export const SchemaEditorList: React.FC = () => {
     const [isPageInEditMode, setIsPageInEditMode] = useState(false);
     const [selectedNodeKey, setSelectedNodeKey] = useState<React.Key | null>(null);
     const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
+    const [isSpecializeModalVisible, setIsSpecializeModalVisible] = useState(false);
+    const [newSchemaName, setNewSchemaName] = useState("");
     
     const { token } = theme.useToken();
 
-    const { data: schemaFilesData, isLoading: isLoadingFiles } = useCustom<SchemaListResponse>({
+    const { data: schemaFilesData, isLoading: isLoadingFiles, refetch: refetchSchemaList } = useCustom<SchemaListResponse>({
         url: `${apiUrl}/schemas`,
         method: "get",
     });
@@ -80,6 +83,23 @@ export const SchemaEditorList: React.FC = () => {
     });
 
     const { mutate: updateSchema, isLoading: isSaving } = useUpdate();
+    const { mutate: createMutate, isLoading: isCreating } = useCreate();
+
+    const [wasSaving, setWasSaving] = useState(false);
+
+    useEffect(() => {
+        if (wasSaving && !isSaving) {
+            setIsPageInEditMode(false);
+            setDraftContent(null);
+            refetch();
+        }
+        setWasSaving(isSaving);
+    }, [isSaving, wasSaving, refetch]);
+
+    const isBaseSchemaSelected = useMemo(() => {
+        if (!selectedSchema || !schemaFilesData?.data) return false;
+        return schemaFilesData.data.base_schemas.includes(selectedSchema);
+    }, [selectedSchema, schemaFilesData]);
 
     const schemaOptions = useMemo(() => {
         if (!schemaFilesData?.data) return [];
@@ -109,23 +129,38 @@ export const SchemaEditorList: React.FC = () => {
     useEffect(() => {
         if (schemaFileData?.data) {
             setSchemaContent(schemaFileData.data);
-            const isBaseSchema = schemaFilesData?.data?.base_schemas.includes(selectedSchema || '');
-            if (isBaseSchema) {
-                const initialKeys = getExpandedKeysToDepth(schemaFileData.data.structure, 3);
-                setExpandedKeys(initialKeys);
-            } else {
-                setExpandedKeys([]);
-            }
         } else {
             setSchemaContent(null);
-            setExpandedKeys([]);
         }
-    }, [schemaFileData, selectedSchema, schemaFilesData]);
+    }, [schemaFileData]);
 
-    useEffect(() => {
+    const handleSchemaSelectionChange = (value: string) => {
+        setSelectedSchema(value);
+        setIsPageInEditMode(false);
+        setDraftContent(null);
         setSelectedNodeKey(null);
         form.resetFields();
-    }, [selectedSchema, form]);
+
+        const isBase = schemaFilesData?.data?.base_schemas.includes(value);
+        if (isBase) {
+            setExpandedKeys([]);
+        } else {
+            setExpandedKeys([]);
+        }
+    };
+
+    useEffect(() => {
+        // --- THIS IS THE FIX ---
+        // This effect now handles the initial expansion for ANY schema,
+        // as long as its content has been loaded.
+        if (schemaContent) {
+            const initialKeys = getExpandedKeysToDepth(schemaContent.structure, 3);
+            setExpandedKeys(initialKeys);
+        } else {
+            setExpandedKeys([]);
+        }
+    }, [schemaContent]); // This hook now only depends on the content itself.
+    // --- END OF FIX ---
 
     const handleEnterEditMode = () => {
         if (schemaContent) {
@@ -148,6 +183,38 @@ export const SchemaEditorList: React.FC = () => {
         }
     };
 
+    const handleOpenSpecializeModal = () => {
+        if (!selectedSchema) return;
+        const baseName = selectedSchema.replace(".json", "");
+        setNewSchemaName(`${baseName}_custom.json`);
+        setIsSpecializeModalVisible(true);
+    };
+
+    const handleSpecialize = () => {
+        if (!selectedSchema || !newSchemaName) return;
+        createMutate({
+            resource: `schemas/${selectedSchema}/copy`,
+            values: { new_name: newSchemaName },
+            successNotification: (data) => ({
+                message: "Schema Specialized!",
+                description: `Successfully created ${data?.data.new_schema_name}. You can now select and edit it.`,
+                type: "success",
+            }),
+            errorNotification: (error) => ({
+                message: "Specialization Failed",
+                description: error?.message || "Could not create specialized schema.",
+                type: "error",
+            }),
+        }, {
+            onSuccess: (data) => {
+                setIsSpecializeModalVisible(false);
+                setNewSchemaName("");
+                refetchSchemaList();
+                setSelectedSchema(data?.data.new_schema_name);
+            },
+        });
+    };
+
     const handleSave = async () => {
         try {
             if (!selectedSchema || !draftContent) {
@@ -166,14 +233,6 @@ export const SchemaEditorList: React.FC = () => {
                 values: contentToSave,
                 successNotification: () => ({ message: "Schema saved successfully!", type: "success" }),
                 errorNotification: (error?: HttpError) => ({ message: `Save failed: ${error?.message || "Unknown error"}`, type: "error" }),
-                meta: {
-                    onSuccess: () => {
-                        setIsPageInEditMode(false);
-                        setDraftContent(null);
-                        setSelectedNodeKey(null);
-                        refetch(); 
-                    },
-                },
             });
         } catch (error) {
             const errorMessage = (error as Error)?.message || "An unknown error occurred.";
@@ -255,47 +314,33 @@ export const SchemaEditorList: React.FC = () => {
 
     const onFormValuesChange = (_changedValues: any, allValues: any) => {
         if (!isPageInEditMode || !draftContent || !selectedNodeKey) return;
-
         setDraftContent(currentDraft => {
             if (!currentDraft) return null;
-            
             const newDraft = JSON.parse(JSON.stringify(currentDraft));
             const nodeInTree = findNodeByKey(newDraft.structure, selectedNodeKey as string);
-            
             if (!nodeInTree) {
                 console.error(`Could not find node with key ${selectedNodeKey} to apply changes.`);
                 return newDraft;
             }
-    
             const contextId = nodeInTree.contextDefinitionId;
             if (contextId && newDraft.contextualDefinitions[contextId]) {
                 const contextDef = newDraft.contextualDefinitions[contextId];
                 contextDef.name = allValues.definition_name;
-
                 const transformedElements = (allValues.elements || []).reduce((acc: any, el: any) => {
-                    // Create a copy to avoid mutating the form's state directly
                     const newEl = { ...el };
-
-                    // Transform valid_codes from ['A', 'B'] back to [{ code: 'A' }, { code: 'B' }]
                     if (Array.isArray(newEl.valid_codes)) {
                         newEl.valid_codes = newEl.valid_codes.map((code: string | number) => ({ code }));
                     }
-
-                    // For now, we store the full element in the override.
-                    // A more advanced diffing logic could be added later.
                     acc[newEl.xid] = newEl;
                     return acc;
                 }, {});
-                
                 contextDef.elements = transformedElements;
             }
-    
             const structuralNodeUpdate = {
                 name: allValues.structure_name,
                 usage: allValues.usage,
                 max_use: allValues.max_use,
             };
-    
             const finalStructure = updateNodeByKey(newDraft.structure, selectedNodeKey as string, structuralNodeUpdate);
             return { ...newDraft, structure: finalStructure };
         });
@@ -324,21 +369,25 @@ export const SchemaEditorList: React.FC = () => {
                     loading={isLoadingFiles}
                     options={schemaOptions}
                     value={selectedSchema}
-                    onChange={(value) => {
-                        setSelectedSchema(value);
-                        setIsPageInEditMode(false);
-                        setDraftContent(null);
-                    }}
+                    onChange={handleSchemaSelectionChange}
                     style={{ width: 300 }}
                 />
                 {selectedSchema && (
                     <Space>
-                        {!isPageInEditMode ? (
-                            <Button icon={<EditOutlined />} onClick={handleEnterEditMode}>Edit Schema</Button>
-                        ) : (
-                            <>
+                        {isBaseSchemaSelected && !isPageInEditMode && (
+                            <Button icon={<CopyOutlined />} onClick={handleOpenSpecializeModal}>
+                                Create Specialization
+                            </Button>
+                        )}
+                        {!isBaseSchemaSelected && !isPageInEditMode && (
+                            <Button icon={<EditOutlined />} onClick={handleEnterEditMode}>
+                                Edit Schema
+                            </Button>
+                        )}
+                        {isPageInEditMode && (
+                             <>
                                 <Button icon={<CloseCircleOutlined />} onClick={handleCancelEditMode}>Cancel</Button>
-                                <Button type="primary" icon={<SaveOutlined />} onClick={handleSave} loading={isSaving}>Save Schema</Button>
+                                <Button type="primary" icon={<SaveOutlined />} onClick={handleSave} loading={isSaving}>Save Changes</Button>
                             </>
                         )}
                     </Space>
@@ -371,7 +420,7 @@ export const SchemaEditorList: React.FC = () => {
                     
                     {isTreeLoading && <Spin />}
                     {!isTreeLoading && treeData.length > 0 && 
-                        <Tree showLine onExpand={setExpandedKeys} expandedKeys={expandedKeys} treeData={treeData} onSelect={handleSelect} selectedKeys={selectedNodeKey ? [selectedNodeKey] : []} draggable={isPageInEditMode ? { icon: false } : false} onDrop={handleDrop}/>
+                        <Tree showLine onExpand={setExpandedKeys} expandedKeys={expandedKeys} treeData={treeData} onSelect={handleSelect} selectedKeys={selectedNodeKey ? [selectedNodeKey] : []} draggable={isPageInEditMode} onDrop={handleDrop}/>
                     }
                     {!isTreeLoading && !selectedSchema && <Empty description="No schema selected" />}
                 </Sider>
@@ -393,6 +442,22 @@ export const SchemaEditorList: React.FC = () => {
                      </Form>
                 </Content>
             </Layout>
+            <Modal
+                title="Create a Specialized Schema"
+                open={isSpecializeModalVisible}
+                onOk={handleSpecialize}
+                onCancel={() => setIsSpecializeModalVisible(false)}
+                confirmLoading={isCreating}
+                okText="Create"
+            >
+                <p>This will create a new, editable copy of <strong>{selectedSchema}</strong>.</p>
+                <Input
+                    addonBefore="New file name:"
+                    value={newSchemaName}
+                    onChange={(e) => setNewSchemaName(e.target.value)}
+                    placeholder="e.g., 837P_MyPartner_Custom.json"
+                />
+            </Modal>
         </Card>
     );
 };

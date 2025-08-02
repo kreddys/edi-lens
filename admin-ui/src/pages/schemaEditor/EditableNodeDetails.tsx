@@ -107,6 +107,7 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
             }));
 
             form.setFieldsValue({
+                key: selectedNode.key,
                 structure_name: selectedNode.name,
                 usage: selectedNode.usage,
                 max_use: selectedNode.max_use,
@@ -194,7 +195,10 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
     }
 
     return (
-        <Form form={form} layout="vertical">
+        <>
+            {/* Add the hidden field that the parent's onValuesChange handler needs */}
+            <Form.Item name="key" hidden />
+
             <Title level={5}>Edit Node: {selectedNode.name} ({selectedNode.xid})</Title>
             <Card title="Structure Properties" size="small" style={{ marginBottom: 16 }}>
                 <Form.Item name="structure_name" label="Display Name (in tree)"><Input /></Form.Item>
@@ -251,6 +255,6 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
                  <Button type="dashed" block style={{marginTop: 16}} disabled={!contextDefinition}>Add Syntax Rule</Button>
 
             </Card>
-        </Form>
+        </>
     );
 };
