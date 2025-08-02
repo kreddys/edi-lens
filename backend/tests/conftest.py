@@ -150,6 +150,22 @@ IEA*1*000000001~
 """.strip()
 
 @pytest.fixture(scope="session")
+def edi_with_ack_requested(valid_837p_edi_string: str) -> str:
+    """
+    Takes the valid 837P EDI and flips the ISA14 flag to '1'
+    to request a TA1 acknowledgment.
+    """
+    return valid_837p_edi_string.replace("*0*P*>", "*1*P*>")
+
+@pytest.fixture(scope="session")
+def edi_with_isa_error(valid_837p_edi_string: str) -> str:
+    """
+    Takes the valid 837P EDI and creates an ICN mismatch error
+    between the ISA and IEA segments.
+    """
+    return valid_837p_edi_string.replace("IEA*1*000000001~", "IEA*1*999999999~")
+
+@pytest.fixture(scope="session")
 def complex_837p_edi_string() -> str:
     """
     Provides a complex, compliant 837P EDI string for advanced structure parsing tests.

@@ -275,16 +275,26 @@ class SegmentValidator:
 class EdiParser:
     def __init__(self, edi_string: str, schema: ImplementationGuideSchema):
         self.schema = schema
-        delims = self._detect_delimiters(edi_string)
-        self.validator = SegmentValidator(schema, delims[2])
-        self.all_segments: List[CdmSegment] = self._segmentize_and_parse(edi_string)
         self.errors: List[CdmValidationError] = []
+
+        # --- THIS IS THE FIX ---
+        # 1. Detect delimiters ONCE from the raw string.
+        delims = self._detect_delimiters(edi_string)
+        self.element_delimiter, self.segment_terminator, self.component_separator = delims
+        
+        # 2. Segmentize the string using the DETECTED delimiters.
+        self.all_segments: List[CdmSegment] = self._segmentize(edi_string)
+        
+        # 3. Initialize the validator.
+        self.validator = SegmentValidator(schema, self.component_separator)
         logger.debug(f"Parser initialized with {len(self.all_segments)} segments.")
+        # --- END OF FIX ---
 
     def _detect_delimiters(self, edi_string: str) -> Tuple[str, str, str]:
         clean_edi = edi_string.strip()
         if clean_edi.startswith('ISA') and len(clean_edi) >= 106:
-            element_delimiter = clean_edi[103]
+            # Positions are fixed in the X12 standard
+            element_delimiter = clean_edi[3]
             segment_terminator = clean_edi[105]
             component_separator = clean_edi[104]
             logger.debug(f"Delimiters detected: Element='{element_delimiter}', Segment='{segment_terminator}', Component='{component_separator}'")
@@ -292,23 +302,22 @@ class EdiParser:
         logger.warning("Could not find standard ISA segment. Falling back to default delimiters ('*', '~', ':').")
         return '*', '~', ':'
 
-    def _segmentize_and_parse(self, edi_string: str) -> List[CdmSegment]:
-        element_delimiter, segment_terminator, _ = self._detect_delimiters(edi_string)
+    # Renamed from _segmentize_and_parse for clarity and removed its internal delimiter detection
+    def _segmentize(self, edi_string: str) -> List[CdmSegment]:
         segments = []
         edi_content = edi_string.strip().replace('\r\n', '\n').replace('\r', '\n')
-        if segment_terminator != '\n':
+        if self.segment_terminator != '\n':
             edi_content = edi_content.replace('\n', '')
-        raw_segments = edi_content.split(segment_terminator)
+        
+        raw_segments = edi_content.split(self.segment_terminator)
         for i, seg_str in enumerate(raw_segments):
             clean_seg = seg_str.strip()
             if not clean_seg: continue
             
-            parts = clean_seg.split(element_delimiter)
+            parts = clean_seg.split(self.element_delimiter)
             segment_id = parts[0]
             
-            elements: List[CdmElement] = []
-            for idx, value in enumerate(parts[1:]):
-                elements.append(CdmElement(value=value, position=idx + 1))
+            elements: List[CdmElement] = [CdmElement(value=value, position=idx + 1) for idx, value in enumerate(parts[1:])]
 
             segments.append(CdmSegment(segment_id=segment_id, elements=elements, line_number=i + 1, raw_segment=clean_seg))
             if segment_id == 'IEA': break
