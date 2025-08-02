@@ -5,8 +5,9 @@ import type { FormInstance } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { updateNodeByKey } from "./schemaEditorUtils.tsx";
 import { BaseElement, ContextualDefinition, SegmentDefinition, CodeDefinition } from "./types";
+import { SyntaxRuleDisplay } from "./SyntaxRuleDisplay";
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 interface EditableNodeDetailsProps {
     form: FormInstance;
@@ -15,18 +16,6 @@ interface EditableNodeDetailsProps {
     onUpdateSchema: (newSchemaContent: any) => void;
     isEditing: boolean;
 }
-
-const SyntaxRuleDisplay: React.FC<{ rule: any }> = ({ rule }) => (
-    <Card size="small" title={`Rule: ${rule.ruleId}`} style={{ marginBottom: 8 }}>
-        <Paragraph><strong>Description:</strong> {rule.description}</Paragraph>
-        <Paragraph code style={{ whiteSpace: 'pre-wrap' }}>
-            <strong>IF:</strong> {JSON.stringify(rule.conditions, null, 2)}
-        </Paragraph>
-        <Paragraph code style={{ whiteSpace: 'pre-wrap' }}>
-            <strong>THEN:</strong> {JSON.stringify(rule.then, null, 2)}
-        </Paragraph>
-    </Card>
-);
 
 const ElementDisplayTable: React.FC<{ elements: BaseElement[]; overrides?: { [key: string]: any } }> = ({ elements, overrides }) => {
     const columns: ColumnsType<BaseElement> = [
@@ -112,12 +101,17 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
 
     useEffect(() => {
         if (isEditing && selectedNode && effectiveDefinition) {
+            const elementsForForm = effectiveDefinition.elements.map(el => ({
+                ...el,
+                valid_codes: el.valid_codes ? el.valid_codes.map(c => c.code) : [],
+            }));
+
             form.setFieldsValue({
                 structure_name: selectedNode.name,
                 usage: selectedNode.usage,
                 max_use: selectedNode.max_use,
                 definition_name: effectiveDefinition.name,
-                elements: effectiveDefinition.elements,
+                elements: elementsForForm,
             });
         } else {
             form.resetFields();
@@ -230,6 +224,15 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
                                 <Card size="small" key={key} title={`Element: ${form.getFieldValue(['elements', name, 'xid'])}`} extra={<MinusCircleOutlined onClick={() => contextDefinition && remove(name)} />}>
                                     <Form.Item {...restField} name={[name, 'name']} label="Name"><Input placeholder="Element Name" disabled={!contextDefinition} /></Form.Item>
                                     <Form.Item {...restField} name={[name, 'usage']} label="Usage"><Select placeholder="Usage" style={{ width: 100 }} options={[{ value: "R" }, { value: "S" }, { value: "N" }]} disabled={!contextDefinition}/></Form.Item>
+                                    <Form.Item {...restField} name={[name, 'valid_codes']} label="Valid Codes">
+                                        <Select
+                                            mode="tags"
+                                            style={{ width: '100%' }}
+                                            placeholder="Type codes and press Enter"
+                                            disabled={!contextDefinition}
+                                            tokenSeparators={[',']}
+                                        />
+                                    </Form.Item>
                                 </Card>
                             ))}
                             <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />} disabled={!contextDefinition}>Add Element</Button>
@@ -239,6 +242,8 @@ export const EditableNodeDetails: React.FC<EditableNodeDetailsProps> = ({
 
                  <Divider orientation="left" plain>Syntax Rules</Divider>
                  {effectiveDefinition?.rules && effectiveDefinition.rules.length > 0 ? (
+                    // --- THIS IS THE FIX ---
+                    // Also use the new component in edit mode for a consistent view
                     effectiveDefinition.rules.map((rule: any) => <SyntaxRuleDisplay key={rule.ruleId} rule={rule} />)
                  ) : (
                     <Text type="secondary">No syntax rules defined.</Text>

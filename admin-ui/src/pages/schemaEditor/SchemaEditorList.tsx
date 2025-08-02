@@ -13,7 +13,7 @@ import {
     Form,
     Tooltip,
     notification,
-    Alert,
+    theme,
 } from "antd";
 import {
     SaveOutlined,
@@ -24,11 +24,37 @@ import {
 } from "@ant-design/icons";
 import type { TreeProps } from "antd";
 import { EditableNodeDetails } from "./EditableNodeDetails";
-import { getAllKeys, transformToTreeData, findNodeByKey } from "./schemaEditorUtils.tsx";
+import { getAllKeys, transformToTreeData, findNodeByKey, updateNodeByKey } from "./schemaEditorUtils";
 import { SchemaFile, SchemaListResponse, SchemaNode, SchemaTreeDataNode } from "./types";
 
 const { Content, Sider } = Layout;
 const { Title, Text } = Typography;
+
+const getExpandedKeysToDepth = (
+    nodes: SchemaNode[],
+    maxDepth: number,
+    currentDepth: number = 1,
+    parentKey: string = "root"
+): React.Key[] => {
+    let keys: React.Key[] = [];
+    if (currentDepth > maxDepth) {
+        return keys;
+    }
+
+    nodes.forEach((node, index) => {
+        if (node.type === "loop") {
+            const key = `${parentKey}-${node.type}-${node.xid}-${index}`;
+            keys.push(key);
+            if (node.children) {
+                keys = keys.concat(
+                    getExpandedKeysToDepth(node.children, maxDepth, currentDepth + 1, key)
+                );
+            }
+        }
+    });
+
+    return keys;
+};
 
 export const SchemaEditorList: React.FC = () => {
     const [form] = Form.useForm();
@@ -39,6 +65,8 @@ export const SchemaEditorList: React.FC = () => {
     const [isPageInEditMode, setIsPageInEditMode] = useState(false);
     const [selectedNodeKey, setSelectedNodeKey] = useState<React.Key | null>(null);
     const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
+    
+    const { token } = theme.useToken();
 
     const { data: schemaFilesData, isLoading: isLoadingFiles } = useCustom<SchemaListResponse>({
         url: `${apiUrl}/schemas`,
@@ -58,11 +86,9 @@ export const SchemaEditorList: React.FC = () => {
         const { base_schemas = [], specialized_schemas = [] } = schemaFilesData.data;
         const options = [];
         if (base_schemas.length > 0) {
-            // --- FIX: Add explicit 'string' type to map parameter ---
             options.push({ label: "Base Schemas", options: base_schemas.map((f: string) => ({ label: f, value: f })) });
         }
         if (specialized_schemas.length > 0) {
-            // --- FIX: Add explicit 'string' type to map parameter ---
             options.push({ label: "Specialized Schemas", options: specialized_schemas.map((f: string) => ({ label: f, value: f })) });
         }
         return options;
@@ -83,20 +109,23 @@ export const SchemaEditorList: React.FC = () => {
     useEffect(() => {
         if (schemaFileData?.data) {
             setSchemaContent(schemaFileData.data);
-            const topLevelTreeData = transformToTreeData(JSON.parse(JSON.stringify(schemaFileData.data.structure)));
-            if (topLevelTreeData.length > 0 && topLevelTreeData[0].key) {
+            const isBaseSchema = schemaFilesData?.data?.base_schemas.includes(selectedSchema || '');
+            if (isBaseSchema) {
+                const initialKeys = getExpandedKeysToDepth(schemaFileData.data.structure, 3);
+                setExpandedKeys(initialKeys);
+            } else {
                 setExpandedKeys([]);
             }
         } else {
             setSchemaContent(null);
             setExpandedKeys([]);
         }
-    }, [schemaFileData]);
+    }, [schemaFileData, selectedSchema, schemaFilesData]);
 
     useEffect(() => {
         setSelectedNodeKey(null);
         form.resetFields();
-    }, [selectedSchema, form, isPageInEditMode]);
+    }, [selectedSchema, form]);
 
     const handleEnterEditMode = () => {
         if (schemaContent) {
@@ -111,9 +140,9 @@ export const SchemaEditorList: React.FC = () => {
         setSelectedNodeKey(null);
     };
 
-    const handleSelect = (selectedKeys: React.Key[]) => {
-        if (selectedKeys.length > 0) {
-            setSelectedNodeKey(selectedKeys[0]);
+    const handleSelect = (keys: React.Key[]) => {
+        if (keys.length > 0) {
+            setSelectedNodeKey(keys[0]);
         } else {
             setSelectedNodeKey(null);
         }
@@ -224,16 +253,70 @@ export const SchemaEditorList: React.FC = () => {
         });
     };
 
+    const onFormValuesChange = (_changedValues: any, allValues: any) => {
+        if (!isPageInEditMode || !draftContent || !selectedNodeKey) return;
+
+        setDraftContent(currentDraft => {
+            if (!currentDraft) return null;
+            
+            const newDraft = JSON.parse(JSON.stringify(currentDraft));
+            const nodeInTree = findNodeByKey(newDraft.structure, selectedNodeKey as string);
+            
+            if (!nodeInTree) {
+                console.error(`Could not find node with key ${selectedNodeKey} to apply changes.`);
+                return newDraft;
+            }
+    
+            const contextId = nodeInTree.contextDefinitionId;
+            if (contextId && newDraft.contextualDefinitions[contextId]) {
+                const contextDef = newDraft.contextualDefinitions[contextId];
+                contextDef.name = allValues.definition_name;
+
+                const transformedElements = (allValues.elements || []).reduce((acc: any, el: any) => {
+                    // Create a copy to avoid mutating the form's state directly
+                    const newEl = { ...el };
+
+                    // Transform valid_codes from ['A', 'B'] back to [{ code: 'A' }, { code: 'B' }]
+                    if (Array.isArray(newEl.valid_codes)) {
+                        newEl.valid_codes = newEl.valid_codes.map((code: string | number) => ({ code }));
+                    }
+
+                    // For now, we store the full element in the override.
+                    // A more advanced diffing logic could be added later.
+                    acc[newEl.xid] = newEl;
+                    return acc;
+                }, {});
+                
+                contextDef.elements = transformedElements;
+            }
+    
+            const structuralNodeUpdate = {
+                name: allValues.structure_name,
+                usage: allValues.usage,
+                max_use: allValues.max_use,
+            };
+    
+            const finalStructure = updateNodeByKey(newDraft.structure, selectedNodeKey as string, structuralNodeUpdate);
+            return { ...newDraft, structure: finalStructure };
+        });
+    };
+
     const isTreeLoading = selectedSchema && isLoadingContent;
 
     return (
         <Card>
-            {contentToShow && (
-                 <Card style={{ marginBottom: 16 }} bodyStyle={{padding: '16px 24px'}}>
-                    <Title level={4} style={{ margin: 0 }}>{contentToShow.transactionName}</Title>
-                    <Text type="secondary">Version: {contentToShow.version}</Text>
-                </Card>
-            )}
+            <Card style={{ marginBottom: 16, minHeight: 70 }} bodyStyle={{padding: '16px 24px'}}>
+                {contentToShow ? (
+                    <>
+                        <Title level={4} style={{ margin: 0 }}>{contentToShow.transactionName}</Title>
+                        <Text type="secondary">Version: {contentToShow.version}</Text>
+                    </>
+                ) : (
+                    <Spin spinning={!!(isLoadingFiles || isTreeLoading)}>
+                        <div style={{ minHeight: 38 }} /> 
+                    </Spin>
+                )}
+            </Card>
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <Select
@@ -261,11 +344,23 @@ export const SchemaEditorList: React.FC = () => {
                     </Space>
                 )}
             </div>
-
-            {isPageInEditMode && <Alert message="Edit Mode" type="info" showIcon style={{ marginBottom: 16 }} description="You are in edit mode. All changes to structure and properties will be saved when you click 'Save Schema'." />}
             
-            <Layout style={{ background: "#fff", minHeight: '65vh' }}>
-                <Sider width={500} style={{ background: "#fff", padding: "0 16px", borderRight: "1px solid #f0f0f0", overflow: 'auto' }}>
+            <Layout style={{ 
+                background: "#fff",
+                border: isPageInEditMode ? `2px solid ${token.colorPrimary}` : `2px solid transparent`,
+                borderRadius: token.borderRadiusLG,
+                transition: 'border-color 0.3s',
+            }}>
+                <Sider 
+                    width={500} 
+                    style={{ 
+                        background: "#fff", 
+                        padding: "16px",
+                        borderRight: "1px solid #f0f0f0",
+                        height: 'calc(100vh - 400px)',
+                        overflowY: 'auto',
+                    }}
+                >
                     <Space style={{ marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
                         <Title level={5} style={{ margin: 0 }}>Schema Structure</Title>
                         <Space>
@@ -273,20 +368,29 @@ export const SchemaEditorList: React.FC = () => {
                             <Tooltip title="Collapse All"><Button size="small" icon={<MinusSquareOutlined />} onClick={() => setExpandedKeys([])} disabled={!treeData.length} /></Tooltip>
                         </Space>
                     </Space>
+                    
                     {isTreeLoading && <Spin />}
                     {!isTreeLoading && treeData.length > 0 && 
                         <Tree showLine onExpand={setExpandedKeys} expandedKeys={expandedKeys} treeData={treeData} onSelect={handleSelect} selectedKeys={selectedNodeKey ? [selectedNodeKey] : []} draggable={isPageInEditMode ? { icon: false } : false} onDrop={handleDrop}/>
                     }
                     {!isTreeLoading && !selectedSchema && <Empty description="No schema selected" />}
                 </Sider>
-                <Content style={{ padding: "0 24px", overflow: 'auto', flex: 1 }}>
-                     <EditableNodeDetails
-                        form={form}
-                        isEditing={isPageInEditMode}
-                        selectedNode={selectedNode}
-                        schemaContent={contentToShow}
-                        onUpdateSchema={setDraftContent}
-                    />
+                <Content 
+                    style={{ 
+                        padding: "16px 24px", 
+                        height: 'calc(100vh - 400px)',
+                        overflowY: 'auto',
+                    }}
+                >
+                     <Form form={form} onValuesChange={onFormValuesChange} name="schemaNodeForm">
+                        <EditableNodeDetails
+                            form={form}
+                            isEditing={isPageInEditMode}
+                            selectedNode={selectedNode}
+                            schemaContent={contentToShow}
+                            onUpdateSchema={setDraftContent}
+                        />
+                     </Form>
                 </Content>
             </Layout>
         </Card>
