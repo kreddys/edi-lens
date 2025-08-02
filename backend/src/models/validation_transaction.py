@@ -1,12 +1,9 @@
 import uuid
-# --- THIS IS THE FIX ---
-# Add 'Integer' to the list of imports from sqlalchemy
-from sqlalchemy import Column, String, DateTime, Enum as SQLAlchemyEnum, ForeignKey, Integer
-# --- END OF FIX ---
+import enum
+from sqlalchemy import Column, String, DateTime, Enum as SQLAlchemyEnum, ForeignKey, Integer, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
-import enum
 
 from src.core.database import Base
 
@@ -14,6 +11,11 @@ class ValidationStatus(str, enum.Enum):
     PENDING = "PENDING"
     COMPLETE = "COMPLETE"
     FAILED = "FAILED"
+
+class SourceType(str, enum.Enum):
+    API = "API"
+    SFTP = "SFTP"
+    MANUAL = "MANUAL"
 
 class ValidationTransaction(Base):
     __tablename__ = 'validation_transactions'
@@ -33,7 +35,18 @@ class ValidationTransaction(Base):
     ta1_object_key = Column(String, nullable=True)
     response_999_object_key = Column(String, nullable=True)
     
+    # SFTP Integration Fields
+    source_type = Column(SQLAlchemyEnum(SourceType), nullable=False, default=SourceType.API)
+    source_partner_id = Column(Integer, ForeignKey('public.trading_partners.id'), nullable=True)
+    source_file_path = Column(String, nullable=True)  # Original SFTP file path
+    response_delivered = Column(Boolean, nullable=False, default=False)
+    response_delivery_attempts = Column(Integer, nullable=False, default=0)
+    response_delivered_at = Column(DateTime(timezone=True), nullable=True)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+    # Relationships
     profile = relationship("PartnerProfile")
+    source_partner = relationship("TradingPartner")
+    file_processing_log = relationship("FileProcessingLog", back_populates="validation_transaction", uselist=False)

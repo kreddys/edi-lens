@@ -13,3 +13,8 @@ from .partner_profile import PartnerProfile
 from .profile_criterion import ProfileCriterion
 from .audit_log import AuditLog
 from .validation_transaction import ValidationTransaction
+
+# SFTP File Processing models
+from .processing_schedule import ProcessingSchedule
+from .sftp_configuration import SftpConfiguration
+from .file_processing_log import FileProcessingLog
