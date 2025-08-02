@@ -38,6 +38,7 @@ class PartnerProfileCreate(BaseModel):
     implementation_guide: str
     priority: int = 10
     criteria: List[ProfileCriterionCreate]
+    validation_schema_name: Optional[str] = None
 
 class TradingPartnerCreate(BaseModel):
     name: str
@@ -52,6 +53,7 @@ class ProfileCriterionUpdate(ProfileCriterionCreate):
 class PartnerProfileUpdate(PartnerProfileCreate):
     id: Optional[int] = None
     criteria: List[ProfileCriterionUpdate]
+    validation_schema_name: Optional[str] = None
 
 class TradingPartnerUpdate(BaseModel):
     name: str
@@ -72,6 +74,7 @@ class PartnerProfile(PartnerProfileCreate):
     partner_id: int
     tenant_id: str
     criteria: List[ProfileCriterion]
+    validation_schema_name: Optional[str] = None # And add this
     model_config = ConfigDict(from_attributes=True)
 
 class TradingPartner(TradingPartnerCreate):

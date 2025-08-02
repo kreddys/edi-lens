@@ -66,3 +66,4 @@ logs/
 tmp/
 data/
 backups/
+minio-data/

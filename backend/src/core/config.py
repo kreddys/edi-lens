@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     PINECONE_API_KEY: str = ""
     PINECONE_EMBED_MODEL: str = "multilingual-e5-large"
 
+    STORAGE_ACCESS_KEY: str
+    STORAGE_SECRET_KEY: str
+    STORAGE_ENDPOINT_URL: str
+    STORAGE_BUCKET: str
+    STORAGE_REGION: str = "us-east-1" # Provide a default region    
+
     @property
     def DATABASE_URL(self) -> str:
         return (

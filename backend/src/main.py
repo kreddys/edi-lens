@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
         logger.info("Skipping OpenLIT initialization in main.py (running in test mode).")
     
     schema_dir = Path(settings.EDI_SCHEMA_DIRECTORY)
-    schema_manager.load_schemas(schema_dir)
+    schema_manager.load_base_schemas(schema_dir)
     
     logger.info("Audit logging system initialized.")
     yield

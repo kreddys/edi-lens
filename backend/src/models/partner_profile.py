@@ -12,8 +12,14 @@ class PartnerProfile(Base):
     
     name = Column(String, nullable=False)
     implementation_guide = Column(String, nullable=False, index=True)
+    
+    # --- NEW --- Add the schema name column
+    validation_schema_name = Column(String, nullable=True)
+    
     priority = Column(Integer, nullable=False, default=10)
     snip_level_enabled = Column(Integer, nullable=False, default=1)
 
     partner = relationship("TradingPartner", back_populates="profiles")
     criteria = relationship("ProfileCriterion", back_populates="profile", cascade="all, delete-orphan")
+    
+    # --- REMOVED --- The `rules` relationship is no longer needed.

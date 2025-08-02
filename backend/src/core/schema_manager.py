@@ -4,73 +4,73 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from src.edi_schemas.edi_guide import ImplementationGuideSchema
+from src.core.storage import storage_client # Import the new client
 
 logger = logging.getLogger(__name__)
 
 class SchemaManager:
-    """
-    A singleton class to load, manage, and provide access to EDI implementation
-    guide schemas from JSON definition files.
-    """
     _instance = None
-    _schemas: Dict[str, ImplementationGuideSchema]
-    _schemas_by_filename: Dict[str, ImplementationGuideSchema] # <-- ADD THIS
+    _base_schemas: Dict[str, ImplementationGuideSchema]
+    _specialized_schemas_cache: Dict[str, ImplementationGuideSchema]
 
     def __new__(cls):
         if cls._instance is None:
-            logger.debug("Creating new SchemaManager instance.")
             cls._instance = super(SchemaManager, cls).__new__(cls)
-            # Initialize attributes here, as __init__ might be called multiple times.
-            cls._instance._schemas = {}
-            cls._instance._schemas_by_filename = {} # <-- AND INITIALIZE THIS
+            cls._instance._base_schemas = {}
+            cls._instance._specialized_schemas_cache = {}
         return cls._instance
 
-    def load_schemas(self, schema_dir: Path):
-        """
-        Loads all .json schema files from a given directory into memory.
-        This should be called once on application startup.
-        """
+    def load_base_schemas(self, schema_dir: Path):
+        """Loads only the base schemas from the local filesystem at startup."""
         if not schema_dir.is_dir():
-            logger.warning(f"Schema directory not found: {schema_dir}")
+            logger.warning(f"Base schema directory not found: {schema_dir}")
             return
-
-        logger.info(f"Loading EDI schemas from: {schema_dir}")
+        logger.info(f"Loading BASE EDI schemas from: {schema_dir}")
         for file_path in schema_dir.glob("*.json"):
             try:
                 with open(file_path, 'r') as f:
                     schema_data = json.load(f)
                     schema = ImplementationGuideSchema.model_validate(schema_data)
-                    
-                    # Store by filename for the new method
-                    self._schemas_by_filename[file_path.name] = schema
-
-                    # Use the GS08 version as the key (e.g., '005010X222A1')
-                    schema_key = schema.get_version_key()
-                    if schema_key:
-                        self._schemas[schema_key] = schema
-                        logger.info(f"Successfully loaded schema: {schema.transactionName} (Version: {schema_key}) from {file_path.name}")
-                    else:
-                        logger.warning(f"Could not determine version key for schema file: {file_path.name}")
+                    # Use filename as the key now for simplicity and consistency
+                    self._base_schemas[file_path.name] = schema
+                    logger.info(f"Successfully loaded BASE schema: {file_path.name}")
             except Exception as e:
-                logger.error(f"Failed to load or parse schema from {file_path.name}: {e}", exc_info=True)
+                logger.error(f"Failed to load or parse base schema from {file_path.name}: {e}")
+
+    def get_schema(self, schema_name: str, tenant_id: str) -> Optional[ImplementationGuideSchema]:
+        """
+        Retrieves a schema. It checks for a base schema first, then the in-memory cache
+        for specialized schemas, and finally falls back to downloading from object storage.
+        """
+        # 1. Check for base schema
+        if schema_name in self._base_schemas:
+            return self._base_schemas[schema_name]
+
+        # 2. Check in-memory cache for specialized schema
+        cache_key = f"{tenant_id}/{schema_name}"
+        if cache_key in self._specialized_schemas_cache:
+            return self._specialized_schemas_cache[cache_key]
+
+        # 3. Download from object storage
+        logger.info(f"Schema '{schema_name}' for tenant '{tenant_id}' not in cache. Fetching from storage.")
+        s3_key = f"{tenant_id}/schemas/{schema_name}"
+        schema_bytes = storage_client.download(s3_key)
+
+        if not schema_bytes:
+            logger.warning(f"Schema '{schema_name}' not found for tenant '{tenant_id}' in object storage.")
+            return None
         
-        if not self._schemas:
-            logger.warning("No EDI implementation guide schemas were loaded.")
+        try:
+            schema_data = json.loads(schema_bytes)
+            schema = ImplementationGuideSchema.model_validate(schema_data)
+            self._specialized_schemas_cache[cache_key] = schema # Cache it
+            return schema
+        except Exception as e:
+            logger.error(f"Failed to parse specialized schema {schema_name} from storage: {e}")
+            return None
 
-    def get_schema(self, guide_version: str) -> Optional[ImplementationGuideSchema]:
-        """
-        Retrieves a loaded schema by its implementation guide version (e.g., GS08).
-        """
-        return self._schemas.get(guide_version)
+    def list_base_schemas(self) -> list[str]:
+        return list(self._base_schemas.keys())
 
-    # --- THIS IS THE NEW METHOD TO ADD ---
-    def get_schema_by_name(self, filename: str) -> Optional[ImplementationGuideSchema]:
-        """
-        Retrieves a loaded schema by its filename.
-        """
-        return self._schemas_by_filename.get(filename)
-    # --- END OF NEW METHOD ---
-
-# Create the singleton instance for the application to import and use.
-# This makes it easy to access the single instance from anywhere in the app.
+# Singleton instance
 schema_manager = SchemaManager()

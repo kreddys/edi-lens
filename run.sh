@@ -1,9 +1,9 @@
 #!/bin/bash
 # ==============================================================================
-# EDI LENS - APPLICATION RUNNER SCRIPT (v14 - Corrected Paths)
+# EDI LENS - APPLICATION RUNNER SCRIPT (v17 - Profile-Based Task Orchestration)
 # ==============================================================================
 # Manages all environments from the project root.
-# Uses a base compose file in the root and overrides from the docker/ directory.
+# Uses a base compose file and orchestrates one-off setup tasks using profiles.
 # Enforces isolation via Docker Compose project names.
 
 set -e
@@ -53,23 +53,19 @@ case "$ENV_CONTEXT" in
     dev)
         PROJECT_NAME="edi-lens-dev"
         ENV_FILE=".env.dev"
-        # The base file is in the root
-        DC_FILES="-f docker-compose.yml"
-        # The backend service in the dev compose file is named 'backend-test'
+        DC_FILES="-f docker/docker-compose.yml"
         BACKEND_SERVICE="backend"
         ;;
     stg)
         PROJECT_NAME="edi-lens-stg"
         ENV_FILE=".env.stg"
-        # The base file is in the root, the override is in docker/
-        DC_FILES="-f docker-compose.yml -f docker/docker-compose.stg.yml"
+        DC_FILES="-f docker/docker-compose.yml -f docker/docker-compose.stg.yml"
         BACKEND_SERVICE="backend"
         ;;
     prod)
         PROJECT_NAME="edi-lens-prod"
         ENV_FILE=".env.prod"
-        # The base file is in the root, the override is in docker/
-        DC_FILES="-f docker-compose.yml -f docker/docker-compose.prod.yml"
+        DC_FILES="-f docker/docker-compose.yml -f docker/docker-compose.prod.yml"
         BACKEND_SERVICE="backend"
         ;;
     *)
@@ -79,13 +75,28 @@ esac
 info "Configuring for [$ENV_CONTEXT] environment (Project: $PROJECT_NAME)..."
 
 check_docker
-if [ ! -f "$ENV_FILE" ] && [ -f "$ENV_FILE.example" ]; then
-    warn "Creating '$ENV_FILE' from example."
-    cp "$ENV_FILE.example" "$ENV_FILE"
+if [ ! -f "$ENV_FILE" ]; then
+    if [ -f "$ENV_FILE.example" ]; then
+        warn "Creating '$ENV_FILE' from example."
+        cp "$ENV_FILE.example" "$ENV_FILE"
+    else
+        error "Environment file '$ENV_FILE' is required."
+    fi
 fi
-if [ ! -f "$ENV_FILE" ]; then error "Environment file '$ENV_FILE' is required."; fi
 
 DC_EXEC="${DC_COMMAND} -p ${PROJECT_NAME} ${DC_FILES} --env-file ${ENV_FILE}"
+
+# --- THIS IS THE UPDATED HELPER FUNCTION ---
+# Runs one-off setup tasks defined by the 'setup' profile.
+ensure_infra() {
+    info "Ensuring one-off infrastructure tasks are complete..."
+    # 'docker compose run' will automatically start any 'depends_on' services (like minio).
+    # The --rm flag is critical: it ensures the container is removed after it exits.
+    # We explicitly run the service by name. If it has a profile, 'run' will still execute it.
+    $DC_EXEC run --rm create-minio-bucket
+    info "Infrastructure tasks are up to date."
+}
+# --- END OF UPDATE ---
 
 # ==============================================================================
 # CENTRAL COMMAND LOGIC
@@ -93,6 +104,8 @@ DC_EXEC="${DC_COMMAND} -p ${PROJECT_NAME} ${DC_FILES} --env-file ${ENV_FILE}"
 
 case "$ACTION" in
     start)
+        # Call the setup function before starting the main services
+        ensure_infra
         $DC_EXEC up -d --build --remove-orphans --wait
         ;;
     stop)
@@ -110,18 +123,22 @@ case "$ACTION" in
         ;;
     migrate:make|migrate:run|setup:keycloak|setup:seed)
         if [ "$ACTION" == "migrate:make" ] && [ -z "$1" ]; then error "Migration message is required."; fi
+        
+        # Ensure infrastructure is ready before running commands that might depend on it
+        ensure_infra
+        info "Ensuring backend service is running for command..."
         $DC_EXEC up -d --wait "$BACKEND_SERVICE"
-        CMD_TO_RUN=""
+        
+        info "Executing command inside the '$BACKEND_SERVICE' container..."
         if [ "$ACTION" == "migrate:make" ]; then
-            CMD_TO_RUN="alembic -c alembic.ini revision --autogenerate -m \"$1\""
+            $DC_EXEC exec "$BACKEND_SERVICE" alembic -c alembic.ini revision --autogenerate -m "$1"
         elif [ "$ACTION" == "migrate:run" ]; then
-            CMD_TO_RUN="alembic -c alembic.ini upgrade head"
+            $DC_EXEC exec "$BACKEND_SERVICE" alembic -c alembic.ini upgrade head
         elif [ "$ACTION" == "setup:keycloak" ]; then
-            CMD_TO_RUN="python -m scripts.setup_keycloak_realm"
+            $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.setup_keycloak_realm
         elif [ "$ACTION" == "setup:seed" ]; then
-            CMD_TO_RUN="python -m scripts.seed $@"
+            $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.seed "$@"
         fi
-        $DC_EXEC exec "$BACKEND_SERVICE" $CMD_TO_RUN
         ;;
     test)
         if [ "$ENV_CONTEXT" != "dev" ]; then error "'test' action is only for the 'dev' environment."; fi
@@ -134,8 +151,10 @@ case "$ACTION" in
                 (cd backend && poetry run pytest -m "unit" "$@")
                 ;;
             integration|e2e)
+                # Ensure infrastructure is ready before running tests
+                ensure_infra
                 info "Ensuring dev stack is running for '$TEST_TYPE' tests..."
-                $DC_EXEC up -d --build --wait "$BACKEND_SERVICE"
+                $DC_EXEC up -d --build --wait
                 if [[ "$TEST_TYPE" == "e2e" ]]; then
                     info "Configuring Keycloak for E2E tests..."
                     sleep 5

@@ -1,0 +1,147 @@
+# FILE: docker/docker-compose.yml
+# BASE configuration for LOCAL DEVELOPMENT and AUTOMATED TESTING.
+# All paths are relative to this file's location inside the /docker directory.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    ports:
+      - "3001:3001"
+      - "8081:8081"
+      - "9001:9001"
+    volumes:
+      # ./ is now the /docker directory
+      - ./caddy/dev.Caddyfile:/etc/caddy/Caddyfile
+    networks:
+      - edi_lens_network
+    depends_on: [backend, admin-ui, keycloak]
+
+  db-keycloak:
+    image: postgres:15-alpine
+    container_name: db-keycloak
+    environment:
+      POSTGRES_USER: ${POSTGRES_KC_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_KC_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_KC_DB}
+    volumes:
+      - postgres_kc_data:/var/lib/postgresql/data/
+    networks:
+      - edi_lens_network
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD=${POSTGRES_KC_PASSWORD} psql -h localhost -U ${POSTGRES_KC_USER} -d ${POSTGRES_KC_DB} -c 'SELECT 1' > /dev/null 2>&1"]
+
+  db-app:
+    build:
+      context: ..  # <-- CHANGE: Go up one level to the project root for context
+      dockerfile: docker/postgres/Dockerfile
+    container_name: db-app
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      # ./ is now the /docker directory
+      - ./postgres/init-db-extensions.sh:/docker-entrypoint-initdb.d/init-extensions.sh # <-- CHANGE
+    networks:
+      - edi_lens_network
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD=${POSTGRES_PASSWORD} psql -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c \"SELECT 1 FROM pg_extension WHERE extname = 'vector'\" > /dev/null 2>&1"]
+
+  keycloak:
+    image: bitnami/keycloak:latest
+    container_name: keycloak
+    depends_on: { db-keycloak: { condition: service_healthy } }
+    environment:
+      - KEYCLOAK_DATABASE_HOST=db-keycloak
+      - KEYCLOAK_DATABASE_NAME=${POSTGRES_KC_DB}
+      - KEYCLOAK_DATABASE_USER=${POSTGRES_KC_USER}
+      - KEYCLOAK_DATABASE_PASSWORD=${POSTGRES_KC_PASSWORD}
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+      - KEYCLOAK_DATABASE_VENDOR=postgresql
+      - KEYCLOAK_PROXY_HEADERS=xforwarded
+    networks:
+      - edi_lens_network
+
+  backend:
+    build:
+      context: .. # <-- CHANGE: Go up one level to the project root for context
+      dockerfile: docker/backend/Dockerfile
+      target: test
+    container_name: backend
+    depends_on:
+      db-app: { condition: service_healthy }
+      keycloak: { condition: service_started }
+      minio: { condition: service_healthy }
+    volumes:
+      - ../backend:/home/appuser/app:delegated # <-- CHANGE: Go up one level
+      - /home/appuser/app/.venv
+    networks: [ edi_lens_network ]
+    env_file: [ ../.env.dev ] # <-- CHANGE: Go up one level
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir alembic
+
+  admin-ui:
+    build:
+      context: .. # <-- CHANGE: Go up one level to the project root for context
+      dockerfile: docker/admin-ui/Dockerfile.dev
+    container_name: admin-ui
+    volumes:
+      - ../admin-ui:/app:delegated # <-- CHANGE: Go up one level
+      - admin-ui-node-modules:/app/node_modules
+    env_file: [ ../.env.dev ] # <-- CHANGE: Go up one level
+    depends_on: [ backend ]
+    networks: [ edi_lens_network ]
+    command: npm run dev -- --host 0.0.0.0 --port 3000
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    environment:
+      - MINIO_ROOT_USER=${STORAGE_ACCESS_KEY:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${STORAGE_SECRET_KEY:-minioadmin}
+      - MINIO_DOMAIN=minio.localhost
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - edi_lens_network
+
+  create-minio-bucket:
+    image: minio/mc:latest
+    container_name: create-minio-bucket
+    profiles:
+      - setup
+    depends_on:
+      - minio
+    environment:
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY:-minioadmin}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-minioadmin}
+      - STORAGE_BUCKET=${STORAGE_BUCKET:-edi-lens-schemas}
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Waiting for MinIO to be ready...';
+      until (/usr/bin/mc alias set local-minio http://minio:9000 $$STORAGE_ACCESS_KEY $$STORAGE_SECRET_KEY) do echo '...retrying connection to minio' && sleep 1; done;
+      echo 'MinIO is ready. Creating bucket...';
+      /usr/bin/mc mb local-minio/$$STORAGE_BUCKET --ignore-existing;
+      /usr/bin/mc policy set public local-minio/$$STORAGE_BUCKET;
+      echo 'Bucket setup complete.';
+      exit 0;
+      "
+    networks:
+      - edi_lens_network
+
+volumes:
+  postgres_kc_data: {}
+  postgres_app_data: {}
+  admin-ui-node-modules: {}
+  minio_data: {}
+
+networks:
+  edi_lens_network:
+    driver: bridge

@@ -1,7 +1,9 @@
+# FILE: backend/src/repositories/trading_partner.py
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import Optional, List, Tuple
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload
 import logging
 import sqlalchemy as sa
 
@@ -79,6 +81,8 @@ class TradingPartnerRepository:
             db_profile = partner_profile.PartnerProfile(
                 name=profile_in.name,
                 implementation_guide=profile_in.implementation_guide,
+                # --- NEW --- Set the validation schema name during creation
+                validation_schema_name=profile_in.validation_schema_name,
                 priority=profile_in.priority,
                 tenant_id=tenant_id
             )
@@ -108,8 +112,6 @@ class TradingPartnerRepository:
         db_partner.description = partner_data_to_update.get("description", db_partner.description)
 
         if "profiles" in partner_data_to_update:
-            # --- THIS IS THE FIX ---
-            # Create a map of existing profiles for quick lookup.
             existing_profiles_map = {p.id: p for p in db_partner.profiles}
             updated_profiles = []
 
@@ -119,6 +121,8 @@ class TradingPartnerRepository:
                     db_profile = existing_profiles_map[profile_in.id]
                     db_profile.name = profile_in.name
                     db_profile.implementation_guide = profile_in.implementation_guide
+                    # --- NEW --- Update the validation schema name
+                    db_profile.validation_schema_name = profile_in.validation_schema_name
                     db_profile.priority = profile_in.priority
                     self._sync_criteria(db_profile, profile_in.criteria)
                     updated_profiles.append(db_profile)
@@ -127,6 +131,8 @@ class TradingPartnerRepository:
                     new_profile = partner_profile.PartnerProfile(
                         name=profile_in.name,
                         implementation_guide=profile_in.implementation_guide,
+                        # --- NEW --- Set the validation schema name for the new profile
+                        validation_schema_name=profile_in.validation_schema_name,
                         priority=profile_in.priority,
                         tenant_id=db_partner.tenant_id,
                         criteria=[
@@ -136,9 +142,6 @@ class TradingPartnerRepository:
                     )
                     updated_profiles.append(new_profile)
 
-            # Assign the new list to the relationship. SQLAlchemy's 'delete-orphan'
-            # cascade will automatically delete any profiles that were in the original
-            # list but are not in this new `updated_profiles` list.
             db_partner.profiles = updated_profiles
 
         self.db.add(db_partner)
