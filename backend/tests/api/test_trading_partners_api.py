@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from src.main import app
 from src.models import trading_partner, partner_profile, profile_criterion
 from src.core.auth import User, RealmAccess, get_current_user
+from src.models.profile_criterion import FieldSource, Operator
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
@@ -45,7 +46,18 @@ async def partner_with_full_details(db_session: AsyncSession) -> trading_partner
         profiles=[
             partner_profile.PartnerProfile(
                 name="Profile 1", implementation_guide="1", tenant_id="tenant-a",
-                criteria=[profile_criterion.ProfileCriterion(field_source="GS", field_identifier="02", operator="EQUALS", value="C1", tenant_id="tenant-a")]
+                criteria=[
+                    # --- THIS IS THE FIX (Part 1) ---
+                    # Create the criterion using the actual Enum types, not strings.
+                    profile_criterion.ProfileCriterion(
+                        field_source=FieldSource.GS,
+                        field_identifier="02",
+                        operator=Operator.EQUALS,
+                        value="C1",
+                        tenant_id="tenant-a"
+                    )
+                    # --- END OF FIX ---
+                ]
             ),
             partner_profile.PartnerProfile(name="Profile 2", implementation_guide="2", tenant_id="tenant-a"),
         ]
@@ -148,3 +160,53 @@ async def test_delete_trading_partner(async_client: AsyncClient, db_session: Asy
     headers = {"X-Tenant-ID": "tenant-a"}
     response = await async_client.delete(f"/api/v1/trading-partners/{existing_partner.id}", headers=headers)
     assert response.status_code == 204
+
+async def test_update_partner_with_specialized_schema(async_client: AsyncClient, mock_get_current_user, partner_with_full_details):
+    """Tests that a PUT request can correctly set the validation_schema_name on a profile."""
+    partner = partner_with_full_details
+    profile_to_update = partner.profiles[0]
+    specialized_schema_name = "my_custom_schema.json"
+
+    # --- THIS IS THE FIX (Part 2) ---
+    # Construct the payload dictionary manually and correctly.
+    # The API expects raw string values for the enums in the JSON payload.
+    update_data = {
+        "name": partner.name,
+        "description": partner.description,
+        "profiles": [
+            {
+                "id": profile_to_update.id,
+                "name": profile_to_update.name,
+                "implementation_guide": profile_to_update.implementation_guide,
+                "validation_schema_name": specialized_schema_name,
+                "criteria": [
+                    {
+                        "id": c.id,
+                        "field_source": c.field_source.value, # SQLAlchemy object has enum, get its value
+                        "field_identifier": c.field_identifier,
+                        "operator": c.operator.value, # SQLAlchemy object has enum, get its value
+                        "value": c.value
+                    }
+                    for c in profile_to_update.criteria
+                ]
+            },
+            # Also include the second profile to prevent it from being deleted
+            {
+                "id": partner.profiles[1].id,
+                "name": partner.profiles[1].name,
+                "implementation_guide": partner.profiles[1].implementation_guide,
+                "validation_schema_name": partner.profiles[1].validation_schema_name,
+                "criteria": []
+            }
+        ]
+    }
+    # --- END OF FIX ---
+
+    headers = {"X-Tenant-ID": "tenant-a"}
+    response = await async_client.put(f"/api/v1/trading-partners/{partner.id}", json=update_data, headers=headers)
+
+    assert response.status_code == 200, response.text
+    data = response.json()
+    
+    updated_profile_data = next(p for p in data["profiles"] if p["id"] == profile_to_update.id)
+    assert updated_profile_data["validation_schema_name"] == specialized_schema_name

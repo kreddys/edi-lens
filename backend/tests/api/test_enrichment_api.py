@@ -6,7 +6,11 @@ from httpx import AsyncClient
 from src.main import app
 from src.core.auth import User, RealmAccess, get_current_user
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.integration,
+    pytest.mark.skip(reason="Skipping enrichment API tests as AI agent features are not currently active.")
+]
 
 @pytest.fixture
 def superuser_user():

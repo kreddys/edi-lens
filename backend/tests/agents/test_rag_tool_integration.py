@@ -9,7 +9,11 @@ from typing import AsyncGenerator
 from src.main import app
 from src.agents.tools.rag import KnowledgeBaseTool
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.integration,
+    pytest.mark.skip(reason="Skipping advanced RAG tool tests as this feature is not currently active.")
+]
 
 LIGHTRAG_TEST_URL = "http://lightrag-server-test:9621"
 

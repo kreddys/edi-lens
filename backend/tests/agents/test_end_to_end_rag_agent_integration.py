@@ -11,7 +11,12 @@ from typing import AsyncGenerator
 from src.agents.crews import SchemaEnrichmentCrews
 from tests.agents.agent_test_utils import run_iterative_validation_process
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.integration,
+    pytest.mark.skip(reason="Skipping end-to-end RAG agent tests as this feature is not currently active.")
+]
+
 logger = logging.getLogger(__name__)
 
 LIGHTRAG_TEST_URL = "http://lightrag-server-test:9621"

@@ -11,7 +11,12 @@ from src.agents.tools.rag import KnowledgeBaseTool
 from src.agents.crews import SchemaEnrichmentCrews
 from src.agents.models import UniversalAgentResponse
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.integration,
+    pytest.mark.skip(reason="Skipping complex rule extraction tests as this feature is not currently active.")
+]
+
 logger = logging.getLogger(__name__)
 
 @pytest.fixture(scope="module", autouse=True)

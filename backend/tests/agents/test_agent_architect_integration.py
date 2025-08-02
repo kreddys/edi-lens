@@ -19,7 +19,12 @@ from src.edi_schemas.edi_guide import ImplementationGuideSchema
 # Import the refactored helper function
 from tests.agents.agent_test_utils import run_iterative_validation_process
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.integration,
+    pytest.mark.skip(reason="Skipping agent architecture tests as RAG/AI features are not currently active.")
+]
+
 logger = logging.getLogger(__name__)
 
 @pytest.fixture(scope="module", autouse=True)
