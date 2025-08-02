@@ -38,14 +38,24 @@ def test_generate_accepted_ta1_when_requested(isa_header_ack_requested):
     generator = TA1Generator()
     result = generator.generate(isa_header=isa_header_ack_requested, errors=[])
     assert result is not None
-    assert result == "TA1*000000001*240718*1200*A*000"
+    # Should contain complete EDI interchange (ISA + TA1 + IEA)
+    assert "ISA*" in result
+    assert "TA1*000000001*240718*1200*A*000" in result
+    assert "IEA*" in result
+    # Verify sender/receiver are swapped in response
+    assert "*ZZ*RECEIVERID     *ZZ*SENDERID       *" in result
 
 def test_generate_rejected_ta1_on_error(isa_header_ack_not_requested):
     generator = TA1Generator()
     errors = [InterchangeError(note_code=TA1NoteCode.ICN_MISMATCH_IN_HEADER_TRAILER)]
     result = generator.generate(isa_header=isa_header_ack_not_requested, errors=errors)
     assert result is not None
-    assert result == "TA1*000000001*240718*1200*R*001"
+    # Should contain complete EDI interchange (ISA + TA1 + IEA)
+    assert "ISA*" in result
+    assert "TA1*000000001*240718*1200*R*001" in result
+    assert "IEA*" in result
+    # Verify sender/receiver are swapped in response
+    assert "*ZZ*RECEIVERID     *ZZ*SENDERID       *" in result
 
 def test_generate_rejected_ta1_uses_first_error_code(isa_header_ack_requested):
     generator = TA1Generator()
@@ -55,4 +65,9 @@ def test_generate_rejected_ta1_uses_first_error_code(isa_header_ack_requested):
     ]
     result = generator.generate(isa_header=isa_header_ack_requested, errors=errors)
     assert result is not None
-    assert result == "TA1*000000001*240718*1200*R*020"
+    # Should contain complete EDI interchange (ISA + TA1 + IEA)
+    assert "ISA*" in result
+    assert "TA1*000000001*240718*1200*R*020" in result
+    assert "IEA*" in result
+    # Verify sender/receiver are swapped in response
+    assert "*ZZ*RECEIVERID     *ZZ*SENDERID       *" in result

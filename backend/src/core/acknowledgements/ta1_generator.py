@@ -1,4 +1,5 @@
-import logging # <-- Add logging import
+import logging
+from datetime import datetime
 from typing import Optional, List
 from src.core.cdm import CdmSegment
 from .ta1_defs import InterchangeError, TA1AcknowledgementCode, TA1NoteCode
@@ -12,7 +13,7 @@ class TA1Generator:
         errors: List[InterchangeError]
     ) -> Optional[str]:
         """
-        Generates a TA1 segment string if required.
+        Generates a complete TA1 EDI interchange (ISA + TA1 + IEA) if required.
         Returns None if no TA1 should be generated (file is accepted and no ack was requested).
         """
         if not isa_header or not isa_header.elements or len(isa_header.elements) < 16:
@@ -44,17 +45,55 @@ class TA1Generator:
             ack_code = TA1AcknowledgementCode.REJECTED
             note_code = errors[0].note_code
         
-        icn = isa_header.get_element(13).strip().zfill(9)
-        date_str = isa_header.get_element(9)
-        time_str = isa_header.get_element(10)
+        # Extract data from original ISA header
+        original_icn = isa_header.get_element(13).strip().zfill(9)
+        original_date_str = isa_header.get_element(9)
+        original_time_str = isa_header.get_element(10)
         
-        date = date_str[2:] if len(date_str) == 8 else date_str
-        time = time_str
+        # Prepare TA1 segment data
+        ta1_date = original_date_str[2:] if len(original_date_str) == 8 else original_date_str
+        ta1_time = original_time_str
 
+        # Generate current timestamp for response ISA
+        now = datetime.now()
+        response_date = now.strftime("%y%m%d")  # YYMMDD format
+        response_time = now.strftime("%H%M")    # HHMM format
+        
+        # Generate unique interchange control number for response
+        response_icn = now.strftime("%y%m%d%H%M").zfill(9)
+        
+        # Extract original sender/receiver info (swap for response)
+        original_auth_qual = isa_header.get_element(1) or "00"
+        original_auth_info = isa_header.get_element(2) or " " * 10
+        original_security_qual = isa_header.get_element(3) or "00" 
+        original_security_info = isa_header.get_element(4) or " " * 10
+        original_sender_qual = isa_header.get_element(5) or "ZZ"
+        original_sender_id = isa_header.get_element(6) or " " * 15
+        original_receiver_qual = isa_header.get_element(7) or "ZZ"
+        original_receiver_id = isa_header.get_element(8) or " " * 15
+        original_standards_id = isa_header.get_element(11) or "^"
+        original_version = isa_header.get_element(12) or "00501"
+        original_test_indicator = isa_header.get_element(15) or "P"
+        original_component_separator = isa_header.get_element(16) or ">"
+        
+        # Create TA1 segment
         ta1_segment = (
-            f"TA1*{icn}*{date}*{time}*"
+            f"TA1*{original_icn}*{ta1_date}*{ta1_time}*"
             f"{ack_code.value}*{note_code.value}"
         )
         
-        logger.debug(f"TA1 Gen: Successfully generated TA1 segment: {ta1_segment}")
-        return ta1_segment
+        # Create complete TA1 interchange (ISA + TA1 + IEA)
+        # Note: Sender and receiver are swapped in the response
+        ta1_interchange = (
+            f"ISA*{original_auth_qual}*{original_auth_info}*"
+            f"{original_security_qual}*{original_security_info}*"
+            f"{original_receiver_qual}*{original_receiver_id}*"  # Swapped: original receiver becomes sender
+            f"{original_sender_qual}*{original_sender_id}*"      # Swapped: original sender becomes receiver
+            f"*{response_date}*{response_time}*{original_standards_id}*"
+            f"{original_version}*{response_icn}*0*{original_test_indicator}*{original_component_separator}~"
+            f"{ta1_segment}~"
+            f"IEA*0*{response_icn}~"
+        )
+        
+        logger.debug(f"TA1 Gen: Successfully generated TA1 interchange: {ta1_interchange}")
+        return ta1_interchange

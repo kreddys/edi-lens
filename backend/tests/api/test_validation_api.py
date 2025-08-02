@@ -68,8 +68,11 @@ async def test_validate_endpoint_returns_accepted_ta1_when_requested(
     
     assert data["status"] == "Validation Complete"
     assert data["ta1_acknowledgement"] is not None
-    assert data["ta1_acknowledgement"].startswith("TA1*000000001")
-    assert data["ta1_acknowledgement"].endswith("*A*000")
+    # Should contain complete EDI interchange (ISA + TA1 + IEA)
+    assert data["ta1_acknowledgement"].startswith("ISA*")
+    assert "TA1*000000001" in data["ta1_acknowledgement"]
+    assert "*A*000~" in data["ta1_acknowledgement"]
+    assert data["ta1_acknowledgement"].endswith("~")
 
 async def test_validate_endpoint_returns_rejected_ta1_on_isa_error(
     async_client: AsyncClient, mock_user_with_validation_perm, edi_with_isa_error: str
@@ -86,8 +89,11 @@ async def test_validate_endpoint_returns_rejected_ta1_on_isa_error(
     
     assert data["status"] == "Rejected at Interchange Level"
     assert data["ta1_acknowledgement"] is not None
-    assert data["ta1_acknowledgement"].startswith("TA1*000000001")
-    assert data["ta1_acknowledgement"].endswith("*R*001")
+    # Should contain complete EDI interchange (ISA + TA1 + IEA)
+    assert data["ta1_acknowledgement"].startswith("ISA*")
+    assert "TA1*000000001" in data["ta1_acknowledgement"]
+    assert "*R*001~" in data["ta1_acknowledgement"]
+    assert data["ta1_acknowledgement"].endswith("~")
 
 async def test_validate_endpoint_parsing_error(async_client: AsyncClient, mock_user_with_validation_perm):
     """

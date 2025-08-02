@@ -2,45 +2,16 @@ import pytest
 import httpx
 import json
 import uuid
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from jose import jwt
-
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.future import select
 
 from src.core.config import settings
 from src.models.audit_log import AuditLog
-
-IntegrationSessionLocal = sessionmaker(
-    create_async_engine(settings.DATABASE_URL),
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
+from tests.e2e.e2e_utils import get_user_token
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.e2e]
-
-# --- Helper Functions to get tokens for different users ---
-
-async def get_user_token(username: str, password: str = "password") -> str:
-    """Fetches a valid access token from the live Keycloak service."""
-    token_url = f"{settings.KEYCLOAK_URL}/realms/{settings.KEYCLOAK_REALM}/protocol/openid-connect/token"
-    payload = {
-        "grant_type": "password",
-        "client_id": settings.KEYCLOAK_BACKEND_CLIENT_ID,
-        "client_secret": settings.KEYCLOAK_BACKEND_CLIENT_SECRET,
-        "username": username,
-        "password": password,
-        "audience": settings.KEYCLOAK_BACKEND_CLIENT_ID,
-    }
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(token_url, data=payload, timeout=10.0)
-            response.raise_for_status()
-            token_data = response.json()
-            return token_data["access_token"]
-        except (httpx.RequestError, KeyError, json.JSONDecodeError) as e:
-            pytest.fail(f"Could not get token for user {username} from Keycloak. Is it running and configured? Error: {e}")
 
 # --- Test Cases ---
 
@@ -152,7 +123,7 @@ async def test_tenant_isolation_with_live_tokens():
         assert response.status_code == 404
 
 @pytest.mark.asyncio
-async def test_audit_log_with_live_token():
+async def test_audit_log_with_live_token(db_session: AsyncSession):
     """
     Verifies that creating a resource with a live token creates an audit log
     with the correct user details from the token's claims.
@@ -171,13 +142,10 @@ async def test_audit_log_with_live_token():
         partner_id = response.json()["id"]
 
     # 2. Connect to the DB and verify the audit log
-    async with IntegrationSessionLocal() as session:
-        result = await session.execute(
-            select(AuditLog)
-            .filter_by(record_pk=str(partner_id), table_name="trading_partners")
-            .order_by(AuditLog.id.desc())
-        )
-        log_entry = result.scalars().first()
+    result = await db_session.execute(
+        select(AuditLog).filter_by(record_pk=str(partner_id), table_name="trading_partners")
+    )
+    log_entry = result.scalars().first()
 
     assert log_entry is not None
     # 3. Assert that the user details in the log match the token claims

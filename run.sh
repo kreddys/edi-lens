@@ -154,7 +154,7 @@ case "$ACTION" in
                 # Ensure infrastructure is ready before running tests
                 ensure_infra
                 info "Ensuring dev stack is running for '$TEST_TYPE' tests..."
-                $DC_EXEC up -d --build --wait
+                $DC_EXEC up -d --build --wait backend
                 if [[ "$TEST_TYPE" == "e2e" ]]; then
                     info "Configuring Keycloak for E2E tests..."
                     sleep 5

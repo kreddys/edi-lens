@@ -5,6 +5,7 @@ from typing import AsyncGenerator
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
 import logging
 import json
 import sys
@@ -67,13 +68,27 @@ TestAsyncSessionLocal = sessionmaker(
 
 @pytest_asyncio.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Provides a clean database session for each integration test function."""
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """
+    Provides a clean database session for each integration test function.
+    It ASSUMES the schema is already created by the container's entrypoint.
+    It cleans up DATA between tests using TRUNCATE for true isolation.
+    """
+    # The container's entrypoint script is responsible for running migrations.
+    # This fixture's only job is to provide a session and clean up data.
+    
     async with TestAsyncSessionLocal() as session:
         yield session
+
+    # After the test, TRUNCATE all tables to ensure the next test starts fresh.
     async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        tables = Base.metadata.sorted_tables
+        # We must disable triggers temporarily to allow TRUNCATE with foreign keys
+        await conn.execute(text("SET session_replication_role = 'replica';"))
+        for table in tables:
+            await conn.execute(text(f"TRUNCATE TABLE public.{table.name} RESTART IDENTITY CASCADE;"))
+        # Re-enable triggers
+        await conn.execute(text("SET session_replication_role = 'origin';"))
+    
     await test_engine.dispose()
 
 @pytest_asyncio.fixture(scope="function")
