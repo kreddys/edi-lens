@@ -2,6 +2,7 @@ import logging
 from contextvars import ContextVar
 from typing import Dict, Any, List
 from enum import Enum
+import uuid  # Import the uuid module
 
 from sqlalchemy import event
 from sqlalchemy.orm import Session, RelationshipProperty
@@ -21,18 +22,20 @@ logger = logging.getLogger(__name__)
 # --- Helper Functions ---
 
 def _serialize_value(value: Any) -> Any:
-    """Converts special types (like enums) to JSON-serializable formats."""
+    """Converts special types (like enums and UUIDs) to JSON-serializable formats."""
     if isinstance(value, Enum):
         return value.value
+    # --- THIS IS THE FIX ---
+    # Add a check for UUID objects and convert them to strings.
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    # --- END OF FIX ---
     return value
 
 def _get_changed_data(obj) -> Dict[str, Any]:
     """Extracts changed data from a dirty SQLAlchemy object."""
     changes = {}
     for attr in obj.__mapper__.attrs:
-        # --- THIS IS THE FIX ---
-        # We check if the attribute is a relationship. If it is, we skip it
-        # to avoid trying to serialize entire related objects.
         if isinstance(attr, RelationshipProperty):
             continue
 

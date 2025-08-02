@@ -9,7 +9,10 @@ from src.core.edi_parser import EdiParser, get_guide_version_from_edi
 from src.core.profile_matcher import ProfileMatcher
 from src.core.acknowledgements.ta1_validator import validate_interchange_envelope
 from src.core.acknowledgements.ta1_generator import TA1Generator
-# from src.repositories.validation_transaction_repo import ValidationTransactionRepository # Uncomment when created
+# --- UNCOMMENT AND ADD ---
+from src.repositories.validation_transaction_repo import ValidationTransactionRepository
+from src.models.validation_transaction import ValidationStatus
+# ---
 from src.core.storage import storage_client
 from src.api.schemas import ValidationResponse, ValidationFinding
 
@@ -29,7 +32,8 @@ class ValidationService:
     def __init__(self, db_session: AsyncSession):
         self.db = db_session
         self.profile_matcher = ProfileMatcher(self.db)
-        # self.validation_repo = ValidationTransactionRepository(self.db) # Uncomment when created
+        # --- UNCOMMENT ---
+        self.validation_repo = ValidationTransactionRepository(self.db)
 
     async def process_edi_file(
         self,
@@ -39,69 +43,86 @@ class ValidationService:
         user_id: str,
         username: str
     ) -> ValidationResponse:
-        """
-        The main entry point for the generic validation workflow.
-        This orchestrates matching, parsing, validation, and acknowledgement generation.
-        """
         logger.info(f"ValidationService: Starting processing for file '{file_name}' in tenant '{tenant_id}'.")
-
-        # Step 1: Pre-validation checks that can cause an immediate hard failure.
-        guide_version = get_guide_version_from_edi(edi_data)
-        if not guide_version:
-            logger.error(f"Could not determine guide version for file '{file_name}'.")
-            raise PrevalidationError("Rejected: Could not determine implementation guide version (GS08)")
-
-        # Step 2: Match Profile to determine validation rules
-        matched_profile = await self.profile_matcher.match(edi_data, tenant_id)
-        if matched_profile:
-            logger.info(f"Matched EDI to profile: '{matched_profile.name}' (ID: {matched_profile.id})")
-        else:
-            logger.info("No specific partner profile matched. Using default validation rules.")
         
-        # Step 3: Determine and load the schema
-        schema_name_to_use = (
-            matched_profile.validation_schema_name if matched_profile and matched_profile.validation_schema_name
-            else get_default_schema_for_guide(guide_version)
-        )
-        
-        if not schema_name_to_use:
-             raise PrevalidationError(f"Rejected: No default schema mapping found for guide version: {guide_version}")
-
-        logger.info(f"Selected schema for validation: '{schema_name_to_use}'")
-        schema = schema_manager.get_schema(schema_name_to_use, tenant_id)
-        if not schema:
-             raise PrevalidationError(f"Rejected: Could not load required validation schema: {schema_name_to_use}")
-
-        # Step 4: Create and store transaction records and original file (future implementation)
         transaction_id = uuid.uuid4()
-        logger.info(f"Generated transaction ID: {transaction_id}")
-        # await self.validation_repo.create_transaction(...)
-        # storage_client.upload(edi_data.encode('utf-8'), f"{tenant_id}/{transaction_id}/request.edi")
-
-        # Step 5: Parse the file
-        parser = EdiParser(edi_string=edi_data, schema=schema)
-        interchange = parser.parse()
-
-        # Step 6: TA1 Validation and Generation
-        interchange_errors = validate_interchange_envelope(interchange, edi_data)
-        ta1_generator = TA1Generator()
-        ta1_ack_string = ta1_generator.generate(interchange.header, interchange_errors)
-
-        if ta1_ack_string:
-             logger.info(f"Generated TA1 Acknowledgement for transaction {transaction_id}.")
-             # storage_client.upload(ta1_ack_string.encode('utf-8'), f"{tenant_id}/{transaction_id}/ta1.edi")
-
-        # Step 7: TODO: Implement 999 Validation and Generation
-        all_findings: list[ValidationFinding] = []
+        ta1_ack_string: Optional[str] = None
         ack999_acknowledgement: Optional[str] = None
+        all_findings: list[ValidationFinding] = []
+        final_status: ValidationStatus = ValidationStatus.PENDING
         
-        # Step 8: TODO: Update transaction record to COMPLETE
-        # await self.validation_repo.update_transaction(status="COMPLETE", ...)
+        try:
+            # Steps 1 & 2: Profile Matching and Schema Selection
+            matched_profile = await self.profile_matcher.match(edi_data, tenant_id)
+            profile_id = matched_profile.id if matched_profile else None
+            
+            guide_version = get_guide_version_from_edi(edi_data)
+            if not guide_version:
+                raise PrevalidationError("Rejected: Could not determine implementation guide version (GS08)")
+            
+            schema_name_to_use = (
+                matched_profile.validation_schema_name if matched_profile and matched_profile.validation_schema_name
+                else get_default_schema_for_guide(guide_version)
+            )
+            if not schema_name_to_use:
+                raise PrevalidationError(f"Rejected: No default schema mapping found for guide version: {guide_version}")
+
+            schema = schema_manager.get_schema(schema_name_to_use, tenant_id)
+            if not schema:
+                raise PrevalidationError(f"Rejected: Could not load required validation schema: {schema_name_to_use}")
+
+            # Step 3 & 4: Create DB record and store original file
+            request_key = f"{tenant_id}/{transaction_id}/request.edi"
+            storage_client.upload(edi_data.encode('utf-8'), request_key)
+            
+            await self.validation_repo.create_transaction(
+                transaction_id=transaction_id, tenant_id=tenant_id, user_id=user_id,
+                username=username, profile_id=profile_id, filename=file_name,
+                request_key=request_key
+            )
+
+            # Step 5: Parse
+            parser = EdiParser(edi_string=edi_data, schema=schema)
+            interchange = parser.parse()
+
+            # Step 6: TA1 Validation and Generation
+            interchange_errors = validate_interchange_envelope(interchange, edi_data)
+            ta1_generator = TA1Generator()
+            ta1_ack_string = ta1_generator.generate(interchange.header, interchange_errors)
+
+            # Step 7: 999 Validation and Generation (placeholder)
+            if not interchange_errors:
+                # validation_engine = ValidationEngine() ...
+                final_status = ValidationStatus.COMPLETE
+            else:
+                final_status = ValidationStatus.FAILED
+
+            # Step 8: Store acknowledgements and update DB record
+            ta1_key = None
+            if ta1_ack_string:
+                ta1_key = f"{tenant_id}/{transaction_id}/ta1.edi"
+                storage_client.upload(ta1_ack_string.encode('utf-8'), ta1_key)
+
+            await self.validation_repo.update_transaction_acks_and_status(
+                transaction_id=transaction_id,
+                status=final_status,
+                ta1_key=ta1_key,
+                ack999_key=None # Placeholder
+            )
+
+        except Exception as e:
+            # If anything fails, update the DB record to FAILED
+            await self.validation_repo.update_transaction_acks_and_status(
+                transaction_id=transaction_id, status=ValidationStatus.FAILED,
+                ta1_key=None, ack999_key=None
+            )
+            # Re-raise the exception to be handled by the API layer
+            raise
 
         # Step 9: Return the final response object
-        status_message = "Rejected at Interchange Level" if interchange_errors else "Validation Complete"
+        response_status_message = "Rejected at Interchange Level" if interchange_errors else "Validation Complete"
         return ValidationResponse(
-            status=status_message,
+            status=response_status_message,
             findings=all_findings,
             ta1_acknowledgement=ta1_ack_string,
             ack999_acknowledgement=ack999_acknowledgement,

@@ -12,3 +12,4 @@ from .trading_partner import TradingPartner
 from .partner_profile import PartnerProfile
 from .profile_criterion import ProfileCriterion
 from .audit_log import AuditLog
+from .validation_transaction import ValidationTransaction
