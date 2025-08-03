@@ -10,7 +10,7 @@ from src.core.config import settings
 from src.repositories.trading_partner import TradingPartnerRepository
 from src.api.schemas import TradingPartnerCreate
 from src.models.processing_schedule import ProcessingSchedule
-from src.models.sftp_configuration import SftpConfiguration
+from src.services.sftp_user_manager import SftpUserManager
 
 # --- THIS IS THE FIX ---
 # Path now correctly points to the top-level 'seed_data' directory
@@ -37,7 +37,7 @@ async def clear_data(session: AsyncSession):
     await session.commit()
     print("✅ Data cleared.")
 
-async def seed_trading_partners(session: AsyncSession):
+async def seed_trading_partners(session: AsyncSession, create_sftp_users: bool = False):
     """Seeds trading partners from the YAML file."""
     print("🌱 Seeding Trading Partners...")
     repo = TradingPartnerRepository(session)
@@ -54,6 +54,15 @@ async def seed_trading_partners(session: AsyncSession):
         print("   - No trading partners found in seed file. Skipping.")
         return
 
+    # Initialize SFTP user manager if requested
+    sftp_manager = None
+    if create_sftp_users:
+        sftp_manager = SftpUserManager()
+        if not sftp_manager.authenticate():
+            print("❌ Failed to authenticate with SFTPGo. SFTP users will not be created.")
+            sftp_manager = None
+
+    created_partners = []
     for partner_data in partners_data:
         tenant_id = partner_data["tenant_id"]
         partner_name = partner_data["name"]
@@ -67,9 +76,33 @@ async def seed_trading_partners(session: AsyncSession):
         print(f"   - Creating '{partner_name}' for tenant '{tenant_id}'...")
         # Use Pydantic schemas for validation and structure
         partner_in = TradingPartnerCreate.model_validate(partner_data)
-        await repo.create_with_profiles(partner_in=partner_in, tenant_id=tenant_id)
+        db_partner = await repo.create_with_profiles(partner_in=partner_in, tenant_id=tenant_id)
+        
+        # Track created partners for SFTP user creation
+        if partner_data.get("sftp_enabled") and sftp_manager:
+            created_partners.append({
+                'partner': db_partner,
+                'sftp_username': partner_data.get("sftp_username"),
+                'sftp_password': partner_data.get("sftp_password"),
+                'tenant_id': tenant_id
+            })
 
     await session.commit()
+    
+    # Create SFTP users for partners that were created
+    if sftp_manager and created_partners:
+        print(f"🔐 Creating SFTP users for {len(created_partners)} partners...")
+        for partner_info in created_partners:
+            username = partner_info['sftp_username']
+            password = partner_info['sftp_password']
+            tenant_id = partner_info['tenant_id']
+            partner_name = partner_info['partner'].name
+            
+            if sftp_manager.create_user(username, password, tenant_id, partner_name):
+                print(f"   ✅ Created SFTP user: {username}")
+            else:
+                print(f"   ❌ Failed to create SFTP user: {username}")
+    
     print("✅ Trading Partners seeded.")
 
 async def seed_processing_schedules(session: AsyncSession):
@@ -132,83 +165,6 @@ async def seed_processing_schedules(session: AsyncSession):
     await session.commit()
     print("✅ Processing Schedules seeded.")
 
-async def seed_sftp_configurations(session: AsyncSession):
-    """Seeds SFTP configurations for existing trading partners."""
-    print("🌱 Seeding SFTP Configurations...")
-    
-    # Get processing schedules
-    schedules_result = await session.execute(text("SELECT id, name FROM processing_schedules"))
-    schedules = {row.name: row.id for row in schedules_result.fetchall()}
-    
-    # Get trading partners
-    partners_result = await session.execute(text("SELECT id, name, tenant_id FROM trading_partners"))
-    partners = {(row.tenant_id, row.name): row.id for row in partners_result.fetchall()}
-    
-    sftp_configs = [
-        {
-            "tenant_id": "tenant-a",
-            "partner_name": "United Health Group (Professional)",
-            "sftp_username": "tenant-a_uhg-pro",
-            "password_hash": "uhg_secure_pass_123",  # In production, this should be properly hashed
-            "poll_schedule": "Every 15 minutes",
-            "file_patterns": '["*.edi", "*.x12", "*_837_*.txt"]'
-        },
-        {
-            "tenant_id": "tenant-a", 
-            "partner_name": "Change Healthcare (Clearinghouse)",
-            "sftp_username": "tenant-a_chc",
-            "password_hash": "chc_secure_pass_456",
-            "poll_schedule": "Every 5 minutes",
-            "file_patterns": '["*.835", "*.277", "*_remit_*.edi"]'
-        },
-        {
-            "tenant_id": "tenant-b",
-            "partner_name": "State Medicaid", 
-            "sftp_username": "tenant-b_medicaid",
-            "password_hash": "medicaid_pass_789",
-            "poll_schedule": "Hourly",
-            "file_patterns": '["*_medicaid_*.edi", "*.x12"]'
-        }
-    ]
-    
-    for config_data in sftp_configs:
-        partner_key = (config_data["tenant_id"], config_data["partner_name"])
-        if partner_key not in partners:
-            print(f"   - Skipping SFTP config for '{config_data['partner_name']}' (partner not found).")
-            continue
-            
-        partner_id = partners[partner_key]
-        schedule_id = schedules.get(config_data["poll_schedule"])
-        
-        # Check if SFTP config already exists
-        existing = await session.execute(
-            text("SELECT id FROM sftp_configurations WHERE partner_id = :partner_id"),
-            {"partner_id": partner_id}
-        )
-        if existing.fetchone():
-            print(f"   - Skipping SFTP config for '{config_data['partner_name']}' (already exists).")
-            continue
-        
-        print(f"   - Creating SFTP config for '{config_data['partner_name']}'...")
-        sftp_config = SftpConfiguration(
-            tenant_id=config_data["tenant_id"],
-            partner_id=partner_id,
-            sftp_enabled=True,
-            sftp_username=config_data["sftp_username"],
-            authentication_type="PASSWORD",
-            password_hash=config_data["password_hash"],
-            inbound_directory="/sftp/tenants/{tenant_id}/{username}/in",
-            outbound_directory="/sftp/tenants/{tenant_id}/{username}/out",
-            file_name_patterns=config_data["file_patterns"],
-            poll_schedule_id=schedule_id,
-            poll_enabled=True,
-            response_timeout_minutes=30,
-            max_file_size_bytes=52428800  # 50MB
-        )
-        session.add(sftp_config)
-    
-    await session.commit()
-    print("✅ SFTP Configurations seeded.")
 
 # --- Main Execution Logic ---
 
@@ -220,6 +176,11 @@ async def main():
         action="store_true",
         help="Wipe existing data from seeded tables before running the seeder."
     )
+    parser.add_argument(
+        "--create-sftp",
+        action="store_true",
+        help="Create SFTP users in SFTPGo for SFTP-enabled trading partners."
+    )
     args = parser.parse_args()
 
     print("--- Starting Database Seeding ---")
@@ -229,8 +190,18 @@ async def main():
         
         # Seed all components in order
         await seed_processing_schedules(session)
-        await seed_trading_partners(session)
-        await seed_sftp_configurations(session)
+        await seed_trading_partners(session, create_sftp_users=args.create_sftp)
+
+    if args.create_sftp:
+        print("\n📡 SFTP Connection Details:")
+        print("🌐 SFTPGo Web Admin: http://localhost:8080/web/admin/")
+        print("🔑 Admin credentials: admin / admin123")
+        print("📡 SFTP Connection: localhost:2022")
+        print("💾 Storage Backend: MinIO S3")
+        print("\n🔐 Trading Partner SFTP Credentials:")
+        print("  - tenant-a_uhg-pro:uhg_secure_pass_123 (United Health Group)")
+        print("  - tenant-a_chc:chc_secure_pass_456 (Change Healthcare)")
+        print("  - tenant-b_medicaid:medicaid_pass_789 (State Medicaid)")
 
     print("--- Database Seeding Complete ---")
 

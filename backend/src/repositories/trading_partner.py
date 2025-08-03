@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 import logging
 import sqlalchemy as sa
 
-from src.models import trading_partner, partner_profile, profile_criterion
+from src.models import trading_partner, partner_profile, profile_criterion, sftp_configuration
 from src.api import schemas
 
 logger = logging.getLogger(__name__)
@@ -99,6 +99,28 @@ class TradingPartnerRepository:
         self.db.add(db_partner)
         await self.db.flush()
         logger.debug(f"Flushed partner '{db_partner.name}'. ID should be available now.")
+        
+        # Create SFTP configuration if enabled
+        if partner_in.sftp_enabled and partner_in.sftp_username and partner_in.sftp_password:
+            logger.info(f"Creating SFTP configuration for partner '{partner_in.name}'")
+            db_sftp_config = sftp_configuration.SftpConfiguration(
+                partner_id=db_partner.id,
+                tenant_id=tenant_id,
+                sftp_enabled=True,
+                sftp_username=partner_in.sftp_username,
+                password_hash=partner_in.sftp_password,  # For seeding, store plain password temporarily
+                authentication_type=sftp_configuration.AuthenticationType.PASSWORD.value,
+                inbound_directory=f"/sftp/tenants/{tenant_id}/{partner_in.sftp_username}/in",
+                outbound_directory=f"/sftp/tenants/{tenant_id}/{partner_in.sftp_username}/out",
+                archive_directory=f"/sftp/tenants/{tenant_id}/.archive/{partner_in.sftp_username}",
+                file_name_patterns='["*.edi", "*.x12", "*.txt"]',
+                max_file_size_bytes=52428800,  # 50MB
+                response_timeout_minutes=30
+            )
+            self.db.add(db_sftp_config)
+            await self.db.flush()
+            logger.debug(f"Created SFTP configuration for partner '{db_partner.name}'")
+        
         return db_partner
 
     async def update(

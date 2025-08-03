@@ -1,6 +1,9 @@
 - tenant_id: "tenant-a"
   name: "United Health Group (Professional)"
   description: "Handles 837P claims for UHG nationwide."
+  sftp_enabled: true
+  sftp_username: "tenant-a_uhg-pro"
+  sftp_password: "uhg_secure_pass_123"
   profiles:
     - name: "UHG Payer Connect - 837P"
       implementation_guide: "005010X222A1"
@@ -18,6 +21,9 @@
 - tenant_id: "tenant-a"
   name: "Change Healthcare (Clearinghouse)"
   description: "Handles claims status and remittances from Change Healthcare."
+  sftp_enabled: true
+  sftp_username: "tenant-a_chc"
+  sftp_password: "chc_secure_pass_456"
   profiles:
     - name: "CHC - 835 Remittances"
       implementation_guide: "005010X221A1"
@@ -47,6 +53,9 @@
 - tenant_id: "tenant-b"
   name: "State Medicaid"
   description: "Configuration for state-level Medicaid submissions."
+  sftp_enabled: true
+  sftp_username: "tenant-b_medicaid"
+  sftp_password: "medicaid_pass_789"
   profiles:
     - name: "Medicaid - Dental Claims"
       implementation_guide: "005010X224A2"

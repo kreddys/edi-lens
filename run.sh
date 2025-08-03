@@ -35,6 +35,14 @@ if [ -z "$1" ] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]]; then
     echo "COMMON ACTIONS (e.g., dev:start, stg:logs):"
     echo "  start, stop, clean, build, logs, migrate:make \"msg\", migrate:run, setup:keycloak, setup:seed"
     echo ""
+    echo "SFTP ACTIONS (dev environment only) - SECURE:"
+    echo "  dev:sftp:process --auth-token TOKEN --tenant TENANT --list-partners"
+    echo "  dev:sftp:process --auth-token TOKEN --tenant TENANT --partner NAME --process-files"
+    echo "  dev:sftp:process --auth-token TOKEN --tenant TENANT --process-all"
+    echo ""
+    echo "LEGACY SFTP ACTIONS (DEPRECATED - USE SECURE VERSION):"
+    echo "  dev:sftp:legacy --tenant TENANT --partner PARTNER     Process files (NO AUTH - DEV ONLY)"
+    echo ""
     echo "TESTING ACTIONS (dev environment only):"
     echo "  dev:test unit [args...]         Run local unit tests (no Docker needed)."
     echo "  dev:test integration [args...]  Run integration tests against the dev stack."
@@ -139,6 +147,39 @@ case "$ACTION" in
         elif [ "$ACTION" == "setup:seed" ]; then
             $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.seed "$@"
         fi
+        ;;
+    sftp:process)
+        if [ "$ENV_CONTEXT" != "dev" ]; then error "'sftp:process' action is only for the 'dev' environment."; fi
+        if [ -z "$1" ]; then error "SFTP process requires arguments. Use --help for usage."; fi
+        
+        # Ensure infrastructure is ready
+        ensure_infra
+        info "Ensuring backend service is running for secure SFTP processing..."
+        $DC_EXEC up -d --wait "$BACKEND_SERVICE"
+        
+        info "Running SECURE multi-tenant SFTP file processor..."
+        warn "This processor requires valid JWT authentication tokens"
+        $DC_EXEC exec "$BACKEND_SERVICE" python scripts/secure_sftp_processor.py "$@"
+        ;;
+    sftp:legacy)
+        if [ "$ENV_CONTEXT" != "dev" ]; then error "'sftp:legacy' action is only for the 'dev' environment."; fi
+        if [ -z "$1" ]; then error "Legacy SFTP process requires arguments."; fi
+        
+        warn "⚠️  USING LEGACY SFTP PROCESSOR - NO AUTHENTICATION!"
+        warn "⚠️  THIS IS FOR DEVELOPMENT ONLY - NOT SECURE!"
+        read -p "Continue with insecure legacy processor? [y/N] " confirm
+        if [[ ! "$confirm" =~ ^[yY](es)?$ ]]; then
+            info "Operation cancelled"
+            exit 0
+        fi
+        
+        # Ensure infrastructure is ready
+        ensure_infra
+        info "Ensuring backend service is running for legacy SFTP processing..."
+        $DC_EXEC up -d --wait "$BACKEND_SERVICE"
+        
+        warn "Running LEGACY (INSECURE) SFTP file processor..."
+        $DC_EXEC exec "$BACKEND_SERVICE" python scripts/manual_sftp_processor_v2.py "$@"
         ;;
     test)
         if [ "$ENV_CONTEXT" != "dev" ]; then error "'test' action is only for the 'dev' environment."; fi

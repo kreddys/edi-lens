@@ -44,6 +44,10 @@ class TradingPartnerCreate(BaseModel):
     name: str
     description: Optional[str] = None
     profiles: List[PartnerProfileCreate]
+    # SFTP Configuration (optional)
+    sftp_enabled: Optional[bool] = False
+    sftp_username: Optional[str] = None
+    sftp_password: Optional[str] = None
 
 # --- Schemas for Updating Data ---
 
