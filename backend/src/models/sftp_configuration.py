@@ -54,3 +54,19 @@ class SftpConfiguration(Base):
     partner = relationship("TradingPartner", back_populates="sftp_configuration")
     schedule = relationship("ProcessingSchedule")
     processing_logs = relationship("FileProcessingLog", back_populates="sftp_config")
+    
+    def get_tenant_partner_username(self) -> str:
+        """Generate the SFTP username in format: tenant_partner"""
+        return f"{self.tenant_id}_{self.sftp_username}"
+    
+    def get_partner_directory_path(self, sftp_root: str = "/sftp/tenants") -> str:
+        """Get the full path to the partner's chroot directory"""
+        return f"{sftp_root}/{self.tenant_id}/{self.sftp_username}"
+    
+    def get_inbound_directory_path(self, sftp_root: str = "/sftp/tenants") -> str:
+        """Get the full path to the partner's inbound directory"""
+        return f"{self.get_partner_directory_path(sftp_root)}/in"
+    
+    def get_outbound_directory_path(self, sftp_root: str = "/sftp/tenants") -> str:
+        """Get the full path to the partner's outbound directory"""
+        return f"{self.get_partner_directory_path(sftp_root)}/out"

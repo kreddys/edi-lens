@@ -25,6 +25,7 @@ python-jose = {extras = ["cryptography"], version = "^3.3.0"}
 python-keycloak = "^4.0.0"
 sqlalchemy = {extras = ["asyncio"], version = "^2.0.31"}
 uvicorn = {extras = ["standard"], version = "^0.30.1"}
+croniter = "^2.0.1"
 
 # --- AI & RAG Dependencies (Final Compatible Set) ---
 crewai = "^0.141.0"

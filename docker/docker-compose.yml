@@ -77,6 +77,7 @@ services:
     volumes:
       - ../backend:/home/appuser/app:delegated # <-- CHANGE: Go up one level
       - /home/appuser/app/.venv
+      - sftp_tenant_data:/sftp/tenants
     networks: [ edi_lens_network ]
     env_file: [ ../.env.dev ] # <-- CHANGE: Go up one level
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir alembic
@@ -136,11 +137,38 @@ services:
     networks:
       - edi_lens_network
 
+  sftp-server:
+    image: lscr.io/linuxserver/openssh-server:latest
+    container_name: sftp-server
+    hostname: sftp-server
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - SUDO_ACCESS=false
+      - PASSWORD_ACCESS=true
+      - USER_PASSWORD=${SFTP_DEFAULT_PASSWORD:-changeme123}
+      - USER_NAME=${SFTP_DEFAULT_USER:-sftpuser}
+    volumes:
+      - sftp_data:/config
+      - sftp_tenant_data:/sftp/tenants
+      # Custom initialization scripts for multi-tenant setup  
+      - ./sftp/init-scripts:/custom-cont-init.d:ro
+    ports:
+      - "2222:2222"
+    networks:
+      - edi_lens_network
+    depends_on:
+      - backend
+    restart: unless-stopped
+
 volumes:
   postgres_kc_data: {}
   postgres_app_data: {}
   admin-ui-node-modules: {}
   minio_data: {}
+  sftp_data: {}
+  sftp_tenant_data: {}
 
 networks:
   edi_lens_network:

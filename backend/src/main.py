@@ -7,11 +7,12 @@ from pathlib import Path
 import os
 import openlit
 
-from src.api.endpoints import validation, trading_partners, auth, schemas, enrichment, knowledge
+from src.api.endpoints import validation, trading_partners, auth, schemas, enrichment, knowledge, sftp
 from src.core.auth import get_current_user, User
 from src.core.config import setup_logging, settings
 from src.core.audit import before_flush, after_flush_postexec
 from src.core.schema_manager import schema_manager
+from src.services.sftp_scheduler import start_scheduler, stop_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,23 @@ async def lifespan(app: FastAPI):
     schema_manager.load_base_schemas(schema_dir)
     
     logger.info("Audit logging system initialized.")
+    
+    # Start SFTP scheduler service
+    try:
+        await start_scheduler()
+        logger.info("SFTP scheduler service started successfully")
+    except Exception as e:
+        logger.error(f"Failed to start SFTP scheduler service: {e}")
+    
     yield
+    
+    # Stop SFTP scheduler service
+    try:
+        await stop_scheduler()
+        logger.info("SFTP scheduler service stopped")
+    except Exception as e:
+        logger.error(f"Error stopping SFTP scheduler service: {e}")
+    
     logger.info("--- Shutting down EDI Lens Validator API ---")
 
 app = FastAPI(
@@ -77,6 +94,7 @@ api_router.include_router(trading_partners.router, tags=["Trading Partners"])
 api_router.include_router(schemas.router, tags=["Schemas"])
 api_router.include_router(enrichment.router, tags=["Enrichment"])
 api_router.include_router(knowledge.router, tags=["Knowledge Base"])
+api_router.include_router(sftp.router, prefix="/sftp", tags=["SFTP"])
 
 # Finally, include the main api_router in the app
 app.include_router(api_router)

@@ -137,3 +137,8 @@ class EnrichmentApplyBatchRequest(BaseModel):
     """Request to apply a batch of JSON patches to a schema."""
     schema_name: str
     patches: List[ElementEnrichment]
+
+
+class MessageResponse(BaseModel):
+    """Simple response with a message."""
+    message: str
