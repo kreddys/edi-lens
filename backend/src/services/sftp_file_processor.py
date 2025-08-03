@@ -181,72 +181,81 @@ class SftpFileProcessor:
         self.worker_id = f"processor-{os.getpid()}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
         logger.info(f"Initialized SFTP File Processor with worker ID: {self.worker_id}")
     
-    async def process_files_for_config(self, config: SftpConfiguration):
+    async def process_files_for_config(self, config: SftpConfiguration, db_session: Optional[AsyncSession] = None):
         """Process files for a specific SFTP configuration."""
-        async with AsyncSessionLocal() as db_session:
-            locking_service = FileLockingService(db_session)
-            validation_service = ValidationService(db_session)
-            
-            # Discover files
-            files = await self.discovery_service.discover_files(config)
-            logger.info(f"Discovered {len(files)} files for partner {config.partner_id}")
-            
-            for file_path in files:
-                try:
-                    # Attempt to acquire lock
-                    processing_log = await locking_service.acquire_lock(config, file_path, self.worker_id)
-                    if not processing_log:
-                        continue
+        if db_session:
+            # Use provided session (for testing)
+            await self._process_files_with_session(config, db_session)
+        else:
+            # Create own session (for production)
+            async with AsyncSessionLocal() as session:
+                await self._process_files_with_session(config, session)
+    
+    async def _process_files_with_session(self, config: SftpConfiguration, db_session: AsyncSession):
+        """Process files with a specific database session."""
+        locking_service = FileLockingService(db_session)
+        validation_service = ValidationService(db_session)
+        
+        # Discover files
+        files = await self.discovery_service.discover_files(config)
+        logger.info(f"Discovered {len(files)} files for partner {config.partner_id}")
+        
+        for file_path in files:
+            try:
+                # Attempt to acquire lock
+                processing_log = await locking_service.acquire_lock(config, file_path, self.worker_id)
+                if not processing_log:
+                    continue
                     
-                    # Update status to processing
-                    processing_log.status = FileProcessingStatus.PROCESSING.value
-                    processing_log.processing_started_at = datetime.utcnow()
-                    await db_session.commit()
+                # Update status to processing
+                processing_log.status = FileProcessingStatus.PROCESSING.value
+                processing_log.processing_started_at = datetime.utcnow()
+                await db_session.commit()
                     
-                    # Read and process file
-                    file_content = await self._read_file_content(file_path)
-                    if not file_content:
+                # Read and process file
+                file_content = await self._read_file_content(file_path)
+                if not file_content:
+                    await locking_service.release_lock(processing_log, FileProcessingStatus.FAILED)
+                    continue
+                    
+                # Process through validation service
+                validation_response = await validation_service.process_edi_file(
+                    edi_data=file_content,
+                    file_name=file_path.name,
+                    tenant_id=config.tenant_id,
+                    user_id="sftp-system",
+                    username="sftp-processor"
+                )
+                    
+                # Update validation transaction with SFTP source info
+                await self._update_validation_transaction_for_sftp(
+                    db_session, processing_log, config
+                )
+                    
+                # Handle response delivery
+                if validation_response.ta1_acknowledgement:
+                    await self._deliver_response(
+                        config, file_path, validation_response.ta1_acknowledgement, processing_log
+                    )
+                    
+                # Archive original file
+                await self._archive_file(file_path, config)
+                    
+                # Mark as completed
+                await locking_service.release_lock(processing_log, FileProcessingStatus.COMPLETED)
+                logger.info(f"Successfully processed file {file_path.name}")
+                    
+            except Exception as e:
+                logger.error(f"Error processing file {file_path}: {e}")
+                if 'processing_log' in locals():
+                    processing_log.error_message = str(e)[:1000]  # Truncate to fit DB field
+                    processing_log.retry_count += 1
+                    
+                    if processing_log.can_retry:
                         await locking_service.release_lock(processing_log, FileProcessingStatus.FAILED)
-                        continue
-                    
-                    # Process through validation service
-                    validation_response = await validation_service.process_edi_file(
-                        edi_data=file_content,
-                        file_name=file_path.name,
-                        tenant_id=config.tenant_id,
-                        user_id="sftp-system",
-                        username="sftp-processor"
-                    )
-                    
-                    # Update validation transaction with SFTP source info
-                    await self._update_validation_transaction_for_sftp(
-                        db_session, processing_log, config
-                    )
-                    
-                    # Handle response delivery
-                    if validation_response.ta1_acknowledgement:
-                        await self._deliver_response(
-                            config, file_path, validation_response.ta1_acknowledgement, processing_log
-                        )
-                    
-                    # Archive original file
-                    await self._archive_file(file_path, config)
-                    
-                    # Mark as completed
-                    await locking_service.release_lock(processing_log, FileProcessingStatus.COMPLETED)
-                    logger.info(f"Successfully processed file {file_path.name}")
-                    
-                except Exception as e:
-                    logger.error(f"Error processing file {file_path}: {e}")
-                    if 'processing_log' in locals():
-                        processing_log.error_message = str(e)[:1000]  # Truncate to fit DB field
-                        processing_log.retry_count += 1
-                        
-                        if processing_log.can_retry:
-                            await locking_service.release_lock(processing_log, FileProcessingStatus.FAILED)
-                        else:
-                            await locking_service.release_lock(processing_log, FileProcessingStatus.FAILED)
-                            logger.error(f"File {file_path.name} exceeded retry limit")
+                    else:
+                        await locking_service.release_lock(processing_log, FileProcessingStatus.FAILED)
+                        logger.error(f"File {file_path.name} exceeded retry limit")
     
     async def _read_file_content(self, file_path: Path) -> Optional[str]:
         """Read file content as string."""

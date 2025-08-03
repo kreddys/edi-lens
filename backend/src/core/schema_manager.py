@@ -22,6 +22,7 @@ class SchemaManager:
 
     def load_base_schemas(self, schema_dir: Path):
         """Loads only the base schemas from the local filesystem at startup."""
+        logger.info(f"Attempting to load base schemas from: {schema_dir}")
         if not schema_dir.is_dir():
             logger.warning(f"Base schema directory not found: {schema_dir}")
             return
@@ -43,7 +44,16 @@ class SchemaManager:
         for specialized schemas, and finally falls back to downloading from object storage.
         """
         # 1. Check for base schema
+        # Ensure base schemas are loaded (fallback for test environments)
+        if not self._base_schemas:
+            logger.warning("Base schemas not loaded, attempting to load them now...")
+            from src.core.config import settings
+            schema_dir = Path(settings.EDI_SCHEMA_DIRECTORY)
+            self.load_base_schemas(schema_dir)
+        
+        logger.info(f"Looking for schema '{schema_name}' for tenant '{tenant_id}'. Available base schemas: {list(self._base_schemas.keys())}")
         if schema_name in self._base_schemas:
+            logger.info(f"Found base schema '{schema_name}', returning it.")
             return self._base_schemas[schema_name]
 
         # 2. Check in-memory cache for specialized schema
@@ -58,6 +68,10 @@ class SchemaManager:
 
         if not schema_bytes:
             logger.warning(f"Schema '{schema_name}' not found for tenant '{tenant_id}' in object storage.")
+            # Fallback to base schema if tenant-specific one is not found
+            if schema_name in self._base_schemas:
+                logger.info(f"Falling back to base schema '{schema_name}' for tenant '{tenant_id}'.")
+                return self._base_schemas[schema_name]
             return None
         
         try:

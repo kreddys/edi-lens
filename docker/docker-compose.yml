@@ -137,29 +137,35 @@ services:
     networks:
       - edi_lens_network
 
-  sftp-server:
-    image: lscr.io/linuxserver/openssh-server:latest
-    container_name: sftp-server
-    hostname: sftp-server
+  sftpgo:
+    image: drakkan/sftpgo:v2.6
+    container_name: sftpgo
+    hostname: sftpgo
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Etc/UTC
-      - SUDO_ACCESS=false
-      - PASSWORD_ACCESS=true
-      - USER_PASSWORD=${SFTP_DEFAULT_PASSWORD:-changeme123}
-      - USER_NAME=${SFTP_DEFAULT_USER:-sftpuser}
+      - SFTPGO_DATA_PROVIDER__DRIVER=memory  # We'll use REST API for user management
+      - SFTPGO_DEFAULT_ADMIN_USERNAME=admin
+      - SFTPGO_DEFAULT_ADMIN_PASSWORD=admin123
+      - SFTPGO_WEBDAVD__BINDINGS__0__PORT=8090
+      - SFTPGO_WEBDAVD__BINDINGS__0__ADDRESS=0.0.0.0
+      - SFTPGO_SFTPD__BINDINGS__0__PORT=2022
+      - SFTPGO_SFTPD__BINDINGS__0__ADDRESS=0.0.0.0
+      - SFTPGO_HTTPD__BINDINGS__0__PORT=8080
+      - SFTPGO_HTTPD__BINDINGS__0__ADDRESS=0.0.0.0
+      - SFTPGO_HTTPD__BINDINGS__0__ENABLE_WEB_ADMIN=1
+      - SFTPGO_HTTPD__BINDINGS__0__ENABLE_WEB_CLIENT=1
+      - SFTPGO_HTTPD__BINDINGS__0__ENABLE_REST_API=1
+      - SFTPGO_GRACE_TIME=30
     volumes:
-      - sftp_data:/config
-      - sftp_tenant_data:/sftp/tenants
-      # Custom initialization scripts for multi-tenant setup  
-      - ./sftp/init-scripts:/custom-cont-init.d:ro
+      - ./sftpgo/config:/var/lib/sftpgo
+      - sftpgo_data:/srv/sftpgo
     ports:
-      - "2222:2222"
+      - "2022:2022"  # SFTP
+      - "8080:8080"  # Web Admin/Client/API
+      - "8090:8090"  # WebDAV (optional)
     networks:
       - edi_lens_network
     depends_on:
-      - backend
+      - minio
     restart: unless-stopped
 
 volumes:
@@ -167,7 +173,7 @@ volumes:
   postgres_app_data: {}
   admin-ui-node-modules: {}
   minio_data: {}
-  sftp_data: {}
+  sftpgo_data: {}
   sftp_tenant_data: {}
 
 networks:

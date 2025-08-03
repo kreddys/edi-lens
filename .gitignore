@@ -67,3 +67,4 @@ tmp/
 data/
 backups/
 minio-data/
+docker/sftpgo/config
