@@ -48,6 +48,14 @@ class TradingPartnerCreate(BaseModel):
     sftp_enabled: Optional[bool] = False
     sftp_username: Optional[str] = None
     sftp_password: Optional[str] = None
+    authentication_type: Optional[str] = "PASSWORD"
+    ssh_public_key: Optional[str] = None
+    file_name_patterns: Optional[str] = '["*.edi", "*.x12"]'
+    poll_schedule_id: Optional[int] = None
+    poll_enabled: Optional[bool] = True
+    response_filename_template: Optional[str] = None
+    response_timeout_minutes: Optional[int] = 5
+    max_file_size_bytes: Optional[int] = 52428800
 
 # --- Schemas for Updating Data ---
 
@@ -63,6 +71,18 @@ class TradingPartnerUpdate(BaseModel):
     name: str
     description: Optional[str] = None
     profiles: List[PartnerProfileUpdate]
+    # SFTP Configuration (optional)
+    sftp_enabled: Optional[bool] = False
+    sftp_username: Optional[str] = None
+    sftp_password: Optional[str] = None
+    authentication_type: Optional[str] = "PASSWORD"
+    ssh_public_key: Optional[str] = None
+    file_name_patterns: Optional[str] = '["*.edi", "*.x12"]'
+    poll_schedule_id: Optional[int] = None
+    poll_enabled: Optional[bool] = True
+    response_filename_template: Optional[str] = None
+    response_timeout_minutes: Optional[int] = 5
+    max_file_size_bytes: Optional[int] = 52428800
 
 
 # --- Schemas for Reading Data (Response Models) ---

@@ -139,7 +139,7 @@ def main():
             '.gitignore', 'README.md',
             '.env.dev.example', '.env.test.example', '.env.prod.example',
             'docker',
-            'run.sh', 'scripts/queries.sql', 'docs', 'backend/data/knowledge', 'backend/data/edi_schemas/837.5010.X222.A1.json'
+            'run.sh',
         ])
     
     unique_paths = list(dict.fromkeys(paths_to_scan))

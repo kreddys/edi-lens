@@ -14,6 +14,7 @@ from src.models.file_processing_log import FileProcessingLog
 from src.models.processing_schedule import ProcessingSchedule
 from src.services.sftp_scheduler import get_scheduler
 from src.api.schemas import MessageResponse
+from pydantic import BaseModel, Field, computed_field
 from pydantic import BaseModel, Field
 from pathlib import Path
 from datetime import datetime
@@ -29,10 +30,10 @@ class SftpConfigurationResponse(BaseModel):
     sftp_enabled: bool
     sftp_username: str
     authentication_type: str
-    inbound_directory: str
-    outbound_directory: str
-    archive_directory: str | None
-    file_name_patterns: str | None
+    # These fields below are implementation details and no longer needed in the response.
+    # inbound_directory: str 
+    # outbound_directory: str
+    # archive_directory: str | None
     poll_schedule_id: int | None
     poll_enabled: bool
     response_filename_template: str | None
@@ -40,12 +41,14 @@ class SftpConfigurationResponse(BaseModel):
     max_file_size_bytes: int
     created_at: datetime
     updated_at: datetime | None
-    
-    # Multi-tenant helper fields
-    tenant_partner_username: str | None = None
-    partner_directory_path: str | None = None
-    inbound_directory_path: str | None = None
-    outbound_directory_path: str | None = None
+
+    @computed_field
+    @property
+    def tenant_partner_username(self) -> str:
+        # This is the clean, logical identifier the UI needs.
+        return f"{self.tenant_id}_{self.sftp_username}"
+
+    # REMOVED: partner_directory_path computed field to avoid exposing internal structure.
 
     class Config:
         from_attributes = True
@@ -116,7 +119,7 @@ class ProcessingScheduleResponse(BaseModel):
     description: str | None
     cron_expression: str
     is_active: bool
-    created_at: str
+    created_at: datetime # Change this from str to datetime
 
     class Config:
         from_attributes = True
@@ -335,14 +338,8 @@ async def create_sftp_configuration(
     await db.commit()
     await db.refresh(config)
     
-    # Enhance response with multi-tenant helper fields
-    response = SftpConfigurationResponse.model_validate(config)
-    response.tenant_partner_username = config.get_tenant_partner_username()
-    response.partner_directory_path = config.get_partner_directory_path()
-    response.inbound_directory_path = config.get_inbound_directory_path()
-    response.outbound_directory_path = config.get_outbound_directory_path()
-    
-    return response
+    # Return response (computed fields will be calculated automatically)
+    return SftpConfigurationResponse.model_validate(config)
 
 
 @router.put("/configurations/{partner_id}", response_model=SftpConfigurationResponse)
@@ -385,14 +382,8 @@ async def update_sftp_configuration(
     await db.commit()
     await db.refresh(config)
     
-    # Enhance response with multi-tenant helper fields
-    response = SftpConfigurationResponse.model_validate(config)
-    response.tenant_partner_username = config.get_tenant_partner_username()
-    response.partner_directory_path = config.get_partner_directory_path()
-    response.inbound_directory_path = config.get_inbound_directory_path()
-    response.outbound_directory_path = config.get_outbound_directory_path()
-    
-    return response
+    # Return response (computed fields will be calculated automatically)
+    return SftpConfigurationResponse.model_validate(config)
 
 
 @router.delete("/configurations/{partner_id}", response_model=MessageResponse)

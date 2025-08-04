@@ -18,3 +18,6 @@ from .validation_transaction import ValidationTransaction
 from .processing_schedule import ProcessingSchedule
 from .sftp_configuration import SftpConfiguration
 from .file_processing_log import FileProcessingLog
+
+# General processing models
+from .processing_log import ProcessingLog
