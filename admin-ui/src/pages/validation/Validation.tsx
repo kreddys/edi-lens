@@ -93,6 +93,8 @@ export const Validation: React.FC = () => {
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [ediStructure, setEdiStructure] = useState<EDIStructure | null>(null);
 
+  // Debug logging for tests - removed to clean up test output
+
   // Fetch available profiles for manual selection
   const { data: profilesData } = useCustom<Profile[]>({
     url: "/trading-partners",
@@ -162,11 +164,12 @@ export const Validation: React.FC = () => {
       }
 
       const response = await axios.post("/api/v1/validate", payload);
-      setValidationResult(response.data);
+      const validationData = response.data;
+      setValidationResult(validationData);
       
       notification.success({
         message: "Validation Complete",
-        description: `EDI validation completed in ${response.data.processing_time_ms}ms`
+        description: `EDI validation completed in ${validationData?.processing_time_ms || 0}ms`
       });
     } catch (error: any) {
       notification.error({
@@ -180,15 +183,36 @@ export const Validation: React.FC = () => {
   };
 
   const downloadResponse = (content: string, filename: string) => {
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    try {
+      const blob = new Blob([content], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      
+      // Use event approach instead of DOM manipulation for testing compatibility
+      if (typeof window !== 'undefined' && document.body) {
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // Fallback for test environments
+        const event = new MouseEvent('click', {
+          view: window,
+          bubbles: true,
+          cancelable: true,
+        });
+        link.dispatchEvent(event);
+      }
+      
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.warn('Download failed:', error);
+      notification.error({
+        message: "Download Failed",
+        description: "Unable to download file. Please try again."
+      });
+    }
   };
 
   const exportValidationResults = () => {
@@ -278,7 +302,9 @@ export const Validation: React.FC = () => {
                 <Text strong>Profile Selection:</Text>
                 <Radio.Group 
                   value={profileMode} 
-                  onChange={(e) => setProfileMode(e.target.value)}
+                  onChange={(e) => {
+                    setProfileMode(e.target.value);
+                  }}
                   style={{ marginLeft: 8, marginBottom: 8 }}
                 >
                   <Radio.Button value="auto">Auto-detect Profile</Radio.Button>
@@ -287,15 +313,15 @@ export const Validation: React.FC = () => {
                 
                 {profileMode === "manual" && (
                   <Select
-                    placeholder="Select a profile..."
-                    value={selectedProfile}
-                    onChange={setSelectedProfile}
-                    style={{ width: "100%" }}
-                    options={profiles.map(profile => ({
-                      label: `${profile.name} (${profile.implementation_guide})`,
-                      value: profile.name
-                    }))}
-                  />
+                      placeholder="Select a profile..."
+                      value={selectedProfile}
+                      onChange={setSelectedProfile}
+                      style={{ width: "100%" }}
+                      options={profiles.map(profile => ({
+                        label: `${profile.name} (${profile.implementation_guide})`,
+                        value: profile.name
+                      }))}
+                    />
                 )}
               </div>
 
@@ -305,6 +331,7 @@ export const Validation: React.FC = () => {
                   type="primary"
                   icon={<PlayCircleOutlined />}
                   loading={isValidating}
+                  disabled={!ediContent.trim() || isValidating}
                   onClick={validateEDI}
                   size="large"
                 >

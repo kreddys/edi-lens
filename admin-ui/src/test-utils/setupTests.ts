@@ -30,7 +30,7 @@ configure({ testIdAttribute: 'data-testid' });
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: jest.fn().mockImplementation(query => ({
-    matches: false,
+    matches: query === '(min-width: 768px)' ? true : false,
     media: query,
     onchange: null,
     addListener: jest.fn(), // deprecated
@@ -40,6 +40,43 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: jest.fn(),
   })),
 });
+
+// Mock ResizeObserver for Ant Design components that need it
+global.ResizeObserver = jest.fn().mockImplementation(() => ({
+  observe: jest.fn(),
+  unobserve: jest.fn(),
+  disconnect: jest.fn(),
+}));
+
+// Mock Ant Design ResponsiveObserver - use factory function to avoid scope issues
+jest.mock('antd/lib/_util/responsiveObserver', () => ({
+  __esModule: true,
+  default: jest.fn(() => ({
+    subscribe: jest.fn(),
+    unsubscribe: jest.fn(),
+    responsiveMap: {
+      xs: '(max-width: 575px)',
+      sm: '(min-width: 576px)',
+      md: '(min-width: 768px)',
+      lg: '(min-width: 992px)',
+      xl: '(min-width: 1200px)',
+      xxl: '(min-width: 1600px)',
+    },
+  })),
+}));
+
+// Also mock the antd Steps useBreakpoint hook that depends on ResponsiveObserver
+jest.mock('antd/lib/grid/hooks/useBreakpoint', () => ({
+  __esModule: true,
+  default: () => ({
+    xs: false,
+    sm: false,
+    md: true,
+    lg: true,
+    xl: true,
+    xxl: true,
+  }),
+}));
 
 // Mock console methods to reduce noise in tests
 const originalError = console.error;

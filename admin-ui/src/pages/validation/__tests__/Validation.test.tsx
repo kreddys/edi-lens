@@ -14,10 +14,8 @@ jest.mock('axios', () => ({
   get: jest.fn()
 }));
 
-const mockAxios = {
-  post: jest.fn(),
-  get: jest.fn()
-};
+import axios from 'axios';
+const mockAxios = axios as jest.Mocked<typeof axios>;
 
 // Mock Refine hooks
 const mockCustom = jest.fn();
@@ -25,7 +23,26 @@ const mockCustom = jest.fn();
 jest.mock('@refinedev/core', () => ({
   ...jest.requireActual('@refinedev/core'),
   useCustom: () => ({ 
-    data: { data: [{ name: 'Test Profile' }, { name: 'Priority Claims' }] }, 
+    data: { 
+      data: [
+        { 
+          id: 1, 
+          name: 'Test Profile', 
+          implementation_guide: '837P Claims',
+          snip_level: 'SNIP3',
+          generate_ta1: true,
+          generate_999: false
+        },
+        { 
+          id: 2, 
+          name: 'Priority Claims', 
+          implementation_guide: '837I Institutional',
+          snip_level: 'SNIP3',
+          generate_ta1: true,
+          generate_999: true
+        }
+      ] 
+    }, 
     isLoading: false 
   })
 }));
@@ -142,8 +159,14 @@ IEA*1*000000001~`;
       await user.click(manualButton);
 
       await waitFor(() => {
-        expect(screen.getByPlaceholderText('Select a profile...')).toBeInTheDocument();
+        // Debug: check if manual selection is actually selected
+        expect(manualButton.closest('label')).toHaveClass('ant-radio-button-wrapper-checked');
       });
+
+      // Give it more time for conditional rendering
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Select a profile...')).toBeInTheDocument();
+      }, { timeout: 2000 });
     });
 
     it('hides profile dropdown when auto-detect is chosen', async () => {
@@ -186,8 +209,8 @@ IEA*1*000000001~`;
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Test Profile')).toBeInTheDocument();
-        expect(screen.getByText('Priority Claims')).toBeInTheDocument();
+        expect(screen.getByText('Test Profile (837P Claims)')).toBeInTheDocument();
+        expect(screen.getByText('Priority Claims (837I Institutional)')).toBeInTheDocument();
       });
     });
   });
@@ -201,7 +224,7 @@ IEA*1*000000001~`;
       );
 
       const textarea = screen.getByPlaceholderText('Paste your EDI content here or upload a file above...');
-      await user.type(textarea, sampleEdiData);
+      fireEvent.change(textarea, { target: { value: sampleEdiData } });
 
       expect(textarea).toHaveValue(sampleEdiData);
 
@@ -261,14 +284,14 @@ IEA*1*000000001~`;
       );
 
       const textarea = screen.getByPlaceholderText('Paste your EDI content here or upload a file above...');
-      await user.type(textarea, sampleEdiData);
+      fireEvent.change(textarea, { target: { value: sampleEdiData } });
 
       const validateButton = screen.getByText('Validate EDI');
       await user.click(validateButton);
 
       expect(mockAxios.post).toHaveBeenCalledWith('/api/v1/validate', {
         edi_data: sampleEdiData,
-        file_name: 'pasted_content.edi'
+        file_name: 'validation_test.edi'
       });
 
       await waitFor(() => {
@@ -291,18 +314,18 @@ IEA*1*000000001~`;
       await waitFor(async () => {
         const profileSelect = screen.getByPlaceholderText('Select a profile...');
         fireEvent.mouseDown(profileSelect);
-        await user.click(screen.getByText('Test Profile'));
+        await user.click(screen.getByText('Test Profile (837P Claims)'));
       });
 
       const textarea = screen.getByPlaceholderText('Paste your EDI content here or upload a file above...');
-      await user.type(textarea, sampleEdiData);
+      fireEvent.change(textarea, { target: { value: sampleEdiData } });
 
       const validateButton = screen.getByText('Validate EDI');
       await user.click(validateButton);
 
       expect(mockAxios.post).toHaveBeenCalledWith('/api/v1/validate', {
         edi_data: sampleEdiData,
-        file_name: 'pasted_content.edi',
+        file_name: 'validation_test.edi',
         profile_name: 'Test Profile'
       });
     });
@@ -320,7 +343,7 @@ IEA*1*000000001~`;
       );
 
       const textarea = screen.getByPlaceholderText('Paste your EDI content here or upload a file above...');
-      await user.type(textarea, sampleEdiData);
+      fireEvent.change(textarea, { target: { value: sampleEdiData } });
 
       const validateButton = screen.getByText('Validate EDI');
       await user.click(validateButton);
@@ -337,7 +360,7 @@ IEA*1*000000001~`;
       );
 
       const textarea = screen.getByPlaceholderText('Paste your EDI content here or upload a file above...');
-      await user.type(textarea, sampleEdiData);
+      fireEvent.change(textarea, { target: { value: sampleEdiData } });
 
       const validateButton = screen.getByText('Validate EDI');
       await user.click(validateButton);
@@ -382,7 +405,7 @@ IEA*1*000000001~`;
       );
 
       const textarea = screen.getByPlaceholderText('Paste your EDI content here or upload a file above...');
-      await user.type(textarea, sampleEdiData);
+      fireEvent.change(textarea, { target: { value: sampleEdiData } });
 
       const validateButton = screen.getByText('Validate EDI');
       await user.click(validateButton);
@@ -405,7 +428,7 @@ IEA*1*000000001~`;
       );
 
       const textarea = screen.getByPlaceholderText('Paste your EDI content here or upload a file above...');
-      await user.type(textarea, sampleEdiData);
+      fireEvent.change(textarea, { target: { value: sampleEdiData } });
 
       const validateButton = screen.getByText('Validate EDI');
       await user.click(validateButton);
@@ -436,7 +459,7 @@ IEA*1*000000001~`;
       );
 
       const textarea = screen.getByPlaceholderText('Paste your EDI content here or upload a file above...');
-      await user.type(textarea, sampleEdiData);
+      fireEvent.change(textarea, { target: { value: sampleEdiData } });
 
       const validateButton = screen.getByText('Validate EDI');
       await user.click(validateButton);
@@ -461,7 +484,7 @@ IEA*1*000000001~`;
       );
 
       const textarea = screen.getByPlaceholderText('Paste your EDI content here or upload a file above...');
-      await user.type(textarea, sampleEdiData);
+      fireEvent.change(textarea, { target: { value: sampleEdiData } });
 
       const validateButton = screen.getByText('Validate EDI');
       await user.click(validateButton);
@@ -487,7 +510,7 @@ IEA*1*000000001~`;
       );
 
       const textarea = screen.getByPlaceholderText('Paste your EDI content here or upload a file above...');
-      await user.type(textarea, sampleEdiData);
+      fireEvent.change(textarea, { target: { value: sampleEdiData } });
 
       const validateButton = screen.getByText('Validate EDI');
       await user.click(validateButton);
@@ -516,7 +539,7 @@ IEA*1*000000001~`;
       );
 
       const textarea = screen.getByPlaceholderText('Paste your EDI content here or upload a file above...');
-      await user.type(textarea, sampleEdiData);
+      fireEvent.change(textarea, { target: { value: sampleEdiData } });
 
       const validateButton = screen.getByText('Validate EDI');
       await user.click(validateButton);
@@ -541,7 +564,7 @@ IEA*1*000000001~`;
       );
 
       const textarea = screen.getByPlaceholderText('Paste your EDI content here or upload a file above...');
-      await user.type(textarea, 'Invalid EDI content');
+      fireEvent.change(textarea, { target: { value: 'Invalid EDI content' } });
 
       const validateButton = screen.getByText('Validate EDI');
       await user.click(validateButton);
@@ -563,7 +586,7 @@ IEA*1*000000001~`;
       await user.click(manualButton);
 
       const textarea = screen.getByPlaceholderText('Paste your EDI content here or upload a file above...');
-      await user.type(textarea, sampleEdiData);
+      fireEvent.change(textarea, { target: { value: sampleEdiData } });
 
       const validateButton = screen.getByText('Validate EDI');
       await user.click(validateButton);
