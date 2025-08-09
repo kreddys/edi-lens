@@ -5,8 +5,7 @@
     auto_https off
 }
 
-# Main Application & Proxies
-# Caddy listens on port 3001 inside the container for these services.
+# Main Application & Proxies (Listens on :3001)
 :3001 {
     # Route API calls to the backend
     handle /api/* {
@@ -24,17 +23,17 @@
     }
 }
 
-# Keycloak Admin UI
-# Caddy listens on port 8081 inside the container.
+# Keycloak Admin UI (Listens on :8081)
 :8081 {
     reverse_proxy keycloak:8080
 }
 
-# MinIO Web Console (Standalone Port)
-# Caddy listens on port 9001 inside the container.
+# MinIO Web Console (Standalone Port, Listens on :9001)
 :9001 {
-    # --- THIS IS THE FIX ---
-    # The MinIO Web UI is served on port 9001, not 9000.
     reverse_proxy minio:9001
-    # --- END OF FIX ---
+}
+
+# SFTPGo Web Admin UI & API (Listens on :8082)
+:8082 {
+    reverse_proxy sftpgo:8080
 }

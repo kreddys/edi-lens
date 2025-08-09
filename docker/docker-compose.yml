@@ -7,15 +7,15 @@ services:
     image: caddy:2-alpine
     container_name: caddy
     ports:
-      - "3001:3001"
-      - "8081:8081"
-      - "9001:9001"
+      - "3001:3001" # Main app port
+      - "8081:8081" # Keycloak UI port
+      - "9001:9001" # MinIO Console port
+      - "8082:8082" # SFTPGo UI port
     volumes:
-      # ./ is now the /docker directory
       - ./caddy/dev.Caddyfile:/etc/caddy/Caddyfile
     networks:
       - edi_lens_network
-    depends_on: [backend, admin-ui, keycloak]
+    depends_on: [backend, admin-ui, keycloak, sftpgo]
 
   db-keycloak:
     image: postgres:15-alpine
@@ -161,9 +161,7 @@ services:
       - ./sftpgo/config:/var/lib/sftpgo
       - sftpgo_data:/srv/sftpgo
     ports:
-      - "2022:2022"  # SFTP
-      - "8080:8080"  # Web Admin/Client/API
-      - "8090:8090"  # WebDAV (optional)
+      - "2022:2022"  # SFTP protocol port remains directly exposed
     networks:
       - edi_lens_network
     depends_on:
