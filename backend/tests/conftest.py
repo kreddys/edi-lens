@@ -12,7 +12,6 @@ import json
 import sys
 from pathlib import Path
 import os
-from contextlib import asynccontextmanager
 
 from src.main import app
 from src.core.database import get_db, Base
@@ -25,10 +24,6 @@ from src.edi_schemas.edi_guide import ImplementationGuideSchema
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment(pytestconfig):
-    """
-    An autouse session-scoped fixture to configure the test environment
-    before any tests are run. This is the definitive place for setup.
-    """
     log_level = pytestconfig.getoption("log_cli_level") or "INFO"
     logging.basicConfig(
         level=log_level.upper(),
@@ -41,13 +36,12 @@ def setup_test_environment(pytestconfig):
         logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
     
     logging.info(f"Test logging configured with level: {log_level.upper()}")
-
     os.environ["IS_PYTEST"] = "true"
     yield
     del os.environ["IS_PYTEST"]
 
 # ==============================================================================
-# INTEGRATION TEST FIXTURES (Depend on Docker services)
+# INTEGRATION TEST FIXTURES
 # ==============================================================================
 
 test_engine = create_async_engine(settings.DATABASE_URL, echo=False)
@@ -60,33 +54,35 @@ TestAsyncSessionLocal = sessionmaker(
     expire_on_commit=False,
 )
 
-# --- THIS IS THE SINGLE, CORRECT FIXTURE DEFINITION ---
 @pytest_asyncio.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Provides a clean database session wrapped in a transaction for each test."""
-    async with test_engine.begin() as connection:
-        await connection.begin_nested()
-        async with TestAsyncSessionLocal(bind=connection) as session:
-            yield session
-            await session.rollback()
+    """
+    Provides a clean database session for each test function.
+    Cleans up DATA between tests using TRUNCATE for true isolation.
+    """
+    async with TestAsyncSessionLocal() as session:
+        yield session
 
-# --- THIS IS THE FIX ---
+    async with test_engine.begin() as conn:
+        tables = Base.metadata.sorted_tables
+        await conn.execute(text("SET session_replication_role = 'replica';"))
+        for table in tables:
+            await conn.execute(text(f"TRUNCATE TABLE public.{table.name} RESTART IDENTITY CASCADE;"))
+        await conn.execute(text("SET session_replication_role = 'origin';"))
+    
+    await test_engine.dispose()
+
 @pytest_asyncio.fixture(scope="function")
 async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    """
-    Provides an httpx client where the app's database dependency is overridden
-    and the app's lifespan events (startup/shutdown) are properly managed.
-    """
-    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
+    """Provides an httpx client for making API calls to the app."""
+    async def override_get_db():
         yield db_session
     
     app.dependency_overrides[get_db] = override_get_db
     
-    # Use an async context manager to ensure the app's lifespan is handled.
-    async with app.router.lifespan_context(app):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            yield client
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
             
     app.dependency_overrides.clear()
 

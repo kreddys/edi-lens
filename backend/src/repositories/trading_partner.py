@@ -66,7 +66,7 @@ class TradingPartnerRepository:
         return partners, total_count    
 
     async def create_with_profiles(self, *, partner_in: schemas.TradingPartnerCreate) -> trading_partner.TradingPartner:
-        """Create a new trading partner within the user's tenant."""
+        """Create a new trading partner for a specific tenant."""
         logger.info(f"Creating partner '{partner_in.name}' for tenant '{self.tenant_id}'.")
         
         db_partner = trading_partner.TradingPartner(
@@ -88,6 +88,11 @@ class TradingPartnerRepository:
         
         self.db.add(db_partner)
         await self.db.flush()
+        
+        # --- THIS IS THE FIX ---
+        # The entire block for creating a separate SFTPConfiguration object is now removed.
+        # --- END OF FIX ---
+
         return db_partner
 
     async def update(

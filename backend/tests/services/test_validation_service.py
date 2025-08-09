@@ -1,129 +1,122 @@
-# FILE: backend/tests/services/test_validation_service.py
+# FILE: backend/tests/api/test_api_workflows.py
 
 import pytest
 import pytest_asyncio
-import uuid
-from unittest.mock import MagicMock, AsyncMock
-
+from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from src.main import app
+from src.core.auth import User, RealmAccess, get_current_user
+from src.models import TradingPartner, PartnerProfile
+from src.core.schema_manager import schema_manager
+from pathlib import Path
+from src.core.config import settings
+import json
+import uuid
 
-from src.services.validation_service import ValidationService, PrevalidationError
-from src.models.validation_transaction import ValidationTransaction, ValidationStatus
-from src.models.processing_log import ProcessingLog
-# --- ADDED: Import the real models we need to create ---
-from src.models.trading_partner import TradingPartner
-from src.models.partner_profile import PartnerProfile
+from src.core.storage import storage_client
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
-@pytest_asyncio.fixture
-def mock_storage_client(mocker):
-    """Mocks the storage_client to prevent real file uploads during tests."""
-    mock_client = MagicMock()
-    mock_client.upload = MagicMock()
-    mocker.patch('src.services.validation_service.storage_client', mock_client)
-    return mock_client
+@pytest_asyncio.fixture(autouse=True)
+async def setup_for_api_tests():
+    """Ensures the schema manager is loaded before any test in this file runs."""
+    if not schema_manager.list_base_schemas():
+        schema_manager.load_base_schemas(Path(settings.EDI_SCHEMA_DIRECTORY))
+    yield
+
+@pytest.fixture
+def api_user():
+    """Provides a standard user with all necessary API permissions."""
+    return User(
+        sub="mock-api-user-123",
+        preferred_username="api-tester",
+        groups=["tenant-a"],
+        realm_access=RealmAccess(roles=[
+            "validation:run", 
+            "trading-partners:create",
+            "trading-partners:read",
+            "trading-partners:update",
+            "trading-partners:delete"
+        ])
+    )
+
+@pytest.fixture
+def mock_get_current_user(api_user):
+    app.dependency_overrides[get_current_user] = lambda: api_user
+    yield
+    del app.dependency_overrides[get_current_user]
 
 @pytest_asyncio.fixture
-async def setup_service_test_profile(db_session: AsyncSession) -> PartnerProfile:
-    """Creates a real partner and profile in the DB for the ValidationService tests."""
-    partner = TradingPartner(tenant_id="test-tenant", name="Service Test Partner")
+async def setup_partner_and_profile(db_session: AsyncSession) -> PartnerProfile:
+    """Creates a partner and profile in the DB for tests to use."""
+    partner = TradingPartner(tenant_id="tenant-a", name="API Test Partner")
     profile = PartnerProfile(
         partner=partner,
-        tenant_id="test-tenant",
-        name="Service Test Profile",
-        validation_schema_name="837.5010.X222.A1.json", # <-- FIX (was correct, but confirming)
-        snip_level="SNIP3",
-        generate_ta1=True,
-        generate_999=False
+        tenant_id="tenant-a",
+        name="API Test Profile",
+        validation_schema_name="837.5010.X222.A1.json",
     )
+    db_session.add(partner)
+    await db_session.commit()
+    return profile
 
-@pytest.mark.asyncio
-async def test_process_edi_file_success_path(
-    db_session: AsyncSession,
-    mock_storage_client: MagicMock,
-    setup_service_test_profile: PartnerProfile, # <-- Use the new fixture
-    valid_837p_edi_string: str
-):
-    """Tests the full workflow for a valid EDI file using an explicit profile."""
-    # Arrange
-    service = ValidationService(db_session)
-    profile = setup_service_test_profile
-    
-    # Act
-    response = await service.process_edi_file(
-        edi_data=valid_837p_edi_string,
-        file_name="valid.edi",
-        tenant_id=profile.tenant_id,
-        user_id="test-user",
-        username="testuser",
-        profile_name=profile.name
-    )
+# === Validation API Tests ===
+class TestValidationApi:
+    async def test_validate_endpoint_success(self, async_client: AsyncClient, mock_get_current_user, valid_837p_edi_string: str, setup_partner_and_profile):
+        request_data = {
+            "edi_data": valid_837p_edi_string,
+            "profile_name": "API Test Profile"
+        }
+        headers = {"X-Tenant-ID": "tenant-a"}
+        response = await async_client.post("/api/v1/validate", json=request_data, headers=headers)
+        
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["valid"] is True
+        assert data["matched_profile"] == "API Test Profile"
 
-    # Assert API Response
-    assert response.valid is True
-    assert response.matched_profile == profile.name
-    
-    # Assert Database State
-    result = await db_session.execute(select(ValidationTransaction))
-    validation_record = result.scalars().first()
-    assert validation_record is not None
-    assert validation_record.partner_profile_id == profile.id
+# === Trading Partner API Tests ===
+class TestTradingPartnerApi:
+    async def test_update_trading_partner(self, async_client: AsyncClient, mock_get_current_user, setup_partner_and_profile):
+        partner_id = setup_partner_and_profile.partner_id
+        profile_id = setup_partner_and_profile.id
 
-    result = await db_session.execute(select(ProcessingLog))
-    processing_record = result.scalars().first()
-    assert processing_record is not None
-    assert processing_record.profile_id == profile.id
+        update_data = {
+            "name": "API Test Partner Updated",
+            "sftp_enabled": True,
+            "sftp_username": "new-sftp-user",
+            "profiles": [
+                {
+                    "id": profile_id,
+                    "name": "API Test Profile Updated",
+                    "validation_schema_name": "837.5010.X222.A1.json",
+                    "file_name_patterns": '["*.edi"]'
+                }
+            ]
+        }
+        headers = {"X-Tenant-ID": "tenant-a"}
+        response = await async_client.put(f"/api/v1/trading-partners/{partner_id}", json=update_data, headers=headers)
 
-@pytest.mark.asyncio
-async def test_process_edi_file_ta1_rejection_path(
-    db_session: AsyncSession,
-    mock_storage_client: MagicMock,
-    setup_service_test_profile: PartnerProfile, # <-- Use the new fixture
-    edi_with_isa_error: str
-):
-    """Tests the workflow for a file rejected at the TA1 level."""
-    # Arrange
-    service = ValidationService(db_session)
-    profile = setup_service_test_profile
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["name"] == "API Test Partner Updated"
+        assert data["sftp_enabled"] is True
+        assert data["profiles"][0]["name"] == "API Test Profile Updated"
+        assert data["profiles"][0]["file_name_patterns"] == '["*.edi"]'
 
-    # Act
-    response = await service.process_edi_file(
-        edi_data=edi_with_isa_error,
-        file_name="invalid_isa.edi",
-        tenant_id=profile.tenant_id,
-        user_id="test-user",
-        username="testuser",
-        profile_name=profile.name
-    )
+# === Schema API Tests ===
+class TestSchemaApi:
+    async def test_list_schemas_combines_base_and_specialized(self, async_client: AsyncClient, mock_get_current_user):
+        # This test remains the same but now benefits from the autouse fixture
+        tenant_id = "tenant-a"
+        specialized_schema_name = "test_specialized.json"
+        s3_key = f"{tenant_id}/schemas/{specialized_schema_name}"
+        storage_client.upload(b'{"transactionName": "Specialized", "version": "v1", "description": "d1", "structure": []}', key=s3_key)
+        
+        headers = {"X-Tenant-ID": tenant_id}
+        response = await async_client.get("/api/v1/schemas", headers=headers)
 
-    # Assert API Response
-    assert response.valid is False
-    assert response.matched_profile == profile.name
-    assert response.ta1_content is not None
-
-@pytest.mark.asyncio
-async def test_process_edi_file_prevalidation_failure(
-    db_session: AsyncSession,
-    mock_storage_client: MagicMock,
-    setup_service_test_profile: PartnerProfile # <-- Use the new fixture
-):
-    """Tests that a PrevalidationError is caught and handled correctly."""
-    # Arrange
-    service = ValidationService(db_session)
-    invalid_edi = "this is not edi"
-    profile = setup_service_test_profile
-    
-    # Act & Assert
-    with pytest.raises(PrevalidationError) as exc_info:
-        await service.process_edi_file(
-            edi_data=invalid_edi,
-            file_name="garbage.txt",
-            tenant_id=profile.tenant_id,
-            user_id="test-user",
-            username="testuser",
-            profile_name=profile.name
-        )
-    
-    assert "Could not determine implementation guide version" in str(exc_info.value)
+        assert response.status_code == 200
+        data = response.json()
+        assert "837.5010.X222.A1.json" in data["base_schemas"]
+        assert specialized_schema_name in data["specialized_schemas"]

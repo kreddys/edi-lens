@@ -1,6 +1,6 @@
 // FILE: admin-ui/src/pages/tradingPartners/TradingPartnerForm.tsx
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Card, Form, Input, Button, Space, Select, Switch,
   Divider, Row, Col, Alert, Table, Modal, Tag,
@@ -8,7 +8,7 @@ import {
 import {
   SaveOutlined, PlusOutlined, EditOutlined, DeleteOutlined,
 } from "@ant-design/icons";
-import { useCreate, useUpdate, useCustom, HttpError } from "@refinedev/core";
+import { useCreate, useUpdate, useCustom, HttpError, useApiUrl } from "@refinedev/core";
 
 interface PartnerProfile {
   id?: number;
@@ -49,12 +49,35 @@ export const TradingPartnerForm: React.FC<TradingPartnerFormProps> = ({
   const { mutate: createPartner, isLoading: isCreating } = useCreate();
   const { mutate: updatePartner, isLoading: isUpdating } = useUpdate();
 
-  const { data: schemasData } = useCustom<{
+  const apiUrl = useApiUrl();
+  const { data: schemasData, isLoading: isLoadingSchemas } = useCustom<{
     base_schemas: string[];
     specialized_schemas: string[];
-  }>({ url: "/schemas", method: "get" });
+  }>({ 
+    url: `${apiUrl}/schemas`, // Use the full URL
+    method: "get" 
+  });
 
-  const allSchemas = [...(schemasData?.data?.base_schemas || []), ...(schemasData?.data?.specialized_schemas || [])];
+  const schemaOptions = useMemo(() => {
+    if (!schemasData?.data) return [];
+    
+    const { base_schemas = [], specialized_schemas = [] } = schemasData.data;
+    const options = [];
+
+    if (base_schemas.length > 0) {
+        options.push({
+            label: "Base Schemas",
+            options: base_schemas.map((f: string) => ({ label: f, value: f }))
+        });
+    }
+    if (specialized_schemas.length > 0) {
+        options.push({
+            label: "Specialized Schemas",
+            options: specialized_schemas.map((f: string) => ({ label: f, value: f }))
+        });
+    }
+    return options;
+  }, [schemasData]);
 
   useEffect(() => {
     if (initialData) {
@@ -174,7 +197,18 @@ export const TradingPartnerForm: React.FC<TradingPartnerFormProps> = ({
             pagination={false}
             size="small"
             bordered
-            footer={() => <Button type="dashed" onClick={handleAddProfile} icon={<PlusOutlined />} block>Add Profile</Button>}
+            footer={() => (
+              <Button 
+                type="dashed" 
+                onClick={handleAddProfile} 
+                icon={<PlusOutlined />} 
+                block
+                loading={isLoadingSchemas} // Show a loading spinner on the button
+                disabled={isLoadingSchemas} // Disable the button while loading
+              >
+                Add Profile
+              </Button>
+            )}
           >
             <Table.Column title="Profile Name" dataIndex="name" />
             <Table.Column title="SFTP File Patterns" dataIndex="file_name_patterns" />
@@ -212,12 +246,16 @@ export const TradingPartnerForm: React.FC<TradingPartnerFormProps> = ({
                             name="validation_schema_name" 
                             rules={[{ required: true, message: "A validation schema is required." }]}
                         >
-                            <Select 
-                                placeholder="Select a schema" 
-                                allowClear 
-                                showSearch 
-                                options={allSchemas.map(s => ({ label: s, value: s }))} 
-                            />
+                          <Select 
+                            placeholder="Select a schema" 
+                            // --- THIS IS THE FIX (Part 3) ---
+                            // Also show a loading state on the dropdown itself inside the modal.
+                            loading={isLoadingSchemas}
+                            // --- END OF FIX ---
+                            allowClear 
+                            showSearch 
+                            options={schemaOptions}
+                          />
                         </Form.Item>
                     </Col>
                     {/* --- `implementation_guide` input is now removed --- */}
