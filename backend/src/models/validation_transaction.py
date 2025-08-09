@@ -1,3 +1,5 @@
+# FILE: backend/src/models/validation_transaction.py
+
 import uuid
 import enum
 from sqlalchemy import Column, String, DateTime, Enum as SQLAlchemyEnum, ForeignKey, Integer, Boolean
@@ -35,10 +37,9 @@ class ValidationTransaction(Base):
     ta1_object_key = Column(String, nullable=True)
     response_999_object_key = Column(String, nullable=True)
     
-    # SFTP Integration Fields
     source_type = Column(SQLAlchemyEnum(SourceType), nullable=False, default=SourceType.API)
     source_partner_id = Column(Integer, ForeignKey('public.trading_partners.id'), nullable=True)
-    source_file_path = Column(String, nullable=True)  # Original SFTP file path
+    source_file_path = Column(String, nullable=True)
     response_delivered = Column(Boolean, nullable=False, default=False)
     response_delivery_attempts = Column(Integer, nullable=False, default=0)
     response_delivered_at = Column(DateTime(timezone=True), nullable=True)
@@ -49,4 +50,7 @@ class ValidationTransaction(Base):
     # Relationships
     profile = relationship("PartnerProfile")
     source_partner = relationship("TradingPartner")
-    file_processing_log = relationship("FileProcessingLog", back_populates="validation_transaction", uselist=False)
+    
+    # --- THIS IS THE FIX: Remove the relationship to the deleted model ---
+    # file_processing_log = relationship("FileProcessingLog", back_populates="validation_transaction", uselist=False)
+    # --- END OF FIX ---

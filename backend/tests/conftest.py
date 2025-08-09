@@ -1,4 +1,5 @@
 # FILE: backend/tests/conftest.py
+
 import pytest
 import pytest_asyncio
 from typing import AsyncGenerator
@@ -11,6 +12,7 @@ import json
 import sys
 from pathlib import Path
 import os
+from contextlib import asynccontextmanager
 
 from src.main import app
 from src.core.database import get_db, Base
@@ -27,29 +29,21 @@ def setup_test_environment(pytestconfig):
     An autouse session-scoped fixture to configure the test environment
     before any tests are run. This is the definitive place for setup.
     """
-    # 1. Configure Logging
-    # Use pytest's own --log-cli-level option, defaulting to INFO if not provided.
     log_level = pytestconfig.getoption("log_cli_level") or "INFO"
     logging.basicConfig(
         level=log_level.upper(),
         format="[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] - %(message)s",
         stream=sys.stdout,
-        force=True  # This is crucial to override any other logging configs.
+        force=True,
     )
-    # Reduce noise from verbose libraries unless we are in DEBUG mode.
     if log_level.upper() != "DEBUG":
         logging.getLogger("httpx").setLevel(logging.WARNING)
         logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
     
     logging.info(f"Test logging configured with level: {log_level.upper()}")
 
-    # 2. Set environment variable to signal we are in a test run
     os.environ["IS_PYTEST"] = "true"
-    
-    # Let the test session run
     yield
-    
-    # Teardown: unset the environment variable
     del os.environ["IS_PYTEST"]
 
 # ==============================================================================
@@ -66,40 +60,29 @@ TestAsyncSessionLocal = sessionmaker(
     expire_on_commit=False,
 )
 
+# --- THIS IS THE SINGLE, CORRECT FIXTURE DEFINITION ---
 @pytest_asyncio.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Provides a clean database session for each integration test function.
-    It ASSUMES the schema is already created by the container's entrypoint.
-    It cleans up DATA between tests using TRUNCATE for true isolation.
-    """
-    # The container's entrypoint script is responsible for running migrations.
-    # This fixture's only job is to provide a session and clean up data.
-    
-    async with TestAsyncSessionLocal() as session:
-        yield session
+    """Provides a clean database session wrapped in a transaction for each test."""
+    async with test_engine.begin() as connection:
+        await connection.begin_nested()
+        async with TestAsyncSessionLocal(bind=connection) as session:
+            yield session
+            await session.rollback()
 
-    # After the test, TRUNCATE all tables to ensure the next test starts fresh.
-    async with test_engine.begin() as conn:
-        tables = Base.metadata.sorted_tables
-        # We must disable triggers temporarily to allow TRUNCATE with foreign keys
-        await conn.execute(text("SET session_replication_role = 'replica';"))
-        for table in tables:
-            await conn.execute(text(f"TRUNCATE TABLE public.{table.name} RESTART IDENTITY CASCADE;"))
-        # Re-enable triggers
-        await conn.execute(text("SET session_replication_role = 'origin';"))
-    
-    await test_engine.dispose()
-
+# --- THIS IS THE FIX ---
 @pytest_asyncio.fixture(scope="function")
 async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    """Provides an httpx client for making API calls to the app in integration tests."""
-    async def override_get_db():
+    """
+    Provides an httpx client where the app's database dependency is overridden
+    and the app's lifespan events (startup/shutdown) are properly managed.
+    """
+    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
     
     app.dependency_overrides[get_db] = override_get_db
     
-    # The lifespan context ensures the app's startup/shutdown events run
+    # Use an async context manager to ensure the app's lifespan is handled.
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:

@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, DateTime, JSON
+# FILE: backend/src/models/partner_profile.py
+
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, DateTime, JSON, Text # --- ADDED Text ---
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from src.core.database import Base
@@ -12,10 +14,12 @@ class PartnerProfile(Base):
     partner_id = Column(Integer, ForeignKey('public.trading_partners.id'), nullable=False)
     
     name = Column(String, nullable=False)
-    implementation_guide = Column(String, nullable=False, index=True)
     
     # Schema configuration
-    validation_schema_name = Column(String, nullable=True)
+    validation_schema_name = Column(String, nullable=False, index=True)
+
+    # --- ADDED: The new field for SFTP filename matching ---
+    file_name_patterns = Column(Text, nullable=True) # e.g., '["claims_*.edi", "remits_*.x12"]'
     
     # Enhanced validation configuration
     snip_level = Column(String(10), nullable=False, default='SNIP3')
@@ -32,8 +36,6 @@ class PartnerProfile(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     def __init__(self, **kwargs):
-        """Initialize with proper defaults for non-database testing"""
-        # Set Python defaults for model instances (not just database defaults)
         kwargs.setdefault('snip_level', 'SNIP3')
         kwargs.setdefault('generate_ta1', True)
         kwargs.setdefault('generate_999', False)
@@ -43,7 +45,8 @@ class PartnerProfile(Base):
 
     # Relationships
     partner = relationship("TradingPartner", back_populates="profiles")
-    criteria = relationship("ProfileCriterion", back_populates="profile", cascade="all, delete-orphan")
+    # --- REMOVED: The criteria relationship ---
+    # criteria = relationship("ProfileCriterion", back_populates="profile", cascade="all, delete-orphan")
     processing_logs = relationship("ProcessingLog", back_populates="profile", lazy="select")
     
     def __repr__(self):

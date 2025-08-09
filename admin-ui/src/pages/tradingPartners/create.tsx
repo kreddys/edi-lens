@@ -1,24 +1,16 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { IResourceComponentsProps } from "@refinedev/core";
-import { TradingPartnerWizard } from "./TradingPartnerWizard";
+import { TradingPartnerForm } from "./TradingPartnerForm"; // <-- Import the new form
 
-export const TradingPartnerCreate: React.FC<IResourceComponentsProps> = () => {
+export const TradingPartnerCreate: React.FC = () => {
     const navigate = useNavigate();
 
-    const handleSuccess = () => {
-        navigate("/trading-partners");
-    };
-
-    const handleCancel = () => {
-        navigate("/trading-partners");
-    };
-
     return (
-        <TradingPartnerWizard
+        <TradingPartnerForm
             mode="create"
-            onSuccess={handleSuccess}
-            onCancel={handleCancel}
+            onSuccess={() => {
+                navigate("/trading-partners");
+            }}
         />
     );
 };

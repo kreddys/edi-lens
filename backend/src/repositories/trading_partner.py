@@ -7,55 +7,54 @@ from sqlalchemy.orm import selectinload
 import logging
 import sqlalchemy as sa
 
-from src.models import trading_partner, partner_profile, profile_criterion, sftp_configuration
+from src.models import trading_partner, partner_profile
 from src.api import schemas
+from src.core.auth import AuthContext
 
 logger = logging.getLogger(__name__)
 
 class TradingPartnerRepository:
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession, auth_context: AuthContext):
+        """
+        Initializes the repository with a database session and a mandatory
+        authentication context to ensure all operations are tenant-isolated.
+        """
         self.db: AsyncSession = db_session
+        self.auth_context = auth_context
+        self.tenant_id = auth_context.tenant_id
 
-    async def get_by_id(self, *, partner_id: int, tenant_id: str) -> Optional[trading_partner.TradingPartner]:
-        """Retrieve a single trading partner by its ID for a specific tenant."""
-        logger.debug(f"Querying for partner id='{partner_id}' in tenant='{tenant_id}'.")
+    async def get_by_id(self, *, partner_id: int) -> Optional[trading_partner.TradingPartner]:
+        """Retrieve a single trading partner by its ID within the user's tenant."""
+        logger.debug(f"Querying for partner id='{partner_id}' in tenant='{self.tenant_id}'.")
         query = (
             select(trading_partner.TradingPartner)
-            .options(
-                selectinload(trading_partner.TradingPartner.profiles)
-                .selectinload(partner_profile.PartnerProfile.criteria)
-            )
-            .filter_by(id=partner_id, tenant_id=tenant_id)
+            .options(selectinload(trading_partner.TradingPartner.profiles))
+            .filter_by(id=partner_id, tenant_id=self.tenant_id)
         )
         result = await self.db.execute(query)
         return result.scalars().first()
 
-    async def get_by_name(self, *, name: str, tenant_id: str) -> Optional[trading_partner.TradingPartner]:
-        """Retrieve a single trading partner by name for a specific tenant."""
-        logger.debug(f"Querying for trading partner with name='{name}' in tenant='{tenant_id}'.")
+    async def get_by_name(self, *, name: str) -> Optional[trading_partner.TradingPartner]:
+        """Retrieve a single trading partner by name within the user's tenant."""
+        logger.debug(f"Querying for trading partner with name='{name}' in tenant='{self.tenant_id}'.")
         result = await self.db.execute(
             select(trading_partner.TradingPartner)
             .filter(trading_partner.TradingPartner.name == name)
-            .filter(trading_partner.TradingPartner.tenant_id == tenant_id)
+            .filter(trading_partner.TradingPartner.tenant_id == self.tenant_id)
         )
         return result.scalars().first()
     
-    async def get_all_for_tenant(
-        self, *, tenant_id: str, skip: int = 0, limit: int = 100
-    ) -> Tuple[List[trading_partner.TradingPartner], int]:
-        """Retrieve all trading partners for a specific tenant with pagination."""
-        logger.debug(f"Querying for all partners in tenant='{tenant_id}' with skip={skip}, limit={limit}.")
+    async def get_all_for_tenant(self, *, skip: int = 0, limit: int = 100) -> Tuple[List[trading_partner.TradingPartner], int]:
+        """Retrieve all trading partners for the user's tenant with pagination."""
+        logger.debug(f"Querying for all partners in tenant='{self.tenant_id}' with skip={skip}, limit={limit}.")
         
-        count_query = select(sa.func.count()).select_from(trading_partner.TradingPartner).filter_by(tenant_id=tenant_id)
+        count_query = select(sa.func.count()).select_from(trading_partner.TradingPartner).filter_by(tenant_id=self.tenant_id)
         total_count = (await self.db.execute(count_query)).scalar_one()
 
         query = (
             select(trading_partner.TradingPartner)
-            .options(
-                selectinload(trading_partner.TradingPartner.profiles)
-                .selectinload(partner_profile.PartnerProfile.criteria)
-            )
-            .filter_by(tenant_id=tenant_id)
+            .options(selectinload(trading_partner.TradingPartner.profiles))
+            .filter_by(tenant_id=self.tenant_id)
             .offset(skip)
             .limit(limit)
             .order_by(trading_partner.TradingPartner.name)
@@ -63,149 +62,86 @@ class TradingPartnerRepository:
         result = await self.db.execute(query)
         partners = result.scalars().all()
         
-        logger.debug(f"Successfully fetched {len(partners)} partners with eager loading.")
+        logger.debug(f"Successfully fetched {len(partners)} partners.")
         return partners, total_count    
 
-    async def create_with_profiles(self, *, partner_in: schemas.TradingPartnerCreate, tenant_id: str) -> trading_partner.TradingPartner:
-        """Create a new trading partner for a specific tenant."""
-        logger.info(f"Creating partner '{partner_in.name}' with {len(partner_in.profiles)} profiles for tenant '{tenant_id}'.")
+    async def create_with_profiles(self, *, partner_in: schemas.TradingPartnerCreate) -> trading_partner.TradingPartner:
+        """Create a new trading partner within the user's tenant."""
+        logger.info(f"Creating partner '{partner_in.name}' for tenant '{self.tenant_id}'.")
         
         db_partner = trading_partner.TradingPartner(
             name=partner_in.name,
             description=partner_in.description,
-            tenant_id=tenant_id
+            tenant_id=self.tenant_id,
+            sftp_enabled=partner_in.sftp_enabled,
+            sftp_username=partner_in.sftp_username
         )
         
-        db_profiles = []
-        for profile_in in partner_in.profiles:
-            db_profile = partner_profile.PartnerProfile(
-                name=profile_in.name,
-                implementation_guide=profile_in.implementation_guide,
-                # --- NEW --- Set the validation schema name during creation
-                validation_schema_name=profile_in.validation_schema_name,
-                priority=profile_in.priority,
-                tenant_id=tenant_id,
-                # Enhanced validation configuration
-                snip_level=profile_in.snip_level,
-                generate_ta1=profile_in.generate_ta1,
-                generate_999=profile_in.generate_999,
-                custom_validation_rules=profile_in.custom_validation_rules
+        db_profiles = [
+            partner_profile.PartnerProfile(
+                tenant_id=self.tenant_id,
+                **p.model_dump()
             )
-            db_criteria = []
-            for criterion_in in profile_in.criteria:
-                db_criteria.append(profile_criterion.ProfileCriterion(
-                    tenant_id=tenant_id,
-                    **criterion_in.model_dump()
-                ))
-            db_profile.criteria = db_criteria
-            db_profiles.append(db_profile)
+            for p in partner_in.profiles
+        ]
         db_partner.profiles = db_profiles
         
         self.db.add(db_partner)
         await self.db.flush()
-        logger.debug(f"Flushed partner '{db_partner.name}'. ID should be available now.")
-        
-        # Create SFTP configuration if enabled
-        if partner_in.sftp_enabled and partner_in.sftp_username and partner_in.sftp_password:
-            logger.info(f"Creating SFTP configuration for partner '{partner_in.name}'")
-            db_sftp_config = sftp_configuration.SftpConfiguration(
-                partner_id=db_partner.id,
-                tenant_id=tenant_id,
-                sftp_enabled=True,
-                sftp_username=partner_in.sftp_username,
-                password_hash=partner_in.sftp_password,  # For seeding, store plain password temporarily
-                authentication_type=sftp_configuration.AuthenticationType.PASSWORD.value,
-                inbound_directory=f"/sftp/tenants/{tenant_id}/{partner_in.sftp_username}/in",
-                outbound_directory=f"/sftp/tenants/{tenant_id}/{partner_in.sftp_username}/out",
-                archive_directory=f"/sftp/tenants/{tenant_id}/.archive/{partner_in.sftp_username}",
-                file_name_patterns='["*.edi", "*.x12", "*.txt"]',
-                max_file_size_bytes=52428800,  # 50MB
-                response_timeout_minutes=30
-            )
-            self.db.add(db_sftp_config)
-            await self.db.flush()
-            logger.debug(f"Created SFTP configuration for partner '{db_partner.name}'")
-        
         return db_partner
 
     async def update(
         self, *, db_partner: trading_partner.TradingPartner, partner_in: schemas.TradingPartnerUpdate
     ) -> trading_partner.TradingPartner:
-        """Update a trading partner and its nested profiles/criteria."""
-        logger.info(f"Updating partner id={db_partner.id} for tenant '{db_partner.tenant_id}'.")
+        """Update a trading partner, ensuring it belongs to the user's tenant."""
+        if db_partner.tenant_id != self.tenant_id:
+            raise PermissionError("Access denied: Cannot update a trading partner from another tenant.")
+
+        logger.info(f"Updating partner id={db_partner.id} for tenant '{self.tenant_id}'.")
         
         partner_data_to_update = partner_in.model_dump(exclude_unset=True)
+        
+        # Update direct attributes of the partner
         db_partner.name = partner_data_to_update.get("name", db_partner.name)
         db_partner.description = partner_data_to_update.get("description", db_partner.description)
+        db_partner.sftp_enabled = partner_data_to_update.get("sftp_enabled", db_partner.sftp_enabled)
+        db_partner.sftp_username = partner_data_to_update.get("sftp_username", db_partner.sftp_username)
 
+        # Sync profiles (add, update, delete)
         if "profiles" in partner_data_to_update:
             existing_profiles_map = {p.id: p for p in db_partner.profiles}
             updated_profiles = []
+            incoming_profile_ids = {p.id for p in partner_in.profiles if p.id}
 
             for profile_in in partner_in.profiles:
                 if profile_in.id and profile_in.id in existing_profiles_map:
-                    # It's an existing profile, update it.
+                    # Update existing profile
                     db_profile = existing_profiles_map[profile_in.id]
-                    db_profile.name = profile_in.name
-                    db_profile.implementation_guide = profile_in.implementation_guide
-                    # --- NEW --- Update the validation schema name
-                    db_profile.validation_schema_name = profile_in.validation_schema_name
-                    db_profile.priority = profile_in.priority
-                    # Enhanced validation configuration
-                    db_profile.snip_level = profile_in.snip_level
-                    db_profile.generate_ta1 = profile_in.generate_ta1
-                    db_profile.generate_999 = profile_in.generate_999
-                    db_profile.custom_validation_rules = profile_in.custom_validation_rules
-                    self._sync_criteria(db_profile, profile_in.criteria)
+                    for key, value in profile_in.model_dump(exclude={'id'}).items():
+                        setattr(db_profile, key, value)
                     updated_profiles.append(db_profile)
                 else:
-                    # It's a new profile, create it.
+                    # Create new profile
                     new_profile = partner_profile.PartnerProfile(
-                        name=profile_in.name,
-                        implementation_guide=profile_in.implementation_guide,
-                        # --- NEW --- Set the validation schema name for the new profile
-                        validation_schema_name=profile_in.validation_schema_name,
-                        priority=profile_in.priority,
-                        tenant_id=db_partner.tenant_id,
-                        # Enhanced validation configuration
-                        snip_level=profile_in.snip_level,
-                        generate_ta1=profile_in.generate_ta1,
-                        generate_999=profile_in.generate_999,
-                        custom_validation_rules=profile_in.custom_validation_rules,
-                        criteria=[
-                            profile_criterion.ProfileCriterion(tenant_id=db_partner.tenant_id, **c.model_dump())
-                            for c in profile_in.criteria
-                        ]
+                        tenant_id=self.tenant_id,
+                        **profile_in.model_dump()
                     )
                     updated_profiles.append(new_profile)
-
+            
+            # This line handles deletions by replacing the collection.
+            # SQLAlchemy's cascade="all, delete-orphan" will remove profiles
+            # that are no longer in the updated_profiles list.
             db_partner.profiles = updated_profiles
 
         self.db.add(db_partner)
         await self.db.flush()
         return db_partner
 
-    def _sync_criteria(self, db_profile: partner_profile.PartnerProfile, criteria_in: List[schemas.ProfileCriterionUpdate]):
-        """Helper to sync criteria for a given profile."""
-        existing_criteria_map = {c.id: c for c in db_profile.criteria}
-        updated_criteria = []
-
-        for crit_in in criteria_in:
-            if crit_in.id and crit_in.id in existing_criteria_map:
-                db_crit = existing_criteria_map[crit_in.id]
-                db_crit.field_source = crit_in.field_source
-                db_crit.field_identifier = crit_in.field_identifier
-                db_crit.operator = crit_in.operator
-                db_crit.value = crit_in.value
-                updated_criteria.append(db_crit)
-            else:
-                new_crit = profile_criterion.ProfileCriterion(tenant_id=db_profile.tenant_id, **crit_in.model_dump())
-                updated_criteria.append(new_crit)
-        
-        db_profile.criteria = updated_criteria
-
     async def delete(self, *, db_partner: trading_partner.TradingPartner) -> None:
-        """Delete a trading partner."""
-        logger.info(f"Deleting partner id={db_partner.id} for tenant '{db_partner.tenant_id}'.")
+        """Delete a trading partner, ensuring it belongs to the user's tenant."""
+        if db_partner.tenant_id != self.tenant_id:
+            raise PermissionError("Access denied: Cannot delete a trading partner from another tenant.")
+            
+        logger.info(f"Deleting partner id={db_partner.id} for tenant '{self.tenant_id}'.")
         await self.db.delete(db_partner)
         await self.db.flush()

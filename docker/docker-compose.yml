@@ -36,6 +36,8 @@ services:
       context: ..  # <-- CHANGE: Go up one level to the project root for context
       dockerfile: docker/postgres/Dockerfile
     container_name: db-app
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}

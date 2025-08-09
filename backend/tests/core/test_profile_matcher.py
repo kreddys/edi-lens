@@ -1,100 +1,93 @@
+# FILE: backend/tests/core/test_profile_matcher.py
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock
 
 from src.core.profile_matcher import ProfileMatcher
-from src.models import partner_profile
-from src.models.profile_criterion import FieldSource, Operator, ProfileCriterion
+from src.models.partner_profile import PartnerProfile
 
-pytestmark = [pytest.mark.unit]
-
-# --- THIS IS THE FIX ---
-# A realistic, 106-character ISA segment with standard delimiters.
-# The element separator is '*' (at index 3) and the segment terminator is '~' (at index 105).
-TEST_EDI = (
-    "ISA*00*          *00*          *ZZ*SENDER_ID      *ZZ*RECEIVER_ID    *240718*1200*^*00501*000000001*0*P*:~"
-    "GS*HC*SENDER_CODE*RECEIVER_CODE*20240718*1200*1*X*005010X222A1~"
-)
-# --- END OF FIX ---
+pytestmark = [pytest.mark.asyncio, pytest.mark.unit]
 
 @pytest.mark.asyncio
-async def test_matcher_selects_highest_priority_profile():
+async def test_match_by_filename_selects_correct_profile():
+    """Tests that the matcher finds the correct profile based on a filename pattern."""
     # Arrange
-    profile_low_priority = partner_profile.PartnerProfile(
-        id=2, name="Low Prio", priority=20, criteria=[] # Catch-all
-    )
-    profile_high_priority = partner_profile.PartnerProfile(
-        id=1, name="High Prio", priority=10,
-        criteria=[
-            ProfileCriterion(field_source=FieldSource.GS, field_identifier="02", operator=Operator.EQUALS, value="SENDER_CODE")
-        ]
-    )
+    profile1 = PartnerProfile(id=1, name="Claims Profile", priority=10, file_name_patterns='["claims_*.edi"]')
+    profile2 = PartnerProfile(id=2, name="Remits Profile", priority=20, file_name_patterns='["remits_*.x12"]')
     
-    mock_result = MagicMock()
-    mock_result.scalars.return_value.all.return_value = [profile_high_priority, profile_low_priority]
-    mock_db = AsyncMock()
-    mock_db.execute.return_value = mock_result
+    matcher = ProfileMatcher(db_session=AsyncMock())
+    matcher.list_tenant_profiles = AsyncMock(return_value=[profile1, profile2])
 
-    matcher = ProfileMatcher(mock_db)
-    
     # Act
-    matched_profile = await matcher.match(TEST_EDI, "tenant-a")
+    matched_profile = await matcher.match_by_filename("tenant-a", "claims_12345.edi")
 
     # Assert
     assert matched_profile is not None
     assert matched_profile.id == 1
-    assert matched_profile.name == "High Prio"
+    assert matched_profile.name == "Claims Profile"
 
 @pytest.mark.asyncio
-async def test_matcher_falls_back_to_lower_priority_if_first_fails():
+async def test_match_by_filename_respects_priority():
+    """Tests that the highest priority (lowest number) profile is chosen when multiple patterns match."""
     # Arrange
-    profile_low_priority_match = partner_profile.PartnerProfile(
-        id=2, name="Low Prio Match", priority=20,
-        criteria=[
-             # NOTE: ISA08 in the test EDI is 'RECEIVER_ID    ' with padding. We match exactly.
-             ProfileCriterion(field_source=FieldSource.ISA, field_identifier="08", operator=Operator.EQUALS, value="RECEIVER_ID    ")
-        ]
-    )
-    profile_high_priority_no_match = partner_profile.PartnerProfile(
-        id=1, name="High Prio No Match", priority=10,
-        criteria=[
-            ProfileCriterion(field_source=FieldSource.GS, field_identifier="02", operator=Operator.EQUALS, value="WRONG_SENDER_CODE")
-        ]
-    )
+    profile_catch_all = PartnerProfile(id=2, name="Catch All EDI", priority=20, file_name_patterns='["*.edi"]')
+    profile_specific = PartnerProfile(id=1, name="Specific Claims", priority=10, file_name_patterns='["claims_*.edi"]')
     
-    mock_result = MagicMock()
-    mock_result.scalars.return_value.all.return_value = [profile_high_priority_no_match, profile_low_priority_match]
-    mock_db = AsyncMock()
-    mock_db.execute.return_value = mock_result
+    matcher = ProfileMatcher(db_session=AsyncMock())
+    # The list_tenant_profiles method should return them pre-sorted by priority
+    matcher.list_tenant_profiles = AsyncMock(return_value=[profile_specific, profile_catch_all])
 
-    matcher = ProfileMatcher(mock_db)
-    
     # Act
-    matched_profile = await matcher.match(TEST_EDI, "tenant-a")
+    matched_profile = await matcher.match_by_filename("tenant-a", "claims_54321.edi")
+
+    # Assert
+    assert matched_profile is not None
+    assert matched_profile.id == 1
+    assert matched_profile.name == "Specific Claims"
+
+@pytest.mark.asyncio
+async def test_match_by_filename_returns_none_for_no_match():
+    """Tests that None is returned when no profile's patterns match the filename."""
+    # Arrange
+    profile1 = PartnerProfile(id=1, name="Claims", priority=10, file_name_patterns='["claims_*.edi"]')
+    
+    matcher = ProfileMatcher(db_session=AsyncMock())
+    matcher.list_tenant_profiles = AsyncMock(return_value=[profile1])
+
+    # Act
+    matched_profile = await matcher.match_by_filename("tenant-a", "unmatched_file.txt")
+
+    # Assert
+    assert matched_profile is None
+
+@pytest.mark.asyncio
+async def test_match_by_filename_handles_invalid_json_patterns_gracefully():
+    """Tests that a malformed file_name_patterns JSON string does not crash the matcher."""
+    # Arrange
+    profile_good = PartnerProfile(id=2, name="Good Profile", priority=20, file_name_patterns='["good_*.edi"]')
+    profile_bad = PartnerProfile(id=1, name="Bad JSON Profile", priority=10, file_name_patterns='["bad_json_patterns') # Invalid JSON
+    
+    matcher = ProfileMatcher(db_session=AsyncMock())
+    matcher.list_tenant_profiles = AsyncMock(return_value=[profile_bad, profile_good])
+
+    # Act
+    # The matcher should skip the bad profile and correctly match the good one
+    matched_profile = await matcher.match_by_filename("tenant-a", "good_file.edi")
 
     # Assert
     assert matched_profile is not None
     assert matched_profile.id == 2
-    assert matched_profile.name == "Low Prio Match"
+    assert matched_profile.name == "Good Profile"
 
 @pytest.mark.asyncio
-async def test_matcher_returns_none_if_no_profiles_match():
+async def test_match_by_filename_returns_none_if_no_profiles_exist():
+    """Tests that None is returned if the tenant has no profiles configured."""
     # Arrange
-    profile_no_match = partner_profile.PartnerProfile(
-        id=1, name="No Match", priority=10,
-        criteria=[
-            ProfileCriterion(field_source=FieldSource.GS, field_identifier="02", operator=Operator.EQUALS, value="WRONG_SENDER_CODE")
-        ]
-    )
-    
-    mock_result = MagicMock()
-    mock_result.scalars.return_value.all.return_value = [profile_no_match]
-    mock_db = AsyncMock()
-    mock_db.execute.return_value = mock_result
+    matcher = ProfileMatcher(db_session=AsyncMock())
+    matcher.list_tenant_profiles = AsyncMock(return_value=[])
 
-    matcher = ProfileMatcher(mock_db)
-    
     # Act
-    matched_profile = await matcher.match(TEST_EDI, "tenant-a")
+    matched_profile = await matcher.match_by_filename("tenant-a", "any_file.edi")
 
     # Assert
     assert matched_profile is None

@@ -1,41 +1,29 @@
 import React from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useOne } from "@refinedev/core";
-import { IResourceComponentsProps } from "@refinedev/core";
-import { TradingPartnerWizard, TradingPartnerData } from "./TradingPartnerWizard";
-import { Spin } from "antd";
+import { Spin, Result } from "antd";
+import { TradingPartnerForm, TradingPartnerData } from "./TradingPartnerForm"; // <-- Import the new form
 
-export const TradingPartnerEdit: React.FC<IResourceComponentsProps> = () => {
-    const navigate = useNavigate();
+export const TradingPartnerEdit: React.FC = () => {
     const { id } = useParams();
 
-    const { data, isLoading } = useOne({
+    const { data, isLoading, isError } = useOne<TradingPartnerData>({
         resource: "trading-partners",
         id: id!,
     });
 
-    const handleSuccess = () => {
-        navigate("/trading-partners");
-    };
-
-    const handleCancel = () => {
-        navigate("/trading-partners");
-    };
-
     if (isLoading) {
-        return (
-            <div style={{ display: "flex", justifyContent: "center", padding: "50px" }}>
-                <Spin size="large" />
-            </div>
-        );
+        return <div style={{ display: "flex", justifyContent: "center", padding: "50px" }}><Spin size="large" /></div>;
+    }
+
+    if (isError) {
+        return <Result status="error" title="Could not load trading partner data." />;
     }
 
     return (
-        <TradingPartnerWizard
+        <TradingPartnerForm
             mode="edit"
-            initialData={data?.data as TradingPartnerData}
-            onSuccess={handleSuccess}
-            onCancel={handleCancel}
+            initialData={data?.data}
         />
     );
 };
