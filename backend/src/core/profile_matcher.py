@@ -74,6 +74,27 @@ class ProfileMatcher:
     def __init__(self, db_session: AsyncSession):
         self.db = db_session
 
+    async def get_profile_by_name(self, tenant_id: str, profile_name: str) -> Optional[partner_profile.PartnerProfile]:
+        """Get a specific profile by name for a tenant."""
+        query = (
+            select(partner_profile.PartnerProfile)
+            .options(selectinload(partner_profile.PartnerProfile.criteria))
+            .filter_by(tenant_id=tenant_id, name=profile_name)
+        )
+        result = await self.db.execute(query)
+        return result.scalars().first()
+
+    async def list_tenant_profiles(self, tenant_id: str) -> List[partner_profile.PartnerProfile]:
+        """List all profiles for a tenant."""
+        query = (
+            select(partner_profile.PartnerProfile)
+            .options(selectinload(partner_profile.PartnerProfile.criteria))
+            .filter_by(tenant_id=tenant_id)
+            .order_by(partner_profile.PartnerProfile.priority.asc())
+        )
+        result = await self.db.execute(query)
+        return result.scalars().all()
+
     async def match(self, edi_string: str, tenant_id: str) -> Optional[partner_profile.PartnerProfile]:
         """
         Matches an EDI string to the highest-priority partner profile for a tenant.

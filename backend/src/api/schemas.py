@@ -39,6 +39,11 @@ class PartnerProfileCreate(BaseModel):
     priority: int = 10
     criteria: List[ProfileCriterionCreate]
     validation_schema_name: Optional[str] = None
+    # Enhanced validation configuration
+    snip_level: str = "SNIP3"
+    generate_ta1: bool = True
+    generate_999: bool = False
+    custom_validation_rules: Optional[dict] = None
 
 class TradingPartnerCreate(BaseModel):
     name: str
@@ -66,6 +71,7 @@ class PartnerProfileUpdate(PartnerProfileCreate):
     id: Optional[int] = None
     criteria: List[ProfileCriterionUpdate]
     validation_schema_name: Optional[str] = None
+    # Enhanced validation configuration (inherited from PartnerProfileCreate)
 
 class TradingPartnerUpdate(BaseModel):
     name: str
@@ -98,7 +104,8 @@ class PartnerProfile(PartnerProfileCreate):
     partner_id: int
     tenant_id: str
     criteria: List[ProfileCriterion]
-    validation_schema_name: Optional[str] = None # And add this
+    validation_schema_name: Optional[str] = None
+    # Enhanced validation configuration (inherited from PartnerProfileCreate)
     model_config = ConfigDict(from_attributes=True)
 
 class TradingPartner(TradingPartnerCreate):
@@ -122,14 +129,24 @@ class EdiSegment(BaseModel):
 class ValidationRequest(BaseModel):
     edi_data: str
     file_name: Optional[str] = None
+    profile_name: Optional[str] = None  # Optional manual profile override
 
 # --- THIS RESPONSE IS NOW UPDATED ---
 class ValidationResponse(BaseModel):
-    status: str
-    findings: List[ValidationFinding] # Changed from a simple string
+    valid: bool
+    status: str  # Keep for backwards compatibility
+    findings: List[ValidationFinding] = []
+    errors: List[ValidationFinding] = []  # Alias for findings for compatibility
+    ta1_content: Optional[str] = None
+    ta1_999_content: Optional[str] = None
+    processing_time_ms: Optional[int] = None
+    matched_profile: Optional[str] = None
+    schema_used: Optional[str] = None
+    snip_level_used: Optional[str] = None
+    detection_method: Optional[str] = None  # "auto" or "manual"
+    # Legacy fields for backwards compatibility
     ta1_acknowledgement: Optional[str] = None
     ack999_acknowledgement: Optional[str] = None
-    # parsed_segments is no longer needed as the CDM is an internal structure
 
 class EnrichmentAnalysisRequest(BaseModel):
     """Request to start a new schema enrichment analysis job."""

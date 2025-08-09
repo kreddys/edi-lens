@@ -44,9 +44,10 @@ if [ -z "$1" ] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]]; then
     echo "  dev:sftp:legacy --tenant TENANT --partner PARTNER     Process files (NO AUTH - DEV ONLY)"
     echo ""
     echo "TESTING ACTIONS (dev environment only):"
-    echo "  dev:test unit [args...]         Run local unit tests (no Docker needed)."
-    echo "  dev:test integration [args...]  Run integration tests against the dev stack."
-    echo "  dev:test e2e [args...]          Run end-to-end tests against the dev stack."
+    echo "  dev:test unit [args...]         Run backend unit tests (no Docker needed)."
+    echo "  dev:test integration [args...]  Run backend integration tests against the dev stack."
+    echo "  dev:test e2e [args...]          Run backend end-to-end tests against the dev stack."
+    echo "  dev:test ui [args...]           Run UI tests (Jest + React Testing Library)."
     exit 0
 fi
 
@@ -186,10 +187,19 @@ case "$ACTION" in
         TEST_TYPE=$1; shift
         case "$TEST_TYPE" in
             unit)
-                info "Running local unit tests (no Docker needed)..."
+                info "Running backend unit tests (no Docker needed)..."
                 info "Loading .env.dev for the local test session..."
                 set -a; source "$ENV_FILE"; set +a                
                 (cd backend && poetry run pytest -m "unit" "$@")
+                ;;
+            ui)
+                info "Running UI tests in Docker with Jest and React Testing Library..."
+                ensure_infra
+                info "Ensuring dev stack is running for UI tests..."
+                $DC_EXEC up -d --build --wait admin-ui
+                
+                info "Running Jest tests in admin-ui container..."
+                $DC_EXEC exec admin-ui npm run test -- --watchAll=false --coverage "$@"
                 ;;
             integration|e2e)
                 # Ensure infrastructure is ready before running tests
@@ -203,7 +213,7 @@ case "$ACTION" in
                 fi
                 $DC_EXEC exec "$BACKEND_SERVICE" pytest -m "$TEST_TYPE" "$@"
                 ;;
-            *) error "Unknown test type: '$TEST_TYPE'. Must be 'unit', 'integration', or 'e2e'." ;;
+            *) error "Unknown test type: '$TEST_TYPE'. Must be 'unit', 'ui', 'integration', or 'e2e'." ;;
         esac
         ;;
     *)

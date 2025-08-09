@@ -11,7 +11,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 @router.post("/validate", response_model=schemas.ValidationResponse, summary="Validate an EDI File",
-             description="Orchestrates the complete, generic validation workflow for a raw EDI string. This includes partner profile matching, parsing, and TA1/999 acknowledgement generation.")
+             description="Crystal clear EDI validation endpoint with flexible profile selection. Supports both auto-detection from EDI content and manual profile override. Returns validation results with configured TA1/999 responses.")
 async def validate_edi_endpoint(
     request: schemas.ValidationRequest,
     auth: AuthContext = Depends(require_permission("validation:run")),
@@ -29,7 +29,8 @@ async def validate_edi_endpoint(
             file_name=request.file_name or "api_upload.txt",
             tenant_id=auth.tenant_id,
             user_id=auth.user_id,
-            username=auth.username
+            username=auth.username,
+            profile_name=request.profile_name
         )
         return response_data
     

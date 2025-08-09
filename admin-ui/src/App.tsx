@@ -12,8 +12,7 @@ import { dataProvider, authProvider, accessControlProvider, ThemeProvider } from
 
 import { TradingPartnerList, TradingPartnerCreate, TradingPartnerEdit, TradingPartnerShow } from "./pages/tradingPartners";
 import { SchemaEditorList } from "./pages/schemaEditor/SchemaEditorList";
-
-import { EnrichmentPage } from "./pages/enrichment";
+import { Validation, ProcessingHistory } from "./pages/validation";
 
 function App() {
   return (
@@ -44,12 +43,15 @@ function App() {
                     }
                 },
                 {
-                    name: "enrichment",
-                    list: "/enrichment",
-                    meta: {
-                        label: "Schema Co-Pilot"
-                    }
-                }                
+                  name: "processing-history",
+                  list: "/processing-history",
+                  meta: { label: "Processing History" },
+                },
+                {
+                  name: "validation",
+                  list: "/validation",
+                  meta: { label: "Validation" },
+                }              
               ]}
               options={{ syncWithLocation: true, warnWhenUnsavedChanges: true }}
             >
@@ -63,7 +65,8 @@ function App() {
                     <Route path="show/:id" element={<TradingPartnerShow />} />
                   </Route>
                   <Route path="/schema-editor" element={<SchemaEditorList />} />
-                  <Route path="/enrichment" element={<EnrichmentPage />} />
+                  <Route path="/processing-history" element={<ProcessingHistory />} />
+                  <Route path="/validation" element={<Validation />} />
                   <Route path="*" element={<ErrorComponent />} />
                 </Route>
               </Routes>

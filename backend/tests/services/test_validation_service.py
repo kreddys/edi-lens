@@ -8,6 +8,7 @@ from sqlalchemy.future import select
 
 from src.services.validation_service import ValidationService, PrevalidationError
 from src.models.validation_transaction import ValidationTransaction, ValidationStatus
+from src.models.processing_log import ProcessingLog
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
@@ -26,8 +27,8 @@ async def test_process_edi_file_success_path(
     valid_837p_edi_string: str
 ):
     """
-    Tests the full workflow for a valid EDI file, ensuring DB records are
-    created and updated correctly, and files are 'uploaded'.
+    Tests the full workflow for a valid EDI file with fallback profile.
+    With no profiles configured, uses default fallback and creates ProcessingLog.
     """
     # Arrange
     service = ValidationService(db_session)
@@ -42,9 +43,19 @@ async def test_process_edi_file_success_path(
         username="testuser"
     )
 
-    # Assert
+    # Assert Enhanced Response Format
+    assert response.valid is True
     assert response.status == "Validation Complete"
+    assert response.matched_profile == "default-fallback"
+    assert response.schema_used == "837.5010.X222.A1.json"
+    assert response.snip_level_used == "SNIP3"
+    assert response.detection_method == "fallback"
+    assert response.processing_time_ms is not None
+    assert response.ta1_content is None  # No TA1 for valid files when ack not requested
+    assert response.ta1_999_content is None
+    # Legacy fields
     assert response.ta1_acknowledgement is None
+    assert response.ack999_acknowledgement is None
 
     # Assert Storage Calls
     assert mock_storage_client.upload.call_count == 1
@@ -53,16 +64,25 @@ async def test_process_edi_file_success_path(
     assert request_key_args[1].startswith(f"{tenant_id}/")
     assert request_key_args[1].endswith("/request.edi")
 
-    # Assert Database State
+    # Assert No ValidationTransaction Record (fallback profile has no ID)
     result = await db_session.execute(select(ValidationTransaction))
-    db_record = result.scalars().first()
+    validation_record = result.scalars().first()
+    assert validation_record is None
+
+    # Assert ProcessingLog Record Created
+    result = await db_session.execute(select(ProcessingLog))
+    processing_record = result.scalars().first()
     
-    assert db_record is not None
-    assert db_record.tenant_id == tenant_id
-    assert db_record.original_filename == "valid.edi"
-    assert db_record.status == ValidationStatus.COMPLETE
-    assert db_record.ta1_object_key is None
-    assert db_record.response_999_object_key is None
+    assert processing_record is not None
+    assert processing_record.tenant_id == tenant_id
+    assert processing_record.source == "API"
+    assert processing_record.file_name == "valid.edi"
+    assert processing_record.validation_result == "VALID"
+    assert processing_record.schema_name == "837.5010.X222.A1.json"
+    assert processing_record.snip_level_used == "SNIP3"
+    assert processing_record.profile_id is None  # Fallback profile has no ID
+    assert processing_record.ta1_generated is False
+    assert processing_record.ta1_999_generated is False
 
 @pytest.mark.asyncio
 async def test_process_edi_file_ta1_rejection_path(
@@ -71,7 +91,7 @@ async def test_process_edi_file_ta1_rejection_path(
     edi_with_isa_error: str
 ):
     """
-    Tests the workflow for a file rejected at the TA1 level.
+    Tests the workflow for a file rejected at the TA1 level with fallback profile.
     """
     # Arrange
     service = ValidationService(db_session)
@@ -86,9 +106,19 @@ async def test_process_edi_file_ta1_rejection_path(
         username="testuser"
     )
 
-    # Assert
+    # Assert Enhanced Response Format
+    assert response.valid is False
     assert response.status == "Rejected at Interchange Level"
+    assert response.matched_profile == "default-fallback"
+    assert response.schema_used == "837.5010.X222.A1.json"
+    assert response.snip_level_used == "SNIP3"
+    assert response.detection_method == "fallback"
+    assert response.processing_time_ms is not None
+    assert response.ta1_content is not None  # TA1 generated for errors
+    assert response.ta1_999_content is None
+    # Legacy fields
     assert response.ta1_acknowledgement is not None
+    assert response.ack999_acknowledgement is None
 
     # Assert Storage Calls (Request + TA1)
     assert mock_storage_client.upload.call_count == 2
@@ -97,13 +127,25 @@ async def test_process_edi_file_ta1_rejection_path(
     assert request_key.endswith("/request.edi")
     assert ta1_key.endswith("/ta1.edi")
 
-    # Assert Database State
+    # Assert No ValidationTransaction Record (fallback profile has no ID)
     result = await db_session.execute(select(ValidationTransaction))
-    db_record = result.scalars().first()
+    validation_record = result.scalars().first()
+    assert validation_record is None
 
-    assert db_record is not None
-    assert db_record.status == ValidationStatus.FAILED
-    assert db_record.ta1_object_key is not None
+    # Assert ProcessingLog Record Created
+    result = await db_session.execute(select(ProcessingLog))
+    processing_record = result.scalars().first()
+    
+    assert processing_record is not None
+    assert processing_record.tenant_id == tenant_id
+    assert processing_record.source == "API"
+    assert processing_record.file_name == "invalid_isa.edi"
+    assert processing_record.validation_result == "INVALID"
+    assert processing_record.schema_name == "837.5010.X222.A1.json"
+    assert processing_record.snip_level_used == "SNIP3"
+    assert processing_record.profile_id is None  # Fallback profile has no ID
+    assert processing_record.ta1_generated is True  # TA1 was generated
+    assert processing_record.ta1_999_generated is False
 
 @pytest.mark.asyncio
 async def test_process_edi_file_prevalidation_failure(

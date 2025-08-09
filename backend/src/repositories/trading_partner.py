@@ -84,7 +84,12 @@ class TradingPartnerRepository:
                 # --- NEW --- Set the validation schema name during creation
                 validation_schema_name=profile_in.validation_schema_name,
                 priority=profile_in.priority,
-                tenant_id=tenant_id
+                tenant_id=tenant_id,
+                # Enhanced validation configuration
+                snip_level=profile_in.snip_level,
+                generate_ta1=profile_in.generate_ta1,
+                generate_999=profile_in.generate_999,
+                custom_validation_rules=profile_in.custom_validation_rules
             )
             db_criteria = []
             for criterion_in in profile_in.criteria:
@@ -146,6 +151,11 @@ class TradingPartnerRepository:
                     # --- NEW --- Update the validation schema name
                     db_profile.validation_schema_name = profile_in.validation_schema_name
                     db_profile.priority = profile_in.priority
+                    # Enhanced validation configuration
+                    db_profile.snip_level = profile_in.snip_level
+                    db_profile.generate_ta1 = profile_in.generate_ta1
+                    db_profile.generate_999 = profile_in.generate_999
+                    db_profile.custom_validation_rules = profile_in.custom_validation_rules
                     self._sync_criteria(db_profile, profile_in.criteria)
                     updated_profiles.append(db_profile)
                 else:
@@ -157,6 +167,11 @@ class TradingPartnerRepository:
                         validation_schema_name=profile_in.validation_schema_name,
                         priority=profile_in.priority,
                         tenant_id=db_partner.tenant_id,
+                        # Enhanced validation configuration
+                        snip_level=profile_in.snip_level,
+                        generate_ta1=profile_in.generate_ta1,
+                        generate_999=profile_in.generate_999,
+                        custom_validation_rules=profile_in.custom_validation_rules,
                         criteria=[
                             profile_criterion.ProfileCriterion(tenant_id=db_partner.tenant_id, **c.model_dump())
                             for c in profile_in.criteria
