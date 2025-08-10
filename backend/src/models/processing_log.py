@@ -19,7 +19,7 @@ class ProcessingLog(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Source information
-    source = Column(String(10), nullable=False)  # 'API', 'SFTP', 'MANUAL'
+    source = Column(String(20), nullable=False)  # 'API', 'SFTP', 'SFTP_WEBHOOK', 'MANUAL'
     file_name = Column(String(255), nullable=True)  # Only populated for file-based processing
     file_size_bytes = Column(Integer, nullable=True)
     

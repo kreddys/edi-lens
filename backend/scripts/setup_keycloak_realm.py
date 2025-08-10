@@ -40,7 +40,7 @@ if REMOTE_HOST != "localhost":
     web_origins.append(f"https://{REMOTE_HOST}")
 CLIENTS = [
     {"clientId": KEYCLOAK_UI_CLIENT_ID, "name": "EDI Lens UI", "publicClient": True, "standardFlowEnabled": True, "redirectUris": redirect_uris, "webOrigins": web_origins},
-    {"clientId": KEYCLOAK_BACKEND_CLIENT_ID, "name": "EDI Lens Backend", "secret": CLIENT_SECRET, "publicClient": False, "clientAuthenticatorType": "client-secret", "serviceAccountsEnabled": True}
+    {"clientId": KEYCLOAK_BACKEND_CLIENT_ID, "name": "EDI Lens Backend", "secret": CLIENT_SECRET, "publicClient": False, "clientAuthenticatorType": "client-secret", "serviceAccountsEnabled": True, "directAccessGrantsEnabled": True}
 ]
 USERS = [
     {"username": "superuser@edilens.com", "password": os.getenv("KC_SUPERUSER_PASSWORD", "password"), "firstName": "Super", "lastName": "User", "groups": ["tenant-a", "tenant-b"], "realm_roles": ["superuser"]},
@@ -61,7 +61,6 @@ def create_or_update_sftpgo_client(admin_client: KeycloakAdmin, existing_clients
     sftpgo_redirect_uris = [
         f"http://{REMOTE_HOST}:8082/web/oidc/redirect"
     ]
-    # --- END OF FIX ---
 
     sftpgo_client_payload = {
         "clientId": "sftpgo",
@@ -71,7 +70,7 @@ def create_or_update_sftpgo_client(admin_client: KeycloakAdmin, existing_clients
         "clientAuthenticatorType": "client-secret",
         "secret": KEYCLOAK_SFTPGO_CLIENT_SECRET,
         "standardFlowEnabled": True,
-        "redirectUris": sftpgo_redirect_uris, # Use the corrected list
+        "redirectUris": sftpgo_redirect_uris,
         "webOrigins": [f"http://{REMOTE_HOST}:8082"],
         "serviceAccountsEnabled": True,
     }
@@ -94,7 +93,6 @@ def configure_client_mappers(admin_client: KeycloakAdmin, existing_clients_map: 
         "config": {"full.path": "false", "access.token.claim": "true", "id.token.claim": "true", "claim.name": "groups"}
     }
     
-    # --- THIS IS THE FIX ---
     # Mapper to add the backend's client ID to the token's audience
     audience_mapper = {
         "name": "backend-audience",
@@ -106,23 +104,47 @@ def configure_client_mappers(admin_client: KeycloakAdmin, existing_clients_map: 
             "included.client.audience": KEYCLOAK_BACKEND_CLIENT_ID,
         },
     }
-    # --- END OF FIX ---
 
     ui_client = existing_clients_map.get(KEYCLOAK_UI_CLIENT_ID)
+    backend_client = existing_clients_map.get(KEYCLOAK_BACKEND_CLIENT_ID)
+    
     if not ui_client:
         logging.error(f"  - ERROR: Could not find UI client '{KEYCLOAK_UI_CLIENT_ID}' to add mappers.")
         return
+        
+    if not backend_client:
+        logging.error(f"  - ERROR: Could not find backend client '{KEYCLOAK_BACKEND_CLIENT_ID}' to add mappers.")
+        return
 
-    # Add both mappers directly to the UI client
-    for mapper in [group_mapper, audience_mapper]:
-        try:
-            admin_client.add_mapper_to_client(ui_client['id'], mapper)
-            logging.info(f"  - Added '{mapper['name']}' mapper to UI client.")
-        except KeycloakPostError as e:
-            if e.response_code == 409:
-                logging.info(f"  - Mapper '{mapper['name']}' already exists on UI client.")
-            else:
-                raise
+    # Add group mapper to UI client
+    try:
+        admin_client.add_mapper_to_client(ui_client['id'], group_mapper)
+        logging.info(f"  - Added 'groups' mapper to UI client.")
+    except KeycloakPostError as e:
+        if e.response_code == 409:
+            logging.info(f"  - Mapper 'groups' already exists on UI client.")
+        else:
+            raise
+
+    # Add group mapper to backend client
+    try:
+        admin_client.add_mapper_to_client(backend_client['id'], group_mapper)
+        logging.info(f"  - Added 'groups' mapper to backend client.")
+    except KeycloakPostError as e:
+        if e.response_code == 409:
+            logging.info(f"  - Mapper 'groups' already exists on backend client.")
+        else:
+            raise
+
+    # Add audience mapper to backend client
+    try:
+        admin_client.add_mapper_to_client(backend_client['id'], audience_mapper)
+        logging.info(f"  - Added 'backend-audience' mapper to backend client.")
+    except KeycloakPostError as e:
+        if e.response_code == 409:
+            logging.info(f"  - Mapper 'backend-audience' already exists on backend client.")
+        else:
+            raise
 
 def main():
     logging.info("--- Starting Keycloak Realm Setup ---")
@@ -198,33 +220,8 @@ def main():
     # Now, create/update the SFTPGo client using the fresh list
     create_or_update_sftpgo_client(admin_client, existing_clients_map)
 
-    # Finally, configure the mappers, which will now find the backend client
+    # Configure client mappers
     configure_client_mappers(admin_client, existing_clients_map)
-    
-    logging.info("\n--- Creating Users ---")
-    all_groups_map = {group["name"]: group["id"] for group in admin_client.get_groups()}
-    for user_def in USERS:
-        user_info = admin_client.get_users({"username": user_def["username"]})
-        if not user_info:
-            user_id = admin_client.create_user({
-                "username": user_def["username"], "email": user_def.get("email", f"{user_def['username']}"),
-                "firstName": user_def.get("firstName", ""), "lastName": user_def.get("lastName", ""), "enabled": True
-            })
-            admin_client.set_user_password(user_id, user_def["password"], temporary=False)
-        else:
-            user_id = user_info[0]['id']
-        
-        for group_name in user_def.get("groups", []):
-            if group_name in all_groups_map:
-                try: admin_client.group_user_add(user_id, all_groups_map[group_name])
-                except KeycloakPostError as e:
-                    if e.response_code != 409: raise e
-        
-        if user_def.get("realm_roles"):
-            roles_to_add = [all_roles_map[role_name] for role_name in user_def["realm_roles"]]
-            admin_client.assign_realm_roles(user_id=user_id, roles=roles_to_add)
-    
-    logging.info("\n✅ Keycloak Realm Setup Complete!")
 
 if __name__ == "__main__":
     main()
