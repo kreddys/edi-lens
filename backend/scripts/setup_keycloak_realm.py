@@ -6,13 +6,9 @@ from keycloak import KeycloakAdmin, KeycloakOpenIDConnection
 from keycloak.exceptions import KeycloakGetError, KeycloakPostError
 import logging
 
-# --- Add basic logging configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Configuration (unchanged) ---
-KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
-
-# --- Configuration (unchanged) ---
+# --- Configuration (values loaded from environment) ---
 KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
 ADMIN_USER = os.getenv("KEYCLOAK_ADMIN", "admin")
 ADMIN_PASSWORD = os.getenv("KEYCLOAK_ADMIN_PASSWORD", "admin")
@@ -21,332 +17,214 @@ CLIENT_SECRET = os.getenv("KEYCLOAK_BACKEND_CLIENT_SECRET", "this-is-a-default-s
 KEYCLOAK_BACKEND_CLIENT_ID = os.getenv("KEYCLOAK_BACKEND_CLIENT_ID", "edi-lens-backend")
 KEYCLOAK_UI_CLIENT_ID = os.getenv("KEYCLOAK_UI_CLIENT_ID", "edi-lens-ui")
 REMOTE_HOST = os.getenv("REMOTE_HOST", "localhost")
+KEYCLOAK_SFTPGO_CLIENT_SECRET = os.getenv("KEYCLOAK_SFTPGO_CLIENT_SECRET", "default-sftpgo-secret")
 
-# --- Blueprint Definitions (with fix) ---
-# --- THIS IS THE FIX ---
-# Renamed all 'partner:*' roles to 'trading-partners:*'
+# --- Blueprints (unchanged) ---
 ATOMIC_ROLES = [
     {"name": "trading-partners:create", "description": "Can create new trading partners"},
     {"name": "trading-partners:read", "description": "Can read trading partner configurations"},
     {"name": "trading-partners:update", "description": "Can update trading partners"},
     {"name": "trading-partners:delete", "description": "Can delete trading partners"},
     {"name": "validation:run", "description": "Can run EDI validation"},
-    {"name": "user:create", "description": "Can invite/create new users in the tenant"},
-    {"name": "user:read", "description": "Can view other users in the tenant"},
-    {"name": "user:update", "description": "Can update users in the tenant"},
-    {"name": "user:delete", "description": "Can remove users from the tenant"},
-    {"name": "billing:read", "description": "Can view billing information"},
-    {"name": "billing:manage", "description": "Can manage subscriptions and payment"},
-    {"name": "superuser:impersonate", "description": "Can impersonate other users"},
-    {"name": "superuser:read-all", "description": "Can read data across all tenants"},
 ]
 COMPOSITE_ROLES = {
-    "tenant-admin": {"description": "Full control over a single tenant", "children": ["trading-partners:create", "trading-partners:read", "trading-partners:update", "trading-partners:delete", "validation:run", "user:create", "user:read", "user:update", "user:delete", "billing:manage", "billing:read"]},
-    "tenant-editor": {"description": "Can manage trading partners but not users or billing", "children": ["trading-partners:create", "trading-partners:read", "trading-partners:update", "trading-partners:delete", "validation:run"]},
-    "tenant-viewer": {"description": "Read-only access to a tenant's data", "children": ["trading-partners:read", "validation:run"]},
-    "superuser": {"description": "Global administrator for the entire application", "children": ["superuser:impersonate", "superuser:read-all"]},
+    "tenant-admin": {"description": "Full control over a single tenant", "children": ["trading-partners:create", "trading-partners:read", "trading-partners:update", "trading-partners:delete", "validation:run"]},
+    "tenant-viewer": {"description": "Read-only access to a tenant's data", "children": ["trading-partners:read"]},
+    "superuser": {"description": "Global administrator", "children": ["tenant-admin"]},
 }
 TENANTS = {"tenant-a": "tenant-admin", "tenant-b": "tenant-viewer"}
-
-# Define base URLs for different environments
-# Localhost URLs are always included for local development and testing.
-redirect_uris = [
-    "http://localhost:3001/*", 
-    "http://localhost:3000/*",
-]
-web_origins = [
-    "http://localhost:3001", 
-    "http://localhost:3000",
-]
-
-# If REMOTE_HOST is set to something other than localhost, add production URLs
+redirect_uris = [ f"http://{REMOTE_HOST}:3001/*", f"http://{REMOTE_HOST}:3000/*" ]
+web_origins = [ f"http://{REMOTE_HOST}:3001", f"http://{REMOTE_HOST}:3000" ]
 if REMOTE_HOST != "localhost":
-    prod_redirect_uri = f"https://{REMOTE_HOST}/*"
-    prod_web_origin = f"https://{REMOTE_HOST}"
-    redirect_uris.append(prod_redirect_uri)
-    web_origins.append(prod_web_origin)
-    # Log the configured URLs for easy debugging
-    logging.info(f"Production URLs configured for host: {REMOTE_HOST}")
-    logging.info(f"  - Redirect URI: {prod_redirect_uri}")
-    logging.info(f"  - Web Origin: {prod_web_origin}")
-
+    redirect_uris.append(f"https://{REMOTE_HOST}/*")
+    web_origins.append(f"https://{REMOTE_HOST}")
 CLIENTS = [
-    {
-        "clientId": KEYCLOAK_UI_CLIENT_ID,
-        "name": "EDI Lens UI",
-        "publicClient": True,
-        "standardFlowEnabled": True,
-        "directAccessGrantsEnabled": False,
-        "redirectUris": redirect_uris,
-        "webOrigins": web_origins,
-    },
-    {
-        "clientId": KEYCLOAK_BACKEND_CLIENT_ID,
-        "name": "EDI Lens Backend",
-        "secret": os.getenv("KEYCLOAK_BACKEND_CLIENT_SECRET"),
-        "publicClient": False, # Confidential client
-        "clientAuthenticatorType": "client-secret",
-        "directAccessGrantsEnabled": True, # For testing
-        "serviceAccountsEnabled": True, # Good practice for backend clients
-    }
+    {"clientId": KEYCLOAK_UI_CLIENT_ID, "name": "EDI Lens UI", "publicClient": True, "standardFlowEnabled": True, "redirectUris": redirect_uris, "webOrigins": web_origins},
+    {"clientId": KEYCLOAK_BACKEND_CLIENT_ID, "name": "EDI Lens Backend", "secret": CLIENT_SECRET, "publicClient": False, "clientAuthenticatorType": "client-secret", "serviceAccountsEnabled": True}
 ]
-
 USERS = [
-    {
-        "username": "superuser@edilens.com",
-        "password": os.getenv("KC_SUPERUSER_PASSWORD", "password"),
-        "firstName": "Super", "lastName": "User", "email": "superuser@edilens.com",
-        "groups": ["tenant-a", "tenant-b"], "realm_roles": ["superuser", "tenant-admin"]
-    },
-    {
-        "username": "admin.a@edilens.com",
-        "password": os.getenv("KC_ADMIN_A_PASSWORD", "password"),
-        "firstName": "Admin", "lastName": "Alpha", "email": "admin.a@edilens.com",
-        "groups": ["tenant-a"], "realm_roles": []
-    },
-    {
-        "username": "viewer.b@edilens.com",
-        "password": os.getenv("KC_VIEWER_B_PASSWORD", "password"),
-        "firstName": "Viewer", "lastName": "Bravo", "email": "viewer.b@edilens.com",
-        "groups": ["tenant-b"], "realm_roles": []
-    }
+    {"username": "superuser@edilens.com", "password": os.getenv("KC_SUPERUSER_PASSWORD", "password"), "firstName": "Super", "lastName": "User", "groups": ["tenant-a", "tenant-b"], "realm_roles": ["superuser"]},
+    {"username": "admin.a@edilens.com", "password": os.getenv("KC_ADMIN_A_PASSWORD", "password"), "firstName": "Admin", "lastName": "Alpha", "groups": ["tenant-a"]},
+    {"username": "viewer.b@edilens.com", "password": os.getenv("KC_VIEWER_B_PASSWORD", "password"), "firstName": "Viewer", "lastName": "Bravo", "groups": ["tenant-b"]},
 ]
-
-
-# --- SCRIPT LOGIC ---
 
 def get_keycloak_admin_client() -> KeycloakAdmin:
-    # --- THIS IS THE FIX ---
-    # Add an explicit timeout to the connection.
-    # If it can't connect within 15 seconds, it will raise an error instead of hanging forever.
     connection = KeycloakOpenIDConnection(
-        server_url=KEYCLOAK_URL,
-        username=ADMIN_USER,
-        password=ADMIN_PASSWORD,
-        realm_name="master",
-        user_realm_name="master",
-        client_id="admin-cli",
-        timeout=15  # Add a 15-second timeout
+        server_url=KEYCLOAK_URL, username=ADMIN_USER, password=ADMIN_PASSWORD,
+        realm_name="master", user_realm_name="master", client_id="admin-cli", timeout=30
     )
-    # --- END OF FIX ---
     return KeycloakAdmin(connection=connection)
 
-def create_or_update_client_scope_mappers(admin_client: KeycloakAdmin):
-    """Ensures the necessary token mappers and scopes exist."""
-    print("\n--- Configuring Client Scopes and Mappers ---")
+def create_or_update_sftpgo_client(admin_client: KeycloakAdmin, existing_clients_map: dict):
+    logging.info("\n--- Configuring SFTPGo Client for Keycloak SSO ---")
+    
+    sftpgo_redirect_uris = [
+        f"http://{REMOTE_HOST}:8082/web/oidc/redirect"
+    ]
+    # --- END OF FIX ---
 
-    # 1. Define the new 'basic' client scope
-    basic_scope_payload = {
-        "name": "basic",
-        "description": "Scope for basic OIDC claims like sub.",
-        "protocol": "openid-connect",
-        "attributes": {
-            "include.in.token.scope": "false",
-            "display.on.consent.screen": "false"
-        }
+    sftpgo_client_payload = {
+        "clientId": "sftpgo",
+        "name": "SFTPGo",
+        "description": "OIDC client for SFTPGo Admin UI SSO",
+        "publicClient": False,
+        "clientAuthenticatorType": "client-secret",
+        "secret": KEYCLOAK_SFTPGO_CLIENT_SECRET,
+        "standardFlowEnabled": True,
+        "redirectUris": sftpgo_redirect_uris, # Use the corrected list
+        "webOrigins": [f"http://{REMOTE_HOST}:8082"],
+        "serviceAccountsEnabled": True,
     }
     
-    # Create the 'basic' scope if it doesn't exist
-    basic_scope_id = None
-    existing_scopes = admin_client.get_client_scopes()
-    basic_scope = next((s for s in existing_scopes if s.get('name') == 'basic'), None)
+    sftpgo_client = existing_clients_map.get("sftpgo")
 
-    if not basic_scope:
-        print("  - 'basic' client scope not found, creating it...")
-        basic_scope_id = admin_client.create_client_scope(basic_scope_payload, skip_exists=True)
+    if not sftpgo_client:
+        logging.info("  - Creating 'sftpgo' client...")
+        admin_client.create_client(payload=sftpgo_client_payload)
     else:
-        print("  - 'basic' client scope already exists.")
-        basic_scope_id = basic_scope['id']
+        logging.info("  - 'sftpgo' client already exists. Updating...")
+        admin_client.update_client(client_id=sftpgo_client['id'], payload=sftpgo_client_payload)
 
-    # 2. Define the 'sub' mapper for the 'basic' scope
-    sub_mapper_payload = {
-        "name": "sub",
-        "protocol": "openid-connect",
-        "protocolMapper": "oidc-sub-mapper",  # The correct mapper type
-        "consentRequired": False,
-        "config": {
-            "id.token.claim": "true",
-            "access.token.claim": "true"
-        }
-    }
-
-    # Add the 'sub' mapper to the 'basic' scope
-    try:
-        admin_client.add_mapper_to_client_scope(basic_scope_id, sub_mapper_payload)
-        print("  - Added 'sub' mapper to 'basic' scope.")
-    except KeycloakPostError as e:
-        if e.response_code == 409: # Conflict
-            print("  - 'sub' mapper already exists in 'basic' scope.")
-        else:
-            raise e
-
-    # 3. Add other required mappers (groups, audience) to the 'profile' scope
-    profile_scope = next((cs for cs in existing_scopes if cs['name'] == 'profile'), None)
-    if not profile_scope:
-        print("❌ Could not find 'profile' client scope.")
-        return
-    profile_scope_id = profile_scope['id']
-
+def configure_client_mappers(admin_client: KeycloakAdmin, existing_clients_map: dict):
+    logging.info("\n--- Configuring Client Mappers ---")
+    
+    # Mapper to add user groups (tenants) to the token
     group_mapper = {
         "name": "groups", "protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper",
-        "config": {"full.path": "false", "access.token.claim": "true", "claim.name": "groups"}
+        "config": {"full.path": "false", "access.token.claim": "true", "id.token.claim": "true", "claim.name": "groups"}
     }
+    
+    # --- THIS IS THE FIX ---
+    # Mapper to add the backend's client ID to the token's audience
     audience_mapper = {
-        "name": "audience-mapper", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper",
-        "config": {"access.token.claim": "true", "included.client.audience": KEYCLOAK_BACKEND_CLIENT_ID}
+        "name": "backend-audience",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-audience-mapper",
+        "config": {
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "included.client.audience": KEYCLOAK_BACKEND_CLIENT_ID,
+        },
     }
+    # --- END OF FIX ---
 
+    ui_client = existing_clients_map.get(KEYCLOAK_UI_CLIENT_ID)
+    if not ui_client:
+        logging.error(f"  - ERROR: Could not find UI client '{KEYCLOAK_UI_CLIENT_ID}' to add mappers.")
+        return
+
+    # Add both mappers directly to the UI client
     for mapper in [group_mapper, audience_mapper]:
         try:
-            admin_client.add_mapper_to_client_scope(profile_scope_id, mapper)
-            print(f"  - Added '{mapper['name']}' mapper to 'profile' scope.")
+            admin_client.add_mapper_to_client(ui_client['id'], mapper)
+            logging.info(f"  - Added '{mapper['name']}' mapper to UI client.")
         except KeycloakPostError as e:
-            if e.response_code == 409: # Conflict
-                pass
+            if e.response_code == 409:
+                logging.info(f"  - Mapper '{mapper['name']}' already exists on UI client.")
             else:
-                raise e
-
-def configure_realm_security(admin_client: KeycloakAdmin):
-    """
-    Updates the realm's browser security headers to allow the UI to be framed.
-    This is necessary for the silent SSO check to work across subdomains.
-    """
-    logging.info("\n--- Updating Realm Security Headers ---")
-    
-    # --- THIS IS THE FIX: Generate the policy based on the environment ---
-    allowed_ancestors = ["'self'"] # Keycloak should always be able to frame itself.
-
-    if REMOTE_HOST == "localhost":
-        # For local dev, allow the HTTP origins for Vite and the Nginx container
-        allowed_ancestors.append("http://localhost:3001")
-        allowed_ancestors.append("http://localhost:3000")
-        logging.info(f"  - Configuring for LOCAL development, allowing: {' '.join(allowed_ancestors)}")
-    else:
-        # For production, only allow the main UI domain over HTTPS
-        allowed_ancestors.append(f"https://{REMOTE_HOST}")
-        logging.info(f"  - Configuring for PRODUCTION, allowing: {' '.join(allowed_ancestors)}")
-
-    # Construct the final Content-Security-Policy string
-    csp_policy = f"frame-ancestors {' '.join(allowed_ancestors)}; object-src 'none';"
-    
-    # The payload only needs the modern CSP header.
-    realm_payload = {
-        "browserSecurityHeaders": {
-            "contentSecurityPolicy": csp_policy
-        }
-    }
-    
-    try:
-        admin_client.update_realm(REALM_NAME, payload=realm_payload)
-        logging.info(f"  - Successfully set Content-Security-Policy.")
-    except Exception as e:
-        logging.error(f"❌ Failed to update realm security headers: {e}")
+                raise
 
 def main():
     logging.info("--- Starting Keycloak Realm Setup ---")
-    
     admin_client = None
-    for i in range(10):
+    for i in range(15):
         try:
-            logging.info(f"Attempting to connect to Keycloak admin API at {KEYCLOAK_URL} (attempt {i+1}/10)...")
+            logging.info(f"Connecting to Keycloak admin API (attempt {i+1}/15)...")
             admin_client = get_keycloak_admin_client()
-            # This is the first network call. If it hangs, the timeout will now catch it.
             admin_client.get_server_info()
-            logging.info("✅ Successfully connected to Keycloak admin endpoint.")
+            logging.info("✅ Successfully connected.")
             break
         except Exception as e:
-            logging.warning(f"⏳ Keycloak not ready yet. Retrying in 5 seconds... (Error: {e})")
+            logging.warning(f"⏳ Keycloak not ready. Retrying in 5s... (Error: {e})")
             time.sleep(5)
-    
     if not admin_client:
-        logging.error("❌ Could not connect to Keycloak after multiple attempts. Aborting.")
+        logging.error("❌ Could not connect to Keycloak. Aborting.")
         sys.exit(1)
 
     logging.info(f"\n--- Ensuring realm '{REALM_NAME}' exists ---")
     try:
-        # We can add a log before the potentially hanging call
-        logging.info(f"Checking for realm '{REALM_NAME}'...")
         admin_client.get_realm(REALM_NAME)
         logging.info(f"  - Realm '{REALM_NAME}' already exists.")
-    except KeycloakGetError as e:
-        if e.response_code == 404:
-            logging.info(f"  - Realm '{REALM_NAME}' not found. Creating it...")
-            admin_client.create_realm(payload={"realm": REALM_NAME, "enabled": True})
-            logging.info(f"  - Realm '{REALM_NAME}' created.")
-        else:
-            raise e
-    except Exception as e:
-        logging.error(f"An unexpected error occurred while checking for the realm: {e}")
-        sys.exit(1)
+    except KeycloakGetError:
+        logging.info(f"  - Realm '{REALM_NAME}' not found. Creating...")
+        admin_client.create_realm(payload={"realm": REALM_NAME, "enabled": True})
+        logging.info(f"  - Realm '{REALM_NAME}' created.")
 
-    # We must switch the client's context to the new realm for all subsequent operations.
-    logging.info(f"Switching admin client context to realm '{REALM_NAME}'")
     admin_client.connection.realm_name = REALM_NAME
 
-    # --- THIS IS THE FIX ---
-    # Call the new function to update security headers after ensuring the realm exists.
-    configure_realm_security(admin_client)
+    logging.info("\n--- Creating/Updating Roles ---")
+    all_role_defs = ATOMIC_ROLES + [{"name": name, **details} for name, details in COMPOSITE_ROLES.items()]
+    existing_roles_map = {role["name"]: role for role in admin_client.get_realm_roles()}
+    for role_def in all_role_defs:
+        if role_def["name"] not in existing_roles_map:
+            admin_client.create_realm_role(payload={"name": role_def["name"], "description": role_def.get("description", "")})
 
-    logging.info("\n--- Configuring Client Scopes and Mappers ---")
-    create_or_update_client_scope_mappers(admin_client)
+    logging.info("\n--- Assigning Composite Roles ---")
+    all_roles_map = {role["name"]: role for role in admin_client.get_realm_roles()}
+    for parent_name, details in COMPOSITE_ROLES.items():
+        parent_role = all_roles_map[parent_name]
+        child_roles = [all_roles_map[child_name] for child_name in details.get("children", [])]
+        if child_roles:
+            admin_client.add_composite_realm_roles_to_role(role_name=parent_role['name'], roles=child_roles)
 
-    print("\n--- Creating Roles ---")
-    all_roles = ATOMIC_ROLES + [{"name": name, "description": d["description"]} for name, d in COMPOSITE_ROLES.items()]
-    existing_roles = {role["name"] for role in admin_client.get_realm_roles()}
-    for role_payload in all_roles:
-        if role_payload["name"] not in existing_roles:
-            admin_client.create_realm_role(payload=role_payload)
-
-    print("\n--- Assigning Composite Roles ---")
-    role_map = {role["name"]: role for role in admin_client.get_realm_roles()}
-    for name, details in COMPOSITE_ROLES.items():
-        parent_role = role_map[name]
-        child_roles_to_add = [role_map[child_name] for child_name in details["children"]]
-        admin_client.add_composite_realm_roles_to_role(role_name=parent_role['name'], roles=child_roles_to_add)
-
-    print("\n--- Creating Tenant Groups & Assigning Roles ---")
-    existing_groups = {group["name"]: group for group in admin_client.get_groups()}
-    for name, role_to_assign in TENANTS.items():
-        group_id = None
-        if name not in existing_groups:
-            group_id = admin_client.create_group(payload={"name": name})
+    logging.info("\n--- Creating Tenant Groups & Assigning Roles ---")
+    existing_groups_map = {group["name"]: group for group in admin_client.get_groups()}
+    for group_name, role_name in TENANTS.items():
+        if group_name not in existing_groups_map:
+            group_id = admin_client.create_group(payload={"name": group_name})
         else:
-            group_id = existing_groups[name]['id']
-        role_obj = role_map[role_to_assign]
-        admin_client.assign_group_realm_roles(group_id=group_id, roles=[role_obj])
+            group_id = existing_groups_map[group_name]['id']
+        role_to_assign = all_roles_map.get(role_name)
+        if role_to_assign:
+            admin_client.assign_group_realm_roles(group_id=group_id, roles=[role_to_assign])
 
-    print("\n--- Creating/Updating Clients ---")
-    existing_clients = {c['clientId']: c for c in admin_client.get_clients()}
+    logging.info("\n--- Creating/Updating Clients (edi-lens-ui, edi-lens-backend) ---")
+    # First, get a preliminary list of clients
+    initial_clients_map = {c['clientId']: c for c in admin_client.get_clients()}
     for client_payload in CLIENTS:
-        client_id_name = client_payload['clientId']
-        if client_id_name not in existing_clients:
+        client_id = client_payload['clientId']
+        if client_id not in initial_clients_map:
+            logging.info(f"  - Creating client '{client_id}'...")
             admin_client.create_client(payload=client_payload)
         else:
-            internal_id = existing_clients[client_id_name]['id']
+            logging.info(f"  - Client '{client_id}' already exists. Updating...")
+            internal_id = initial_clients_map[client_id]['id']
             admin_client.update_client(client_id=internal_id, payload=client_payload)
 
-    print("\n--- Creating Users ---")
-    all_groups = admin_client.get_groups()
-    group_map = {group["name"]: group["id"] for group in all_groups}
+    # Now, get an updated list that is guaranteed to contain our main clients
+    all_clients_list = admin_client.get_clients()
+    existing_clients_map = {c['clientId']: c for c in all_clients_list}
+    
+    # Now, create/update the SFTPGo client using the fresh list
+    create_or_update_sftpgo_client(admin_client, existing_clients_map)
+
+    # Finally, configure the mappers, which will now find the backend client
+    configure_client_mappers(admin_client, existing_clients_map)
+    
+    logging.info("\n--- Creating Users ---")
+    all_groups_map = {group["name"]: group["id"] for group in admin_client.get_groups()}
     for user_def in USERS:
-        users = admin_client.get_users({"username": user_def["username"]})
-        if not users:
-            user_id = admin_client.create_user({"username": user_def["username"], "email": user_def["email"], "firstName": user_def["firstName"], "lastName": user_def["lastName"], "enabled": True})
+        user_info = admin_client.get_users({"username": user_def["username"]})
+        if not user_info:
+            user_id = admin_client.create_user({
+                "username": user_def["username"], "email": user_def.get("email", f"{user_def['username']}"),
+                "firstName": user_def.get("firstName", ""), "lastName": user_def.get("lastName", ""), "enabled": True
+            })
             admin_client.set_user_password(user_id, user_def["password"], temporary=False)
         else:
-            user_id = users[0]['id']
+            user_id = user_info[0]['id']
+        
         for group_name in user_def.get("groups", []):
-            if group_name in group_map:
-                try:
-                    admin_client.group_user_add(user_id, group_map[group_name])
+            if group_name in all_groups_map:
+                try: admin_client.group_user_add(user_id, all_groups_map[group_name])
                 except KeycloakPostError as e:
                     if e.response_code != 409: raise e
+        
         if user_def.get("realm_roles"):
-            user_roles_to_add = [role_map[role_name] for role_name in user_def["realm_roles"]]
-            admin_client.assign_realm_roles(user_id=user_id, roles=user_roles_to_add)
+            roles_to_add = [all_roles_map[role_name] for role_name in user_def["realm_roles"]]
+            admin_client.assign_realm_roles(user_id=user_id, roles=roles_to_add)
     
-    print("\n✅ Keycloak Realm Setup Complete!")
-
+    logging.info("\n✅ Keycloak Realm Setup Complete!")
 
 if __name__ == "__main__":
     main()

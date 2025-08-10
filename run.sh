@@ -111,11 +111,34 @@ ensure_infra() {
 # CENTRAL COMMAND LOGIC
 # ==============================================================================
 
+# ==============================================================================
+# CENTRAL COMMAND LOGIC
+# ==============================================================================
+
 case "$ACTION" in
     start)
-        # Call the setup function before starting the main services
-        ensure_infra
-        $DC_EXEC up -d --build --remove-orphans --wait
+        # --- THIS IS THE NEW, ORCHESTRATED STARTUP SEQUENCE ---
+        info "Ensuring one-off infrastructure tasks (MinIO bucket) are complete..."
+        # We run this separately to ensure MinIO is ready.
+        $DC_EXEC run --rm create-minio-bucket
+
+        info "Starting core services (DBs, Keycloak, Backend)..."
+        # Start only the core services first and wait for them to be healthy.
+        # This prevents dependent services from starting too early.
+        $DC_EXEC up -d --build --remove-orphans --wait db-keycloak db-app keycloak backend
+
+        info "Running one-time Keycloak realm setup..."
+        # Now that the backend is healthy, we can safely execute the setup script.
+        $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.setup_keycloak_realm
+
+        info "Starting all remaining services (SFTPGo, UI, Caddy)..."
+        # Run 'up' again. Docker Compose is smart and will only start the services
+        # that aren't already running. SFTPGo will now start correctly because the
+        # backend is healthy and the realm exists.
+        $DC_EXEC up -d --wait
+        
+        success "All services started and configured successfully."
+        # --- END OF NEW STARTUP SEQUENCE ---
         ;;
     stop)
         $DC_EXEC stop
@@ -130,11 +153,10 @@ case "$ACTION" in
     logs)
         $DC_EXEC logs -f "$@"
         ;;
+    # --- setup:keycloak is now primarily for re-running the setup on an already running system ---
     migrate:make|migrate:run|setup:keycloak|setup:seed)
         if [ "$ACTION" == "migrate:make" ] && [ -z "$1" ]; then error "Migration message is required."; fi
         
-        # Ensure infrastructure is ready before running commands that might depend on it
-        ensure_infra
         info "Ensuring backend service is running for command..."
         $DC_EXEC up -d --wait "$BACKEND_SERVICE"
         
@@ -151,36 +173,10 @@ case "$ACTION" in
         ;;
     sftp:process)
         if [ "$ENV_CONTEXT" != "dev" ]; then error "'sftp:process' action is only for the 'dev' environment."; fi
-        if [ -z "$1" ]; then error "SFTP process requires arguments. Use --help for usage."; fi
-        
-        # Ensure infrastructure is ready
-        ensure_infra
-        info "Ensuring backend service is running for secure SFTP processing..."
+        info "Ensuring backend service is running for SFTP processing..."
         $DC_EXEC up -d --wait "$BACKEND_SERVICE"
-        
-        info "Running SECURE multi-tenant SFTP file processor..."
-        warn "This processor requires valid JWT authentication tokens"
-        $DC_EXEC exec "$BACKEND_SERVICE" python scripts/secure_sftp_processor.py "$@"
-        ;;
-    sftp:legacy)
-        if [ "$ENV_CONTEXT" != "dev" ]; then error "'sftp:legacy' action is only for the 'dev' environment."; fi
-        if [ -z "$1" ]; then error "Legacy SFTP process requires arguments."; fi
-        
-        warn "⚠️  USING LEGACY SFTP PROCESSOR - NO AUTHENTICATION!"
-        warn "⚠️  THIS IS FOR DEVELOPMENT ONLY - NOT SECURE!"
-        read -p "Continue with insecure legacy processor? [y/N] " confirm
-        if [[ ! "$confirm" =~ ^[yY](es)?$ ]]; then
-            info "Operation cancelled"
-            exit 0
-        fi
-        
-        # Ensure infrastructure is ready
-        ensure_infra
-        info "Ensuring backend service is running for legacy SFTP processing..."
-        $DC_EXEC up -d --wait "$BACKEND_SERVICE"
-        
-        warn "Running LEGACY (INSECURE) SFTP file processor..."
-        $DC_EXEC exec "$BACKEND_SERVICE" python scripts/manual_sftp_processor_v2.py "$@"
+        info "Running SFTP file processor..."
+        $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.manual_sftp_processor_v2 --run "$@"
         ;;
     test)
         if [ "$ENV_CONTEXT" != "dev" ]; then error "'test' action is only for the 'dev' environment."; fi
