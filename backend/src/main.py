@@ -8,7 +8,7 @@ from pathlib import Path
 import os
 import openlit
 
-from src.api.endpoints import validation, trading_partners, auth, schemas, enrichment, knowledge
+from src.api.endpoints import validation, trading_partners, auth, schemas, enrichment, knowledge, sftp
 from src.core.auth import get_current_user, User
 from src.core.config import setup_logging, settings
 from src.core.audit import before_flush, after_flush_postexec
@@ -80,5 +80,6 @@ api_router.include_router(trading_partners.router, tags=["Trading Partners"])
 api_router.include_router(schemas.router, tags=["Schemas"])
 api_router.include_router(enrichment.router, tags=["Enrichment"])
 api_router.include_router(knowledge.router, tags=["Knowledge Base"])
+api_router.include_router(sftp.router, tags=["SFTP Processing"])
 
 app.include_router(api_router)

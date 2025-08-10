@@ -88,6 +88,8 @@ class TradingPartnerRepository:
         db_partner.profiles = db_profiles
         
         self.db.add(db_partner)
+        # Flush to get the partner ID assigned before creating SFTP user
+        await self.db.flush()
 
         # If SFTP is enabled, create the user in SFTPGo.
         if db_partner.sftp_enabled and db_partner.sftp_username:
@@ -95,14 +97,13 @@ class TradingPartnerRepository:
             success = sftp_manager.create_user(
                 username=db_partner.sftp_username,
                 tenant_id=self.tenant_id,
-                partner_name=db_partner.name
+                partner_name=db_partner.name,
+                partner_id=str(db_partner.id)
             )
             if not success:
                 # If SFTP user creation fails, we should not save the partner.
                 # The exception will trigger a rollback of the DB transaction.
                 raise Exception(f"Failed to create corresponding SFTPGo user '{db_partner.sftp_username}'.")
-
-        await self.db.flush()
     
         return db_partner
 
@@ -163,7 +164,8 @@ class TradingPartnerRepository:
             success = sftp_manager.create_user(
                 username=db_partner.sftp_username,
                 tenant_id=self.tenant_id,
-                partner_name=db_partner.name
+                partner_name=db_partner.name,
+                partner_id=str(db_partner.id)
             )
             if not success:
                 # This exception will trigger a rollback of the entire database transaction,

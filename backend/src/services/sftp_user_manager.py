@@ -53,7 +53,7 @@ class SftpUserManager:
             logger.error(f"Error checking if SFTPGo user '{username}' exists: {e}")
             return False
 
-    def _create_virtual_folder(self, folder_name: str, tenant_id: str, username: str, path_type: str) -> bool:
+    def _create_virtual_folder(self, folder_name: str, tenant_id: str, partner_identifier: str, path_type: str) -> bool:
         """Creates a virtual folder configuration in SFTPGo."""
         if not self.authenticate(): return False
 
@@ -61,7 +61,7 @@ class SftpUserManager:
         folder_payload = {
             "name": folder_name,
             "mapped_path": "/", # Mapped path is required but not used for S3
-            "description": f"EDI Lens {path_type} for {username}",
+            "description": f"EDI Lens {path_type} for partner {partner_identifier}",
             "filesystem": {
                 "provider": 1, # S3
                 "s3config": {
@@ -70,7 +70,7 @@ class SftpUserManager:
                     "access_key": settings.STORAGE_ACCESS_KEY,
                     "access_secret": {"status": "Plain", "payload": settings.STORAGE_SECRET_KEY},
                     "endpoint": settings.STORAGE_ENDPOINT_URL,
-                    "key_prefix": f"sftp/{tenant_id}/{username}/{path_type}/",
+                    "key_prefix": f"tenants/{tenant_id}/partners/{partner_identifier}/{path_type}/",
                     "force_path_style": True,
                 }
             }
@@ -95,16 +95,18 @@ class SftpUserManager:
             logger.error(f"Error creating virtual folder '{folder_name}': {e}")
             return False
 
-    def create_user(self, username: str, tenant_id: str, partner_name: str) -> bool:
+    def create_user(self, username: str, tenant_id: str, partner_name: str, partner_id: str = None) -> bool:
         """Creates a new, jailed SFTP user."""
         if not self.authenticate(): return False
 
+        # Use partner_id for directory structure, fallback to username for backward compatibility
+        folder_identifier = partner_id if partner_id else username
         in_folder_name = f"{username}-in"
         out_folder_name = f"{username}-out"
 
-        if not self._create_virtual_folder(in_folder_name, tenant_id, username, "in"):
+        if not self._create_virtual_folder(in_folder_name, tenant_id, folder_identifier, "in"):
             return False
-        if not self._create_virtual_folder(out_folder_name, tenant_id, username, "out"):
+        if not self._create_virtual_folder(out_folder_name, tenant_id, folder_identifier, "out"):
             return False
 
         # This payload matches the User schema from the OpenAPI spec
@@ -112,8 +114,12 @@ class SftpUserManager:
             "username": username,
             "status": 1,
             "description": f"EDI Lens Partner: {partner_name} (Tenant: {tenant_id})",
-            "home_dir": "/",
-            "permissions": {"/": ["*"]},
+            "home_dir": "/home",  # Set to a safe directory that will be overridden by virtual folders
+            "permissions": {
+                "/": ["list"],  # Minimal permission to list root directory
+                "/in": ["*"],   # Full access to in directory
+                "/out": ["*"]   # Full access to out directory
+            },
             "filesystem": {"provider": 0},
             "virtual_folders": [
                 { "name": in_folder_name, "virtual_path": "/in" },

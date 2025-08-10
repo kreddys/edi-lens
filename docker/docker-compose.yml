@@ -60,18 +60,19 @@ services:
     environment:
       - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
-      - KC_DB=${KC_DB}
-      - KC_DB_URL_HOST=${KC_DB_URL_HOST}
-      - KC_DB_URL_DATABASE=${KC_DB_URL_DATABASE}
-      - KC_DB_USERNAME=${KC_DB_USERNAME}
-      - KC_DB_PASSWORD=${KC_DB_PASSWORD}
-      - KC_HOSTNAME_STRICT=${KC_HOSTNAME_STRICT}
-      - KC_HOSTNAME_STRICT_HTTPS=${KC_HOSTNAME_STRICT_HTTPS}
-      - KC_PROXY=${KC_PROXY}
-      - KC_HTTP_ENABLED=${KC_HTTP_ENABLED}
-      #- KC_HOSTNAME=${KC_HOSTNAME}
-      #- KC_HOSTNAME_PORT=${KC_HOSTNAME_PORT}      
-      #- KC_HOSTNAME_ADMIN_URL={KEYCLOAK_URL}
+      # Database Connection
+      - KC_DB=postgres
+      - KC_DB_URL_HOST=${POSTGRES_KC_HOST}
+      - KC_DB_URL_DATABASE=${POSTGRES_KC_DB}
+      - KC_DB_USERNAME=${POSTGRES_KC_USER}
+      - KC_DB_PASSWORD=${POSTGRES_KC_PASSWORD}
+      # HTTP & Proxy Settings
+      - KC_HTTP_ENABLED=true
+      - KC_PROXY=edge
+      - KC_HOSTNAME_STRICT=false
+      # This explicitly tells Keycloak its public-facing URL, which it will use
+      # for generating redirects and reporting its "issuer" URL.
+      #- KC_HOSTNAME=localhost:8081
     networks:
       - edi_lens_network
     # `start-dev` is crucial for local development. It skips the lengthy 'build'
@@ -143,7 +144,7 @@ services:
     environment:
       - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY:-minioadmin}
       - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-minioadmin}
-      - STORAGE_BUCKET=${STORAGE_BUCKET:-edi-lens-schemas}
+      - STORAGE_BUCKET=${STORAGE_BUCKET:-edi-lens}
     entrypoint: >
       /bin/sh -c "
       echo 'Waiting for MinIO to be ready...';
@@ -161,6 +162,8 @@ services:
     image: drakkan/sftpgo:v2.6
     container_name: sftpgo
     hostname: sftpgo
+    # Run as root to allow pipe file creation - this is the recommended approach from SFTPGo docs
+    user: "0:0"
     environment:
       # --- SFTPGo Default Admin Credentials ---
       SFTPGO_DEFAULT_ADMIN_USERNAME: ${SFTPGO_ADMIN_USER}
@@ -179,12 +182,16 @@ services:
       # --- OIDC Configuration (Keycloak) ---
       SFTPGO_HTTPD__BINDINGS__0__OIDC__CLIENT_ID: "sftpgo"
       SFTPGO_HTTPD__BINDINGS__0__OIDC__CLIENT_SECRET: "${KEYCLOAK_SFTPGO_CLIENT_SECRET}"
-      SFTPGO_HTTPD__BINDINGS__0__OIDC__CONFIG_URL: "http://keycloak:8080/realms/edi-lens"
+      # This URL is for container-to-container communication. It must use the internal service name.
+      SFTPGO_HTTPD__BINDINGS__0__OIDC__CONFIG_URL: "${KEYCLOAK_URL}/realms/edi-lens"
       SFTPGO_HTTPD__BINDINGS__0__OIDC__REDIRECT_BASE_URL: "http://localhost:8082"
+      SFTPGO_HTTPD__BINDINGS__0__OIDC__INSECURE_SKIP_SIGNATURE_CHECK: "false"
       SFTPGO_HTTPD__BINDINGS__0__OIDC__SCOPES: "openid,profile,email,groups"
       SFTPGO_HTTPD__BINDINGS__0__OIDC__USERNAME_FIELD: "preferred_username"
       SFTPGO_HTTPD__BINDINGS__0__OIDC__ROLE_FIELD: "groups"
       SFTPGO_HTTPD__BINDINGS__0__OIDC__AUTO_CREATE_USER: "true"
+
+      # Event hooks are configured via SFTPGo API (see event actions and rules)
     volumes:
       - sftpgo_data:/var/lib/sftpgo/
     ports:

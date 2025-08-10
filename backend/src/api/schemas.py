@@ -29,6 +29,32 @@ class ValidationFinding(BaseModel):
 
 # --- REMOVED: ProfileCriterionCreate is no longer needed ---
 
+# --- SFTP Webhook Schemas ---
+
+class SftpUploadWebhook(BaseModel):
+    """Schema for SFTPGo upload webhook data."""
+    
+    # Core file information
+    name: str = Field(..., description="Name of the uploaded file")
+    size: int = Field(..., description="File size in bytes")
+    
+    # User and path information
+    username: str = Field(..., description="SFTP username who uploaded the file")
+    path: str = Field(..., description="Full path where file was uploaded")
+    
+    # Upload metadata
+    timestamp: Optional[str] = Field(None, description="Upload timestamp")
+    action: str = Field(default="upload", description="Type of action (upload, pre-upload)")
+    
+    # S3/Storage information
+    fs_provider: Optional[int] = Field(None, description="Filesystem provider (1=S3)")
+    bucket: Optional[str] = Field(None, description="S3 bucket name") 
+    object_name: Optional[str] = Field(None, description="S3 object key/path")
+    
+    class Config:
+        # Allow extra fields in case SFTPGo sends additional data
+        extra = "allow"
+
 class PartnerProfileCreate(BaseModel):
     name: str
     priority: int = 10

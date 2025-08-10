@@ -33,7 +33,7 @@ if [ -z "$1" ] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]]; then
     echo "  prod      Production environment."
     echo ""
     echo "COMMON ACTIONS (e.g., dev:start, stg:logs):"
-    echo "  start, stop, clean, build, logs, migrate:make \"msg\", migrate:run, setup:keycloak, setup:seed"
+    echo "  start, stop, clean, build, logs, migrate:make \"msg\", migrate:run, setup:keycloak, setup:sftpgo, setup:seed"
     echo ""
     echo "SFTP ACTIONS (dev environment only) - SECURE:"
     echo "  dev:sftp:process --auth-token TOKEN --tenant TENANT --list-partners"
@@ -154,7 +154,7 @@ case "$ACTION" in
         $DC_EXEC logs -f "$@"
         ;;
     # --- setup:keycloak is now primarily for re-running the setup on an already running system ---
-    migrate:make|migrate:run|setup:keycloak|setup:seed)
+    migrate:make|migrate:run|setup:keycloak|setup:sftpgo|setup:seed)
         if [ "$ACTION" == "migrate:make" ] && [ -z "$1" ]; then error "Migration message is required."; fi
         
         info "Ensuring backend service is running for command..."
@@ -167,6 +167,9 @@ case "$ACTION" in
             $DC_EXEC exec "$BACKEND_SERVICE" alembic -c alembic.ini upgrade head
         elif [ "$ACTION" == "setup:keycloak" ]; then
             $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.setup_keycloak_realm
+        elif [ "$ACTION" == "setup:sftpgo" ]; then
+            info "Setting up SFTPGo event configuration for real-time processing..."
+            $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.setup_sftpgo_events
         elif [ "$ACTION" == "setup:seed" ]; then
             $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.seed "$@"
         fi
@@ -206,6 +209,8 @@ case "$ACTION" in
                     info "Configuring Keycloak for E2E tests..."
                     sleep 5
                     $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.setup_keycloak_realm
+                    info "Configuring SFTPGo events for E2E tests..."
+                    $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.setup_sftpgo_events
                 fi
                 $DC_EXEC exec "$BACKEND_SERVICE" pytest -m "$TEST_TYPE" "$@"
                 ;;
