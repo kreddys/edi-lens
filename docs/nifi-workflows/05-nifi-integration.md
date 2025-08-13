@@ -8,7 +8,21 @@ This guide covers the integration between NiFi and the EDI Lens backend using a 
 
 ### JSON Template Format
 
-Templates are stored as JSON objects that define the complete NiFi flow structure:
+Templates are stored as JSON objects that define the complete NiFi flow structure. We have two main processing patterns:
+
+#### 1. Batch Processing Pattern (SFTP Files)
+- **File Detection**: NiFi monitors SFTP directories
+- **Processing**: Each file creates separate batch job
+- **API Call**: `/api/v1/edi/validate-batch` with webhook callback
+- **Response**: Asynchronous via webhook when job completes
+
+#### 2. Real-time Processing Pattern (HTTP Requests)  
+- **Request Detection**: NiFi listens for HTTP requests
+- **Processing**: Immediate processing of EDI content
+- **API Call**: `/api/v1/edi/validate-realtime` for synchronous response
+- **Response**: Immediate return to caller
+
+### SFTP Batch Processing Template
 
 ```json
 {
@@ -75,10 +89,10 @@ Templates are stored as JSON objects that define the complete NiFi flow structur
                 "position": {"x": 850, "y": 100},
                 "properties": {
                     "HTTP Method": "POST",
-                    "Remote URL": "http://backend:8000/api/v1/edi/validate-single",
+                    "Remote URL": "http://backend:8000/api/v1/edi/validate-batch",
                     "Content-Type": "application/json",
                     "Authorization": "Bearer ${EDI_BACKEND_SERVICE_TOKEN}",
-                    "Request Body": "{\"edi_content\": \"${flowfile:content}\", \"tenant_id\": \"${TENANT_ID}\", \"workflow_id\": \"${WORKFLOW_ID}\", \"validation_schema\": \"${VALIDATION_SCHEMA}\", \"snip_level\": ${SNIP_LEVEL}, \"file_name\": \"${filename}\"}",
+                    "Request Body": "{\"edi_content\": \"${flowfile:content}\", \"tenant_id\": \"${TENANT_ID}\", \"workflow_id\": \"${WORKFLOW_ID}\", \"validation_schema\": \"${VALIDATION_SCHEMA}\", \"snip_level\": ${SNIP_LEVEL}, \"file_name\": \"${filename}\", \"callback_url\": \"http://nifi:8080/webhook/batch-complete\", \"generate_ta1\": ${GENERATE_TA1}, \"generate_999\": ${GENERATE_999}}",
                     "Request Character Encoding": "UTF-8"
                 },
                 "auto_terminated_relationships": ["retry"]
@@ -316,6 +330,214 @@ Templates are stored as JSON objects that define the complete NiFi flow structur
                     "success_path": {"type": "string"},
                     "error_path": {"type": "string"},
                     "archive_path": {"type": "string"}
+                }
+            }
+        }
+    }
+}
+```
+
+### HTTP Real-time Processing Template
+
+```json
+{
+    "template_id": "http-edi-processor-v1.0",
+    "name": "HTTP EDI Real-time Processor v1.0",
+    "description": "Processes EDI transactions via HTTP endpoints in real-time",
+    "category": "REALTIME",
+    "deployment_method": "registry",
+    "flow_definition": {
+        "processors": [
+            {
+                "id": "listen-http-processor",
+                "name": "Listen for HTTP Requests",
+                "type": "org.apache.nifi.processors.standard.ListenHTTP",
+                "position": {"x": 100, "y": 100},
+                "properties": {
+                    "Listening Port": "${HTTP_LISTENING_PORT}",
+                    "Base Path": "${HTTP_BASE_PATH}",
+                    "HTTP Context Map": "http-context-map",
+                    "Allowed Paths": ".*",
+                    "Additional HTTP Methods": "POST"
+                }
+            },
+            {
+                "id": "extract-edi-processor",
+                "name": "Extract EDI Content",
+                "type": "org.apache.nifi.processors.standard.ExtractText",
+                "position": {"x": 350, "y": 100},
+                "properties": {
+                    "edi_content": "(?s)(.+)",
+                    "Include Capture Group 0": "false"
+                }
+            },
+            {
+                "id": "validate-realtime-processor",
+                "name": "Validate EDI Real-time",
+                "type": "org.apache.nifi.processors.standard.InvokeHTTP",
+                "position": {"x": 600, "y": 100},
+                "properties": {
+                    "HTTP Method": "POST",
+                    "Remote URL": "http://backend:8000/api/v1/edi/validate-realtime",
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer ${EDI_BACKEND_SERVICE_TOKEN}",
+                    "Request Body": "{\"edi_content\": \"${edi_content}\", \"tenant_id\": \"${TENANT_ID}\", \"workflow_id\": \"${WORKFLOW_ID}\", \"validation_schema\": \"${VALIDATION_SCHEMA}\", \"snip_level\": ${SNIP_LEVEL}, \"generate_ta1\": ${GENERATE_TA1}, \"generate_999\": ${GENERATE_999}}",
+                    "Request Character Encoding": "UTF-8"
+                }
+            },
+            {
+                "id": "format-response-processor",
+                "name": "Format HTTP Response",
+                "type": "org.apache.nifi.processors.standard.ReplaceText",
+                "position": {"x": 850, "y": 100},
+                "properties": {
+                    "Search Value": "(?s)(.*)",
+                    "Replacement Value": "${flowfile:content}",
+                    "Replacement Strategy": "Regex Replace"
+                }
+            },
+            {
+                "id": "respond-http-processor",
+                "name": "Send HTTP Response",
+                "type": "org.apache.nifi.processors.standard.RespondHTTP",
+                "position": {"x": 1100, "y": 100},
+                "properties": {
+                    "HTTP Context Map": "http-context-map",
+                    "HTTP Status Code": "200",
+                    "Content-Type": "application/json"
+                }
+            },
+            {
+                "id": "error-response-processor",
+                "name": "Handle Error Response",
+                "type": "org.apache.nifi.processors.standard.RespondHTTP",
+                "position": {"x": 850, "y": 200},
+                "properties": {
+                    "HTTP Context Map": "http-context-map",
+                    "HTTP Status Code": "500",
+                    "Content-Type": "application/json",
+                    "HTTP Response Body": "{\"error\": \"Processing failed\", \"timestamp\": \"${now():format('yyyy-MM-dd HH:mm:ss')}\"}"
+                }
+            }
+        ],
+        "connections": [
+            {
+                "id": "listen-to-extract",
+                "source_id": "listen-http-processor",
+                "destination_id": "extract-edi-processor",
+                "source_relationships": ["success"]
+            },
+            {
+                "id": "extract-to-validate",
+                "source_id": "extract-edi-processor",
+                "destination_id": "validate-realtime-processor",
+                "source_relationships": ["matched"]
+            },
+            {
+                "id": "validate-to-format",
+                "source_id": "validate-realtime-processor",
+                "destination_id": "format-response-processor",
+                "source_relationships": ["success"]
+            },
+            {
+                "id": "format-to-respond",
+                "source_id": "format-response-processor",
+                "destination_id": "respond-http-processor",
+                "source_relationships": ["success"]
+            },
+            {
+                "id": "validate-error-to-error-response",
+                "source_id": "validate-realtime-processor",
+                "destination_id": "error-response-processor",
+                "source_relationships": ["failure"]
+            },
+            {
+                "id": "extract-error-to-error-response",
+                "source_id": "extract-edi-processor",
+                "destination_id": "error-response-processor",
+                "source_relationships": ["unmatched"]
+            }
+        ],
+        "parameter_contexts": [
+            {
+                "name": "realtime-workflow-parameters",
+                "description": "Parameters for real-time workflow configuration",
+                "parameters": {
+                    "WORKFLOW_ID": {
+                        "description": "Unique workflow identifier",
+                        "sensitive": false
+                    },
+                    "TENANT_ID": {
+                        "description": "Tenant identifier",
+                        "sensitive": false
+                    },
+                    "HTTP_LISTENING_PORT": {
+                        "description": "Port for HTTP listener",
+                        "sensitive": false
+                    },
+                    "HTTP_BASE_PATH": {
+                        "description": "Base path for HTTP endpoint",
+                        "sensitive": false
+                    },
+                    "VALIDATION_SCHEMA": {
+                        "description": "EDI validation schema name",
+                        "sensitive": false
+                    },
+                    "SNIP_LEVEL": {
+                        "description": "SNIP validation level",
+                        "sensitive": false
+                    },
+                    "GENERATE_TA1": {
+                        "description": "Whether to generate TA1 acknowledgments",
+                        "sensitive": false
+                    },
+                    "GENERATE_999": {
+                        "description": "Whether to generate 999 acknowledgments",
+                        "sensitive": false
+                    },
+                    "EDI_BACKEND_SERVICE_TOKEN": {
+                        "description": "JWT token for backend API calls",
+                        "sensitive": true
+                    }
+                }
+            }
+        ]
+    },
+    "configuration_schema": {
+        "type": "object",
+        "required": ["endpoint", "validation"],
+        "properties": {
+            "endpoint": {
+                "type": "string",
+                "description": "HTTP endpoint path for processing requests"
+            },
+            "listening_port": {
+                "type": "integer",
+                "description": "Port number for HTTP listener",
+                "default": 8081
+            },
+            "timeout_seconds": {
+                "type": "integer",
+                "description": "Request timeout in seconds",
+                "default": 30
+            },
+            "max_payload_size_mb": {
+                "type": "integer",
+                "description": "Maximum payload size in MB",
+                "default": 10
+            },
+            "validation": {
+                "type": "object",
+                "properties": {
+                    "schema": {"type": "string"},
+                    "snip_level": {"type": "integer", "minimum": 1, "maximum": 5}
+                }
+            },
+            "acknowledgments": {
+                "type": "object",
+                "properties": {
+                    "generate_ta1": {"type": "boolean"},
+                    "generate_999": {"type": "boolean"}
                 }
             }
         }

@@ -28,41 +28,79 @@ This document outlines the incremental development approach for transitioning to
 
 **Goal**: Extract core EDI operations into focused APIs while maintaining current functionality.
 
-### Step 1.1: EDI Validation API (3-4 days)
-**Objective**: Create dedicated validation endpoint optimized for NiFi consumption.
+### Step 1.1: Realtime EDI Validation API (3-4 days)
+**Objective**: Create realtime validation endpoint for synchronous HTTP workflows.
 
 #### Implementation
 ```python
 # NEW: src/api/endpoints/edi_validation.py
-@router.post("/api/v1/edi/validate-single")
-async def validate_single_edi(
-    request: SingleEDIValidationRequest,
+@router.post("/api/v1/edi/validate-realtime")
+async def validate_realtime_edi(
+    request: RealtimeEDIValidationRequest,
     auth: AuthContext = Depends(require_service_auth)
 ):
-    """Validate a single EDI document for NiFi workflows."""
+    """Validate EDI document with immediate synchronous response."""
     pass
 
 # NEW: src/api/schemas/edi_schemas.py
-class SingleEDIValidationRequest(BaseModel):
+class RealtimeEDIValidationRequest(BaseModel):
     edi_content: str
     tenant_id: str
     workflow_id: str
     validation_schema: str
     snip_level: int = 3
-    file_name: Optional[str] = None
+    generate_ta1: bool = False
+    generate_999: bool = False
 
-class SingleEDIValidationResponse(BaseModel):
+class RealtimeEDIValidationResponse(BaseModel):
     valid: bool
     validation_results: List[ValidationFinding]
     processing_time_ms: int
     schema_used: str
     snip_level_used: int
+    ta1_content: Optional[str] = None
+    workflow_id: str
+    processed_at: datetime
 ```
 
 #### Testing Strategy
+
+Use the project's `run.sh` script for all testing:
+
+```bash
+# Start development environment (auto-reloads on code changes)
+./run.sh dev:start
+
+# Unit tests (fast, no Docker needed)
+./run.sh dev:test unit tests/api/test_edi_validation.py -v
+
+# Integration tests (with Docker stack)
+./run.sh dev:test integration tests/api/test_edi_validation.py -v
+
+# E2E tests (full system with Keycloak + SFTPGo setup)
+./run.sh dev:test e2e tests/api/test_edi_validation.py -v
+
+# Run all API tests
+./run.sh dev:test integration tests/api/ -v
+
+# Run specific test class
+./run.sh dev:test integration tests/api/test_edi_validation.py::TestRealtimeEDIValidation -v
+```
+
+**Development Notes:**
+- The backend auto-reloads in dev mode - no need to restart containers after code changes
+- Only restart containers when changing Docker configs or environment variables
+- Check container health: `docker ps` or `./run.sh dev:logs backend`
+
+**Test Types:**
+- **Unit tests**: Fast, isolated tests using mocks (marked with `@pytest.mark.unit`)
+- **Integration tests**: Test against real Docker services (marked with `@pytest.mark.integration`) 
+- **E2E tests**: Full system tests with authentication and SFTP processing (marked with `@pytest.mark.e2e`)
+
+**Test Coverage:**
 ```python
 # tests/api/test_edi_validation.py
-class TestSingleEDIValidation:
+class TestRealtimeEDIValidation:
     async def test_valid_edi_document(self):
         """Test validation of valid EDI document."""
         
@@ -152,8 +190,8 @@ async def generate_999_acknowledgment(
 - Similar to TA1 generation with 999-specific test cases
 - Validation against 999 EDI structure requirements
 
-### Step 1.4: Batch Validation API (3-4 days)
-**Objective**: Create batch validation endpoint for high-volume processing.
+### Step 1.4: Batch Validation API with Job Queue (4-5 days)
+**Objective**: Create batch validation endpoint with asynchronous job processing and webhook callbacks.
 
 #### Implementation
 ```python
@@ -162,34 +200,86 @@ async def validate_batch_edi(
     request: BatchEDIValidationRequest,
     auth: AuthContext = Depends(require_service_auth)
 ):
-    """Validate multiple EDI documents in a single request."""
+    """Process single EDI file asynchronously with webhook callback."""
     pass
 
 class BatchEDIValidationRequest(BaseModel):
-    requests: List[SingleEDIValidationRequest]
-    max_concurrent: int = 5
+    edi_content: str              # ONE file only
+    tenant_id: str
+    workflow_id: str
+    validation_schema: str
+    snip_level: int = 3
+    file_name: Optional[str] = None
+    callback_url: str             # Webhook endpoint for completion
+    generate_ta1: bool = False
+    generate_999: bool = False
 
 class BatchEDIValidationResponse(BaseModel):
-    results: List[SingleEDIValidationResponse]
-    total_processing_time_ms: int
-    success_count: int
-    error_count: int
+    job_id: str                   # Job tracking ID
+    status: str                   # QUEUED, PROCESSING, COMPLETED, FAILED
+    workflow_id: str
+    file_name: Optional[str]
+    estimated_processing_time_ms: int
+    created_at: datetime
+
+# NEW: Job status endpoint
+@router.get("/api/v1/edi/jobs/{job_id}")
+async def get_batch_job_status(job_id: str):
+    """Get status of batch processing job."""
+    pass
+
+# NEW: Webhook payload structure
+class BatchJobCompletionWebhook(BaseModel):
+    job_id: str
+    status: str
+    workflow_id: str
+    file_name: Optional[str]
+    results: Optional[RealtimeEDIValidationResponse] = None
+    error_message: Optional[str] = None
+```
+
+#### Job Queue Implementation
+```python
+# NEW: src/services/batch_job_service.py
+class BatchJobService:
+    def __init__(self, db: AsyncSession, job_queue: JobQueue):
+        self.db = db
+        self.job_queue = job_queue
+    
+    async def create_batch_job(self, request: BatchEDIValidationRequest) -> str:
+        """Create batch processing job and queue it."""
+        job_id = str(uuid.uuid4())
+        
+        # Store job in database
+        await self.store_job(job_id, request)
+        
+        # Queue for processing
+        await self.job_queue.enqueue(job_id, request)
+        
+        return job_id
+    
+    async def process_batch_job(self, job_id: str):
+        """Process batch job and send webhook callback."""
+        pass
 ```
 
 #### Testing Strategy
 ```python
 class TestBatchEDIValidation:
-    async def test_batch_validation_success(self):
-        """Test successful batch validation."""
+    async def test_batch_job_creation(self):
+        """Test batch job creation and queuing."""
         
-    async def test_batch_validation_mixed_results(self):
-        """Test batch with both valid and invalid documents."""
+    async def test_batch_job_processing(self):
+        """Test asynchronous batch job processing."""
         
-    async def test_batch_validation_performance(self):
-        """Test batch processing performance."""
+    async def test_webhook_callback(self):
+        """Test webhook callback on job completion."""
         
-    async def test_batch_validation_concurrency_limits(self):
-        """Test concurrent processing limits."""
+    async def test_job_status_tracking(self):
+        """Test job status endpoint."""
+        
+    async def test_multiple_files_from_sftp(self):
+        """Test 5 files from SFTP create 5 separate jobs."""
 ```
 
 ### Step 1.5: Service Authentication (2-3 days)

@@ -83,6 +83,7 @@ Each workflow is an independent, template-driven processing unit with the follow
     "template_id": "http-edi-processor-v1.0",
     "configuration": {
         "endpoint": "/api/workflows/realtime-eligibility-001/process",
+        "listening_port": 8081,
         "timeout_seconds": 30,
         "max_payload_size_mb": 10,
         "validation": {
@@ -94,8 +95,9 @@ Each workflow is an independent, template-driven processing unit with the follow
             "generate_999": false
         },
         "response": {
-            "format": "271",
-            "include_original": true
+            "format": "JSON",
+            "include_ta1": true,
+            "include_999": false
         },
         "translation": {
             "enabled": false
@@ -103,6 +105,12 @@ Each workflow is an independent, template-driven processing unit with the follow
     }
 }
 ```
+
+**Key Differences**:
+- **Batch**: Uses file monitoring, asynchronous processing with webhooks
+- **Real-time**: Uses HTTP listener, synchronous processing with immediate response
+- **API Endpoints**: `/validate-batch` vs `/validate-realtime`
+- **Response Pattern**: Job creation + webhook vs immediate result
 
 ### Format Conversion Example
 ```json

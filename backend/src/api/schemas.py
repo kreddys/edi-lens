@@ -169,3 +169,107 @@ class EnrichmentApplyBatchRequest(BaseModel):
 
 class MessageResponse(BaseModel):
     message: str
+
+# ==============================================================================
+# EDI Processing Schemas (NiFi Integration)
+# ==============================================================================
+
+from datetime import datetime
+
+class RealtimeEDIValidationRequest(BaseModel):
+    """Request schema for real-time EDI validation (synchronous processing)."""
+    edi_content: str = Field(..., description="EDI document content to validate")
+    tenant_id: str = Field(..., description="Tenant identifier for isolation")
+    workflow_id: str = Field(..., description="Workflow identifier")
+    validation_schema: str = Field(..., description="EDI schema to validate against")
+    snip_level: int = Field(default=3, description="SNIP validation level (1-5)")
+    generate_ta1: bool = Field(default=False, description="Generate TA1 acknowledgment")
+    generate_999: bool = Field(default=False, description="Generate 999 acknowledgment")
+
+class RealtimeEDIValidationResponse(BaseModel):
+    """Response schema for real-time EDI validation."""
+    valid: bool = Field(..., description="Whether the EDI document is valid")
+    validation_results: List[ValidationFinding] = Field(default=[], description="Validation findings")
+    processing_time_ms: int = Field(..., description="Processing time in milliseconds")
+    schema_used: str = Field(..., description="Schema used for validation")
+    snip_level_used: int = Field(..., description="SNIP level used for validation")
+    ta1_content: Optional[str] = Field(None, description="TA1 acknowledgment content if generated")
+    workflow_id: str = Field(..., description="Workflow identifier")
+    processed_at: datetime = Field(..., description="Processing timestamp")
+
+class BatchEDIValidationRequest(BaseModel):
+    """Request schema for batch EDI validation (asynchronous processing)."""
+    edi_content: str = Field(..., description="EDI document content to validate (ONE file only)")
+    tenant_id: str = Field(..., description="Tenant identifier for isolation")
+    workflow_id: str = Field(..., description="Workflow identifier")
+    validation_schema: str = Field(..., description="EDI schema to validate against")
+    snip_level: int = Field(default=3, description="SNIP validation level (1-5)")
+    file_name: Optional[str] = Field(None, description="Original file name")
+    callback_url: str = Field(..., description="Webhook endpoint for completion notification")
+    generate_ta1: bool = Field(default=False, description="Generate TA1 acknowledgment")
+    generate_999: bool = Field(default=False, description="Generate 999 acknowledgment")
+
+class BatchEDIValidationResponse(BaseModel):
+    """Response schema for batch EDI validation (job creation)."""
+    job_id: str = Field(..., description="Job tracking ID")
+    status: str = Field(..., description="Job status: QUEUED, PROCESSING, COMPLETED, FAILED")
+    workflow_id: str = Field(..., description="Workflow identifier")
+    file_name: Optional[str] = Field(None, description="Original file name")
+    estimated_processing_time_ms: int = Field(..., description="Estimated processing time")
+    created_at: datetime = Field(..., description="Job creation timestamp")
+
+class BatchJobStatusResponse(BaseModel):
+    """Response schema for batch job status queries."""
+    job_id: str = Field(..., description="Job tracking ID")
+    workflow_id: str = Field(..., description="Workflow identifier")
+    tenant_id: str = Field(..., description="Tenant identifier")
+    status: str = Field(..., description="Job status: QUEUED, PROCESSING, COMPLETED, FAILED")
+    file_name: Optional[str] = Field(None, description="Original file name")
+    validation_schema: str = Field(..., description="Schema used for validation")
+    created_at: datetime = Field(..., description="Job creation timestamp")
+    started_at: Optional[datetime] = Field(None, description="Processing start timestamp")
+    completed_at: Optional[datetime] = Field(None, description="Processing completion timestamp")
+    processing_time_ms: Optional[int] = Field(None, description="Total processing time")
+    results: Optional['RealtimeEDIValidationResponse'] = Field(None, description="Validation results if completed")
+    callback_sent: bool = Field(default=False, description="Whether webhook callback was sent")
+    callback_sent_at: Optional[datetime] = Field(None, description="Webhook callback timestamp")
+    errors: List[str] = Field(default=[], description="Any processing errors")
+
+class BatchJobCompletionWebhook(BaseModel):
+    """Webhook payload structure for batch job completion."""
+    job_id: str = Field(..., description="Job tracking ID")
+    status: str = Field(..., description="Final job status: COMPLETED or FAILED")
+    workflow_id: str = Field(..., description="Workflow identifier")
+    file_name: Optional[str] = Field(None, description="Original file name")
+    results: Optional['RealtimeEDIValidationResponse'] = Field(None, description="Validation results if successful")
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+
+class TA1GenerationRequest(BaseModel):
+    """Request schema for TA1 acknowledgment generation."""
+    edi_content: str = Field(..., description="Original EDI document content")
+    tenant_id: str = Field(..., description="Tenant identifier")
+    workflow_id: str = Field(..., description="Workflow identifier")
+    validation_errors: List[ValidationFinding] = Field(default=[], description="Validation findings")
+    file_name: Optional[str] = Field(None, description="Original file name")
+
+class TA1GenerationResponse(BaseModel):
+    """Response schema for TA1 acknowledgment generation."""
+    ta1_content: Optional[str] = Field(None, description="Generated TA1 acknowledgment content")
+    acknowledgment_status: str = Field(..., description="Acknowledgment status: A (Accept), E (Error), R (Reject)")
+    error_code: Optional[str] = Field(None, description="Error code if rejection")
+    processing_time_ms: int = Field(..., description="Processing time in milliseconds")
+
+class Ack999GenerationRequest(BaseModel):
+    """Request schema for 999 functional acknowledgment generation."""
+    edi_content: str = Field(..., description="Original EDI document content")
+    tenant_id: str = Field(..., description="Tenant identifier")
+    workflow_id: str = Field(..., description="Workflow identifier")
+    validation_errors: List[ValidationFinding] = Field(default=[], description="Validation findings")
+    file_name: Optional[str] = Field(None, description="Original file name")
+
+class Ack999GenerationResponse(BaseModel):
+    """Response schema for 999 functional acknowledgment generation."""
+    ack999_content: Optional[str] = Field(None, description="Generated 999 acknowledgment content")
+    acknowledgment_status: str = Field(..., description="Acknowledgment status: A (Accept), E (Error), R (Reject)")
+    error_code: Optional[str] = Field(None, description="Error code if rejection")
+    processing_time_ms: int = Field(..., description="Processing time in milliseconds")

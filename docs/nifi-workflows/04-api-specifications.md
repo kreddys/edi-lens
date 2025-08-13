@@ -320,12 +320,14 @@ POST /api/v1/workflows/{workflow_id}/restart
 
 ## EDI Processing APIs (for NiFi)
 
-These APIs are optimized for NiFi processor interactions and include batch processing capabilities.
+These APIs are optimized for NiFi processor interactions with distinct patterns for real-time and batch processing.
 
-### Single EDI Validation
+### Real-time EDI Validation (Synchronous)
+
+Used for real-time HTTP workflows where immediate response is required.
 
 ```http
-POST /api/v1/edi/validate-single
+POST /api/v1/edi/validate-realtime
 ```
 
 **Request Body**:
@@ -333,14 +335,15 @@ POST /api/v1/edi/validate-single
 {
     "edi_content": "ISA*00*          *00*          *ZZ*...",
     "tenant_id": "tenant-a",
-    "workflow_id": "workflow-123",
-    "validation_schema": "837.5010.X222.A1.json",
-    "snip_level": 3,
-    "file_name": "claims_20250101.edi"
+    "workflow_id": "realtime-eligibility-001",
+    "validation_schema": "270.5010.X279.A1.json",
+    "snip_level": 2,
+    "generate_ta1": true,
+    "generate_999": false
 }
 ```
 
-**Response**:
+**Response (Immediate)**:
 ```json
 {
     "valid": true,
@@ -356,59 +359,68 @@ POST /api/v1/edi/validate-single
         }
     ],
     "processing_time_ms": 150,
-    "schema_used": "837.5010.X222.A1.json",
-    "snip_level_used": 3
+    "schema_used": "270.5010.X279.A1.json",
+    "snip_level_used": 2,
+    "ta1_content": "ISA*00*          *00*          *ZZ*...",
+    "workflow_id": "realtime-eligibility-001",
+    "processed_at": "2025-01-01T12:00:00Z"
 }
 ```
 
-### Batch EDI Validation
+### Batch EDI Validation (Asynchronous with Webhook)
+
+Used for batch file processing where files are processed asynchronously with webhook callbacks.
 
 ```http
 POST /api/v1/edi/validate-batch
 ```
 
-**Request Body**:
+**Request Body** (One file per request):
 ```json
 {
-    "requests": [
-        {
-            "request_id": "req-1",
-            "edi_content": "ISA*00*...",
-            "tenant_id": "tenant-a",
-            "workflow_id": "workflow-123",
-            "validation_schema": "837.5010.X222.A1.json",
-            "file_name": "file1.edi"
-        },
-        {
-            "request_id": "req-2",
-            "edi_content": "ISA*00*...",
-            "tenant_id": "tenant-a",
-            "workflow_id": "workflow-123",
-            "validation_schema": "835.5010.X221.A1.json",
-            "file_name": "file2.edi"
-        }
-    ]
+    "edi_content": "ISA*00*          *00*          *ZZ*...",
+    "tenant_id": "tenant-a",
+    "workflow_id": "batch-claims-001",
+    "validation_schema": "837.5010.X222.A1.json",
+    "snip_level": 3,
+    "file_name": "claims_20250101_001.edi",
+    "callback_url": "http://nifi:8080/webhook/batch-complete",
+    "generate_ta1": true,
+    "generate_999": false
 }
 ```
 
-**Response**:
+**Response (Immediate - Job Created)**:
 ```json
 {
-    "results": [
-        {
-            "request_id": "req-1",
-            "valid": true,
-            "validation_results": [...],
-            "processing_time_ms": 150
-        },
-        {
-            "request_id": "req-2",
-            "valid": false,
-            "validation_results": [...],
-            "processing_time_ms": 120
-        }
-    ],
-    "total_processing_time_ms": 270
+    "job_id": "job-uuid-123",
+    "status": "QUEUED",
+    "workflow_id": "batch-claims-001",
+    "file_name": "claims_20250101_001.edi",
+    "estimated_processing_time_ms": 5000,
+    "created_at": "2025-01-01T12:00:00Z"
+}
+```
+
+**Webhook Callback (When Processing Completes)**:
+```http
+POST http://nifi:8080/webhook/batch-complete
+Content-Type: application/json
+
+{
+    "job_id": "job-uuid-123",
+    "status": "COMPLETED",
+    "workflow_id": "batch-claims-001",
+    "file_name": "claims_20250101_001.edi",
+    "results": {
+        "valid": true,
+        "validation_results": [],
+        "processing_time_ms": 4850,
+        "schema_used": "837.5010.X222.A1.json",
+        "snip_level_used": 3,
+        "ta1_content": "ISA*00*          *00*          *ZZ*...",
+        "processed_at": "2025-01-01T12:01:30Z"
+    }
 }
 ```
 
@@ -511,30 +523,43 @@ POST /api/workflows/{workflow_id}/process
 ### Batch Job Status
 
 ```http
-GET /api/v1/workflows/{workflow_id}/jobs/{job_id}
+GET /api/v1/edi/jobs/{job_id}
 ```
 
 **Response**:
 ```json
 {
-    "job_id": "job-uuid",
-    "workflow_id": "workflow-123",
+    "job_id": "job-uuid-123",
+    "workflow_id": "batch-claims-001",
+    "tenant_id": "tenant-a",
     "status": "COMPLETED",
-    "file_name": "claims_20250101.edi",
-    "started_at": "2025-01-01T10:00:00Z",
-    "completed_at": "2025-01-01T10:02:30Z",
-    "processing_time_ms": 150000,
+    "file_name": "claims_20250101_001.edi",
+    "validation_schema": "837.5010.X222.A1.json",
+    "created_at": "2025-01-01T12:00:00Z",
+    "started_at": "2025-01-01T12:00:05Z",
+    "completed_at": "2025-01-01T12:01:30Z",
+    "processing_time_ms": 85000,
     "results": {
-        "files_processed": 1,
-        "validation_status": "VALID",
-        "acknowledgments_generated": ["TA1"],
-        "output_files": [
-            "/sftp/tenants/tenant-a/claims/out/claims_20250101_TA1_20250101102030.edi"
-        ]
+        "valid": true,
+        "validation_results": [],
+        "schema_used": "837.5010.X222.A1.json",
+        "snip_level_used": 3,
+        "ta1_content": "ISA*00*...",
+        "999_content": null,
+        "processed_at": "2025-01-01T12:01:30Z"
     },
+    "callback_sent": true,
+    "callback_sent_at": "2025-01-01T12:01:31Z",
     "errors": []
 }
 ```
+
+**Status Values**:
+- `QUEUED`: Job created and waiting for processing
+- `PROCESSING`: Currently being processed
+- `COMPLETED`: Successfully completed
+- `FAILED`: Processing failed
+- `CANCELLED`: Job was cancelled
 
 ## Monitoring & Metrics APIs
 

@@ -48,6 +48,31 @@ class AuthContext:
     def is_member_of(self, tenant_id: str) -> bool:
         return tenant_id in self.groups
 
+    def has_tenant_access(self, tenant_id: str) -> bool:
+        """Check if user has access to specified tenant."""
+        return self.is_member_of(tenant_id)
+
+class ServiceContext:
+    """Authentication context for service-to-service communication."""
+    def __init__(self, service_name: str, allowed_tenants: List[str] = None):
+        self.service_name = service_name
+        self.allowed_tenants = allowed_tenants or []
+        self.is_service_account = True
+
+    def has_permission(self, permission: str) -> bool:
+        """Service accounts have broad permissions for EDI processing."""
+        service_permissions = [
+            "edi:process", "edi:validate", "edi:generate-acknowledgments"
+        ]
+        return permission in service_permissions
+
+    def has_tenant_access(self, tenant_id: str) -> bool:
+        """Check if service has access to specified tenant."""
+        # If no specific tenants configured, allow all
+        if not self.allowed_tenants:
+            return True
+        return tenant_id in self.allowed_tenants
+
 def require_permission(permission: str):
     async def dependency(
         x_tenant_id: Annotated[str, Header()],
@@ -148,4 +173,65 @@ async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer_
         raise credentials_exception
     except Exception as e:
         logger.error(f"An unexpected error occurred during token validation: {e}", exc_info=True)
+        raise credentials_exception
+
+async def require_service_auth(
+    authorization: str = Header(...),
+) -> ServiceContext:
+    """
+    Dependency for service-to-service authentication.
+    
+    This is used for NiFi processors and other internal services
+    that need to call the EDI processing APIs.
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid service credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        # Extract token from Authorization header
+        if not authorization.startswith("Bearer "):
+            logger.error("Service auth header missing Bearer prefix")
+            raise credentials_exception
+        
+        token = authorization.split("Bearer ")[1]
+        
+        # Validate service token with Keycloak
+        public_key = await get_keycloak_public_key()
+        
+        payload = jwt.decode(
+            token,
+            public_key,
+            algorithms=["RS256"],
+            audience=settings.KEYCLOAK_BACKEND_CLIENT_ID
+        )
+        
+        # Check if this is a service account token
+        client_id = payload.get("azp")  # Authorized party
+        if not client_id or client_id != "nifi-service":
+            logger.error(f"Invalid service client_id: {client_id}")
+            raise credentials_exception
+        
+        # Extract service name and permissions
+        service_name = payload.get("preferred_username", "unknown-service")
+        
+        # For now, allow all tenants for service accounts
+        # In production, this should be configured per service
+        allowed_tenants = []  # Empty list means all tenants allowed
+        
+        service_context = ServiceContext(
+            service_name=service_name,
+            allowed_tenants=allowed_tenants
+        )
+        
+        logger.info(f"Service authentication successful for: {service_name}")
+        return service_context
+        
+    except JWTError as e:
+        logger.error(f"Service JWT validation error: {e}")
+        raise credentials_exception
+    except Exception as e:
+        logger.error(f"Service authentication error: {e}", exc_info=True)
         raise credentials_exception

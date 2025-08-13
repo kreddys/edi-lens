@@ -16,6 +16,7 @@ import os
 from src.main import app
 from src.core.database import get_db, Base
 from src.core.config import settings
+from src.core.auth import require_service_auth, ServiceContext
 from src.edi_schemas.edi_guide import ImplementationGuideSchema
 
 # ==============================================================================
@@ -78,7 +79,15 @@ async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, 
     async def override_get_db():
         yield db_session
     
+    # Mock service authentication for tests
+    def override_require_service_auth():
+        return ServiceContext(
+            service_name="test-service",
+            allowed_tenants=[]  # Empty means all tenants allowed
+        )
+    
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[require_service_auth] = override_require_service_auth
     
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
