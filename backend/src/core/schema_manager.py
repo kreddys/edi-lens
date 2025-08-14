@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional
 
-from src.edi_schemas.edi_guide import ImplementationGuideSchema
+from src.core.models.edi_schema_models import ImplementationGuideSchema
 from src.core.storage import storage_client # Import the new client
 
 logger = logging.getLogger(__name__)

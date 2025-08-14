@@ -1,7 +1,7 @@
 import pytest
 from src.core.edi_parser import EdiParser
 from src.core.acknowledgements.ta1_defs import TA1NoteCode
-from src.edi_schemas.edi_guide import ImplementationGuideSchema
+from src.core.models.edi_schema_models import ImplementationGuideSchema
 from src.core.acknowledgements.ta1_validator import validate_interchange_envelope
 
 pytestmark = pytest.mark.unit

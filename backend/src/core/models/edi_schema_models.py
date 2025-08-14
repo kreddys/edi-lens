@@ -72,11 +72,17 @@ class ContextualDefinition(BaseModel):
 class StructureSegment(BaseModel):
     type: Literal['segment']
     xid: str
-    name: str 
+    name: Optional[str] = None  # Make name optional to match actual schema
     usage: str
     max_use: int
-    segmentDefinitionId: str
+    # Accept both field names for backward compatibility
+    segmentDefinitionId: Optional[str] = None
+    baseDefinitionId: Optional[str] = None  # Current schema format
     contextDefinitionId: Optional[str] = None
+    
+    def get_segment_definition_id(self) -> str:
+        """Get the segment definition ID from either field name"""
+        return self.segmentDefinitionId or self.baseDefinitionId or self.xid
 
 class StructureLoop(BaseModel):
     type: Literal['loop']

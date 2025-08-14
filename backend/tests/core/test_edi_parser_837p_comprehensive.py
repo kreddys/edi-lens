@@ -1,7 +1,7 @@
 # FILE: backend/tests/core/test_edi_parser_837p_comprehensive.py
 import pytest
 from src.core.edi_parser import EdiParser
-from src.edi_schemas.edi_guide import ImplementationGuideSchema
+from src.core.models.edi_schema_models import ImplementationGuideSchema
 from src.core.cdm import CdmInterchange, CdmLoop
 
 pytestmark = pytest.mark.unit

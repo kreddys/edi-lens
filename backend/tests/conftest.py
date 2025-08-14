@@ -17,7 +17,7 @@ from src.main import app
 from src.core.database import get_db, Base
 from src.core.config import settings
 from src.core.auth import require_service_auth, ServiceContext, User, get_current_user
-from src.edi_schemas.edi_guide import ImplementationGuideSchema
+from src.core.models.edi_schema_models import ImplementationGuideSchema
 
 # ==============================================================================
 # PYTEST HOOKS & SESSION-WIDE FIXTURES

@@ -1,17 +1,18 @@
 
 # EDI Lens - Backend Service
 
-This directory contains the backend API for the EDI Lens application, built with Python and FastAPI.
+This directory contains the clean, focused backend API for EDI processing and validation, built with Python and FastAPI.
 
 ## Overview
 
-The backend is responsible for all core business logic, including:
--   API endpoints for all CRUD operations.
--   EDI parsing and validation logic.
--   Enforcing multi-tenancy and role-based access control (RBAC).
--   Connecting to the PostgreSQL database via SQLAlchemy.
--   Generating automated audit logs for data modifications.
--   Validating JWTs issued by Keycloak.
+The backend provides core EDI processing capabilities, including:
+-   **EDI Validation**: Real-time and batch validation of EDI documents
+-   **EDI Parsing**: Breaking down EDI content into structured segments
+-   **TA1 Generation**: Creating functional acknowledgments
+-   **Schema Management**: Managing EDI schemas for validation
+-   **Multi-tenancy**: Enforcing tenant isolation and role-based access control
+-   **Audit Logging**: Comprehensive tracking of all operations
+-   **Authentication**: JWT validation with Keycloak integration
 
 ## Core Technologies
 
@@ -24,22 +25,35 @@ The backend is responsible for all core business logic, including:
 
 ## Directory Structure
 
-The `src` directory is organized to promote separation of concerns.
+The `src` directory is organized for clarity and maintainability:
 
 ```
 src/
-├── api/              # FastAPI endpoints and Pydantic schemas
-│   ├── endpoints/    # Routers for different resources (e.g., trading_partners.py)
-│   └── schemas.py    # Pydantic models for request/response validation
-├── core/             # Core application logic and utilities
-│   ├── audit.py      # SQLAlchemy event listeners for audit logging
-│   ├── auth.py       # Authentication and permission dependency logic
-│   ├── config.py     # Application settings and logging setup
-│   ├── database.py   # Database engine and session management
-│   └── ...
-├── models/           # SQLAlchemy ORM models (database table definitions)
-├── repositories/     # Data access layer, separates DB queries from API logic
-└── main.py           # Main FastAPI application entrypoint
+├── api/                    # FastAPI endpoints and request/response schemas
+│   ├── endpoints/          # API route definitions
+│   │   ├── auth.py        # Authentication endpoints
+│   │   ├── edi.py         # Consolidated EDI processing endpoints
+│   │   └── schemas.py     # Schema management endpoints
+│   └── schemas.py         # Pydantic models for API validation
+├── core/                  # Core business logic and utilities
+│   ├── acknowledgements/  # TA1 generation logic
+│   ├── audit.py          # Audit logging system
+│   ├── auth.py           # Authentication and authorization
+│   ├── config.py         # Application configuration
+│   ├── database.py       # Database connectivity
+│   ├── edi_parser.py     # EDI parsing engine
+│   ├── schema_manager.py # EDI schema management
+│   └── storage.py        # File storage abstraction
+├── models/               # SQLAlchemy ORM models
+│   ├── audit_log.py     # Audit trail model
+│   ├── processing_log.py # Processing history model
+│   └── validation_transaction.py # Transaction tracking model
+├── services/             # Business logic services
+│   ├── batch_job_service.py     # Batch processing
+│   ├── edi_parsing_service.py   # EDI parsing service
+│   ├── edi_validation_service.py # EDI validation service
+│   └── ta1_generation_service.py # TA1 acknowledgment service
+└── main.py              # FastAPI application entrypoint
 ```
 
 ## Running Backend-Specific Tasks

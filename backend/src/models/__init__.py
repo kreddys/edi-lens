@@ -3,15 +3,7 @@
 
 from src.core.database import Base
 
-# We do not manage tenants or users in our local DB with the Keycloak architecture
-# from .tenant import Tenant
-# from .user import User
-
-# These are our core application models
-
-
+# Core application models - clean and focused on EDI processing
 from .audit_log import AuditLog
 from .validation_transaction import ValidationTransaction
-
-# General processing models
 from .processing_log import ProcessingLog

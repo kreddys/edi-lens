@@ -1,8 +1,8 @@
 # FILE: backend/pyproject.toml
 [tool.poetry]
 name = "edi-lens-backend"
-version = "0.1.0"
-description = "Backend for EDI Lens Validator"
+version = "1.0.0"
+description = "Clean, focused EDI processing and validation service"
 authors = ["Kishore Reddy <kishore5214@outlook.com>"]
 readme = "README.md"
 packages = [

@@ -3,7 +3,7 @@ from pathlib import Path
 import json
 
 from src.core.schema_manager import SchemaManager
-from src.edi_schemas.edi_guide import ImplementationGuideSchema
+from src.core.models.edi_schema_models import ImplementationGuideSchema
 
 pytestmark = [pytest.mark.unit]
 

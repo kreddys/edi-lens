@@ -61,7 +61,7 @@ async def update_schema_content(
 
     try:
         # Pydantic validation before saving
-        from src.edi_schemas.edi_guide import ImplementationGuideSchema
+        from src.core.models.edi_schema_models import ImplementationGuideSchema
         ImplementationGuideSchema.model_validate(content)
         
         schema_bytes = json.dumps(content, indent=2).encode('utf-8')

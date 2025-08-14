@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 from typing import List, Optional, Tuple, Dict, Any
 
-from src.edi_schemas.edi_guide import ImplementationGuideSchema, StructureLoop, StructureSegment, StructureChild
+from src.core.models.edi_schema_models import ImplementationGuideSchema, StructureLoop, StructureSegment, StructureChild
 from src.core.cdm import CdmInterchange, CdmFunctionalGroup, CdmTransaction, CdmLoop, CdmSegment, CdmElement, CdmValidationError
 
 logger = logging.getLogger(__name__)

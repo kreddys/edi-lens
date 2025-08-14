@@ -1,6 +1,6 @@
 # FILE: backend/tests/core/test_edi_schema_models.py
 import pytest
-from src.edi_schemas.edi_guide import ImplementationGuideSchema
+from src.core.models.edi_schema_models import ImplementationGuideSchema
 
 pytestmark = pytest.mark.unit
 

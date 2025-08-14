@@ -12,7 +12,7 @@ import sys
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.edi_schemas.edi_guide import ImplementationGuideSchema, StructureChild, StructureSegment, StructureLoop
+from src.core.models.edi_schema_models import ImplementationGuideSchema, StructureChild, StructureSegment, StructureLoop
 
 # --- Basic Setup ---
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
