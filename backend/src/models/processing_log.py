@@ -50,8 +50,8 @@ class ProcessingLog(Base):
         kwargs.setdefault('ta1_999_generated', False)
         super().__init__(**kwargs)
     
-    # Relationships
-    profile = relationship("PartnerProfile", back_populates="processing_logs")
+    # Relationships removed due to refactoring
+    # profile = relationship("PartnerProfile", back_populates="processing_logs")
     
     def __repr__(self):
         return (f"<ProcessingLog(id={self.id}, tenant='{self.tenant_id}', "

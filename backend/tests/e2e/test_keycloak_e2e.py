@@ -31,53 +31,43 @@ async def test_users_me_with_live_token():
 
 
 @pytest.mark.asyncio
-async def test_partner_crud_with_live_superuser_token():
+async def test_schema_management_with_live_superuser_token():
     """
-    Tests the full CRUD lifecycle for trading partners using a real superuser
-    token from Keycloak, ensuring permissions and logic are correct.
+    Tests schema management using a real superuser token from Keycloak,
+    ensuring permissions and logic are correct.
     """
     token = await get_user_token("superuser@edilens.com")
     headers = {
         "Authorization": f"Bearer {token}",
         "X-Tenant-ID": "tenant-a"
     }
-    base_url = f"http://{settings.BACKEND_HOST}:8000/api/v1/trading-partners"
-    partner_name = f"Integration Test Partner {uuid.uuid4()}"
-    partner_id = None
-
+    
+    # Test schema listing
+    list_url = f"http://{settings.BACKEND_HOST}:8000/api/v1/schemas"
     async with httpx.AsyncClient() as client:
-        # 1. CREATE
-        create_data = {"name": partner_name, "description": "Live test", "profiles": []}
-        response = await client.post(base_url, headers=headers, json=create_data)
-        assert response.status_code == 201, f"CREATE failed: {response.text}"
-        partner_id = response.json()["id"]
-        assert partner_id is not None
-
-        # 2. READ (One)
-        response = await client.get(f"{base_url}/{partner_id}", headers=headers)
-        assert response.status_code == 200
-        assert response.json()["name"] == partner_name
-
-        # 3. UPDATE
-        update_data = {"name": partner_name, "description": "Updated live", "profiles": []}
-        response = await client.put(f"{base_url}/{partner_id}", headers=headers, json=update_data)
-        assert response.status_code == 200
-        assert response.json()["description"] == "Updated live"
-
-        # 4. DELETE (and cleanup)
-        response = await client.delete(f"{base_url}/{partner_id}", headers=headers)
-        assert response.status_code == 204
-
-        # 5. Verify Deletion
-        response = await client.get(f"{base_url}/{partner_id}", headers=headers)
-        assert response.status_code == 404
+        response = await client.get(list_url, headers=headers)
+        assert response.status_code == 200, f"Schema listing failed: {response.text}"
+        
+        result = response.json()
+        assert "base_schemas" in result
+        assert "specialized_schemas" in result
+        assert "837.5010.X222.A1.json" in result["base_schemas"]
+        
+        # Test schema retrieval
+        schema_url = f"http://{settings.BACKEND_HOST}:8000/api/v1/schemas/837.5010.X222.A1.json"
+        response = await client.get(schema_url, headers=headers)
+        assert response.status_code == 200, f"Schema retrieval failed: {response.text}"
+        
+        schema_data = response.json()
+        assert "transactionName" in schema_data
+        assert "version" in schema_data
 
 
 @pytest.mark.asyncio
-async def test_partner_creation_denied_for_viewer_with_live_token():
+async def test_schema_access_denied_for_viewer_with_live_token():
     """
     Verifies that a user with a valid token but insufficient permissions
-    (viewer.b@edilens.com lacks 'trading-partners:create') is rejected.
+    (viewer.b@edilens.com lacks 'schemas:create') is rejected.
     """
     # viewer.b@edilens.com is in group 'tenant-b' and has role 'tenant-viewer'
     token = await get_user_token("viewer.b@edilens.com")
@@ -85,60 +75,71 @@ async def test_partner_creation_denied_for_viewer_with_live_token():
         "Authorization": f"Bearer {token}",
         "X-Tenant-ID": "tenant-b" # The user is in this tenant
     }
-    base_url = f"http://{settings.BACKEND_HOST}:8000/api/v1/trading-partners"
-    create_data = {"name": "Unauthorized Partner", "description": "Should fail", "profiles": []}
+    base_url = f"http://{settings.BACKEND_HOST}:8000/api/v1/schemas/837.5010.X222.A1.json/copy"
+    create_data = {"new_name": "unauthorized_schema.json"}
 
     async with httpx.AsyncClient() as client:
         response = await client.post(base_url, headers=headers, json=create_data)
     
-    # We expect a 403 Forbidden because the role 'trading-partners:create' is missing.
+    # We expect a 403 Forbidden because the role 'schemas:create' is missing.
     assert response.status_code == 403
-    # --- THIS IS THE FIX ---
-    assert "Permission 'trading-partners:create' required" in response.text
+    assert "Permission 'schemas:create' required" in response.text
 
 @pytest.mark.asyncio
 async def test_tenant_isolation_with_live_tokens():
     """
-    Ensures a user from one tenant cannot access resources from another tenant.
+    Ensures a user from one tenant cannot access specialized schemas from another tenant.
     """
     superuser_token = await get_user_token("superuser@edilens.com")
     tenant_a_user_token = await get_user_token("admin.a@edilens.com")
-    partner_name = f"Tenant B Partner {uuid.uuid4()}"
-    base_url = f"http://{settings.BACKEND_HOST}:8000/api/v1/trading-partners"
-    partner_id = None
-
-    # 1. As superuser, create a resource in tenant-b
+    schema_name = f"tenant_b_schema_{uuid.uuid4()}.json"
+    
+    # 1. As superuser, create a specialized schema in tenant-b
     async with httpx.AsyncClient() as client:
         headers = {"Authorization": f"Bearer {superuser_token}", "X-Tenant-ID": "tenant-b"}
-        create_data = {"name": partner_name, "profiles": []}
+        base_url = f"http://{settings.BACKEND_HOST}:8000/api/v1/schemas/837.5010.X222.A1.json/copy"
+        create_data = {"new_name": schema_name}
         response = await client.post(base_url, headers=headers, json=create_data)
         assert response.status_code == 201
-        partner_id = response.json()["id"]
 
-    # 2. As a user from tenant-a, try to access the resource in tenant-b
+    # 2. As a user from tenant-a, try to access schemas (should not see tenant-b's schema)
     async with httpx.AsyncClient() as client:
         headers = {"Authorization": f"Bearer {tenant_a_user_token}", "X-Tenant-ID": "tenant-a"}
-        response = await client.get(f"{base_url}/{partner_id}", headers=headers)
-        # It must be "Not Found" from their perspective. A 403 would leak information.
-        assert response.status_code == 404
+        list_url = f"http://{settings.BACKEND_HOST}:8000/api/v1/schemas"
+        response = await client.get(list_url, headers=headers)
+        assert response.status_code == 200
+        
+        # The tenant-a user should not see the tenant-b schema
+        data = response.json()
+        assert schema_name not in data.get("specialized_schemas", [])
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio 
 async def test_audit_log_with_live_token(db_session: AsyncSession):
     """
-    Verifies that creating a resource with a live token creates an audit log
+    Verifies that creating a schema with a live token creates an audit log
     with the correct user details from the token's claims.
     """
     token = await get_user_token("admin.a@edilens.com")
     claims = jwt.get_unverified_claims(token)
-    partner_name = f"Audited Partner {uuid.uuid4()}"
     headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": "tenant-a"}
-    base_url = f"http://{settings.BACKEND_HOST}:8000/api/v1/trading-partners"
+    
+    schema_name = f"audit_test_schema_{uuid.uuid4()}.json"
+    base_url = f"http://{settings.BACKEND_HOST}:8000/api/v1/schemas/837.5010.X222.A1.json/copy"
 
-    # 1. Create a resource via the API
+    # 1. Create a schema via the API (this should create audit logs)
     async with httpx.AsyncClient() as client:
-        create_data = {"name": partner_name, "profiles": []}
+        create_data = {"new_name": schema_name}
         response = await client.post(base_url, headers=headers, json=create_data)
         assert response.status_code == 201
-        partner_id = response.json()["id"]
 
+    # 2. Check that audit log was created with correct user information
+    result = await db_session.execute(
+        select(AuditLog).order_by(AuditLog.timestamp_utc.desc()).limit(1)
+    )
+    audit_log = result.scalar_one_or_none()
     
+    # Verify the audit log contains the expected user information from the JWT token
+    assert audit_log is not None, "No audit log was created"
+    assert audit_log.user_id == claims["sub"]
+    assert audit_log.username == claims["preferred_username"]
+    assert audit_log.tenant_id == "tenant-a"

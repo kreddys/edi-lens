@@ -26,10 +26,14 @@ ATOMIC_ROLES = [
     {"name": "trading-partners:update", "description": "Can update trading partners"},
     {"name": "trading-partners:delete", "description": "Can delete trading partners"},
     {"name": "validation:run", "description": "Can run EDI validation"},
+    {"name": "schemas:read", "description": "Can read EDI schemas"},
+    {"name": "schemas:create", "description": "Can create EDI schemas"},
+    {"name": "schemas:update", "description": "Can update EDI schemas"},
+    {"name": "admin", "description": "Administrator role"},
 ]
 COMPOSITE_ROLES = {
-    "tenant-admin": {"description": "Full control over a single tenant", "children": ["trading-partners:create", "trading-partners:read", "trading-partners:update", "trading-partners:delete", "validation:run"]},
-    "tenant-viewer": {"description": "Read-only access to a tenant's data", "children": ["trading-partners:read"]},
+    "tenant-admin": {"description": "Full control over a single tenant", "children": ["trading-partners:create", "trading-partners:read", "trading-partners:update", "trading-partners:delete", "validation:run", "schemas:read", "schemas:create", "schemas:update", "admin"]},
+    "tenant-viewer": {"description": "Read-only access to a tenant's data", "children": ["trading-partners:read", "schemas:read"]},
     "superuser": {"description": "Global administrator", "children": ["tenant-admin"]},
 }
 TENANTS = {"tenant-a": "tenant-admin", "tenant-b": "tenant-viewer"}
@@ -222,6 +226,62 @@ def main():
 
     # Configure client mappers
     configure_client_mappers(admin_client, existing_clients_map)
+    
+    # Create users
+    create_users(admin_client)
+
+def create_users(admin_client):
+    """Create test users for E2E testing."""
+    logging.info("\n--- Creating/Updating Users ---")
+    existing_users = admin_client.get_users()
+    existing_usernames = {user['username'] for user in existing_users}
+    
+    for user_def in USERS:
+        username = user_def['username']
+        if username not in existing_usernames:
+            logging.info(f"  - Creating user '{username}'...")
+            
+            # Create user
+            user_payload = {
+                "username": username,
+                "firstName": user_def.get('firstName', ''),
+                "lastName": user_def.get('lastName', ''),
+                "enabled": True,
+                "emailVerified": True,
+                "email": username,  # Use username as email
+            }
+            
+            try:
+                user_id = admin_client.create_user(user_payload)
+                logging.info(f"  - User '{username}' created with ID: {user_id}")
+                
+                # Set password
+                admin_client.set_user_password(user_id=user_id, password=user_def['password'], temporary=False)
+                logging.info(f"  - Password set for user '{username}'")
+                
+                # Add to groups
+                all_groups = {group['name']: group for group in admin_client.get_groups()}
+                for group_name in user_def.get('groups', []):
+                    if group_name in all_groups:
+                        admin_client.group_user_add(user_id=user_id, group_id=all_groups[group_name]['id'])
+                        logging.info(f"  - Added user '{username}' to group '{group_name}'")
+                
+                # Assign realm roles
+                all_roles = {role['name']: role for role in admin_client.get_realm_roles()}
+                roles_to_assign = []
+                for role_name in user_def.get('realm_roles', []):
+                    if role_name in all_roles:
+                        roles_to_assign.append(all_roles[role_name])
+                
+                if roles_to_assign:
+                    admin_client.assign_realm_roles(user_id=user_id, roles=roles_to_assign)
+                    role_names = [role['name'] for role in roles_to_assign]
+                    logging.info(f"  - Assigned roles {role_names} to user '{username}'")
+                    
+            except Exception as e:
+                logging.error(f"  - Failed to create user '{username}': {e}")
+        else:
+            logging.info(f"  - User '{username}' already exists.")
 
 if __name__ == "__main__":
     main()

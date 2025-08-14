@@ -34,7 +34,7 @@ async def list_schemas(auth: AuthContext = Depends(require_permission("schemas:r
 )
 async def get_schema_content(
     schema_name: str,
-    auth: AuthContext = Depends(require_permission("trading-partners:read"))
+    auth: AuthContext = Depends(require_permission("schemas:read"))
 ):
     schema = schema_manager.get_schema(schema_name, auth.tenant_id)
     if not schema:
@@ -51,7 +51,7 @@ async def get_schema_content(
 async def update_schema_content(
     schema_name: str,
     content: dict = Body(...),
-    auth: AuthContext = Depends(require_permission("trading-partners:update")) # Requires update perm
+    auth: AuthContext = Depends(require_permission("schemas:update")) # Requires update perm
 ):
     if schema_name in schema_manager.list_base_schemas():
         raise HTTPException(
@@ -89,7 +89,7 @@ async def update_schema_content(
 async def copy_schema(
     base_schema_name: str,
     request: dict = Body(...), # Expects {"new_name": "..."}
-    auth: AuthContext = Depends(require_permission("trading-partners:create"))
+    auth: AuthContext = Depends(require_permission("schemas:create"))
 ):
     new_name = request.get("new_name")
     if not new_name:

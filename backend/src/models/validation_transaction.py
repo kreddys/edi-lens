@@ -47,9 +47,9 @@ class ValidationTransaction(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
-    profile = relationship("PartnerProfile")
-    source_partner = relationship("TradingPartner")
+    # Relationships removed due to refactoring
+    # profile = relationship("PartnerProfile")
+    # source_partner = relationship("TradingPartner")
     
     # --- THIS IS THE FIX: Remove the relationship to the deleted model ---
     # file_processing_log = relationship("FileProcessingLog", back_populates="validation_transaction", uselist=False)
