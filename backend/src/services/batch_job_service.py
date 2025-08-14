@@ -193,6 +193,7 @@ class BatchJobService:
                 validation_result = await self.edi_service.validate_edi(
                     edi_content=request.edi_content,
                     schema_name=request.validation_schema,
+                    tenant_id=request.tenant_id,
                     snip_level=request.snip_level
                 )
                 

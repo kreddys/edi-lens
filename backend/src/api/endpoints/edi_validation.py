@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 import time
+import logging
 from datetime import datetime
 
 from src.api.schemas import (
@@ -18,6 +19,7 @@ from src.services.edi_validation_service import EDIValidationService
 from src.services.batch_job_service import BatchJobService
 
 router = APIRouter(prefix="/edi", tags=["EDI Processing"])
+logger = logging.getLogger(__name__)
 
 @router.post("/validate-realtime", response_model=RealtimeEDIValidationResponse)
 async def validate_realtime_edi(
@@ -35,7 +37,13 @@ async def validate_realtime_edi(
     
     try:
         # Validate tenant access
-        if not auth.has_tenant_access(request.tenant_id):
+        logger.debug(f"Checking tenant access for tenant_id: {request.tenant_id}, auth context: {type(auth).__name__}")
+        
+        has_access = auth.has_tenant_access(request.tenant_id)
+        logger.debug(f"Tenant access check result: {has_access}")
+        
+        if not has_access:
+            logger.info(f"Access denied for tenant '{request.tenant_id}' - service '{getattr(auth, 'service_name', 'unknown')}' not authorized")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied to specified tenant"
@@ -48,6 +56,7 @@ async def validate_realtime_edi(
         validation_result = await validation_service.validate_edi(
             edi_content=request.edi_content,
             schema_name=request.validation_schema,
+            tenant_id=request.tenant_id,
             snip_level=request.snip_level
         )
         
@@ -73,11 +82,14 @@ async def validate_realtime_edi(
             processed_at=datetime.utcnow()
         )
         
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 403 Forbidden) as-is
+        raise
     except Exception as e:
         processing_time_ms = int((time.time() - start_time) * 1000)
         
         # Log error for monitoring
-        # TODO: Add proper logging
+        logger.error(f"EDI validation failed: {str(e)}", exc_info=True)
         
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

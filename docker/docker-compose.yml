@@ -29,7 +29,10 @@ services:
     networks:
       - edi_lens_network
     healthcheck:
-      test: ["CMD-SHELL", "PGPASSWORD=${POSTGRES_KC_PASSWORD} psql -h localhost -U ${POSTGRES_KC_USER} -d ${POSTGRES_KC_DB} -c 'SELECT 1' > /dev/null 2>&1"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_KC_USER} -d ${POSTGRES_KC_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   db-app:
     build:
@@ -51,7 +54,10 @@ services:
     networks:
       - edi_lens_network
     healthcheck:
-      test: ["CMD-SHELL", "PGPASSWORD=${POSTGRES_PASSWORD} psql -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c \"SELECT 1 FROM pg_extension WHERE extname = 'vector'\" > /dev/null 2>&1"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   keycloak:
     image: quay.io/keycloak/keycloak:latest
@@ -86,15 +92,17 @@ services:
       target: test
     container_name: backend
     depends_on:
-      db-app: { condition: service_healthy }
-      keycloak: { condition: service_started }
-      minio: { condition: service_healthy }
+      - db-app
+      - keycloak
+      - minio
     volumes:
       - ../backend:/home/appuser/app:delegated # <-- CHANGE: Go up one level
       - /home/appuser/app/.venv
       - sftp_tenant_data:/sftp/tenants
     networks: [ edi_lens_network ]
     env_file: [ ../.env.dev ] # <-- CHANGE: Go up one level
+    environment:
+      - WAIT_FOR_KEYCLOAK=true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
       interval: 10s
@@ -126,13 +134,13 @@ services:
       - MINIO_ROOT_USER=${STORAGE_ACCESS_KEY:-minioadmin}
       - MINIO_ROOT_PASSWORD=${STORAGE_SECRET_KEY:-minioadmin}
       - MINIO_DOMAIN=minio.localhost
+    networks:
+      - edi_lens_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
       timeout: 20s
       retries: 3
-    networks:
-      - edi_lens_network
 
   create-minio-bucket:
     image: minio/mc:latest
@@ -148,10 +156,10 @@ services:
     entrypoint: >
       /bin/sh -c "
       echo 'Waiting for MinIO to be ready...';
-      until (/usr/bin/mc alias set local-minio http://minio:9000 $$STORAGE_ACCESS_KEY $$STORAGE_SECRET_KEY) do echo '...retrying connection to minio' && sleep 1; done;
+      until (/usr/bin/mc alias set local-minio http://minio:9000 $STORAGE_ACCESS_KEY $STORAGE_SECRET_KEY) do echo '...retrying connection to minio' && sleep 1; done;
       echo 'MinIO is ready. Creating bucket...';
-      /usr/bin/mc mb local-minio/$$STORAGE_BUCKET --ignore-existing;
-      /usr/bin/mc policy set public local-minio/$$STORAGE_BUCKET;
+      /usr/bin/mc mb local-minio/$STORAGE_BUCKET --ignore-existing;
+      /usr/bin/mc policy set public local-minio/$STORAGE_BUCKET;
       echo 'Bucket setup complete.';
       exit 0;
       "
@@ -199,10 +207,10 @@ services:
     networks:
       - edi_lens_network
     depends_on:
-      db-app: { condition: service_healthy }
-      minio: { condition: service_healthy }
-      keycloak: { condition: service_started }
-      backend: { condition: service_healthy }
+      - db-app
+      - minio
+      - keycloak
+      - backend
     restart: unless-stopped
     command: sftpgo serve
 

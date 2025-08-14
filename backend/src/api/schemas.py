@@ -246,17 +246,31 @@ class BatchJobCompletionWebhook(BaseModel):
 
 class TA1GenerationRequest(BaseModel):
     """Request schema for TA1 acknowledgment generation."""
-    edi_content: str = Field(..., description="Original EDI document content")
+    edi_content: str = Field(..., description="Original EDI document content containing ISA header")
     tenant_id: str = Field(..., description="Tenant identifier")
-    workflow_id: str = Field(..., description="Workflow identifier")
-    validation_errors: List[ValidationFinding] = Field(default=[], description="Validation findings")
+    workflow_id: str = Field(..., description="NiFi workflow identifier")
+    acknowledgment_code: str = Field(
+        ..., 
+        regex="^[ARE]$", 
+        description="A=Accept, R=Reject, E=Error"
+    )
+    error_code: Optional[str] = Field(
+        None, 
+        description="IK901 error code (required if acknowledgment_code=E)"
+    )
+    error_note: Optional[str] = Field(
+        None, 
+        description="Human-readable error description"
+    )
     file_name: Optional[str] = Field(None, description="Original file name")
 
 class TA1GenerationResponse(BaseModel):
     """Response schema for TA1 acknowledgment generation."""
-    ta1_content: Optional[str] = Field(None, description="Generated TA1 acknowledgment content")
-    acknowledgment_status: str = Field(..., description="Acknowledgment status: A (Accept), E (Error), R (Reject)")
-    error_code: Optional[str] = Field(None, description="Error code if rejection")
+    ta1_content: str = Field(..., description="Generated TA1 acknowledgment content")
+    control_number: str = Field(..., description="TA1 control number")
+    acknowledgment_code: str = Field(..., description="Acknowledgment code used")
+    workflow_id: str = Field(..., description="Original workflow identifier")
+    generated_at: datetime = Field(..., description="Generation timestamp")
     processing_time_ms: int = Field(..., description="Processing time in milliseconds")
 
 class Ack999GenerationRequest(BaseModel):

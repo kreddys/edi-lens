@@ -30,7 +30,7 @@ COPY backend/scripts ./scripts
 FROM python:3.12-slim as production
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl gosu && \
+    apt-get install -y --no-install-recommends curl gosu postgresql-client && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get clean && \
     useradd --create-home --shell /bin/bash appuser
@@ -65,7 +65,7 @@ CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 FROM python:3.12-slim as test
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl gosu && \
+    apt-get install -y --no-install-recommends curl gosu postgresql-client && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get clean && \
     useradd --create-home --shell /bin/bash appuser
