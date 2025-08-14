@@ -1,9 +1,105 @@
 import pytest
+from unittest.mock import MagicMock, patch
+from botocore.exceptions import ClientError
+from src.core.storage import ObjectStorageClient, storage_client
+
+pytestmark = pytest.mark.unit
+
+@pytest.fixture
+def mock_s3_client():
+    """Fixture for a mocked S3 client."""
+    with patch('boto3.client') as mock:
+        yield mock
+
+@pytest.fixture
+def unit_storage_client(mock_s3_client):
+    """Fixture to create a new ObjectStorageClient for each test."""
+    return ObjectStorageClient()
+
+def test_upload_success(unit_storage_client: ObjectStorageClient):
+    """Test successful upload."""
+    unit_storage_client.upload(b"test_data", "test_key")
+    unit_storage_client.s3_client.put_object.assert_called_once_with(
+        Bucket=unit_storage_client.bucket_name, Key="test_key", Body=b"test_data"
+    )
+
+def test_upload_client_error(unit_storage_client: ObjectStorageClient):
+    """Test that ClientError is re-raised on upload failure."""
+    unit_storage_client.s3_client.put_object.side_effect = ClientError({}, "put_object")
+    with pytest.raises(ClientError):
+        unit_storage_client.upload(b"test_data", "test_key")
+
+def test_download_success(unit_storage_client: ObjectStorageClient):
+    """Test successful download."""
+    mock_response = {
+        "Body": MagicMock(read=MagicMock(return_value=b"test_data"))
+    }
+    unit_storage_client.s3_client.get_object.return_value = mock_response
+    data = unit_storage_client.download("test_key")
+    assert data == b"test_data"
+    unit_storage_client.s3_client.get_object.assert_called_once_with(
+        Bucket=unit_storage_client.bucket_name, Key="test_key"
+    )
+
+def test_download_no_such_key(unit_storage_client: ObjectStorageClient):
+    """Test that None is returned when the key is not found."""
+    unit_storage_client.s3_client.get_object.side_effect = ClientError(
+        {"Error": {"Code": "NoSuchKey"}}, "get_object"
+    )
+    data = unit_storage_client.download("test_key")
+    assert data is None
+
+def test_download_client_error(unit_storage_client: ObjectStorageClient):
+    """Test that other ClientErrors are re-raised on download failure."""
+    unit_storage_client.s3_client.get_object.side_effect = ClientError(
+        {"Error": {"Code": "SomeOtherError"}}, "get_object"
+    )
+    with pytest.raises(ClientError):
+        unit_storage_client.download("test_key")
+
+def test_list_objects_success(unit_storage_client: ObjectStorageClient):
+    """Test successful listing of objects."""
+    mock_paginator = MagicMock()
+    mock_pages = [
+        {"Contents": [{"Key": "key1"}, {"Key": "key2"}]},
+        {"Contents": [{"Key": "key3"}]},
+    ]
+    mock_paginator.paginate.return_value = mock_pages
+    unit_storage_client.s3_client.get_paginator.return_value = mock_paginator
+
+    keys = unit_storage_client.list_objects("test_prefix")
+    assert keys == ["key1", "key2", "key3"]
+    unit_storage_client.s3_client.get_paginator.assert_called_once_with('list_objects_v2')
+    mock_paginator.paginate.assert_called_once_with(
+        Bucket=unit_storage_client.bucket_name, Prefix="test_prefix"
+    )
+
+def test_list_objects_client_error(unit_storage_client: ObjectStorageClient):
+    """Test that an empty list is returned on ClientError."""
+    unit_storage_client.s3_client.get_paginator.side_effect = ClientError({}, "list_objects_v2")
+    keys = unit_storage_client.list_objects("test_prefix")
+    assert keys == []
+
+def test_list_objects_no_contents(unit_storage_client: ObjectStorageClient):
+    """Test listing objects when there are no contents."""
+    mock_paginator = MagicMock()
+    mock_pages = [{}]
+    mock_paginator.paginate.return_value = mock_pages
+    unit_storage_client.s3_client.get_paginator.return_value = mock_paginator
+
+    keys = unit_storage_client.list_objects("test_prefix")
+    assert keys == []
+
+@patch('src.core.storage.boto3.client')
+def test_storage_client_initialization(mock_boto3_client):
+    """Test that the ObjectStorageClient initializes correctly."""
+    ObjectStorageClient()
+    mock_boto3_client.assert_called_once()
+
 import pytest_asyncio
 import uuid
 from typing import AsyncGenerator
 
-from src.core.storage import storage_client
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 

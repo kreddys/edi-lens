@@ -92,3 +92,104 @@ def test_get_changed_data(mocker):
 
     assert "unchanged_field" not in changes
     assert "profiles" not in changes
+
+from src.core.audit import before_flush, after_flush_postexec, user_id_cv, username_cv, tenant_id_cv, request_id_cv
+from src.models.audit_log import AuditLog, AuditAction
+
+@pytest.fixture
+def mock_session():
+    """Fixture for a mocked SQLAlchemy session."""
+    session = MagicMock()
+    session.new = []
+    session.dirty = []
+    session.deleted = []
+    session.info = {}
+    return session
+
+def test_before_flush_create(mock_session, mocker):
+    """Test that an audit log is created for a new object."""
+    user_id_cv.set("test_user")
+    username_cv.set("test_username")
+    tenant_id_cv.set("test_tenant")
+    request_id_cv.set("test_request")
+
+    mock_obj = MagicMock()
+    mock_obj.__tablename__ = "test_table"
+    mocker.patch('src.core.audit._get_full_data', return_value={'id': 1})
+    mock_session.new = [mock_obj]
+
+    before_flush(mock_session, None, None)
+
+    assert len(mock_session.add.call_args_list) == 1
+    added_obj = mock_session.add.call_args[0][0]
+    assert isinstance(added_obj, AuditLog)
+    assert added_obj.action == AuditAction.CREATE
+
+def test_before_flush_update(mock_session, mocker):
+    """Test that an audit log is created for a dirty object."""
+    user_id_cv.set("test_user")
+    mocker.patch('src.core.audit._get_changed_data', return_value={"name": {"old": "old", "new": "new"}})
+
+    mock_obj = MagicMock()
+    mock_obj.__tablename__ = "test_table"
+    mock_obj.id = 1
+    mock_session.dirty = [mock_obj]
+
+    before_flush(mock_session, None, None)
+
+    assert len(mock_session.add.call_args_list) == 1
+    added_obj = mock_session.add.call_args[0][0]
+    assert isinstance(added_obj, AuditLog)
+    assert added_obj.action == AuditAction.UPDATE
+
+def test_before_flush_delete(mock_session, mocker):
+    """Test that an audit log is created for a deleted object."""
+    user_id_cv.set("test_user")
+    mocker.patch('src.core.audit._get_full_data', return_value={'id': 1})
+
+    mock_obj = MagicMock()
+    mock_obj.__tablename__ = "test_table"
+    mock_obj.id = 1
+    mock_session.deleted = [mock_obj]
+
+    before_flush(mock_session, None, None)
+
+    assert len(mock_session.add.call_args_list) == 1
+    added_obj = mock_session.add.call_args[0][0]
+    assert isinstance(added_obj, AuditLog)
+    assert added_obj.action == AuditAction.DELETE
+
+def test_before_flush_no_user_id(mock_session):
+    """Test that no audit log is created if user_id_cv is not set."""
+    user_id_cv.set(None)
+    mock_session.new = [MagicMock()]
+    before_flush(mock_session, None, None)
+    mock_session.add.assert_not_called()
+
+def test_after_flush_postexec(mock_session):
+    """Test that after_flush_postexec correctly updates the record_pk."""
+    mock_parent = MagicMock()
+    mock_parent.id = 123
+    mock_audit_entry = MagicMock()
+
+    session_info = {'audit_pk_updates': [(mock_parent, mock_audit_entry)]}
+    mock_session.info = session_info
+
+    after_flush_postexec(mock_session, None)
+
+    assert mock_audit_entry.record_pk == "123"
+    assert not session_info['audit_pk_updates']
+
+def test_before_flush_update_no_changes(mock_session, mocker):
+    """Test that no audit log is created for a dirty object with no changes."""
+    user_id_cv.set("test_user")
+    mocker.patch('src.core.audit._get_changed_data', return_value={})
+
+    mock_obj = MagicMock()
+    mock_obj.__tablename__ = "test_table"
+    mock_obj.id = 1
+    mock_session.dirty = [mock_obj]
+
+    before_flush(mock_session, None, None)
+
+    mock_session.add.assert_not_called()

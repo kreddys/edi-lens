@@ -168,6 +168,7 @@ class RealtimeEDIValidationResponse(BaseModel):
     processing_time_ms: int = Field(..., description="Processing time in milliseconds")
     schema_used: str = Field(..., description="Schema used for validation")
     snip_level_used: int = Field(..., description="SNIP level used for validation")
+    ta1_content: Optional[str] = Field(None, description="Generated TA1 acknowledgment content")
     workflow_id: str = Field(..., description="Workflow identifier")
     processed_at: datetime = Field(..., description="Processing timestamp")
 

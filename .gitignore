@@ -20,6 +20,7 @@ pids
 coverage
 *.lcov
 .nyc_output
+.coverage
 
 # Dependency directories
 node_modules/

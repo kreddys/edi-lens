@@ -88,6 +88,10 @@ def require_permission(permission: str):
         logger.debug(f"Checking permission '{permission}' for user '{user.username}' in tenant '{x_tenant_id}'.")
         auth_context = AuthContext(user, x_tenant_id)
         
+        if "superuser" in auth_context.roles:
+            logger.info(f"Superuser '{auth_context.username}' granted access.")
+            return auth_context
+
         if not auth_context.is_member_of(x_tenant_id):
             logger.warning(
                 f"User '{auth_context.username}' denied access to tenant '{x_tenant_id}'. "

@@ -129,6 +129,8 @@ async def validate_batch_edi(
             created_at=datetime.utcnow()
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Batch EDI validation failed: {e}", exc_info=True)
         raise HTTPException(
@@ -204,6 +206,8 @@ async def parse_edi(
         logger.info(f"EDI parsing completed for tenant {request.tenant_id}, {len(parsed_segments)} segments parsed")
         return parsed_segments
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"EDI parsing failed: {e}", exc_info=True)
         raise HTTPException(
@@ -239,6 +243,8 @@ async def generate_ta1(
         logger.info(f"TA1 generation completed for tenant {request.tenant_id}")
         return ta1_response
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"TA1 generation failed: {e}", exc_info=True)
         raise HTTPException(

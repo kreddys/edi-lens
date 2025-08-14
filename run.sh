@@ -83,7 +83,6 @@ case "$ENV_CONTEXT" in
 esac
 info "Configuring for [$ENV_CONTEXT] environment (Project: $PROJECT_NAME)..."
 
-check_docker
 if [ ! -f "$ENV_FILE" ]; then
     if [ -f "$ENV_FILE.example" ]; then
         warn "Creating '$ENV_FILE' from example."
@@ -98,6 +97,7 @@ DC_EXEC="${DC_COMMAND} -p ${PROJECT_NAME} ${DC_FILES} --env-file ${ENV_FILE}"
 # --- THIS IS THE UPDATED HELPER FUNCTION ---
 # Runs one-off setup tasks defined by the 'setup' profile.
 ensure_infra() {
+    check_docker
     info "Ensuring one-off infrastructure tasks are complete..."
     # 'docker compose run' will automatically start any 'depends_on' services (like minio).
     # The --rm flag is critical: it ensures the container is removed after it exits.
@@ -117,6 +117,7 @@ ensure_infra() {
 
 case "$ACTION" in
     start)
+        check_docker
         # --- THIS IS THE NEW, ORCHESTRATED STARTUP SEQUENCE ---
         info "Ensuring one-off infrastructure tasks (MinIO bucket) are complete..."
         # We run this separately to ensure MinIO is ready.
@@ -141,20 +142,25 @@ case "$ACTION" in
         # --- END OF NEW STARTUP SEQUENCE ---
         ;;
     stop)
+        check_docker
         $DC_EXEC stop
         ;;
     clean)
+        check_docker
         read -p "⚠️  This will DELETE ALL DATA for [$ENV_CONTEXT]. Are you sure? [y/N] " confirm
         if [[ "$confirm" =~ ^[yY](es)?$ ]]; then $DC_EXEC down --volumes; fi
         ;;
     build)
+        check_docker
         $DC_EXEC build "$@"
         ;;
     logs)
+        check_docker
         $DC_EXEC logs -f "$@"
         ;;
     # --- setup:keycloak is now primarily for re-running the setup on an already running system ---
     migrate:make|migrate:run|setup:keycloak|setup:sftpgo|setup:seed)
+        check_docker
         if [ "$ACTION" == "migrate:make" ] && [ -z "$1" ]; then error "Migration message is required."; fi
         
         info "Ensuring backend service is running for command..."
@@ -175,6 +181,7 @@ case "$ACTION" in
         fi
         ;;
     sftp:process)
+        check_docker
         if [ "$ENV_CONTEXT" != "dev" ]; then error "'sftp:process' action is only for the 'dev' environment."; fi
         info "Ensuring backend service is running for SFTP processing..."
         $DC_EXEC up -d --wait "$BACKEND_SERVICE"
@@ -192,6 +199,7 @@ case "$ACTION" in
                 (cd backend && poetry run pytest -m "unit" "$@")
                 ;;
             ui)
+                check_docker
                 info "Running UI tests in Docker with Jest and React Testing Library..."
                 ensure_infra
                 info "Ensuring dev stack is running for UI tests..."
@@ -201,10 +209,11 @@ case "$ACTION" in
                 $DC_EXEC exec admin-ui npm run test -- --watchAll=false --coverage "$@"
                 ;;
             integration|e2e)
+                check_docker
                 # Ensure infrastructure is ready before running tests
                 ensure_infra
                 info "Ensuring dev stack is running for '$TEST_TYPE' tests..."
-                $DC_EXEC up -d --build --wait backend
+                $DC_EXEC up -d --wait backend
                 if [[ "$TEST_TYPE" == "e2e" ]]; then
                     info "Configuring Keycloak for E2E tests..."
                     sleep 5

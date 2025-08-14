@@ -56,7 +56,7 @@ class BatchJobService:
         self.edi_service = EDIValidationService()
         self._job_storage = {}  # In-memory storage for demo - use Redis in production
         self._job_queue = asyncio.Queue()
-        self._worker_running = False
+        self._worker_task: Optional[asyncio.Task] = None
     
     async def create_batch_job(self, request: BatchEDIValidationRequest) -> str:
         """
@@ -91,8 +91,8 @@ class BatchJobService:
             await self._job_queue.put(job_id)
             
             # Start worker if not running
-            if not self._worker_running:
-                asyncio.create_task(self._process_job_queue())
+            if self._worker_task is None or self._worker_task.done():
+                self._worker_task = asyncio.create_task(self._process_job_queue())
             
             logger.info(f"Created batch job {job_id} for workflow {request.workflow_id}")
             return job_id
@@ -101,6 +101,15 @@ class BatchJobService:
             logger.error(f"Failed to create batch job: {e}", exc_info=True)
             raise
     
+    async def cancel_worker(self):
+        if self._worker_task:
+            self._worker_task.cancel()
+            try:
+                await self._worker_task
+            except asyncio.CancelledError:
+                pass
+            self._worker_task = None
+
     async def get_job_status(self, job_id: str) -> Optional[BatchJobStatusResponse]:
         """
         Get current status of a batch job.
@@ -141,7 +150,6 @@ class BatchJobService:
     
     async def _process_job_queue(self):
         """Background worker to process queued batch jobs."""
-        self._worker_running = True
         logger.info("Batch job worker started")
         
         try:
@@ -158,10 +166,11 @@ class BatchJobService:
                     logger.error(f"Error in job queue worker: {e}", exc_info=True)
                     await asyncio.sleep(1)  # Brief pause before retrying
                     
+        except asyncio.CancelledError:
+            logger.info("Batch job worker cancelled.")
         except Exception as e:
             logger.error(f"Job queue worker crashed: {e}", exc_info=True)
         finally:
-            self._worker_running = False
             logger.info("Batch job worker stopped")
     
     async def _process_batch_job(self, job_id: str):
