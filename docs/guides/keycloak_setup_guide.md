@@ -21,7 +21,7 @@ Two clients are configured to represent the two main parts of our application th
     -   **Purpose**: Represents the frontend React application.
     -   **Access Type**: `Public`. It has no secret, as it runs in the user's browser.
     -   **Authentication Flow**: Standard OIDC Authorization Code Flow.
-    -   **Redirect URIs**: Configured to allow redirects back to `http://localhost:3000/*` and `http://localhost:3001/*` after login.
+    -   **Redirect URIs**: Configured to allow redirects back to `http://localhost:3001/*` after login.
 
 ## Multi-Tenancy Strategy
 

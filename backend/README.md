@@ -1,29 +1,11 @@
 
 # EDI Lens - Backend Service
 
-This directory contains the clean, focused backend API for EDI processing and validation, built with Python and FastAPI.
+This directory contains the backend API for EDI processing and validation.
 
-## Overview
+> **Note:** For a complete architecture overview, technology stack, and setup/run commands, please see the main [**`README.md`**](../README.md) and the [**`docs/architecture.md`**](../docs/architecture.md) file in the project root.
 
-The backend provides core EDI processing capabilities, including:
--   **EDI Validation**: Real-time and batch validation of EDI documents
--   **EDI Parsing**: Breaking down EDI content into structured segments
--   **TA1 Generation**: Creating functional acknowledgments
--   **Schema Management**: Managing EDI schemas for validation
--   **Multi-tenancy**: Enforcing tenant isolation and role-based access control
--   **Audit Logging**: Comprehensive tracking of all operations
--   **Authentication**: JWT validation with Keycloak integration
-
-## Core Technologies
-
--   **Framework**: [FastAPI](https://fastapi.tiangolo.com/)
--   **Database ORM**: [SQLAlchemy 2.0 (Async)](https://www.sqlalchemy.org/)
--   **Database Driver**: [asyncpg](https://github.com/MagicStack/asyncpg)
--   **Migrations**: [Alembic](https://alembic.sqlalchemy.org/)
--   **Authentication**: [python-jose](https://github.com/mpdavis/python-jose) for JWT validation
--   **Testing**: [pytest](https://docs.pytest.org/) with `pytest-asyncio`
-
-## Directory Structure
+## Backend Directory Structure
 
 The `src` directory is organized for clarity and maintainability:
 
@@ -55,24 +37,3 @@ src/
 │   └── ta1_generation_service.py # TA1 acknowledgment service
 └── main.py              # FastAPI application entrypoint
 ```
-
-## Running Backend-Specific Tasks
-
-All backend tasks should be run through the main `run_app.sh` script in the project root to ensure the service is running inside the correct Docker environment.
-
--   **Run all tests (unit and integration):**
-    ```bash
-    ./scripts/run_app.sh test:backend
-    ./scripts/run_app.sh test:integration
-    ```
-
--   **Generate a new database migration:**
-    ```bash
-    ./scripts/run_app.sh migrate:make "Your descriptive message"
-    ```
-    *After running, inspect the generated file in `backend/alembic/versions/`.*
-
--   **Apply database migrations:**
-    ```bash
-    ./scripts/run_app.sh migrate:run
-    ```

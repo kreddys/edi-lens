@@ -16,15 +16,7 @@ The EDI-Lens parser is a schema-driven EDI parsing system that can handle comple
 
 ### Usage Guides  
 - **[Quick Start Guide](./05-quick-start.md)** - Getting started with the parser
-- **[Usage Examples](./06-usage-examples.md)** - Common use cases and code examples
-- **[Advanced Features](./07-advanced-features.md)** - Complex scenarios and edge cases
 - **[Troubleshooting](./08-troubleshooting.md)** - Common issues and solutions
-
-### Technical Reference
-- **[Schema System](./09-schema-system.md)** - Implementation guides and schema structure
-- **[Testing Guide](./10-testing-guide.md)** - Test patterns and best practices
-- **[Performance](./11-performance.md)** - Performance characteristics and optimization
-- **[API Reference](./12-api-reference.md)** - Complete API documentation
 
 ## Key Features
 

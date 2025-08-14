@@ -7,13 +7,8 @@ This directory contains comprehensive documentation for the EDI Lens SFTP file p
 - **[Overview](01-overview.md)** - System overview, architecture, and key features
 - **[Getting Started](02-getting-started.md)** - Quick start guide for developers and administrators
 - **[Authentication & Security](03-authentication-security.md)** - Security architecture, authentication, and tenant isolation
-- **[File Processing Workflow](04-file-processing-workflow.md)** - End-to-end file processing workflow
-- **[API Reference](05-api-reference.md)** - SFTP configuration and processing APIs
 - **[CLI Tools](06-cli-tools.md)** - Command-line tools for SFTP operations
-- **[Administration](07-administration.md)** - System administration and monitoring
 - **[Troubleshooting](08-troubleshooting.md)** - Common issues and solutions
-- **[Development](09-development.md)** - Development setup and testing
-- **[Migration Guide](10-migration-guide.md)** - Migrating from legacy systems
 
 ## Quick Reference
 

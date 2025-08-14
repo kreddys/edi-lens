@@ -11,48 +11,6 @@ EDI Lens is a full-stack web application designed for validating and managing El
 -   **Asynchronous Backend**: High-performance API built with Python, FastAPI, and SQLAlchemy 2.0.
 
 ---
-
-## Architecture
-
-The application is composed of several containerized services managed by Docker Compose:
-
-```mermaid
-graph TD
-    A[User's Browser] -->|HTTPS| B(Admin UI - Nginx);
-    B -->|API Calls| C(Backend - FastAPI);
-    C -->|Auth & Validation| E(Keycloak);
-    C -->|CRUD & Queries| D(PostgreSQL);
-    E -->|User/Realm Data| D;
-
-    subgraph "Docker Network"
-        B; C; D; E;
-    end
-
-    style B fill:#f9f,stroke:#333,stroke-width:2px
-    style C fill:#ccf,stroke:#333,stroke-width:2px
-    style D fill:#9c9,stroke:#333,stroke-width:2px
-    style E fill:#fca,stroke:#333,stroke-width:2px
-```
-
----
-
-## Technology Stack
-
-| Area      | Technology                                                                                                    |
-| :-------- | :------------------------------------------------------------------------------------------------------------ |
-| **Backend** | [Python](https://www.python.org/), [FastAPI](https://fastapi.tiangolo.com/), [SQLAlchemy](https://www.sqlalchemy.org/), [Alembic](https://alembic.sqlalchemy.org/), [Pydantic](https://pydantic-docs.helpmanual.io/) |
-| **Frontend**  | [TypeScript](https://www.typescriptlang.org/), [React](https://reactjs.org/), [Refine.js](https://refine.dev/), [Ant Design](https://ant.design/), [Vite](https://vitejs.dev/)   |
-| **Database**  | [PostgreSQL](https://www.postgresql.org/)                                                                     |
-| **Auth**      | [Keycloak](https://www.keycloak.org/) (Handles authentication, roles, and tenant groups)                      |
-| **DevOps**    | [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)                          |
-
----
-
-## Prerequisites
-
--   [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
--   A `.env` file in the project root (see `.env.example`)
-
 ---
 
 ## 🚀 Quick Start
@@ -64,28 +22,23 @@ graph TD
     ```
 
 2.  **Create your environment file:**
-    Copy the example file and fill in your desired passwords.
+    Copy the example `.env.dev.example` file for local development.
     ```bash
-    cp .env.example .env
+    cp .env.dev.example .env.dev
     ```
 
-3.  **Run the one-time Keycloak setup:**
-    This script starts all services and configures the Keycloak realm, clients, roles, and users.
+3.  **Build and Start All Services:**
+    This command builds the Docker images and starts all services defined in the `dev` environment.
     ```bash
-    ./scripts/run_app.sh setup:keycloak
+    ./run.sh dev:start
     ```
-    *This command can be safely re-run at any time.*
+    *This command can be safely re-run. It will also perform the one-time setup for Keycloak and other infrastructure.*
 
-4.  **Start the development environment:**
-    This starts all services with live-reloading enabled for the backend.
-    ```bash
-    ./scripts/run_app.sh dev
-    ```
-
-5.  **Access the Application:**
-    -   **Admin UI**: [http://localhost:3000](http://localhost:3000)
+4.  **Access the Application:**
+    -   **Admin UI**: [http://localhost:3001](http://localhost:3001)
     -   **Keycloak Admin**: [http://localhost:8080](http://localhost:8080)
     -   **Backend API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+    -   **MinIO Console**: [http://localhost:9001](http://localhost:9001)
 
     **Default Login Credentials:**
     -   **Superuser**: `superuser@edilens.com` / `password`
@@ -96,38 +49,28 @@ graph TD
 
 ## Development Scripts
 
-All common development tasks are managed via the `./scripts/run_app.sh` script.
+All common development tasks are managed via the `./run.sh` script. The script uses the format `[environment]:[action]`.
 
-| Command                                      | Description                                                                 |
-| :------------------------------------------- | :-------------------------------------------------------------------------- |
-| `./scripts/run_app.sh dev`                   | Starts all services in development mode with backend hot-reloading.         |
-| `./scripts/run_app.sh down`                  | Stops and removes all running services.                                     |
-| `./scripts/run_app.sh clean`                 | **DANGEROUS**. Stops services and deletes all database data and volumes.      |
-| `./scripts/run_app.sh logs`                  | Tails the logs for all running services.                                    |
-| `./scripts/run_app.sh migrate:make "message"` | Generates a new Alembic database migration file.                            |
-| `./scripts/run_app.sh migrate:run`           | Applies all pending database migrations.                                    |
-| `./scripts/run_app.sh test:unit`             | Runs pure unit tests locally (no Docker). Requires Poetry.                  |
-| `./scripts/run_app.sh test:integration`      | Runs all tests requiring services (DB, Keycloak) inside Docker.             |
-| `./scripts/run_app.sh setup:keycloak`        | (Re)configures the Keycloak realm with required settings.                   |
+| Command                               | Description                                                              |
+| :------------------------------------ | :----------------------------------------------------------------------- |
+| `./run.sh dev:start`                  | Starts all services for the `dev` environment.                           |
+| `./run.sh dev:stop`                   | Stops all services.                                                      |
+| `./run.sh dev:clean`                  | **DANGEROUS**. Stops services and deletes all data and volumes.          |
+| `./run.sh dev:logs`                   | Tails the logs for all running services.                                 |
+| `./run.sh dev:migrate:make "message"` | Generates a new Alembic database migration file.                         |
+| `./run.sh dev:migrate:run`            | Applies all pending database migrations.                                 |
+| `./run.sh dev:test unit`              | Runs pure backend unit tests locally (no Docker required).               |
+| `./run.sh dev:test integration`       | Runs backend tests requiring services (DB, Keycloak) inside Docker.      |
+| `./run.sh dev:test ui`                | Runs the UI test suite inside Docker.                                    |
+| `./run.sh dev:setup:keycloak`         | (Re)configures the Keycloak realm with required settings.                |
 
 ---
-
-## Project Structure
-
-```
-.
-├── admin-ui/           # Frontend React application (Refine.js, Ant Design)
-├── backend/            # Backend Python application (FastAPI, SQLAlchemy)
-├── postgres-data/      # (Git-ignored) Persistent PostgreSQL data
-├── scripts/            # Helper scripts for development (run_app.sh)
-├── .env.example        # Example environment variables
-├── docker-compose.yml  # Main service definitions for production/CI
-└── README.md           # This file
-```
 
 ## 📚 Documentation
 
 This project contains several layers of documentation to aid developers and users.
+
+-   **Architecture Overview**: For a detailed look at the service architecture, data models, and technology stack, see the [`docs/architecture.md`](./docs/architecture.md) file.
 
 -   **User Guide**: Explains the core application logic, such as how to configure Trading Partners. See the [`docs/user_guide.md`](./docs/user_guide.md) for details.
 
