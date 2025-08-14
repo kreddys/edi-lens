@@ -8,8 +8,8 @@ from src.core.database import Base
 # from .user import User
 
 # These are our core application models
-from .trading_partner import TradingPartner
-from .partner_profile import PartnerProfile
+
+
 from .audit_log import AuditLog
 from .validation_transaction import ValidationTransaction
 

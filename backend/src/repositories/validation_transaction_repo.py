@@ -23,7 +23,7 @@ class ValidationTransactionRepository:
             tenant_id=tenant_id,
             user_id=user_id,
             username=username,
-            partner_profile_id=profile_id,
+            # partner_profile_id=profile_id,
             original_filename=filename,
             request_object_key=request_key,
             status=ValidationStatus.PENDING

@@ -16,18 +16,7 @@ from src.api.schemas import (
 )
 from src.services.edi_validation_service import ValidationResult
 
-# Module-level fixtures available to all test classes
-@pytest.fixture
-def mock_auth_context():
-    """Mock authentication context."""
-    from src.core.auth import ServiceContext
-    
-    # Create a real ServiceContext for service authentication
-    mock_auth = ServiceContext(
-        service_name="nifi-service",
-        allowed_tenants=[]  # Empty means all tenants allowed
-    )
-    return mock_auth
+
 
 @pytest.mark.integration
 class TestRealtimeEDIValidation:
@@ -89,7 +78,6 @@ class TestRealtimeEDIValidation:
         assert data["workflow_id"] == "test-workflow-001"
         assert data["schema_used"] == "837.5010.X222.A1.json"
         assert data["snip_level_used"] == 3
-        assert data["ta1_content"] == "TA1*000000001*A~"
         assert "processing_time_ms" in data
         assert "processed_at" in data
     
@@ -424,7 +412,6 @@ class TestBatchJobProcessing:
         # Verify nested results structure
         results_dict = payload_dict["results"]
         assert results_dict["valid"] is True
-        assert results_dict["ta1_content"] == "TA1*000000001*A~"
         assert results_dict["schema_used"] == "837.5010.X222.A1.json"
 
 @pytest.mark.integration
@@ -609,7 +596,6 @@ class TestEDIValidationIntegration:
         
         data = response.json()
         assert data["valid"] is True
-        assert data["ta1_content"] is not None
         assert data["workflow_id"] == "sub-patient-workflow"
 
 if __name__ == "__main__":

@@ -60,14 +60,6 @@ async def validate_realtime_edi(
             snip_level=request.snip_level
         )
         
-        # Generate TA1 if requested
-        ta1_content = None
-        if request.generate_ta1:
-            ta1_content = await validation_service.generate_ta1(
-                edi_content=request.edi_content,
-                validation_errors=validation_result.findings
-            )
-        
         # Calculate processing time
         processing_time_ms = int((time.time() - start_time) * 1000)
         
@@ -77,7 +69,6 @@ async def validate_realtime_edi(
             processing_time_ms=processing_time_ms,
             schema_used=request.validation_schema,
             snip_level_used=request.snip_level,
-            ta1_content=ta1_content,
             workflow_id=request.workflow_id,
             processed_at=datetime.utcnow()
         )

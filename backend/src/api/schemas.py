@@ -3,7 +3,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional, Literal
 
-from src.agents.models import UniversalAgentResponse, ElementEnrichment
+
 
 # --- REMOVED: Unused imports from the now-deleted criteria model ---
 # from src.models.profile_criterion import FieldSource, Operator
@@ -142,30 +142,7 @@ class ValidationResponse(BaseModel):
     ta1_acknowledgement: Optional[str] = None
     ack999_acknowledgement: Optional[str] = None
 
-class EnrichmentAnalysisRequest(BaseModel):
-    schema_name: str = Field(..., description="The name of the schema file to analyze, e.g., '837.5010.X222.A1.json'.")
-    segment_id: str = Field(..., description="The segment ID to focus the analysis on, e.g., 'CLM'.")
-    context_id: str = Field(..., description="The specific contextual ID for the segment, e.g., '2300.CLM'.")
 
-class EnrichmentJobStartResponse(BaseModel):
-    job_id: str
-
-class EnrichmentJobStatusResponse(BaseModel):
-    job_id: str
-    status: Literal["running", "complete", "failed"]
-    result: Optional[UniversalAgentResponse] = None
-    error: Optional[str] = None
-
-class EnrichmentApplyRequest(BaseModel):
-    schema_name: str
-    patch: ElementEnrichment
-
-class FullEnrichmentAnalysisRequest(BaseModel):
-    schema_name: str = Field(..., description="The name of the schema file to analyze, e.g., '837.5010.X222.A1.json'.")
-
-class EnrichmentApplyBatchRequest(BaseModel):
-    schema_name: str
-    patches: List[ElementEnrichment]
 
 class MessageResponse(BaseModel):
     message: str
@@ -183,8 +160,6 @@ class RealtimeEDIValidationRequest(BaseModel):
     workflow_id: str = Field(..., description="Workflow identifier")
     validation_schema: str = Field(..., description="EDI schema to validate against")
     snip_level: int = Field(default=3, description="SNIP validation level (1-5)")
-    generate_ta1: bool = Field(default=False, description="Generate TA1 acknowledgment")
-    generate_999: bool = Field(default=False, description="Generate 999 acknowledgment")
 
 class RealtimeEDIValidationResponse(BaseModel):
     """Response schema for real-time EDI validation."""
@@ -193,7 +168,6 @@ class RealtimeEDIValidationResponse(BaseModel):
     processing_time_ms: int = Field(..., description="Processing time in milliseconds")
     schema_used: str = Field(..., description="Schema used for validation")
     snip_level_used: int = Field(..., description="SNIP level used for validation")
-    ta1_content: Optional[str] = Field(None, description="TA1 acknowledgment content if generated")
     workflow_id: str = Field(..., description="Workflow identifier")
     processed_at: datetime = Field(..., description="Processing timestamp")
 
@@ -272,6 +246,21 @@ class TA1GenerationResponse(BaseModel):
     workflow_id: str = Field(..., description="Original workflow identifier")
     generated_at: datetime = Field(..., description="Generation timestamp")
     processing_time_ms: int = Field(..., description="Processing time in milliseconds")
+
+class SchemaValidationRequest(BaseModel):
+    """Request schema for schema validation."""
+    schema_name: str = Field(..., description="The name of the schema to validate")
+    tenant_id: str = Field(..., description="Tenant identifier for isolation")
+
+class SchemaValidationResponse(BaseModel):
+    """Response schema for schema validation."""
+    is_valid: bool = Field(..., description="Whether the schema is valid")
+
+class EdiParsingRequest(BaseModel):
+    """Request schema for EDI parsing."""
+    edi_content: str = Field(..., description="EDI document content to parse")
+    tenant_id: str = Field(..., description="Tenant identifier for isolation")
+    schema_name: str = Field(..., description="EDI schema to use for parsing")
 
 class Ack999GenerationRequest(BaseModel):
     """Request schema for 999 functional acknowledgment generation."""

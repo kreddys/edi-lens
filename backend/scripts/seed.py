@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
 
 from src.core.config import settings
-from src.repositories.trading_partner import TradingPartnerRepository
+
 from src.api.schemas import TradingPartnerCreate
 from src.models.processing_schedule import ProcessingSchedule
 from src.services.sftp_user_manager import SftpUserManager
@@ -31,79 +31,13 @@ async def clear_data(session: AsyncSession):
     # Clear in dependency order (due to foreign key constraints)
     await session.execute(text("DELETE FROM sftp_configurations"))
     await session.execute(text("DELETE FROM profile_criteria"))  # Clear criteria first
-    await session.execute(text("DELETE FROM partner_profiles"))  # Clear profiles second
-    await session.execute(text("DELETE FROM trading_partners"))  # Clear partners last
+    
+    
     await session.execute(text("DELETE FROM processing_schedules"))
     await session.commit()
     print("✅ Data cleared.")
 
-async def seed_trading_partners(session: AsyncSession, create_sftp_users: bool = False):
-    """Seeds trading partners from the YAML file."""
-    print("🌱 Seeding Trading Partners...")
-    repo = TradingPartnerRepository(session)
-    seed_file = SEED_DATA_DIR / "trading_partners.yml"
 
-    if not seed_file.exists():
-        print(f"⚠️  Warning: Seed file not found at {seed_file}. Skipping.")
-        return
-
-    with open(seed_file, 'r') as f:
-        partners_data = yaml.safe_load(f)
-
-    if not partners_data:
-        print("   - No trading partners found in seed file. Skipping.")
-        return
-
-    # Initialize SFTP user manager if requested
-    sftp_manager = None
-    if create_sftp_users:
-        sftp_manager = SftpUserManager()
-        if not sftp_manager.authenticate():
-            print("❌ Failed to authenticate with SFTPGo. SFTP users will not be created.")
-            sftp_manager = None
-
-    created_partners = []
-    for partner_data in partners_data:
-        tenant_id = partner_data["tenant_id"]
-        partner_name = partner_data["name"]
-
-        # Idempotency Check
-        existing = await repo.get_by_name(name=partner_name, tenant_id=tenant_id)
-        if existing:
-            print(f"   - Skipping '{partner_name}' for tenant '{tenant_id}' (already exists).")
-            continue
-
-        print(f"   - Creating '{partner_name}' for tenant '{tenant_id}'...")
-        # Use Pydantic schemas for validation and structure
-        partner_in = TradingPartnerCreate.model_validate(partner_data)
-        db_partner = await repo.create_with_profiles(partner_in=partner_in, tenant_id=tenant_id)
-        
-        # Track created partners for SFTP user creation
-        if partner_data.get("sftp_enabled") and sftp_manager:
-            created_partners.append({
-                'partner': db_partner,
-                'sftp_username': partner_data.get("sftp_username"),
-                'sftp_password': partner_data.get("sftp_password"),
-                'tenant_id': tenant_id
-            })
-
-    await session.commit()
-    
-    # Create SFTP users for partners that were created
-    if sftp_manager and created_partners:
-        print(f"🔐 Creating SFTP users for {len(created_partners)} partners...")
-        for partner_info in created_partners:
-            username = partner_info['sftp_username']
-            password = partner_info['sftp_password']
-            tenant_id = partner_info['tenant_id']
-            partner_name = partner_info['partner'].name
-            
-            if sftp_manager.create_user(username, password, tenant_id, partner_name):
-                print(f"   ✅ Created SFTP user: {username}")
-            else:
-                print(f"   ❌ Failed to create SFTP user: {username}")
-    
-    print("✅ Trading Partners seeded.")
 
 async def seed_processing_schedules(session: AsyncSession):
     """Seeds processing schedules for SFTP polling."""
@@ -190,7 +124,7 @@ async def main():
         
         # Seed all components in order
         await seed_processing_schedules(session)
-        await seed_trading_partners(session, create_sftp_users=args.create_sftp)
+        
 
     if args.create_sftp:
         print("\n📡 SFTP Connection Details:")

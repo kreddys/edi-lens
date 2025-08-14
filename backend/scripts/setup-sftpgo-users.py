@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select
 from src.core.config import settings
-from src.models.trading_partner import TradingPartner
+
 from src.models.sftp_configuration import SftpConfiguration
 
 # SFTPGo configuration
@@ -224,15 +224,14 @@ async def get_sftp_configurations():
     
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            select(SftpConfiguration, TradingPartner)
-            .join(TradingPartner, SftpConfiguration.partner_id == TradingPartner.id)
+            select(SftpConfiguration)
         )
         
         configs = []
-        for sftp_config, partner in result.fetchall():
+        for sftp_config in result.scalars().all():
             configs.append({
                 'sftp_config': sftp_config,
-                'partner': partner
+                'partner': {'name': 'Generic Partner', 'id': '0'}
             })
         
         return configs

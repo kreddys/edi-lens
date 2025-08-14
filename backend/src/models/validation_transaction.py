@@ -28,7 +28,7 @@ class ValidationTransaction(Base):
     user_id = Column(String, nullable=False, index=True)
     username = Column(String, nullable=True)
     
-    partner_profile_id = Column(Integer, ForeignKey('public.partner_profiles.id'), nullable=True)
+    # partner_profile_id = Column(Integer, ForeignKey('public.partner_profiles.id'), nullable=True)
     
     status = Column(SQLAlchemyEnum(ValidationStatus), nullable=False, default=ValidationStatus.PENDING)
     original_filename = Column(String, nullable=False)
@@ -38,7 +38,7 @@ class ValidationTransaction(Base):
     response_999_object_key = Column(String, nullable=True)
     
     source_type = Column(SQLAlchemyEnum(SourceType), nullable=False, default=SourceType.API)
-    source_partner_id = Column(Integer, ForeignKey('public.trading_partners.id'), nullable=True)
+    # source_partner_id = Column(Integer, ForeignKey('public.trading_partners.id'), nullable=True)
     source_file_path = Column(String, nullable=True)
     response_delivered = Column(Boolean, nullable=False, default=False)
     response_delivery_attempts = Column(Integer, nullable=False, default=0)

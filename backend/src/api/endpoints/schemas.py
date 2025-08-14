@@ -14,7 +14,7 @@ router = APIRouter()
     summary="List All Available Schemas for Tenant",
     description="Retrieves a list of base schemas and any specialized schemas for the current tenant."
 )
-async def list_schemas(auth: AuthContext = Depends(require_permission("trading-partners:read"))):
+async def list_schemas(auth: AuthContext = Depends(require_permission("schemas:read"))):
     base_schemas = schema_manager.list_base_schemas()
     
     tenant_prefix = f"{auth.tenant_id}/schemas/"

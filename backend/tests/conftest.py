@@ -2,7 +2,7 @@
 
 import pytest
 import pytest_asyncio
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -16,7 +16,7 @@ import os
 from src.main import app
 from src.core.database import get_db, Base
 from src.core.config import settings
-from src.core.auth import require_service_auth, ServiceContext
+from src.core.auth import require_service_auth, ServiceContext, User, get_current_user
 from src.edi_schemas.edi_guide import ImplementationGuideSchema
 
 # ==============================================================================
@@ -74,7 +74,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     await test_engine.dispose()
 
 @pytest_asyncio.fixture(scope="function")
-async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+async def async_client(db_session: AsyncSession, user_context: Optional[User] = None) -> AsyncGenerator[AsyncClient, None]:
     """Provides an httpx client for making API calls to the app."""
     async def override_get_db():
         yield db_session
@@ -88,12 +88,44 @@ async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, 
     
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[require_service_auth] = override_require_service_auth
+
+    # Optionally mock user authentication for tests
+    if user_context:
+        app.dependency_overrides[get_current_user] = lambda: user_context
     
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
             
     app.dependency_overrides.clear()
+    # Ensure get_current_user override is also cleared if it was set
+    if get_current_user in app.dependency_overrides:
+        del app.dependency_overrides[get_current_user]
+
+# Mock authentication context for tests
+@pytest.fixture
+def mock_auth_context():
+    """Mock authentication context."""
+    from src.core.auth import ServiceContext
+    
+    # Create a real ServiceContext for service authentication
+    mock_auth = ServiceContext(
+        service_name="nifi-service",
+        allowed_tenants=[]  # Empty means all tenants allowed
+    )
+    return mock_auth
+
+@pytest.fixture
+def mock_user_context():
+    """Mock user authentication context."""
+    from src.core.auth import User, RealmAccess
+    mock_user = User(
+        sub="mock-user-123",
+        preferred_username="testuser",
+        groups=["tenant-a"],
+        realm_access=RealmAccess(roles=["admin", "schemas:read"])
+    )
+    return mock_user
 
 # ==============================================================================
 # UNIT TEST FIXTURES (Completely isolated, no Docker needed)
