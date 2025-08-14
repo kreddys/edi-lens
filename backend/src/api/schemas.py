@@ -251,7 +251,7 @@ class TA1GenerationRequest(BaseModel):
     workflow_id: str = Field(..., description="NiFi workflow identifier")
     acknowledgment_code: str = Field(
         ..., 
-        regex="^[ARE]$", 
+        pattern="^[ARE]$", 
         description="A=Accept, R=Reject, E=Error"
     )
     error_code: Optional[str] = Field(

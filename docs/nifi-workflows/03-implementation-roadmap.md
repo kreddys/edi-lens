@@ -96,8 +96,9 @@ POST   /api/v1/edi/transform
 ```
 
 **Tasks**:
-- [ ] Extract EDI validation logic into dedicated service
-- [ ] Extract TA1/999 generation into dedicated service
+- [x] Extract EDI validation logic into dedicated service
+- [x] Extract TA1 generation into dedicated service (✅ COMPLETED - Phase 1.2)
+- [ ] Extract 999 generation into dedicated service (Phase 1.3)
 - [ ] Create workflow management service
 - [ ] Create template management service
 - [ ] Implement batch processing coordination
