@@ -5,6 +5,9 @@ from src.core.config import settings
 from src.core.auth import require_permission, AuthContext
 from src.core.schema_manager import schema_manager
 from src.core.storage import storage_client
+from src.models.audit_log import AuditLog, AuditAction
+from src.core.database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -89,7 +92,8 @@ async def update_schema_content(
 async def copy_schema(
     base_schema_name: str,
     request: dict = Body(...), # Expects {"new_name": "..."}
-    auth: AuthContext = Depends(require_permission("schemas:create"))
+    auth: AuthContext = Depends(require_permission("schemas:create")),
+    db: AsyncSession = Depends(get_db)
 ):
     new_name = request.get("new_name")
     if not new_name:
@@ -109,6 +113,24 @@ async def copy_schema(
     try:
         schema_bytes = json.dumps(base_schema.model_dump(by_alias=True), indent=2).encode('utf-8')
         storage_client.upload(data=schema_bytes, key=s3_key)
+        
+        # 4. Create audit log entry
+        audit_log = AuditLog(
+            tenant_id=auth.tenant_id,
+            user_id=auth.user_id,
+            username=auth.username,
+            action=AuditAction.CREATE,
+            table_name="edi_schemas",
+            record_pk=new_name,
+            after_value={
+                "schema_name": new_name,
+                "base_schema": base_schema_name,
+                "tenant_id": auth.tenant_id
+            }
+        )
+        db.add(audit_log)
+        await db.commit()
+        
         return {"message": "Schema specialized successfully", "new_schema_name": new_name}
     except Exception as e:
         logger.error(f"Failed to copy schema: {e}")

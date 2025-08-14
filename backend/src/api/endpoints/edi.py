@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from typing import List
 import logging
 import time
+from datetime import datetime
 
 from src.api.schemas import (
     # EDI Validation
@@ -53,17 +54,33 @@ async def validate_realtime_edi(
             )
 
         validation_service = EDIValidationService()
-        result = await validation_service.validate_edi_realtime(
+        validation_result = await validation_service.validate_edi(
             edi_content=request.edi_content,
-            schema_name=request.schema_name,
+            schema_name=request.validation_schema,
             tenant_id=request.tenant_id,
+            snip_level=request.snip_level
         )
         
-        processing_time = round((time.time() - start_time) * 1000, 2)
+        processing_time = int(round((time.time() - start_time) * 1000))
         logger.info(f"Real-time validation completed in {processing_time}ms for tenant {request.tenant_id}")
         
-        return result
+        # Convert to response format
+        from src.api.schemas import RealtimeEDIValidationResponse
+        from datetime import datetime
+        
+        return RealtimeEDIValidationResponse(
+            valid=validation_result.valid,
+            validation_results=validation_result.findings,
+            processing_time_ms=processing_time,
+            schema_used=request.validation_schema,
+            snip_level_used=request.snip_level,
+            workflow_id=request.workflow_id,
+            processed_at=datetime.utcnow()
+        )
 
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 403 Forbidden) as-is
+        raise
     except Exception as e:
         logger.error(f"Real-time EDI validation failed: {e}", exc_info=True)
         raise HTTPException(
@@ -91,12 +108,7 @@ async def validate_batch_edi(
             )
 
         batch_service = BatchJobService()
-        job_id = await batch_service.create_validation_job(
-            edi_content=request.edi_content,
-            schema_name=request.schema_name,
-            tenant_id=request.tenant_id,
-            callback_url=request.callback_url
-        )
+        job_id = await batch_service.create_batch_job(request)
         
         # Schedule background processing
         background_tasks.add_task(
@@ -106,10 +118,15 @@ async def validate_batch_edi(
         
         logger.info(f"Batch validation job {job_id} created for tenant {request.tenant_id}")
         
+        from datetime import datetime
+        
         return BatchEDIValidationResponse(
             job_id=job_id,
             status="QUEUED",
-            message="Validation job has been queued for processing"
+            workflow_id=request.workflow_id,
+            file_name=request.file_name,
+            estimated_processing_time_ms=1000,  # Placeholder estimate
+            created_at=datetime.utcnow()
         )
 
     except Exception as e:
@@ -217,12 +234,7 @@ async def generate_ta1(
             )
 
         ta1_service = TA1GenerationService()
-        ta1_response = await ta1_service.generate_ta1(
-            edi_content=request.edi_content,
-            acknowledgment_code=request.acknowledgment_code,
-            error_code=request.error_code,
-            tenant_id=request.tenant_id
-        )
+        ta1_response = await ta1_service.generate_ta1(request)
         
         logger.info(f"TA1 generation completed for tenant {request.tenant_id}")
         return ta1_response
