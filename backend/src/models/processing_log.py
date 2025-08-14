@@ -31,7 +31,7 @@ class ProcessingLog(Base):
     # Schema and profile information
     schema_name = Column(String(255), nullable=True)
     snip_level_used = Column(String(10), nullable=True)  # SNIP1-SNIP5
-    # profile_id = Column(Integer, ForeignKey('public.partner_profiles.id'), nullable=True)
+    
     
     # Acknowledgment generation
     ta1_generated = Column(Boolean, nullable=False, default=False)

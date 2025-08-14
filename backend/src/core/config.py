@@ -27,8 +27,7 @@ class Settings(BaseSettings):
     REMOTE_HOST: str = "localhost"
     BACKEND_HOST: str = "backend"    
 
-    PINECONE_API_KEY: str = ""
-    PINECONE_EMBED_MODEL: str = "multilingual-e5-large"
+    
 
     STORAGE_ACCESS_KEY: str
     STORAGE_SECRET_KEY: str

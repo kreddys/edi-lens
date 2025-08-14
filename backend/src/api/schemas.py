@@ -6,7 +6,7 @@ from typing import List, Optional, Literal
 
 
 # --- REMOVED: Unused imports from the now-deleted criteria model ---
-# from src.models.profile_criterion import FieldSource, Operator
+
 
 # ... (ValidationFinding and related models are unchanged) ...
 class FindingLocation(BaseModel):
