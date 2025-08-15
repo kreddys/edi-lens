@@ -12,6 +12,19 @@
         reverse_proxy backend:8000
     }
 
+    # Route OpenAPI spec and docs to the backend
+    handle /openapi.json {
+        reverse_proxy backend:8000
+    }
+
+    handle /docs* {
+        reverse_proxy backend:8000
+    }
+
+    handle /redoc* {
+        reverse_proxy backend:8000
+    }
+
     # Route MinIO Console requests from the main URL
     handle /minio/* {
         reverse_proxy minio:9001

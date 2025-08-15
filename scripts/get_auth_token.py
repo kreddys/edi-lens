@@ -61,7 +61,7 @@ def create_mock_service_token(service_name: str, client_id: str, verbose: bool =
         "typ": "JWT"
     }
     
-    # JWT Payload
+    # JWT Payload - Match what the backend expects
     payload = {
         "sub": f"service-account-{service_name}",
         "azp": service_name,  # Authorized party - this is critical for our service auth
@@ -94,6 +94,67 @@ def create_mock_service_token(service_name: str, client_id: str, verbose: bool =
         success("Service token generated successfully")
     
     return token
+
+
+def get_service_token_from_keycloak(
+    service_name: str,
+    keycloak_url: str,
+    realm: str,
+    client_id: str,
+    verbose: bool = False
+) -> str:
+    """Get service account token from Keycloak using client credentials grant."""
+    
+    if verbose:
+        info(f"Authenticating service account: {service_name}")
+        info(f"Keycloak URL: {keycloak_url}")
+        info(f"Client ID: {client_id}")
+    
+    # Map service names to actual client IDs in Keycloak
+    client_id_mapping = {
+        "nifi-service": "nifi-service",
+        "edi-lens-backend": "edi-lens-backend",
+        "backend": "edi-lens-backend"
+    }
+    
+    actual_client_id = client_id_mapping.get(service_name, service_name)
+    client_secret = "nifi-service-secret" if actual_client_id == "nifi-service" else "this-is-a-very-secret-key-change-it"
+    
+    token_url = f"{keycloak_url}/realms/{realm}/protocol/openid-connect/token"
+    
+    data = {
+        "grant_type": "client_credentials",
+        "client_id": actual_client_id,
+        "client_secret": client_secret,
+        "scope": "openid profile email"
+    }
+    
+    try:
+        response = requests.post(token_url, data=data, timeout=30)
+        response.raise_for_status()
+        
+        token_data = response.json()
+        access_token = token_data.get("access_token")
+        
+        if not access_token:
+            error_msg = token_data.get("error_description", token_data.get("error", "Unknown error"))
+            error(f"Service authentication failed: {error_msg}")
+            sys.exit(1)
+        
+        if verbose:
+            success("Service authentication successful")
+            expires_in = token_data.get("expires_in")
+            if expires_in:
+                info(f"Token expires in: {expires_in} seconds")
+        
+        return access_token
+        
+    except requests.exceptions.RequestException as e:
+        error(f"Failed to connect to Keycloak: {e}")
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        error(f"Invalid JSON response from Keycloak: {e}")
+        sys.exit(1)
 
 
 def get_user_token_from_keycloak(
@@ -193,14 +254,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Get service token for NiFi
+  # Get service token for NiFi (real token from Keycloak)
+  python scripts/get_auth_token.py --service nifi-service --real
+
+  # Get service token for NiFi (mock token for development)
   python scripts/get_auth_token.py --service nifi-service
 
   # Get user token for admin user  
   python scripts/get_auth_token.py --user admin --password admin --tenant tenant-a
 
   # Test EDI endpoint with generated token
-  TOKEN=$(python scripts/get_auth_token.py --service nifi-service)
+  TOKEN=$(python scripts/get_auth_token.py --service nifi-service --real)
   curl -H "Authorization: Bearer $TOKEN" \\
        -H "Content-Type: application/json" \\
        -d '{"edi_content":"...","tenant_id":"tenant-a","workflow_id":"test","validation_schema":"test"}' \\
@@ -217,6 +281,13 @@ Examples:
     token_group.add_argument(
         "--user",
         help="Generate user token for specified username"
+    )
+    
+    # Service authentication options
+    parser.add_argument(
+        "--real",
+        action="store_true",
+        help="Get real token from Keycloak instead of mock token"
     )
     
     # User authentication options
@@ -242,8 +313,8 @@ Examples:
     )
     parser.add_argument(
         "--client-id",
-        default="edi-lens-api",
-        help="Client ID (default: edi-lens-api)"
+        default="nifi-service",
+        help="Client ID (default: nifi-service)"
     )
     
     # Output options
@@ -268,11 +339,20 @@ Examples:
     token = None
     
     if args.service:
-        token = create_mock_service_token(
-            service_name=args.service,
-            client_id=args.client_id,
-            verbose=args.verbose
-        )
+        if args.real:
+            token = get_service_token_from_keycloak(
+                service_name=args.service,
+                keycloak_url=args.keycloak_url,
+                realm=args.realm,
+                client_id=args.client_id,
+                verbose=args.verbose
+            )
+        else:
+            token = create_mock_service_token(
+                service_name=args.service,
+                client_id=args.client_id,
+                verbose=args.verbose
+            )
     elif args.user:
         token = get_user_token_from_keycloak(
             username=args.user,

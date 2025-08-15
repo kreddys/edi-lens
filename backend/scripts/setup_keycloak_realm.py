@@ -19,37 +19,117 @@ KEYCLOAK_UI_CLIENT_ID = os.getenv("KEYCLOAK_UI_CLIENT_ID", "edi-lens-ui")
 REMOTE_HOST = os.getenv("REMOTE_HOST", "localhost")
 KEYCLOAK_SFTPGO_CLIENT_SECRET = os.getenv("KEYCLOAK_SFTPGO_CLIENT_SECRET", "default-sftpgo-secret")
 
-# --- Blueprints (unchanged) ---
+# --- Updated Roles for NiFi Workflow Architecture ---
+# Removed obsolete trading partner roles as per new architecture
 ATOMIC_ROLES = [
-    {"name": "trading-partners:create", "description": "Can create new trading partners"},
-    {"name": "trading-partners:read", "description": "Can read trading partner configurations"},
-    {"name": "trading-partners:update", "description": "Can update trading partners"},
-    {"name": "trading-partners:delete", "description": "Can delete trading partners"},
+    # EDI Processing Roles
     {"name": "validation:run", "description": "Can run EDI validation"},
     {"name": "schemas:read", "description": "Can read EDI schemas"},
     {"name": "schemas:create", "description": "Can create EDI schemas"},
     {"name": "schemas:update", "description": "Can update EDI schemas"},
+    
+    # NiFi Service Roles
+    {"name": "edi:process", "description": "Can process EDI content (for NiFi service accounts)"},
+    {"name": "edi:validate", "description": "Can validate EDI content (for NiFi service accounts)"},
+    {"name": "edi:generate-acknowledgments", "description": "Can generate EDI acknowledgments (for NiFi service accounts)"},
+    
+    # User Management Roles
     {"name": "admin", "description": "Administrator role"},
+    {"name": "workflow:read", "description": "Can read workflow templates and configurations"},
+    {"name": "workflow:write", "description": "Can create and modify workflows"},
+    {"name": "workflow:admin", "description": "Advanced workflow management"},
 ]
+
 COMPOSITE_ROLES = {
-    "tenant-admin": {"description": "Full control over a single tenant", "children": ["trading-partners:create", "trading-partners:read", "trading-partners:update", "trading-partners:delete", "validation:run", "schemas:read", "schemas:create", "schemas:update", "admin"]},
-    "tenant-viewer": {"description": "Read-only access to a tenant's data", "children": ["trading-partners:read", "schemas:read"]},
-    "superuser": {"description": "Global administrator", "children": ["tenant-admin"]},
+    "tenant-admin": {
+        "description": "Full control over a single tenant", 
+        "children": [
+            "validation:run", 
+            "schemas:read", 
+            "schemas:create", 
+            "schemas:update",
+            "workflow:read",
+            "workflow:write",
+            "admin"
+        ]
+    },
+    "tenant-viewer": {
+        "description": "Read-only access to a tenant's data", 
+        "children": [
+            "schemas:read",
+            "workflow:read"
+        ]
+    },
+    "superuser": {
+        "description": "Global administrator", 
+        "children": [
+            "tenant-admin",
+            "workflow:admin"
+        ]
+    },
 }
+
 TENANTS = {"tenant-a": "tenant-admin", "tenant-b": "tenant-viewer"}
+
 redirect_uris = [ f"http://{REMOTE_HOST}:3001/*", f"http://{REMOTE_HOST}:3000/*" ]
 web_origins = [ f"http://{REMOTE_HOST}:3001", f"http://{REMOTE_HOST}:3000" ]
 if REMOTE_HOST != "localhost":
     redirect_uris.append(f"https://{REMOTE_HOST}/*")
     web_origins.append(f"https://{REMOTE_HOST}")
+
 CLIENTS = [
-    {"clientId": KEYCLOAK_UI_CLIENT_ID, "name": "EDI Lens UI", "publicClient": True, "standardFlowEnabled": True, "redirectUris": redirect_uris, "webOrigins": web_origins},
-    {"clientId": KEYCLOAK_BACKEND_CLIENT_ID, "name": "EDI Lens Backend", "secret": CLIENT_SECRET, "publicClient": False, "clientAuthenticatorType": "client-secret", "serviceAccountsEnabled": True, "directAccessGrantsEnabled": True}
+    {
+        "clientId": KEYCLOAK_UI_CLIENT_ID, 
+        "name": "EDI Lens UI", 
+        "publicClient": True, 
+        "standardFlowEnabled": True, 
+        "redirectUris": redirect_uris, 
+        "webOrigins": web_origins
+    },
+    {
+        "clientId": KEYCLOAK_BACKEND_CLIENT_ID, 
+        "name": "EDI Lens Backend", 
+        "secret": CLIENT_SECRET, 
+        "publicClient": False, 
+        "clientAuthenticatorType": "client-secret", 
+        "serviceAccountsEnabled": True, 
+        "directAccessGrantsEnabled": True
+    },
+    # NiFi Service Client
+    {
+        "clientId": "nifi-service", 
+        "name": "NiFi Service Account", 
+        "secret": "nifi-service-secret", 
+        "publicClient": False, 
+        "clientAuthenticatorType": "client-secret", 
+        "serviceAccountsEnabled": True, 
+        "directAccessGrantsEnabled": False
+    }
 ]
+
 USERS = [
-    {"username": "superuser@edilens.com", "password": os.getenv("KC_SUPERUSER_PASSWORD", "password"), "firstName": "Super", "lastName": "User", "groups": ["tenant-a", "tenant-b"], "realm_roles": ["superuser"]},
-    {"username": "admin.a@edilens.com", "password": os.getenv("KC_ADMIN_A_PASSWORD", "password"), "firstName": "Admin", "lastName": "Alpha", "groups": ["tenant-a"]},
-    {"username": "viewer.b@edilens.com", "password": os.getenv("KC_VIEWER_B_PASSWORD", "password"), "firstName": "Viewer", "lastName": "Bravo", "groups": ["tenant-b"]},
+    {
+        "username": "superuser@edilens.com", 
+        "password": os.getenv("KC_SUPERUSER_PASSWORD", "password"), 
+        "firstName": "Super", 
+        "lastName": "User", 
+        "groups": ["tenant-a", "tenant-b"], 
+        "realm_roles": ["superuser"]
+    },
+    {
+        "username": "admin.a@edilens.com", 
+        "password": os.getenv("KC_ADMIN_A_PASSWORD", "password"), 
+        "firstName": "Admin", 
+        "lastName": "Alpha", 
+        "groups": ["tenant-a"]
+    },
+    {
+        "username": "viewer.b@edilens.com", 
+        "password": os.getenv("KC_VIEWER_B_PASSWORD", "password"), 
+        "firstName": "Viewer", 
+        "lastName": "Bravo", 
+        "groups": ["tenant-b"]
+    },
 ]
 
 def get_keycloak_admin_client() -> KeycloakAdmin:
@@ -111,6 +191,7 @@ def configure_client_mappers(admin_client: KeycloakAdmin, existing_clients_map: 
 
     ui_client = existing_clients_map.get(KEYCLOAK_UI_CLIENT_ID)
     backend_client = existing_clients_map.get(KEYCLOAK_BACKEND_CLIENT_ID)
+    nifi_client = existing_clients_map.get("nifi-service")
     
     if not ui_client:
         logging.error(f"  - ERROR: Could not find UI client '{KEYCLOAK_UI_CLIENT_ID}' to add mappers.")
@@ -149,6 +230,17 @@ def configure_client_mappers(admin_client: KeycloakAdmin, existing_clients_map: 
             logging.info(f"  - Mapper 'backend-audience' already exists on backend client.")
         else:
             raise
+
+    # Add audience mapper to nifi-service client
+    if nifi_client:
+        try:
+            admin_client.add_mapper_to_client(nifi_client['id'], audience_mapper)
+            logging.info(f"  - Added 'backend-audience' mapper to nifi-service client.")
+        except KeycloakPostError as e:
+            if e.response_code == 409:
+                logging.info(f"  - Mapper 'backend-audience' already exists on nifi-service client.")
+            else:
+                raise
 
 def main():
     logging.info("--- Starting Keycloak Realm Setup ---")
@@ -204,7 +296,7 @@ def main():
         if role_to_assign:
             admin_client.assign_group_realm_roles(group_id=group_id, roles=[role_to_assign])
 
-    logging.info("\n--- Creating/Updating Clients (edi-lens-ui, edi-lens-backend) ---")
+    logging.info("\n--- Creating/Updating Clients (edi-lens-ui, edi-lens-backend, nifi-service) ---")
     # First, get a preliminary list of clients
     initial_clients_map = {c['clientId']: c for c in admin_client.get_clients()}
     for client_payload in CLIENTS:
@@ -227,8 +319,50 @@ def main():
     # Configure client mappers
     configure_client_mappers(admin_client, existing_clients_map)
     
+    # Assign roles to service accounts
+    assign_service_account_roles(admin_client, all_roles_map)
+    
     # Create users
     create_users(admin_client)
+
+def assign_service_account_roles(admin_client, all_roles_map):
+    """Assign necessary roles to service accounts."""
+    logging.info("\n--- Assigning Roles to Service Accounts ---")
+    
+    # Get the NiFi service account
+    try:
+        nifi_service_client = None
+        clients = admin_client.get_clients()
+        for client in clients:
+            if client['clientId'] == 'nifi-service':
+                nifi_service_client = client
+                break
+        
+        if nifi_service_client:
+            # Get the service account user
+            service_account_user = admin_client.get_client_service_account_user(nifi_service_client['id'])
+            if service_account_user:
+                logging.info(f"  - Found service account user for 'nifi-service': {service_account_user['username']}")
+                
+                # Assign EDI processing roles
+                edi_roles = [
+                    all_roles_map.get('edi:process'),
+                    all_roles_map.get('edi:validate'),
+                    all_roles_map.get('edi:generate-acknowledgments'),
+                    all_roles_map.get('validation:run'),
+                    all_roles_map.get('schemas:read')
+                ]
+                
+                roles_to_assign = [role for role in edi_roles if role is not None]
+                if roles_to_assign:
+                    admin_client.assign_realm_roles(user_id=service_account_user['id'], roles=roles_to_assign)
+                    role_names = [role['name'] for role in roles_to_assign]
+                    logging.info(f"  - Assigned roles {role_names} to service account '{service_account_user['username']}'")
+        else:
+            logging.warning("  - NiFi service client not found")
+            
+    except Exception as e:
+        logging.error(f"  - Error assigning roles to service accounts: {e}")
 
 def create_users(admin_client):
     """Create test users for E2E testing."""

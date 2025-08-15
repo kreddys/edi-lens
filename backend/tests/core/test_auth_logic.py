@@ -31,7 +31,12 @@ def test_service_context():
     """Test the ServiceContext class methods."""
     service_context = ServiceContext("test-service", ["tenant-a"])
 
+    # Test new EDI processing permissions
     assert service_context.has_permission("edi:process") is True
+    assert service_context.has_permission("edi:validate") is True
+    assert service_context.has_permission("edi:generate-acknowledgments") is True
+    assert service_context.has_permission("validation:run") is True
+    assert service_context.has_permission("schemas:read") is True
     assert service_context.has_permission("other:permission") is False
     assert service_context.has_tenant_access("tenant-a") is True
     assert service_context.has_tenant_access("tenant-b") is False
@@ -133,9 +138,9 @@ async def test_require_service_auth_no_bearer():
     assert exc_info.value.status_code == 401
 
 @pytest.mark.asyncio
-async def test_require_service_auth_invalid_azp():
-    """Test that a token with an invalid 'azp' claim is rejected."""
-    token = forge_jwt(payload_override={"azp": "some-other-service"})
+async def test_require_service_auth_missing_azp():
+    """Test that a token without 'azp' claim is rejected."""
+    token = forge_jwt(payload_override={"azp": None})
     with pytest.raises(HTTPException) as exc_info:
         await require_service_auth(authorization=f"Bearer {token}")
     assert exc_info.value.status_code == 401
@@ -168,4 +173,4 @@ async def test_get_current_user_missing_sub_claim_raises_exception():
     with pytest.raises(HTTPException) as exc_info:
         await get_current_user(creds=creds)
 
-    assert exc_info.value.status_code == 401        
+    assert exc_info.value.status_code == 401
