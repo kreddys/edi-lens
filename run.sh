@@ -15,6 +15,8 @@ info() { echo -e "\033[34m[INFO] $1\033[0m"; }
 success() { echo -e "\033[32m[SUCCESS] $1\033[0m"; }
 warn() { echo -e "\033[33m[WARN] $1\033[0m"; }
 error() { echo -e "\033[31m[ERROR] $1\033[0m" >&2; exit 1; }
+timestamp() { echo -e "\033[36m[$(date '+%H:%M:%S')] $1\033[0m"; }
+timing_info() { echo -e "\033[35m[TIMING $(date '+%H:%M:%S')] $1\033[0m"; }
 check_docker() { if ! docker info >/dev/null 2>&1; then error "Docker is not running."; fi; }
 if docker compose version >/dev/null 2>&1; then DC_COMMAND="docker compose"; else DC_COMMAND="docker-compose"; fi
 
@@ -119,28 +121,78 @@ ensure_infra() {
 case "$ACTION" in
     start)
         check_docker
-        # --- THIS IS THE NEW, ORCHESTRATED STARTUP SEQUENCE ---
+        START_TIME=$(date +%s)
+        timing_info "🚀 Starting EDI Lens development environment..."
+        
+        # --- INFRASTRUCTURE SETUP ---
+        timing_info "Step 1/4: Infrastructure setup (MinIO, NiFi Registry permissions)"
+        INFRA_START=$(date +%s)
         info "Ensuring one-off infrastructure tasks (MinIO bucket, NiFi Registry permissions) are complete..."
-        # We run this separately to ensure MinIO is ready and NiFi Registry volumes have correct permissions.
+        # Run infrastructure tasks - using sequential execution for reliability
+        info "Setting up MinIO bucket..."
         $DC_EXEC run --rm create-minio-bucket
+        info "Fixing NiFi Registry permissions..."
         $DC_EXEC run --rm nifi-registry-init
+        
+        INFRA_END=$(date +%s)
+        timing_info "✅ Infrastructure setup completed in $((INFRA_END - INFRA_START)) seconds"
 
-        info "Starting core services (DBs, Keycloak, Backend)..."
-        # Start only the core services first and wait for them to be healthy.
-        # This prevents dependent services from starting too early.
-        $DC_EXEC up -d --build --remove-orphans --wait db-keycloak db-app keycloak backend
+        # --- CORE SERVICES ---
+        timing_info "Step 2/4: Core services startup (DBs, Keycloak, Backend)"
+        CORE_START=$(date +%s)
+        
+        # Start databases first
+        info "Starting databases..."
+        DB_START=$(date +%s)
+        $DC_EXEC up -d --build --remove-orphans --wait db-keycloak db-app
+        DB_END=$(date +%s)
+        timing_info "🗄️  Databases ready in $((DB_END - DB_START)) seconds"
+        
+        # Then start Keycloak and Backend
+        info "Starting Keycloak and Backend..."
+        APP_START=$(date +%s)
+        $DC_EXEC up -d --wait keycloak backend
+        APP_END=$(date +%s)
+        timing_info "🔐 Keycloak and Backend ready in $((APP_END - APP_START)) seconds"
+        
+        CORE_END=$(date +%s)
+        timing_info "✅ Core services healthy in $((CORE_END - CORE_START)) seconds"
 
+        # --- KEYCLOAK SETUP ---
+        timing_info "Step 3/4: Keycloak realm configuration"
+        KC_START=$(date +%s)
         info "Running one-time Keycloak realm setup..."
         # Now that the backend is healthy, we can safely execute the setup script.
         $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.setup_keycloak_realm
+        KC_END=$(date +%s)
+        timing_info "✅ Keycloak setup completed in $((KC_END - KC_START)) seconds"
 
-        info "Starting all remaining services (SFTPGo, UI, Caddy)..."
-        # Run 'up' again. Docker Compose is smart and will only start the services
-        # that aren't already running. SFTPGo will now start correctly because the
-        # backend is healthy and the realm exists.
-        $DC_EXEC up -d --wait
+        # --- REMAINING SERVICES ---
+        timing_info "Step 4/4: Starting remaining services (SFTPGo, UI, Caddy, NiFi)"
+        REMAINING_START=$(date +%s)
         
-        success "All services started and configured successfully."
+        # Start lightweight services first
+        info "Starting UI, SFTPGo, and Caddy..."
+        LIGHT_START=$(date +%s)
+        $DC_EXEC up -d --wait admin-ui sftpgo caddy
+        LIGHT_END=$(date +%s)
+        timing_info "🚀 Lightweight services ready in $((LIGHT_END - LIGHT_START)) seconds"
+        
+        # Start NiFi services (heaviest) last
+        info "Starting NiFi Registry and NiFi (this may take longer)..."
+        NIFI_START=$(date +%s)
+        $DC_EXEC up -d --wait nifi-registry nifi
+        NIFI_END=$(date +%s)
+        timing_info "🔄 NiFi services ready in $((NIFI_END - NIFI_START)) seconds"
+        
+        REMAINING_END=$(date +%s)
+        timing_info "✅ All services healthy in $((REMAINING_END - REMAINING_START)) seconds"
+        
+        END_TIME=$(date +%s)
+        TOTAL_TIME=$((END_TIME - START_TIME))
+        success "🎉 All services started and configured successfully!"
+        timing_info "📊 TOTAL STARTUP TIME: ${TOTAL_TIME} seconds"
+        timing_info "📋 Breakdown: Infra(${INFRA_END-INFRA_START}s) + Core(${CORE_END-CORE_START}s) + Keycloak(${KC_END-KC_START}s) + Remaining(${REMAINING_END-REMAINING_START}s)"
         # --- END OF NEW STARTUP SEQUENCE ---
         ;;
     stop)

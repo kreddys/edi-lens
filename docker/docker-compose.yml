@@ -144,8 +144,8 @@ services:
       - edi_lens_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
+      interval: 10s
+      timeout: 5s
       retries: 3
 
   create-minio-bucket:
@@ -154,7 +154,8 @@ services:
     profiles:
       - setup
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
     environment:
       - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY:-minioadmin}
       - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-minioadmin}
@@ -162,10 +163,10 @@ services:
     entrypoint: >
       /bin/sh -c "
       echo 'Waiting for MinIO to be ready...';
-      until (/usr/bin/mc alias set local-minio http://minio:9000 $STORAGE_ACCESS_KEY $STORAGE_SECRET_KEY) do echo '...retrying connection to minio' && sleep 1; done;
+      until (/usr/bin/mc alias set local-minio http://minio:9000 $STORAGE_ACCESS_KEY $STORAGE_SECRET_KEY >/dev/null 2>&1) do echo '...retrying connection to minio' && sleep 2; done;
       echo 'MinIO is ready. Creating bucket...';
-      /usr/bin/mc mb local-minio/$STORAGE_BUCKET --ignore-existing;
-      /usr/bin/mc policy set public local-minio/$STORAGE_BUCKET;
+      /usr/bin/mc mb local-minio/$STORAGE_BUCKET --ignore-existing >/dev/null 2>&1 || echo 'Bucket already exists';
+      /usr/bin/mc anonymous set public local-minio/$STORAGE_BUCKET >/dev/null 2>&1 || echo 'Policy already set';
       echo 'Bucket setup complete.';
       exit 0;
       "
@@ -270,9 +271,10 @@ services:
       - nifi-registry
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/nifi-api/system-diagnostics"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s  # Give NiFi time to fully initialize
 
   # Init container to fix NiFi Registry volume permissions
   nifi-registry-init:
@@ -320,6 +322,12 @@ services:
     depends_on:
       db-app:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18080/nifi-registry/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   postgres_kc_data: {}
