@@ -50,3 +50,13 @@
 :8082 {
     reverse_proxy sftpgo:8080
 }
+
+# Apache NiFi (Listens on :8080)
+:8080 {
+    reverse_proxy nifi:8080
+}
+
+# Apache NiFi Registry (Listens on :18080)
+:18080 {
+    reverse_proxy nifi-registry:18080
+}

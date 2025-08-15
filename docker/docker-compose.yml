@@ -11,6 +11,8 @@ services:
       - "8081:8081" # Keycloak UI port
       - "9001:9001" # MinIO Console port
       - "8082:8082" # SFTPGo UI port
+      - "8080:8080" # NiFi UI port
+      - "18080:18080" # NiFi Registry UI port
     volumes:
       - ./caddy/dev.Caddyfile:/etc/caddy/Caddyfile
     networks:
@@ -47,14 +49,18 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_SFTPGO_USER: ${POSTGRES_SFTPGO_USER}
       POSTGRES_SFTPGO_PASSWORD: ${POSTGRES_SFTPGO_PASSWORD}
-      POSTGRES_SFTPGO_DB: ${POSTGRES_SFTPGO_DB}      
+      POSTGRES_SFTPGO_DB: ${POSTGRES_SFTPGO_DB}
+      POSTGRES_NIFI_REGISTRY_USER: ${POSTGRES_NIFI_REGISTRY_USER}
+      POSTGRES_NIFI_REGISTRY_PASSWORD: ${POSTGRES_NIFI_REGISTRY_PASSWORD}
+      POSTGRES_NIFI_REGISTRY_DB: ${POSTGRES_NIFI_REGISTRY_DB}      
     volumes:
       # ./ is now the /docker directory
-      - ./postgres/init-db-extensions.sh:/docker-entrypoint-initdb.d/init-extensions.sh
+      - ./postgres/init-app-dbs.sh:/docker-entrypoint-initdb.d/init-app-dbs.sh
+      - ./postgres/healthcheck.sh:/usr/local/bin/healthcheck.sh
     networks:
       - edi_lens_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD", "healthcheck.sh"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -214,6 +220,107 @@ services:
     restart: unless-stopped
     command: sftpgo serve
 
+
+  nifi:
+    image: apache/nifi:1.23.2
+    container_name: nifi
+    hostname: nifi
+    environment:
+      # Basic Configuration
+      - NIFI_WEB_HTTP_HOST=0.0.0.0
+      - NIFI_WEB_HTTP_PORT=8080
+      - NIFI_CLUSTER_IS_NODE=false
+      - NIFI_SENSITIVE_PROPS_KEY=${NIFI_SENSITIVE_PROPS_KEY}
+      
+      # Security Configuration
+      - SINGLE_USER_CREDENTIALS_USERNAME=${NIFI_ADMIN_USER}
+      - SINGLE_USER_CREDENTIALS_PASSWORD=${NIFI_ADMIN_PASSWORD}
+      
+      # OIDC Configuration (Keycloak Integration)
+      - NIFI_SECURITY_USER_OIDC_DISCOVERY_URL=${KEYCLOAK_URL}/realms/edi-lens/.well-known/openid_configuration
+      - NIFI_SECURITY_USER_OIDC_CLIENT_ID=nifi
+      - NIFI_SECURITY_USER_OIDC_CLIENT_SECRET=${KEYCLOAK_NIFI_CLIENT_SECRET}
+      - NIFI_SECURITY_USER_OIDC_PREFERRED_JWSALGORITHM=RS256
+      
+      # JVM Configuration
+      - NIFI_JVM_HEAP_INIT=${NIFI_JVM_HEAP_INIT}
+      - NIFI_JVM_HEAP_MAX=${NIFI_JVM_HEAP_MAX}
+      
+      # Backend Integration
+      - EDI_BACKEND_URL=http://backend:8000
+      
+    # ports:
+      # - "8080:8080"  # Proxied through Caddy instead
+    volumes:
+      # Data persistence
+      - nifi_database_repository:/opt/nifi/nifi-current/database_repository
+      - nifi_flowfile_repository:/opt/nifi/nifi-current/flowfile_repository
+      - nifi_content_repository:/opt/nifi/nifi-current/content_repository
+      - nifi_provenance_repository:/opt/nifi/nifi-current/provenance_repository
+      - nifi_conf:/opt/nifi/nifi-current/conf
+      
+      # SFTP access
+      - sftp_tenant_data:/sftp/tenants:ro
+      
+    networks:
+      - edi_lens_network
+    depends_on:
+      - keycloak
+      - backend
+      - nifi-registry
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/nifi-api/system-diagnostics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Init container to fix NiFi Registry volume permissions
+  nifi-registry-init:
+    image: alpine:latest
+    container_name: nifi-registry-init
+    profiles:
+      - setup
+    volumes:
+      - nifi_registry_data:/opt/nifi-registry/nifi-registry-current/database
+      - nifi_registry_flow_storage:/opt/nifi-registry/nifi-registry-current/flow_storage
+    command: >
+      sh -c "
+      echo 'Fixing NiFi Registry volume permissions...';
+      chown -R 1000:1000 /opt/nifi-registry/nifi-registry-current/database;
+      chown -R 1000:1000 /opt/nifi-registry/nifi-registry-current/flow_storage;
+      chmod -R 755 /opt/nifi-registry/nifi-registry-current/database;
+      chmod -R 755 /opt/nifi-registry/nifi-registry-current/flow_storage;
+      echo 'NiFi Registry permissions fixed.';
+      "
+    networks:
+      - edi_lens_network
+
+  nifi-registry:
+    image: apache/nifi-registry:1.23.2
+    container_name: nifi-registry
+    environment:
+      - NIFI_REGISTRY_WEB_HTTP_HOST=0.0.0.0
+      - NIFI_REGISTRY_WEB_HTTP_PORT=18080
+      - NIFI_REGISTRY_DB_URL=jdbc:postgresql://db-app:5432/${POSTGRES_NIFI_REGISTRY_DB}
+      - NIFI_REGISTRY_DB_USER=${POSTGRES_NIFI_REGISTRY_USER}
+      - NIFI_REGISTRY_DB_PASS=${POSTGRES_NIFI_REGISTRY_PASSWORD}
+      - NIFI_REGISTRY_DB_CLASS=org.postgresql.Driver
+      - NIFI_REGISTRY_DB_DRIVER_CLASS=org.postgresql.Driver
+      - NIFI_REGISTRY_DB_DRIVER_DIRECTORY=/opt/nifi-registry/nifi-registry-current/lib
+    # ports:
+      # - "18080:18080"  # Proxied through Caddy instead
+    volumes:
+      - nifi_registry_data:/opt/nifi-registry/nifi-registry-current/database
+      - nifi_registry_flow_storage:/opt/nifi-registry/nifi-registry-current/flow_storage
+      # Mount PostgreSQL JDBC driver
+      - ./nifi-registry/postgresql-42.7.4.jar:/opt/nifi-registry/nifi-registry-current/lib/postgresql-42.7.4.jar
+    user: "1000:1000"  # Now safe to use after init container fixes permissions
+    networks:
+      - edi_lens_network
+    depends_on:
+      db-app:
+        condition: service_healthy
+
 volumes:
   postgres_kc_data: {}
   postgres_app_data: {}
@@ -221,6 +328,13 @@ volumes:
   minio_data: {}
   sftpgo_data: {}
   sftp_tenant_data: {}
+  nifi_database_repository:
+  nifi_flowfile_repository:
+  nifi_content_repository:
+  nifi_provenance_repository:
+  nifi_conf:
+  nifi_registry_data:
+  nifi_registry_flow_storage:
 
 networks:
   edi_lens_network:

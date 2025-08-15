@@ -45,3 +45,31 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_SFTPGO_D
     GRANT USAGE, CREATE ON SCHEMA public TO "$POSTGRES_SFTPGO_USER";
 EOSQL
 echo "✅ Schema permissions granted."
+
+# --- Create the dedicated database and user for NiFi Registry ---
+if ! psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -lqt | cut -d \| -f 1 | grep -qw "$POSTGRES_NIFI_REGISTRY_DB"; then
+  echo "Database '$POSTGRES_NIFI_REGISTRY_DB' does not exist. Creating it now..."
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+      CREATE DATABASE "$POSTGRES_NIFI_REGISTRY_DB";
+EOSQL
+  echo "✅ Database '$POSTGRES_NIFI_REGISTRY_DB' created."
+else
+  echo "Database '$POSTGRES_NIFI_REGISTRY_DB' already exists. Skipping creation."
+fi
+
+if ! psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -tAc "SELECT 1 FROM pg_roles WHERE rolname='$POSTGRES_NIFI_REGISTRY_USER'" | grep -q 1; then
+  echo "User '$POSTGRES_NIFI_REGISTRY_USER' does not exist. Creating it now..."
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+      CREATE USER "$POSTGRES_NIFI_REGISTRY_USER" WITH PASSWORD '$POSTGRES_NIFI_REGISTRY_PASSWORD';
+      GRANT ALL PRIVILEGES ON DATABASE "$POSTGRES_NIFI_REGISTRY_DB" TO "$POSTGRES_NIFI_REGISTRY_USER";
+EOSQL
+  echo "✅ User '$POSTGRES_NIFI_REGISTRY_USER' created and granted privileges."
+else
+    echo "User '$POSTGRES_NIFI_REGISTRY_USER' already exists. Skipping creation."
+fi
+
+echo "Granting schema permissions to '$POSTGRES_NIFI_REGISTRY_USER' on database '$POSTGRES_NIFI_REGISTRY_DB'..."
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_NIFI_REGISTRY_DB" <<-EOSQL
+    GRANT USAGE, CREATE ON SCHEMA public TO "$POSTGRES_NIFI_REGISTRY_USER";
+EOSQL
+echo "✅ Schema permissions granted to NiFi Registry user."

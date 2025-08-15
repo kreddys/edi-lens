@@ -103,6 +103,7 @@ ensure_infra() {
     # The --rm flag is critical: it ensures the container is removed after it exits.
     # We explicitly run the service by name. If it has a profile, 'run' will still execute it.
     $DC_EXEC run --rm create-minio-bucket
+    $DC_EXEC run --rm nifi-registry-init
     info "Infrastructure tasks are up to date."
 }
 # --- END OF UPDATE ---
@@ -119,9 +120,10 @@ case "$ACTION" in
     start)
         check_docker
         # --- THIS IS THE NEW, ORCHESTRATED STARTUP SEQUENCE ---
-        info "Ensuring one-off infrastructure tasks (MinIO bucket) are complete..."
-        # We run this separately to ensure MinIO is ready.
+        info "Ensuring one-off infrastructure tasks (MinIO bucket, NiFi Registry permissions) are complete..."
+        # We run this separately to ensure MinIO is ready and NiFi Registry volumes have correct permissions.
         $DC_EXEC run --rm create-minio-bucket
+        $DC_EXEC run --rm nifi-registry-init
 
         info "Starting core services (DBs, Keycloak, Backend)..."
         # Start only the core services first and wait for them to be healthy.
