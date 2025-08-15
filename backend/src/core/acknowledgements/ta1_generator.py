@@ -82,18 +82,22 @@ class TA1Generator:
             f"{ack_code.value}*{note_code.value}"
         )
         
-        # Create complete TA1 interchange (ISA + TA1 + IEA)
-        # Note: Sender and receiver are swapped in the response
-        ta1_interchange = (
+        # Create ISA header for TA1 response (sender/receiver swapped)
+        isa_response = (
             f"ISA*{original_auth_qual}*{original_auth_info}*"
             f"{original_security_qual}*{original_security_info}*"
             f"{original_receiver_qual}*{original_receiver_id}*"  # Swapped: original receiver becomes sender
             f"{original_sender_qual}*{original_sender_id}*"      # Swapped: original sender becomes receiver
-            f"*{response_date}*{response_time}*{original_standards_id}*"
+            f"{response_date}*{response_time}*{original_standards_id}*"
             f"{original_version}*{response_icn}*0*{original_test_indicator}*{original_component_separator}~"
-            f"{ta1_segment}~"
-            f"IEA*0*{response_icn}~"
         )
+        
+        # Create IEA trailer
+        iea_response = f"IEA*1*{response_icn}~"
+        
+        # Create complete TA1 interchange following official specification:
+        # ISA + TA1 + IEA (no GS/GE envelope structure)
+        ta1_interchange = f"{isa_response}{ta1_segment}~{iea_response}"
         
         logger.debug(f"TA1 Gen: Successfully generated TA1 interchange: {ta1_interchange}")
         return ta1_interchange

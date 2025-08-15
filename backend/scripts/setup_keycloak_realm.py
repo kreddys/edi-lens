@@ -16,8 +16,11 @@ REALM_NAME = os.getenv("KEYCLOAK_REALM", "edi-lens")
 CLIENT_SECRET = os.getenv("KEYCLOAK_BACKEND_CLIENT_SECRET", "this-is-a-default-secret-change-it")
 KEYCLOAK_BACKEND_CLIENT_ID = os.getenv("KEYCLOAK_BACKEND_CLIENT_ID", "edi-lens-backend")
 KEYCLOAK_UI_CLIENT_ID = os.getenv("KEYCLOAK_UI_CLIENT_ID", "edi-lens-ui")
-REMOTE_HOST = os.getenv("REMOTE_HOST", "localhost")
+KEYCLOAK_NIFI_CLIENT_ID = os.getenv("KEYCLOAK_NIFI_CLIENT_ID", "nifi-service")
+KEYCLOAK_NIFI_CLIENT_SECRET = os.getenv("KEYCLOAK_NIFI_CLIENT_SECRET", "nifi-service-secret")
+KEYCLOAK_SFTPGO_CLIENT_ID = os.getenv("KEYCLOAK_SFTPGO_CLIENT_ID", "sftpgo")
 KEYCLOAK_SFTPGO_CLIENT_SECRET = os.getenv("KEYCLOAK_SFTPGO_CLIENT_SECRET", "default-sftpgo-secret")
+REMOTE_HOST = os.getenv("REMOTE_HOST", "localhost")
 
 # --- Updated Roles for NiFi Workflow Architecture ---
 # Removed obsolete trading partner roles as per new architecture
@@ -97,9 +100,9 @@ CLIENTS = [
     },
     # NiFi Service Client
     {
-        "clientId": "nifi-service", 
+        "clientId": KEYCLOAK_NIFI_CLIENT_ID, 
         "name": "NiFi Service Account", 
-        "secret": "nifi-service-secret", 
+        "secret": KEYCLOAK_NIFI_CLIENT_SECRET, 
         "publicClient": False, 
         "clientAuthenticatorType": "client-secret", 
         "serviceAccountsEnabled": True, 
@@ -147,7 +150,7 @@ def create_or_update_sftpgo_client(admin_client: KeycloakAdmin, existing_clients
     ]
 
     sftpgo_client_payload = {
-        "clientId": "sftpgo",
+        "clientId": KEYCLOAK_SFTPGO_CLIENT_ID,
         "name": "SFTPGo",
         "description": "OIDC client for SFTPGo Admin UI SSO",
         "publicClient": False,
@@ -159,13 +162,13 @@ def create_or_update_sftpgo_client(admin_client: KeycloakAdmin, existing_clients
         "serviceAccountsEnabled": True,
     }
     
-    sftpgo_client = existing_clients_map.get("sftpgo")
+    sftpgo_client = existing_clients_map.get(KEYCLOAK_SFTPGO_CLIENT_ID)
 
     if not sftpgo_client:
-        logging.info("  - Creating 'sftpgo' client...")
+        logging.info(f"  - Creating '{KEYCLOAK_SFTPGO_CLIENT_ID}' client...")
         admin_client.create_client(payload=sftpgo_client_payload)
     else:
-        logging.info("  - 'sftpgo' client already exists. Updating...")
+        logging.info(f"  - '{KEYCLOAK_SFTPGO_CLIENT_ID}' client already exists. Updating...")
         admin_client.update_client(client_id=sftpgo_client['id'], payload=sftpgo_client_payload)
 
 def configure_client_mappers(admin_client: KeycloakAdmin, existing_clients_map: dict):
@@ -191,7 +194,7 @@ def configure_client_mappers(admin_client: KeycloakAdmin, existing_clients_map: 
 
     ui_client = existing_clients_map.get(KEYCLOAK_UI_CLIENT_ID)
     backend_client = existing_clients_map.get(KEYCLOAK_BACKEND_CLIENT_ID)
-    nifi_client = existing_clients_map.get("nifi-service")
+    nifi_client = existing_clients_map.get(KEYCLOAK_NIFI_CLIENT_ID)
     
     if not ui_client:
         logging.error(f"  - ERROR: Could not find UI client '{KEYCLOAK_UI_CLIENT_ID}' to add mappers.")
@@ -231,14 +234,14 @@ def configure_client_mappers(admin_client: KeycloakAdmin, existing_clients_map: 
         else:
             raise
 
-    # Add audience mapper to nifi-service client
+    # Add audience mapper to NiFi service client
     if nifi_client:
         try:
             admin_client.add_mapper_to_client(nifi_client['id'], audience_mapper)
-            logging.info(f"  - Added 'backend-audience' mapper to nifi-service client.")
+            logging.info(f"  - Added 'backend-audience' mapper to {KEYCLOAK_NIFI_CLIENT_ID} client.")
         except KeycloakPostError as e:
             if e.response_code == 409:
-                logging.info(f"  - Mapper 'backend-audience' already exists on nifi-service client.")
+                logging.info(f"  - Mapper 'backend-audience' already exists on {KEYCLOAK_NIFI_CLIENT_ID} client.")
             else:
                 raise
 
@@ -334,7 +337,7 @@ def assign_service_account_roles(admin_client, all_roles_map):
         nifi_service_client = None
         clients = admin_client.get_clients()
         for client in clients:
-            if client['clientId'] == 'nifi-service':
+            if client['clientId'] == KEYCLOAK_NIFI_CLIENT_ID:
                 nifi_service_client = client
                 break
         
@@ -342,7 +345,7 @@ def assign_service_account_roles(admin_client, all_roles_map):
             # Get the service account user
             service_account_user = admin_client.get_client_service_account_user(nifi_service_client['id'])
             if service_account_user:
-                logging.info(f"  - Found service account user for 'nifi-service': {service_account_user['username']}")
+                logging.info(f"  - Found service account user for '{KEYCLOAK_NIFI_CLIENT_ID}': {service_account_user['username']}")
                 
                 # Assign EDI processing roles
                 edi_roles = [
@@ -359,7 +362,7 @@ def assign_service_account_roles(admin_client, all_roles_map):
                     role_names = [role['name'] for role in roles_to_assign]
                     logging.info(f"  - Assigned roles {role_names} to service account '{service_account_user['username']}'")
         else:
-            logging.warning("  - NiFi service client not found")
+            logging.warning(f"  - {KEYCLOAK_NIFI_CLIENT_ID} service client not found")
             
     except Exception as e:
         logging.error(f"  - Error assigning roles to service accounts: {e}")
