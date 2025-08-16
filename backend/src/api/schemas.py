@@ -633,3 +633,209 @@ class WorkflowSearchRequest(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Tags filter")
     page: int = Field(1, ge=1, description="Page number")
     page_size: int = Field(20, ge=1, le=100, description="Page size")
+
+
+# ==============================================================================
+# Workflow Execution Schemas
+# ==============================================================================
+
+class WorkflowExecutionRequest(BaseModel):
+    """Request schema for workflow execution."""
+    edi_content: str = Field(..., description="EDI content to process")
+    request_id: Optional[str] = Field(None, description="Client request ID for tracking")
+    processing_options: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Processing options and overrides"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "edi_content": "ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *250816*1030*U*00401*000000001*0*P*>~",
+                "request_id": "client-request-12345",
+                "processing_options": {
+                    "generate_ta1": True,
+                    "generate_999": False,
+                    "validate_syntax": True,
+                    "priority": "normal"
+                }
+            }
+        }
+    )
+
+
+class WorkflowExecutionResponse(BaseModel):
+    """Response schema for workflow execution."""
+    valid: bool = Field(..., description="Whether processing was successful")
+    validation_results: List[ValidationFinding] = Field(
+        default=[], 
+        description="Validation findings and issues"
+    )
+    ta1_acknowledgment: Optional[str] = Field(None, description="TA1 acknowledgment content")
+    ack999_acknowledgment: Optional[str] = Field(None, description="999 acknowledgment content")
+    processing_time_ms: int = Field(..., description="Processing time in milliseconds")
+    request_id: Optional[str] = Field(None, description="Client request ID")
+    workflow_id: str = Field(..., description="Workflow ID that processed the request")
+    processed_at: datetime = Field(..., description="Processing timestamp")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "valid": True,
+                "validation_results": [
+                    {
+                        "level": "warning",
+                        "code": "W001",
+                        "message": "Optional element missing",
+                        "location": {
+                            "segment_id": "NM1",
+                            "segment_instance": 1,
+                            "element_position": 4,
+                            "line_number": 15
+                        }
+                    }
+                ],
+                "ta1_acknowledgment": "ISA*00*          *00*          *ZZ*RECEIVER       *ZZ*SENDER         *250816*1031*U*00401*000000001*0*P*>~TA1*000000001*250816*1031*A*000~IEA*1*000000001~",
+                "ack999_acknowledgment": None,
+                "processing_time_ms": 180,
+                "request_id": "client-request-12345",
+                "workflow_id": "workflow-uuid-123",
+                "processed_at": "2025-08-16T10:31:00Z"
+            }
+        }
+    )
+
+
+class WorkflowStatusResponse(BaseModel):
+    """Response schema for detailed workflow status."""
+    workflow_id: str = Field(..., description="Workflow ID")
+    status: WorkflowStatus = Field(..., description="Current workflow status")
+    nifi_status: Optional[str] = Field(None, description="NiFi process group status")
+    deployment_status: Optional[str] = Field(None, description="Deployment status")
+    last_execution: Optional[datetime] = Field(None, description="Last execution timestamp")
+    execution_count: int = Field(0, description="Total execution count")
+    error_count: int = Field(0, description="Total error count")
+    success_rate: float = Field(0.0, description="Success rate (0.0 to 1.0)")
+    process_group_id: Optional[str] = Field(None, description="NiFi process group ID")
+    parameter_context_id: Optional[str] = Field(None, description="NiFi parameter context ID")
+    flow_version: Optional[int] = Field(None, description="Current flow version")
+    health_check: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Health check results"
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "workflow_id": "workflow-uuid-123",
+                "status": "ACTIVE",
+                "nifi_status": "RUNNING",
+                "deployment_status": "DEPLOYED",
+                "last_execution": "2025-08-16T10:30:00Z",
+                "execution_count": 1547,
+                "error_count": 12,
+                "success_rate": 0.992,
+                "process_group_id": "process-group-uuid",
+                "parameter_context_id": "param-context-uuid",
+                "flow_version": 3,
+                "health_check": {
+                    "status": "healthy",
+                    "last_check": "2025-08-16T10:35:00Z",
+                    "issues": []
+                }
+            }
+        }
+    )
+
+
+# ==============================================================================
+# Configuration Validation Schemas
+# ==============================================================================
+
+class ConfigurationValidationRequest(BaseModel):
+    """Request schema for configuration validation."""
+    configuration: Dict[str, Any] = Field(..., description="Configuration to validate")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "configuration": {
+                    "input_path": "/sftp/tenants/tenant-a/claims/in/",
+                    "file_patterns": ["*.edi", "*.x12"],
+                    "validation": {
+                        "schema": "837.5010.X222.A1.json",
+                        "snip_level": 3
+                    },
+                    "acknowledgments": {
+                        "generate_ta1": True,
+                        "generate_999": False
+                    }
+                }
+            }
+        }
+    )
+
+
+class ValidationError(BaseModel):
+    """Schema for validation error."""
+    field: str = Field(..., description="Field with error")
+    message: str = Field(..., description="Error message") 
+    current_value: Optional[Any] = Field(None, description="Current value")
+    expected_pattern: Optional[str] = Field(None, description="Expected pattern or format")
+    available_options: Optional[List[str]] = Field(None, description="Available valid options")
+
+
+class ValidationWarning(BaseModel):
+    """Schema for validation warning."""
+    field: str = Field(..., description="Field with warning")
+    message: str = Field(..., description="Warning message")
+    severity: str = Field(..., description="Warning severity level")
+
+
+class ValidationRecommendation(BaseModel):
+    """Schema for validation recommendation."""
+    field: str = Field(..., description="Field for recommendation")
+    message: str = Field(..., description="Recommendation message")
+    suggestion: Optional[str] = Field(None, description="Suggested value")
+
+
+class ConfigurationValidationResponse(BaseModel):
+    """Response schema for configuration validation."""
+    valid: bool = Field(..., description="Whether configuration is valid")
+    errors: List[ValidationError] = Field(default=[], description="Validation errors")
+    warnings: List[ValidationWarning] = Field(default=[], description="Validation warnings")
+    recommendations: List[ValidationRecommendation] = Field(
+        default=[], 
+        description="Configuration recommendations"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "valid": False,
+                "errors": [
+                    {
+                        "field": "input_path",
+                        "message": "Path must start with /sftp/tenants/{tenant_id}/",
+                        "current_value": "/invalid/path/",
+                        "expected_pattern": "^/sftp/tenants/tenant-a/.+/$"
+                    }
+                ],
+                "warnings": [
+                    {
+                        "field": "acknowledgments.generate_999",
+                        "message": "999 acknowledgments are recommended for production workflows",
+                        "severity": "low"
+                    }
+                ],
+                "recommendations": [
+                    {
+                        "field": "output.archive_path",
+                        "message": "Consider adding archive path for processed files",
+                        "suggestion": "/sftp/tenants/tenant-a/claims/archive/"
+                    }
+                ]
+            }
+        }
+    )

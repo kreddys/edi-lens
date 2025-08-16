@@ -35,6 +35,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency to get a database session."""
     logger.debug("Creating new database session.")
     async with AsyncSessionLocal() as session:
+        logger.debug(f"[APP-SIDE] get_db dependency: yielding session with id: {id(session)}")
         try:
             yield session
         finally:

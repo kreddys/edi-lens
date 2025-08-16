@@ -1,14 +1,17 @@
 # FILE: backend/src/main.py
 
+import logging
+log = logging.getLogger(__name__)
+log.info("src.main module loaded")
+
 from fastapi import FastAPI, Depends, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-import logging
 from pathlib import Path
 import os
 import openlit
 
-from src.api.endpoints import auth, schemas, edi, workflow_templates
+from src.api.endpoints import auth, schemas, edi, workflow_templates, workflows
 from src.core.auth import get_current_user, User
 from src.core.config import setup_logging, settings
 from src.core.audit import before_flush, after_flush_postexec
@@ -18,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Lifespan event started.")
     setup_logging()
     logger.info("--- Starting up EDI Lens Validator API ---")
     
@@ -39,11 +43,6 @@ async def lifespan(app: FastAPI):
     
     logger.info("--- Shutting down EDI Lens Validator API ---")
 
-
-# --- THIS IS THE FIX: The app instantiation and CORS middleware were missing ---
-from src.api.endpoints import (
-    auth, edi, schemas, workflow_templates, workflows
-)
 
 app = FastAPI(
     title="EDI Lens API",
@@ -75,7 +74,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# --- END OF FIX ---
 
 
 api_router = APIRouter(prefix="/api/v1")

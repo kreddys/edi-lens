@@ -32,6 +32,32 @@ def _serialize_value(value: Any) -> Any:
     # --- END OF FIX ---
     return value
 
+def _get_primary_key_value(obj) -> str:
+    """Get the primary key value of an object, regardless of the column name."""
+    # Handle mock objects in tests
+    if hasattr(obj, 'id'):
+        return str(obj.id)
+    
+    # Handle real SQLAlchemy models
+    if hasattr(obj, '__table__') and hasattr(obj.__table__, 'columns'):
+        primary_key_value = None
+        for column in obj.__table__.columns:
+            if column.primary_key:
+                primary_key_value = getattr(obj, column.name)
+                break
+        return str(primary_key_value) if primary_key_value else None
+    
+    # Fallback for other object types
+    return None
+
+def _get_full_data(obj) -> Dict[str, Any]:
+    """Extracts all data from a new or deleted SQLAlchemy object."""
+    return {
+        c.name: _serialize_value(getattr(obj, c.name))
+        for c in obj.__table__.columns
+    }
+
+
 def _get_changed_data(obj) -> Dict[str, Any]:
     """Extracts changed data from a dirty SQLAlchemy object."""
     changes = {}
@@ -46,13 +72,6 @@ def _get_changed_data(obj) -> Dict[str, Any]:
                 'new': _serialize_value(history.added[0]) if history.added else None,
             }
     return changes
-
-def _get_full_data(obj) -> Dict[str, Any]:
-    """Extracts all data from a new or deleted SQLAlchemy object."""
-    return {
-        c.name: _serialize_value(getattr(obj, c.name))
-        for c in obj.__table__.columns
-    }
 
 # --- The Main Event Listener ---
 
@@ -97,7 +116,7 @@ def before_flush(session: Session, flush_context, instances):
                 request_id=request_id_cv.get(),
                 action=AuditAction.UPDATE,
                 table_name=obj.__tablename__,
-                record_pk=str(obj.id),
+                record_pk=_get_primary_key_value(obj),
                 before_value={k: v['old'] for k, v in changed_data.items()},
                 after_value={k: v['new'] for k, v in changed_data.items()},
             ))
@@ -113,7 +132,7 @@ def before_flush(session: Session, flush_context, instances):
             request_id=request_id_cv.get(),
             action=AuditAction.DELETE,
             table_name=obj.__tablename__,
-            record_pk=str(obj.id),
+            record_pk=_get_primary_key_value(obj),
             before_value=_get_full_data(obj),
         ))
 
@@ -126,6 +145,7 @@ def after_flush_postexec(session: Session, flush_context):
     """
     if 'audit_pk_updates' in session.info:
         for parent_obj, audit_entry in session.info['audit_pk_updates']:
-            if hasattr(parent_obj, 'id') and parent_obj.id is not None:
-                audit_entry.record_pk = str(parent_obj.id)
+            primary_key_value = _get_primary_key_value(parent_obj)
+            if primary_key_value:
+                audit_entry.record_pk = primary_key_value
         session.info['audit_pk_updates'].clear()

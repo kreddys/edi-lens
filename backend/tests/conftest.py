@@ -12,6 +12,7 @@ import json
 import sys
 from pathlib import Path
 import os
+from asgi_lifespan import LifespanManager
 
 from src.main import app
 from src.core.database import get_db, Base
@@ -25,7 +26,9 @@ from src.core.models.edi_schema_models import ImplementationGuideSchema
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment(pytestconfig):
-    log_level = pytestconfig.getoption("log_cli_level") or "INFO"
+    # Use the application's LOG_LEVEL setting if available, otherwise use pytest's log_cli_level
+    app_log_level = os.getenv("LOG_LEVEL", "INFO")
+    log_level = pytestconfig.getoption("log_cli_level") or app_log_level
     logging.basicConfig(
         level=log_level.upper(),
         format="[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] - %(message)s",
@@ -59,10 +62,11 @@ TestAsyncSessionLocal = sessionmaker(
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """
     Provides a clean database session for each test function.
-    Cleans up DATA between tests using TRUNCATE for true isolation.
+    Commits the transaction after the test and cleans up data using TRUNCATE.
     """
     async with TestAsyncSessionLocal() as session:
         yield session
+        await session.commit()
 
     async with test_engine.begin() as conn:
         tables = Base.metadata.sorted_tables
@@ -93,9 +97,10 @@ async def async_client(db_session: AsyncSession, user_context: Optional[User] = 
     if user_context:
         app.dependency_overrides[get_current_user] = lambda: user_context
     
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
+    async with LifespanManager(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            yield client
             
     app.dependency_overrides.clear()
     # Ensure get_current_user override is also cleared if it was set
