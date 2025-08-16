@@ -8,7 +8,7 @@ from pathlib import Path
 import os
 import openlit
 
-from src.api.endpoints import auth, schemas, edi
+from src.api.endpoints import auth, schemas, edi, workflow_templates
 from src.core.auth import get_current_user, User
 from src.core.config import setup_logging, settings
 from src.core.audit import before_flush, after_flush_postexec
@@ -41,12 +41,27 @@ async def lifespan(app: FastAPI):
 
 
 # --- THIS IS THE FIX: The app instantiation and CORS middleware were missing ---
-app = FastAPI(
-    title="EDI Lens Validator API",
-    description="Backend API for the EDI Lens application, handling EDI validation, trading partner configuration, and user authentication.",
-    version="1.0.0",
-    lifespan=lifespan
+from src.api.endpoints import (
+    auth, edi, schemas, workflow_templates, workflows
 )
+
+app = FastAPI(
+    title="EDI Lens API",
+    description="API for EDI processing, validation, and management.",
+    version="1.0.0",
+)
+
+# Include routers
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(edi.router, prefix="/api/v1")
+app.include_router(schemas.router, prefix="/api/v1")
+app.include_router(workflow_templates.router, prefix="/api/v1")
+app.include_router(workflows.router, prefix="/api/v1")
+
+@app.get("/api/v1/health", tags=["health"])
+def health_check():
+    return {"status": "ok"}
+
 
 origins = ["http://localhost:3000", "http://localhost:3001"]
 if settings.REMOTE_HOST and settings.REMOTE_HOST != "localhost":
@@ -77,5 +92,6 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
 api_router.include_router(auth.router, tags=["Authentication"])
 api_router.include_router(edi.router, tags=["EDI Processing"])
 api_router.include_router(schemas.router, tags=["Schema Management"])
+api_router.include_router(workflow_templates.router, tags=["Workflow Templates"])
 
 app.include_router(api_router)

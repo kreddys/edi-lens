@@ -7,3 +7,6 @@ from src.core.database import Base
 from .audit_log import AuditLog
 from .validation_transaction import ValidationTransaction
 from .processing_log import ProcessingLog
+
+# Workflow template management models
+from .workflow_template import WorkflowTemplate, TemplateVersion, TemplateUsage, Workflow

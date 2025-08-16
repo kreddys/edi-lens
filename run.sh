@@ -36,6 +36,7 @@ if [ -z "$1" ] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]]; then
     echo ""
     echo "COMMON ACTIONS (e.g., dev:start, stg:logs):"
     echo "  start, stop, clean, build, logs, migrate:make \"msg\", migrate:run, setup:keycloak, setup:sftpgo, setup:seed"
+    echo "  db:exec \"command\"           Execute SQL command in database (dev only)"
     echo ""
     echo "SFTP ACTIONS (dev environment only) - SECURE:"
     echo "  dev:sftp:process --auth-token TOKEN --tenant TENANT --list-partners"
@@ -66,18 +67,21 @@ case "$ENV_CONTEXT" in
         ENV_FILE=".env.dev"
         DC_FILES="-f docker/docker-compose.yml"
         BACKEND_SERVICE="backend"
+        DB_SERVICE="db-app"
         ;;
     stg)
         PROJECT_NAME="edi-lens-stg"
         ENV_FILE=".env.stg"
         DC_FILES="-f docker/docker-compose.yml -f docker/docker-compose.stg.yml"
         BACKEND_SERVICE="backend"
+        DB_SERVICE="db-app"
         ;;
     prod)
         PROJECT_NAME="edi-lens-prod"
         ENV_FILE=".env.prod"
         DC_FILES="-f docker/docker-compose.yml -f docker/docker-compose.prod.yml"
         BACKEND_SERVICE="backend"
+        DB_SERVICE="db-app"
         ;;
     *)
         error "Unknown environment: '$ENV_CONTEXT'. Must be one of: dev, stg, prod."
@@ -213,7 +217,7 @@ case "$ACTION" in
         $DC_EXEC logs -f "$@"
         ;;
     # --- setup:keycloak is now primarily for re-running the setup on an already running system ---
-    migrate:make|migrate:run|setup:keycloak|setup:sftpgo|setup:seed)
+    migrate:make|migrate:run|setup:keycloak|setup:sftpgo|setup:seed|db:exec)
         check_docker
         if [ "$ACTION" == "migrate:make" ] && [ -z "$1" ]; then error "Migration message is required."; fi
         
@@ -232,6 +236,15 @@ case "$ACTION" in
             $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.setup_sftpgo_events
         elif [ "$ACTION" == "setup:seed" ]; then
             $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.seed "$@"
+        elif [ "$ACTION" == "db:exec" ]; then
+            if [ "$ENV_CONTEXT" != "dev" ]; then error "'db:exec' action is only for the 'dev' environment."; fi
+            if [ -z "$1" ]; then error "SQL command is required for db:exec."; fi
+            info "Executing SQL command in database..."
+            # Load environment variables safely to get database config
+            set -a  # automatically export all variables
+            source "$ENV_FILE"
+            set +a  # turn off automatic export
+            $DC_EXEC exec "$DB_SERVICE" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"
         fi
         ;;
     sftp:process)

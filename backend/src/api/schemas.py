@@ -277,3 +277,359 @@ class Ack999GenerationResponse(BaseModel):
     acknowledgment_status: str = Field(..., description="Acknowledgment status: A (Accept), E (Error), R (Reject)")
     error_code: Optional[str] = Field(None, description="Error code if rejection")
     processing_time_ms: int = Field(..., description="Processing time in milliseconds")
+
+
+# ==============================================================================
+# Workflow Template Management Schemas
+# ==============================================================================
+
+from enum import Enum
+from typing import Any, Dict, List, Optional
+from uuid import UUID as PyUUID
+
+
+class TemplateScope(str, Enum):
+    """Template scope enumeration."""
+    GLOBAL = "GLOBAL"
+    TENANT = "TENANT"
+
+
+class TemplateCategory(str, Enum):
+    """Template category enumeration."""
+    BATCH = "BATCH"
+    REALTIME = "REALTIME"
+    TRANSFORMATION = "TRANSFORMATION"
+    INTEGRATION = "INTEGRATION"
+
+
+class TemplateStatus(str, Enum):
+    """Template status enumeration."""
+    ACTIVE = "ACTIVE"
+    DEPRECATED = "DEPRECATED"
+    ARCHIVED = "ARCHIVED"
+
+
+class WorkflowStatus(str, Enum):
+    """Workflow status enumeration."""
+    ACTIVE = "ACTIVE"
+    PAUSED = "PAUSED"
+    ERROR = "ERROR"
+    DELETED = "DELETED"
+
+
+class DeploymentMethod(str, Enum):
+    """Deployment method enumeration."""
+    REGISTRY = "registry"
+    XML = "xml"
+
+
+class TemplateAction(str, Enum):
+    """Template usage action enumeration."""
+    DEPLOY = "DEPLOY"
+    UPDATE = "UPDATE"
+    DELETE = "DELETE"
+    CLONE = "CLONE"
+
+
+# Base schemas for common fields
+class TemplateBase(BaseModel):
+    """Base template schema with common fields."""
+    name: str = Field(..., description="Template name")
+    description: Optional[str] = Field(None, description="Template description")
+    category: TemplateCategory = Field(..., description="Template category")
+    tags: Optional[List[str]] = Field(None, description="Template tags")
+    features: Optional[List[str]] = Field(None, description="Template features")
+    documentation: Optional[str] = Field(None, description="Usage documentation")
+    examples: Optional[Dict[str, Any]] = Field(None, description="Example configurations")
+
+
+class TemplateCreate(TemplateBase):
+    """Schema for creating a new template."""
+    template_id: Optional[str] = Field(None, description="Template ID (auto-generated if not provided)")
+    scope: TemplateScope = Field(TemplateScope.TENANT, description="Template scope")
+    tenant_id: Optional[str] = Field(None, description="Tenant ID (required for tenant templates)")
+    based_on: Optional[str] = Field(None, description="Parent template ID")
+    version: str = Field("1.0", description="Template version")
+    flow_definition: Dict[str, Any] = Field(..., description="NiFi flow definition")
+    configuration_schema: Dict[str, Any] = Field(..., description="Configuration schema")
+    deployment_method: DeploymentMethod = Field(DeploymentMethod.REGISTRY, description="Deployment method")
+    is_featured: bool = Field(False, description="Whether template is featured")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "Custom Claims Processor",
+                "description": "Specialized 837P claims processing workflow",
+                "category": "BATCH",
+                "scope": "TENANT",
+                "tenant_id": "tenant-a",
+                "based_on": "global-sftp-edi-processor-v1.0",
+                "tags": ["healthcare", "claims", "837p"],
+                "features": ["validation", "acknowledgments", "archival"],
+                "flow_definition": {
+                    "processors": [],
+                    "connections": [],
+                    "parameter_contexts": []
+                },
+                "configuration_schema": {
+                    "type": "object",
+                    "properties": {
+                        "input_path": {"type": "string"}
+                    }
+                }
+            }
+        }
+    )
+
+
+class TemplateUpdate(BaseModel):
+    """Schema for updating an existing template."""
+    name: Optional[str] = Field(None, description="Template name")
+    description: Optional[str] = Field(None, description="Template description")
+    tags: Optional[List[str]] = Field(None, description="Template tags")
+    features: Optional[List[str]] = Field(None, description="Template features")
+    documentation: Optional[str] = Field(None, description="Usage documentation")
+    examples: Optional[Dict[str, Any]] = Field(None, description="Example configurations")
+    flow_definition: Optional[Dict[str, Any]] = Field(None, description="NiFi flow definition")
+    configuration_schema: Optional[Dict[str, Any]] = Field(None, description="Configuration schema")
+    status: Optional[TemplateStatus] = Field(None, description="Template status")
+    is_featured: Optional[bool] = Field(None, description="Whether template is featured")
+
+
+class TemplateClone(BaseModel):
+    """Schema for cloning a template."""
+    source_template_id: str = Field(..., description="Source template ID to clone")
+    new_template: TemplateCreate = Field(..., description="New template configuration")
+    customizations: Optional[Dict[str, Any]] = Field(None, description="Template customizations")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "source_template_id": "global-sftp-edi-processor-v1.0",
+                "new_template": {
+                    "name": "Custom Claims Processor",
+                    "description": "Specialized for our healthcare claims workflow",
+                    "category": "BATCH",
+                    "scope": "TENANT",
+                    "tenant_id": "tenant-a"
+                },
+                "customizations": {
+                    "add_processors": [],
+                    "modify_configuration_schema": {},
+                    "add_validation_rules": []
+                }
+            }
+        }
+    )
+
+
+class TemplateResponse(TemplateBase):
+    """Schema for template response."""
+    template_id: str = Field(..., description="Template ID")
+    scope: TemplateScope = Field(..., description="Template scope")
+    tenant_id: Optional[str] = Field(None, description="Tenant ID")
+    maintainer: Optional[str] = Field(None, description="Template maintainer")
+    based_on: Optional[str] = Field(None, description="Parent template ID")
+    version: str = Field(..., description="Template version")
+    flow_definition: Dict[str, Any] = Field(..., description="NiFi flow definition")
+    configuration_schema: Dict[str, Any] = Field(..., description="Configuration schema")
+    deployment_method: DeploymentMethod = Field(..., description="Deployment method")
+    nifi_registry_flow_id: Optional[str] = Field(None, description="NiFi Registry flow ID")
+    nifi_registry_bucket_id: Optional[str] = Field(None, description="NiFi Registry bucket ID")
+    status: TemplateStatus = Field(..., description="Template status")
+    is_featured: bool = Field(..., description="Whether template is featured")
+    usage_count: int = Field(..., description="Template usage count")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+    deprecated_at: Optional[datetime] = Field(None, description="Deprecation timestamp")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TemplateListResponse(BaseModel):
+    """Schema for template list response."""
+    templates: List[TemplateResponse] = Field(..., description="List of templates")
+    total: int = Field(..., description="Total number of templates")
+    page: int = Field(..., description="Current page number")
+    page_size: int = Field(..., description="Page size")
+
+
+class TemplateVersionCreate(BaseModel):
+    """Schema for creating a new template version."""
+    version: str = Field(..., description="Version identifier")
+    changes: Optional[str] = Field(None, description="Description of changes")
+    flow_definition: Dict[str, Any] = Field(..., description="NiFi flow definition")
+    configuration_schema: Dict[str, Any] = Field(..., description="Configuration schema")
+
+
+class TemplateVersionResponse(BaseModel):
+    """Schema for template version response."""
+    version_id: PyUUID = Field(..., description="Version ID")
+    template_id: str = Field(..., description="Template ID")
+    version: str = Field(..., description="Version identifier")
+    flow_definition: Dict[str, Any] = Field(..., description="NiFi flow definition")
+    configuration_schema: Dict[str, Any] = Field(..., description="Configuration schema")
+    changes: Optional[str] = Field(None, description="Description of changes")
+    created_by: str = Field(..., description="Creator user ID")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    is_current: bool = Field(..., description="Whether this is the current version")
+    deployment_count: int = Field(..., description="Number of deployments")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TemplateUsageResponse(BaseModel):
+    """Schema for template usage response."""
+    usage_id: PyUUID = Field(..., description="Usage ID")
+    template_id: str = Field(..., description="Template ID")
+    template_version: Optional[str] = Field(None, description="Template version")
+    tenant_id: str = Field(..., description="Tenant ID")
+    workflow_id: Optional[str] = Field(None, description="Workflow ID")
+    action: TemplateAction = Field(..., description="Action performed")
+    configuration_hash: Optional[str] = Field(None, description="Configuration hash")
+    success: Optional[bool] = Field(None, description="Whether action succeeded")
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+    created_at: datetime = Field(..., description="Creation timestamp")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WorkflowCreate(BaseModel):
+    """Schema for creating a new workflow."""
+    name: str = Field(..., description="Workflow name")
+    description: Optional[str] = Field(None, description="Workflow description")
+    tags: Optional[List[str]] = Field(None, description="Workflow tags")
+    template_id: str = Field(..., description="Template ID")
+    configuration: Dict[str, Any] = Field(..., description="Workflow configuration")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "Production Claims Processing",
+                "description": "Production workflow for processing healthcare claims",
+                "tags": ["production", "claims"],
+                "template_id": "tenant-a-custom-claims-v1.0",
+                "configuration": {
+                    "input_path": "/sftp/tenants/tenant-a/claims/in/",
+                    "validation": {
+                        "schema": "837.5010.X222.A1.json",
+                        "snip_level": 3
+                    },
+                    "acknowledgments": {
+                        "generate_ta1": True,
+                        "generate_999": True
+                    }
+                }
+            }
+        }
+    )
+
+
+class WorkflowUpdate(BaseModel):
+    """Schema for updating a workflow."""
+    name: Optional[str] = Field(None, description="Workflow name")
+    description: Optional[str] = Field(None, description="Workflow description")
+    tags: Optional[List[str]] = Field(None, description="Workflow tags")
+    configuration: Optional[Dict[str, Any]] = Field(None, description="Workflow configuration")
+    status: Optional[WorkflowStatus] = Field(None, description="Workflow status")
+
+
+class WorkflowResponse(BaseModel):
+    """Schema for workflow response."""
+    workflow_id: PyUUID = Field(..., description="Workflow ID")
+    tenant_id: str = Field(..., description="Tenant ID")
+    name: str = Field(..., description="Workflow name")
+    description: Optional[str] = Field(None, description="Workflow description")
+    tags: Optional[List[str]] = Field(None, description="Workflow tags")
+    template_id: str = Field(..., description="Template ID")
+    configuration: Dict[str, Any] = Field(..., description="Workflow configuration")
+    status: WorkflowStatus = Field(..., description="Workflow status")
+    nifi_process_group_id: Optional[str] = Field(None, description="NiFi process group ID")
+    nifi_parameter_context_id: Optional[str] = Field(None, description="NiFi parameter context ID")
+    deployment_method: Optional[DeploymentMethod] = Field(None, description="Deployment method")
+    flow_version: Optional[int] = Field(None, description="Flow version")
+    created_by: Optional[str] = Field(None, description="Creator user ID")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WorkflowListResponse(BaseModel):
+    """Schema for workflow list response."""
+    workflows: List[WorkflowResponse] = Field(..., description="List of workflows")
+    total: int = Field(..., description="Total number of workflows")
+    page: int = Field(..., description="Current page number")
+    page_size: int = Field(..., description="Page size")
+
+
+class TemplateExport(BaseModel):
+    """Schema for template export."""
+    template: TemplateResponse = Field(..., description="Template data")
+    versions: List[TemplateVersionResponse] = Field(..., description="Template versions")
+    metadata: Dict[str, Any] = Field(..., description="Export metadata")
+
+
+class TemplateImport(BaseModel):
+    """Schema for template import."""
+    template_data: Dict[str, Any] = Field(..., description="Template data to import")
+    import_options: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Import options"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "template_data": {
+                    "template": {},
+                    "versions": [],
+                    "metadata": {}
+                },
+                "import_options": {
+                    "overwrite_existing": False,
+                    "validate_before_import": True,
+                    "assign_new_id": True
+                }
+            }
+        }
+    )
+
+
+class WorkflowActionRequest(BaseModel):
+    """Schema for workflow action requests."""
+    action: str = Field(..., description="Action to perform")
+    parameters: Optional[Dict[str, Any]] = Field(None, description="Action parameters")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "action": "pause",
+                "parameters": {
+                    "reason": "Maintenance window"
+                }
+            }
+        }
+    )
+
+
+class TemplateSearchRequest(BaseModel):
+    """Schema for template search requests."""
+    query: Optional[str] = Field(None, description="Search query")
+    scope: Optional[TemplateScope] = Field(None, description="Template scope filter")
+    category: Optional[TemplateCategory] = Field(None, description="Category filter")
+    tags: Optional[List[str]] = Field(None, description="Tags filter")
+    status: Optional[TemplateStatus] = Field(None, description="Status filter")
+    featured_only: bool = Field(False, description="Show only featured templates")
+    page: int = Field(1, ge=1, description="Page number")
+    page_size: int = Field(20, ge=1, le=100, description="Page size")
+
+
+class WorkflowSearchRequest(BaseModel):
+    """Schema for workflow search requests."""
+    query: Optional[str] = Field(None, description="Search query")
+    template_id: Optional[str] = Field(None, description="Template ID filter")
+    status: Optional[WorkflowStatus] = Field(None, description="Status filter")
+    tags: Optional[List[str]] = Field(None, description="Tags filter")
+    page: int = Field(1, ge=1, description="Page number")
+    page_size: int = Field(20, ge=1, le=100, description="Page size")
