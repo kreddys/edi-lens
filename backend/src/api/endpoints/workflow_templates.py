@@ -218,28 +218,28 @@ async def create_template(
     
     session.add(template)
     
-    # Create initial version (temporarily disabled for debugging)
-    # initial_version = TemplateVersion(
-    #     template_id=template_data.template_id,
-    #     version=template_data.version,
-    #     flow_definition=template_data.flow_definition,
-    #     configuration_schema=template_data.configuration_schema,
-    #     changes="Initial version",
-    #     created_by=auth_context.user_id,
-    #     is_current=True
-    # )
-    # 
-    # session.add(initial_version)
+    # Create initial version
+    initial_version = TemplateVersion(
+        template_id=template_data.template_id,
+        version=template_data.version,
+        flow_definition=template_data.flow_definition,
+        configuration_schema=template_data.configuration_schema,
+        changes="Initial version",
+        created_by=auth_context.user_id,
+        is_current=True
+    )
     
-    # Create usage record (temporarily disabled for debugging)
-    # usage_record = TemplateUsage.create_usage_record(
-    #     template_id=template_data.template_id,
-    #     tenant_id=template_data.tenant_id or 'platform',
-    #     action='CREATE',
-    #     success=True
-    # )
-    # 
-    # session.add(usage_record)
+    session.add(initial_version)
+    
+    # Create usage record
+    usage_record = TemplateUsage.create_usage_record(
+        template_id=template_data.template_id,
+        tenant_id=template_data.tenant_id or 'platform',
+        action='CREATE',
+        success=True
+    )
+    
+    session.add(usage_record)
     
     await session.commit()
     await session.refresh(template)
