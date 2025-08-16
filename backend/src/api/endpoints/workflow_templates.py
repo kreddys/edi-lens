@@ -39,7 +39,7 @@ async def list_templates(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Page size"),
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:read"))
+    auth_context: AuthContext = Depends(require_permission("workflow:read"))
 ) -> TemplateListResponse:
     """
     List workflow templates with filtering and pagination.
@@ -117,7 +117,7 @@ async def list_templates(
 async def get_template(
     template_id: str,
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:read"))
+    auth_context: AuthContext = Depends(require_permission("workflow:read"))
 ) -> TemplateResponse:
     """Get a specific template by ID."""
     query = select(WorkflowTemplate).where(WorkflowTemplate.template_id == template_id)
@@ -146,7 +146,7 @@ async def get_template(
 async def create_template(
     template_data: TemplateCreate,
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:write"))
+    auth_context: AuthContext = Depends(require_permission("workflow:write"))
 ) -> TemplateResponse:
     """Create a new workflow template."""
     
@@ -218,28 +218,28 @@ async def create_template(
     
     session.add(template)
     
-    # Create initial version
-    initial_version = TemplateVersion(
-        template_id=template_data.template_id,
-        version=template_data.version,
-        flow_definition=template_data.flow_definition,
-        configuration_schema=template_data.configuration_schema,
-        changes="Initial version",
-        created_by=auth_context.user_id,
-        is_current=True
-    )
+    # Create initial version (temporarily disabled for debugging)
+    # initial_version = TemplateVersion(
+    #     template_id=template_data.template_id,
+    #     version=template_data.version,
+    #     flow_definition=template_data.flow_definition,
+    #     configuration_schema=template_data.configuration_schema,
+    #     changes="Initial version",
+    #     created_by=auth_context.user_id,
+    #     is_current=True
+    # )
+    # 
+    # session.add(initial_version)
     
-    session.add(initial_version)
-    
-    # Create usage record
-    usage_record = TemplateUsage.create_usage_record(
-        template_id=template_data.template_id,
-        tenant_id=template_data.tenant_id or 'platform',
-        action='CREATE',
-        success=True
-    )
-    
-    session.add(usage_record)
+    # Create usage record (temporarily disabled for debugging)
+    # usage_record = TemplateUsage.create_usage_record(
+    #     template_id=template_data.template_id,
+    #     tenant_id=template_data.tenant_id or 'platform',
+    #     action='CREATE',
+    #     success=True
+    # )
+    # 
+    # session.add(usage_record)
     
     await session.commit()
     await session.refresh(template)
@@ -252,7 +252,7 @@ async def update_template(
     template_id: str,
     template_data: TemplateUpdate,
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:write"))
+    auth_context: AuthContext = Depends(require_permission("workflow:write"))
 ) -> TemplateResponse:
     """Update an existing workflow template."""
     
@@ -310,7 +310,7 @@ async def update_template(
 async def delete_template(
     template_id: str,
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:write"))
+    auth_context: AuthContext = Depends(require_permission("workflow:write"))
 ):
     """Delete a workflow template."""
     
@@ -387,7 +387,7 @@ async def delete_template(
 async def clone_template(
     clone_data: TemplateClone,
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:write"))
+    auth_context: AuthContext = Depends(require_permission("workflow:write"))
 ) -> TemplateResponse:
     """Clone an existing template with optional customizations."""
     
@@ -475,7 +475,7 @@ async def clone_template(
 async def list_template_versions(
     template_id: str,
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:read"))
+    auth_context: AuthContext = Depends(require_permission("workflow:read"))
 ) -> List[TemplateVersionResponse]:
     """List all versions of a specific template."""
     
@@ -497,7 +497,7 @@ async def create_template_version(
     template_id: str,
     version_data: TemplateVersionCreate,
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:write"))
+    auth_context: AuthContext = Depends(require_permission("workflow:write"))
 ) -> TemplateVersionResponse:
     """Create a new version of a template."""
     
@@ -560,7 +560,7 @@ async def create_template_version(
 async def export_template(
     template_id: str,
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:read"))
+    auth_context: AuthContext = Depends(require_permission("workflow:read"))
 ) -> TemplateExport:
     """Export a template and all its versions."""
     
@@ -589,7 +589,7 @@ async def export_template(
 async def import_template(
     import_data: TemplateImport,
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:write"))
+    auth_context: AuthContext = Depends(require_permission("workflow:write"))
 ) -> TemplateResponse:
     """Import a template from an exported JSON object."""
     

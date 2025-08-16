@@ -29,7 +29,7 @@ async def list_workflows(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Page size"),
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:read"))
+    auth_context: AuthContext = Depends(require_permission("workflow:read"))
 ):
     """List workflows for a tenant."""
     # Basic implementation, will be expanded
@@ -47,7 +47,7 @@ async def list_workflows(
 async def create_workflow(
     workflow_data: WorkflowCreate,
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:write"))
+    auth_context: AuthContext = Depends(require_permission("workflow:write"))
 ):
     """Create a new workflow."""
     # Basic implementation, will be expanded
@@ -71,7 +71,7 @@ async def create_workflow(
 async def get_workflow(
     workflow_id: UUID,
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:read"))
+    auth_context: AuthContext = Depends(require_permission("workflow:read"))
 ):
     """Get a specific workflow by ID."""
     query = select(Workflow).where(Workflow.workflow_id == workflow_id)
@@ -86,7 +86,7 @@ async def update_workflow(
     workflow_id: UUID,
     workflow_data: WorkflowUpdate,
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:write"))
+    auth_context: AuthContext = Depends(require_permission("workflow:write"))
 ):
     """Update an existing workflow."""
     workflow = await get_workflow(workflow_id, session, auth_context)
@@ -102,7 +102,7 @@ async def update_workflow(
 async def delete_workflow(
     workflow_id: UUID,
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:write"))
+    auth_context: AuthContext = Depends(require_permission("workflow:write"))
 ):
     """Delete a workflow."""
     workflow = await get_workflow(workflow_id, session, auth_context)
@@ -114,7 +114,7 @@ async def control_workflow(
     workflow_id: UUID,
     action: WorkflowActionRequest,
     session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("edi:write"))
+    auth_context: AuthContext = Depends(require_permission("workflow:write"))
 ):
     """Control a workflow (e.g., pause, resume)."""
     workflow = await get_workflow(workflow_id, session, auth_context)

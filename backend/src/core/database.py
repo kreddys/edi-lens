@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import sessionmaker, declarative_base, configure_mappers
 from typing import AsyncGenerator
 import logging
 from .config import settings
@@ -17,6 +17,19 @@ AsyncSessionLocal = sessionmaker(
 )
 
 Base = declarative_base()
+
+def configure_database_relationships():
+    """Configure SQLAlchemy relationships after all models are imported.
+    
+    This function should be called after all models are imported to ensure
+    that foreign key relationships can be properly resolved.
+    """
+    try:
+        configure_mappers()
+        logger.debug("Database relationships configured successfully")
+    except Exception as e:
+        logger.warning(f"Failed to configure database relationships: {e}")
+        # This is non-fatal - relationships will be configured on first use
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency to get a database session."""

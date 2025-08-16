@@ -49,6 +49,7 @@ app = FastAPI(
     title="EDI Lens API",
     description="API for EDI processing, validation, and management.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Include routers

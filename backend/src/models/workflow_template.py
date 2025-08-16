@@ -11,7 +11,7 @@ from sqlalchemy import (
     Integer, String, Text, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy.orm import relationship, backref, foreign
 from sqlalchemy.sql import func
 
 from src.core.database import Base
@@ -38,7 +38,7 @@ class WorkflowTemplate(Base):
     maintainer = Column(String, nullable=True)  # 'edi-lens-platform' for global, user ID for tenant
     
     # Template lineage
-    based_on = Column(String, ForeignKey('workflow_templates.template_id'), nullable=True)
+    based_on = Column(String, nullable=True)
     version = Column(String, nullable=False, default='1.0')
     
     # Template definition
@@ -66,11 +66,26 @@ class WorkflowTemplate(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     deprecated_at = Column(DateTime(timezone=True), nullable=True)
     
-    # Relationships
-    parent_template = relationship("WorkflowTemplate", remote_side=[template_id], backref="child_templates")
-    versions = relationship("TemplateVersion", back_populates="template", cascade="all, delete-orphan")
-    usage_records = relationship("TemplateUsage", back_populates="template", cascade="all, delete-orphan")
-    workflows = relationship("Workflow", back_populates="template")
+    # Relationships using primaryjoin with foreign annotation for deferred resolution
+    versions = relationship(
+        "TemplateVersion", 
+        back_populates="template", 
+        cascade="all, delete-orphan",
+        primaryjoin="WorkflowTemplate.template_id == foreign(TemplateVersion.template_id)"
+    )
+    usage_records = relationship(
+        "TemplateUsage", 
+        back_populates="template", 
+        cascade="all, delete-orphan",
+        primaryjoin="WorkflowTemplate.template_id == foreign(TemplateUsage.template_id)"
+    )
+    workflows = relationship(
+        "Workflow", 
+        back_populates="template",
+        primaryjoin="WorkflowTemplate.template_id == foreign(Workflow.template_id)"
+    )
+    
+    # Self-referencing relationship will be configured after class definition
     
     # Constraints
     __table_args__ = (
@@ -119,7 +134,7 @@ class TemplateVersion(Base):
 
     # Primary identification
     version_id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    template_id = Column(String, ForeignKey('workflow_templates.template_id'), nullable=False)
+    template_id = Column(String, nullable=False)
     version = Column(String, nullable=False)
     
     # Version content
@@ -135,8 +150,12 @@ class TemplateVersion(Base):
     is_current = Column(Boolean, nullable=False, default=False)
     deployment_count = Column(Integer, nullable=False, default=0)
     
-    # Relationships
-    template = relationship("WorkflowTemplate", back_populates="versions")
+    # Relationships using primaryjoin with foreign annotation for deferred resolution
+    template = relationship(
+        "WorkflowTemplate", 
+        back_populates="versions",
+        primaryjoin="foreign(TemplateVersion.template_id) == WorkflowTemplate.template_id"
+    )
     
     # Constraints
     __table_args__ = (
@@ -166,7 +185,7 @@ class TemplateUsage(Base):
 
     # Primary identification
     usage_id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    template_id = Column(String, ForeignKey('workflow_templates.template_id'), nullable=False)
+    template_id = Column(String, nullable=False)
     template_version = Column(String, nullable=True)
     tenant_id = Column(String, nullable=False)
     
@@ -181,8 +200,12 @@ class TemplateUsage(Base):
     
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     
-    # Relationships
-    template = relationship("WorkflowTemplate", back_populates="usage_records")
+    # Relationships using primaryjoin with foreign annotation for deferred resolution
+    template = relationship(
+        "WorkflowTemplate", 
+        back_populates="usage_records",
+        primaryjoin="foreign(TemplateUsage.template_id) == WorkflowTemplate.template_id"
+    )
     
     __table_args__ = (
         {'schema': 'public'}
@@ -232,7 +255,7 @@ class Workflow(Base):
     tags = Column(ARRAY(Text), nullable=True)
     
     # Template reference
-    template_id = Column(String, ForeignKey('workflow_templates.template_id'), nullable=False)
+    template_id = Column(String, nullable=False)
     configuration = Column(JSONB, nullable=False)
     
     # Workflow state
@@ -249,8 +272,12 @@ class Workflow(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     
-    # Relationships
-    template = relationship("WorkflowTemplate", back_populates="workflows")
+    # Relationships using primaryjoin with foreign annotation for deferred resolution
+    template = relationship(
+        "WorkflowTemplate", 
+        back_populates="workflows",
+        primaryjoin="foreign(Workflow.template_id) == WorkflowTemplate.template_id"
+    )
     
     __table_args__ = (
         {'schema': 'public'}
@@ -297,3 +324,15 @@ class Workflow(Base):
         self.nifi_parameter_context_id = parameter_context_id
         self.deployment_method = deployment_method
         self.flow_version = flow_version
+
+
+# Configure self-referencing relationship without foreign key constraint
+# Database-level foreign key constraints are maintained by Alembic migrations
+# SQLAlchemy relationships work without explicit ForeignKey() definitions when using primaryjoin
+WorkflowTemplate.children = relationship(
+    "WorkflowTemplate",
+    backref=backref("parent", remote_side=[WorkflowTemplate.template_id]),
+    primaryjoin="foreign(WorkflowTemplate.based_on) == WorkflowTemplate.template_id"
+)
+
+
