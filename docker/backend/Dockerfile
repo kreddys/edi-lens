@@ -23,6 +23,7 @@ COPY backend/src ./src
 COPY backend/alembic ./alembic
 COPY backend/alembic.ini ./
 COPY backend/scripts ./scripts
+COPY backend/tests ./tests
 # --- END OF FIX ---
 
 
@@ -80,6 +81,7 @@ COPY --from=builder /home/appuser/app/src ./src
 COPY --from=builder /home/appuser/app/alembic ./alembic
 COPY --from=builder /home/appuser/app/alembic.ini ./
 COPY --from=builder /home/appuser/app/scripts ./scripts
+COPY --from=builder /home/appuser/app/tests ./tests
 
 ENV PATH="/home/appuser/app/.venv/bin:$PATH"
 RUN chmod +x /home/appuser/app/scripts/docker-entrypoint.sh
