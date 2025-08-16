@@ -16,9 +16,11 @@ from src.api.schemas import (
     WorkflowStatusResponse
 )
 from src.core.auth import require_permission, AuthContext
+from src.core.config import settings
 from src.core.database import get_db
 from src.models.workflow_template import Workflow, WorkflowTemplate
 from src.services.workflow_execution_service import WorkflowExecutionService, WorkflowStatusService
+from src.services.nifi_workflow_service import NiFiWorkflowService, NiFiWorkflowDeploymentError
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/workflows", tags=["workflows"])
@@ -123,17 +125,38 @@ async def control_workflow(
 ):
     """Control a workflow (e.g., pause, resume)."""
     workflow = await get_workflow(workflow_id, session, auth_context)
-    # This is a placeholder for the actual action logic
-    if action.action == "pause":
-        workflow.status = "PAUSED"
-    elif action.action == "resume":
-        workflow.status = "ACTIVE"
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid action")
     
-    session.add(workflow)
-    await session.commit()
-    await session.refresh(workflow)
+    # For deployed workflows, use NiFi service
+    if workflow.is_deployed and workflow.nifi_process_group_id:
+        nifi_service = NiFiWorkflowService(session)
+        try:
+            if action.action == "pause":
+                workflow = await nifi_service.stop_workflow(workflow)
+            elif action.action == "resume":
+                workflow = await nifi_service.start_workflow(workflow)
+            elif action.action == "restart":
+                # Stop then start
+                workflow = await nifi_service.stop_workflow(workflow)
+                workflow = await nifi_service.start_workflow(workflow)
+            else:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid action")
+        except NiFiWorkflowDeploymentError as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    else:
+        # For non-deployed workflows, use local control
+        if action.action == "pause":
+            workflow.status = "PAUSED"
+        elif action.action == "resume":
+            workflow.status = "ACTIVE"
+        elif action.action == "restart":
+            workflow.status = "ACTIVE"
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid action")
+        
+        session.add(workflow)
+        await session.commit()
+        await session.refresh(workflow)
+    
     return WorkflowResponse.model_validate(workflow)
 
 
@@ -214,6 +237,70 @@ async def get_workflow_status(
 # Dedicated Workflow Control Endpoints
 # ==============================================================================
 
+@router.post("/{workflow_id}/deploy", response_model=WorkflowResponse)
+async def deploy_workflow(
+    workflow_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    auth_context: AuthContext = Depends(require_permission("workflow:write"))
+) -> WorkflowResponse:
+    """Deploy a workflow to NiFi."""
+    
+    # Get the workflow model object directly
+    query = select(Workflow).where(Workflow.workflow_id == workflow_id)
+    result = await session.execute(query)
+    workflow = result.scalar_one_or_none()
+    if not workflow or workflow.tenant_id != auth_context.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found")
+    
+    # Check if already deployed
+    if workflow.is_deployed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Workflow is already deployed"
+        )
+    
+    # Deploy using NiFi service
+    nifi_service = NiFiWorkflowService(session)
+    try:
+        workflow = await nifi_service.deploy_workflow(workflow)
+    except NiFiWorkflowDeploymentError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    
+    return WorkflowResponse.model_validate(workflow)
+
+
+@router.post("/{workflow_id}/undeploy", response_model=WorkflowResponse)
+async def undeploy_workflow(
+    workflow_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    auth_context: AuthContext = Depends(require_permission("workflow:write"))
+) -> WorkflowResponse:
+    """Undeploy a workflow from NiFi."""
+    
+    # Get the workflow model object directly
+    query = select(Workflow).where(Workflow.workflow_id == workflow_id)
+    result = await session.execute(query)
+    workflow = result.scalar_one_or_none()
+    if not workflow or workflow.tenant_id != auth_context.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found")
+    
+    # Check if deployed
+    if not workflow.is_deployed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Workflow is not deployed"
+        )
+    
+    # Undeploy using NiFi service
+    nifi_service = NiFiWorkflowService(session)
+    try:
+        workflow = await nifi_service.undeploy_workflow(workflow)
+    except NiFiWorkflowDeploymentError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    
+    return WorkflowResponse.model_validate(workflow)
+
+
 @router.post("/{workflow_id}/pause", response_model=WorkflowResponse)
 async def pause_workflow(
     workflow_id: UUID,
@@ -235,12 +322,19 @@ async def pause_workflow(
             detail=f"Cannot pause workflow in {workflow.status} state"
         )
     
-    workflow.status = "PAUSED"
-    session.add(workflow)
-    await session.commit()
-    await session.refresh(workflow)
-    
-    # TODO: Add actual NiFi process group pause when integration is complete
+    # For deployed workflows, use NiFi service
+    if workflow.is_deployed and workflow.nifi_process_group_id:
+        nifi_service = NiFiWorkflowService(session)
+        try:
+            workflow = await nifi_service.stop_workflow(workflow)
+        except NiFiWorkflowDeploymentError as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    else:
+        # For non-deployed workflows, use local control
+        workflow.status = "PAUSED"
+        session.add(workflow)
+        await session.commit()
+        await session.refresh(workflow)
     
     return WorkflowResponse.model_validate(workflow)
 
@@ -266,12 +360,19 @@ async def resume_workflow(
             detail=f"Cannot resume workflow in {workflow.status} state"
         )
     
-    workflow.status = "ACTIVE"
-    session.add(workflow)
-    await session.commit()
-    await session.refresh(workflow)
-    
-    # TODO: Add actual NiFi process group resume when integration is complete
+    # For deployed workflows, use NiFi service
+    if workflow.is_deployed and workflow.nifi_process_group_id:
+        nifi_service = NiFiWorkflowService(session)
+        try:
+            workflow = await nifi_service.start_workflow(workflow)
+        except NiFiWorkflowDeploymentError as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    else:
+        # For non-deployed workflows, use local control
+        workflow.status = "ACTIVE"
+        session.add(workflow)
+        await session.commit()
+        await session.refresh(workflow)
     
     return WorkflowResponse.model_validate(workflow)
 
@@ -297,11 +398,20 @@ async def restart_workflow(
             detail=f"Cannot restart workflow in {workflow.status} state"
         )
     
-    # TODO: Add actual NiFi process group restart when integration is complete
-    # For now, just set status to ACTIVE
-    workflow.status = "ACTIVE"
-    session.add(workflow)
-    await session.commit()
-    await session.refresh(workflow)
+    # For deployed workflows, use NiFi service
+    if workflow.is_deployed and workflow.nifi_process_group_id:
+        nifi_service = NiFiWorkflowService(session)
+        try:
+            # Stop then start
+            workflow = await nifi_service.stop_workflow(workflow)
+            workflow = await nifi_service.start_workflow(workflow)
+        except NiFiWorkflowDeploymentError as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    else:
+        # For non-deployed workflows, use local control
+        workflow.status = "ACTIVE"
+        session.add(workflow)
+        await session.commit()
+        await session.refresh(workflow)
     
     return WorkflowResponse.model_validate(workflow)
