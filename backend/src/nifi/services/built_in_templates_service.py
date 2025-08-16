@@ -12,7 +12,7 @@ from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from src.models.workflow_template import WorkflowTemplate
+from src.models.workflow_template import WorkflowTemplate, TemplateVersion
 from src.nifi.clients.registry_client import NiFiRegistryClient
 
 logger = logging.getLogger(__name__)
@@ -1340,7 +1340,7 @@ class BuiltInTemplatesService:
         session.add(template)
         
         # Create initial version
-        initial_version = WorkflowTemplate.TemplateVersion(
+        initial_version = TemplateVersion(
             template_id=template_data["template_id"],
             version=template_data["version"],
             flow_definition=template_data["flow_definition"],

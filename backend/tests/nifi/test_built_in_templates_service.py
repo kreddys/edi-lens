@@ -27,8 +27,10 @@ class TestBuiltInTemplatesService:
     def mock_session(self):
         """Create a mock database session."""
         session = AsyncMock()
-        session.execute = AsyncMock()
-        session.execute.return_value.scalar_one_or_none.return_value = None
+        # Set up execute method as async and return a mock result
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        session.execute = AsyncMock(return_value=mock_result)
         session.commit = AsyncMock()
         session.add = MagicMock()
         session.refresh = AsyncMock()
@@ -271,8 +273,7 @@ class TestBuiltInTemplatesService:
             "status": "ACTIVE"
         }
         
-        # Mock that template doesn't exist
-        mock_session.execute.return_value.scalar_one_or_none.return_value = None
+        # Template doesn't exist (handled by fixture)
         
         result = await built_in_service._seed_template(template_data, mock_session)
         
