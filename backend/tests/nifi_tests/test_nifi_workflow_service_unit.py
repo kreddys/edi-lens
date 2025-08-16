@@ -55,8 +55,8 @@ class TestNiFiWorkflowService:
     async def test_deploy_workflow_success(self, mock_session, sample_workflow, sample_template):
         """Test successful workflow deployment."""
         # Mock template retrieval
-        execute_mock = AsyncMock()
-        execute_mock.scalar_one_or_none = AsyncMock(return_value=sample_template)
+        execute_mock = MagicMock()
+        execute_mock.scalar_one_or_none.return_value = sample_template
         mock_session.execute = AsyncMock(return_value=execute_mock)
         
         # Mock NiFi clients
@@ -65,19 +65,33 @@ class TestNiFiWorkflowService:
         mock_registry_client.create_bucket = AsyncMock(return_value={"identifier": "bucket-123"})
         mock_registry_client.list_flows = AsyncMock(return_value=[])
         mock_registry_client.create_flow = AsyncMock(return_value={"identifier": "flow-456"})
-        mock_registry_client.get_flow_version = AsyncMock(side_effect=Exception("Not found"))
-        mock_registry_client.create_flow_version = AsyncMock(return_value={})
+        mock_registry_client.get_flow_version.side_effect = Exception("Not found")
+        mock_registry_client.create_flow_version = AsyncMock()
         
         mock_nifi_client = AsyncMock()
         mock_nifi_client.get_process_group = AsyncMock(return_value={"component": {"id": "root-789"}})
         mock_nifi_client.create_parameter_context = AsyncMock(return_value={"component": {"id": "param-123"}})
         mock_nifi_client.create_process_group = AsyncMock(return_value={"component": {"id": "pg-456"}})
         
+        # Create proper async context manager mocks for the clients
+        class AsyncContextManagerMock:
+            def __init__(self, return_value):
+                self.return_value = return_value
+            
+            async def __aenter__(self):
+                return self.return_value
+            
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                pass
+        
+        mock_registry_context = AsyncContextManagerMock(mock_registry_client)
+        mock_nifi_context = AsyncContextManagerMock(mock_nifi_client)
+        
         with patch('src.services.nifi_workflow_service.NiFiRegistryClient') as mock_registry, \
              patch('src.services.nifi_workflow_service.NiFiAPIClient') as mock_nifi:
             
-            mock_registry.return_value.__aenter__ = AsyncMock(return_value=mock_registry_client)
-            mock_nifi.return_value.__aenter__ = AsyncMock(return_value=mock_nifi_client)
+            mock_registry.return_value = mock_registry_context
+            mock_nifi.return_value = mock_nifi_context
             
             # Create service and deploy workflow
             service = NiFiWorkflowService(mock_session)
@@ -96,14 +110,14 @@ class TestNiFiWorkflowService:
     async def test_deploy_workflow_template_not_found(self, mock_session, sample_workflow):
         """Test workflow deployment with missing template."""
         # Mock template retrieval to return None
-        execute_mock = AsyncMock()
-        execute_mock.scalar_one_or_none = AsyncMock(return_value=None)
+        execute_mock = MagicMock()
+        execute_mock.scalar_one_or_none.return_value = None
         mock_session.execute = AsyncMock(return_value=execute_mock)
         
         # Create service and attempt deployment
         service = NiFiWorkflowService(mock_session)
         
-        with pytest.raises(ValueError, match="Template template-456 not found"):
+        with pytest.raises(NiFiWorkflowDeploymentError, match="Template template-456 not found"):
             await service.deploy_workflow(sample_workflow)
 
     @pytest.mark.asyncio
@@ -119,7 +133,7 @@ class TestNiFiWorkflowService:
         mock_registry_client.list_buckets = AsyncMock(side_effect=Exception("Connection failed"))
         
         with patch('src.services.nifi_workflow_service.NiFiRegistryClient') as mock_registry:
-            mock_registry.return_value.__aenter__ = AsyncMock(return_value=mock_registry_client)
+            mock_registry.return_value.__aenter__.return_value = mock_registry_client
             
             # Create service and attempt deployment
             service = NiFiWorkflowService(mock_session)
@@ -147,7 +161,7 @@ class TestNiFiWorkflowService:
         mock_nifi_client.delete_process_group = AsyncMock(return_value=True)
         
         with patch('src.services.nifi_workflow_service.NiFiAPIClient') as mock_nifi:
-            mock_nifi.return_value.__aenter__ = AsyncMock(return_value=mock_nifi_client)
+            mock_nifi.return_value.__aenter__.return_value = mock_nifi_client
             
             # Create service and undeploy workflow
             service = NiFiWorkflowService(mock_session)
@@ -178,7 +192,7 @@ class TestNiFiWorkflowService:
         mock_nifi_client.start_process_group = AsyncMock(return_value={})
         
         with patch('src.services.nifi_workflow_service.NiFiAPIClient') as mock_nifi:
-            mock_nifi.return_value.__aenter__ = AsyncMock(return_value=mock_nifi_client)
+            mock_nifi.return_value.__aenter__.return_value = mock_nifi_client
             
             # Create service and start workflow
             service = NiFiWorkflowService(mock_session)
@@ -198,7 +212,7 @@ class TestNiFiWorkflowService:
         mock_nifi_client.stop_process_group = AsyncMock(return_value={})
         
         with patch('src.services.nifi_workflow_service.NiFiAPIClient') as mock_nifi:
-            mock_nifi.return_value.__aenter__ = AsyncMock(return_value=mock_nifi_client)
+            mock_nifi.return_value.__aenter__.return_value = mock_nifi_client
             
             # Create service and stop workflow
             service = NiFiWorkflowService(mock_session)
@@ -235,7 +249,7 @@ class TestNiFiWorkflowService:
         })
         
         with patch('src.services.nifi_workflow_service.NiFiAPIClient') as mock_nifi:
-            mock_nifi.return_value.__aenter__ = AsyncMock(return_value=mock_nifi_client)
+            mock_nifi.return_value.__aenter__.return_value = mock_nifi_client
             
             # Create service and get status
             service = NiFiWorkflowService(mock_session)
