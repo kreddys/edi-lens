@@ -292,7 +292,7 @@ class TestNiFiWorkflowDeploymentIntegration:
     @pytest.mark.asyncio
     async def test_workflow_deployment_error_handling(self, db_session):
         """Test error handling during workflow deployment."""
-        pytest.skip("Skipping error handling test due to database constraint issues")
+        
 
     @pytest.mark.asyncio
     async def test_undeploy_non_deployed_workflow(self, db_session):

@@ -38,13 +38,37 @@ def admin_user():
 
 
 @pytest_asyncio.fixture
-async def admin_client_with_persistent_session(admin_user):
+async def admin_client_with_persistent_session(admin_user, event_loop): # Add event_loop as a dependency
     """Async client with admin user authentication and a persistent database session for multi-API tests."""
     # Import the test session factory from conftest
     from tests.conftest import TestAsyncSessionLocal
-    
-    # Create a persistent session that will last for the entire test
-    persistent_session = TestAsyncSessionLocal()
+    from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlalchemy.orm import sessionmaker
+    from src.core.config import settings
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    # Re-create test_engine and TestAsyncSessionLocal within the fixture
+    # to ensure they are bound to the correct event loop for the test.
+    test_engine_for_fixture = create_async_engine(
+        settings.DATABASE_URL,
+        echo=False,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        pool_size=5,
+        max_overflow=10,
+        pool_reset_on_return='commit',
+        pool_timeout=30
+    )
+
+    TestAsyncSessionLocal_for_fixture = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=test_engine_for_fixture,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    persistent_session = TestAsyncSessionLocal_for_fixture()
     
     async def override_get_db():
         # Always yield the same session instance
@@ -59,8 +83,9 @@ async def admin_client_with_persistent_session(admin_user):
             async with AsyncClient(transport=transport, base_url="http://test") as client:
                 yield client, persistent_session
     finally:
-        # Clean up the persistent session
+        # Clean up the persistent session and its engine
         await persistent_session.close()
+        await test_engine_for_fixture.dispose() # Dispose the engine to close connections
         # Clean up overrides
         app.dependency_overrides.clear()
 
