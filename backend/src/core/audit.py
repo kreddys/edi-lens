@@ -3,6 +3,7 @@ from contextvars import ContextVar
 from typing import Dict, Any, List
 from enum import Enum
 import uuid  # Import the uuid module
+from datetime import datetime
 
 from sqlalchemy import event
 from sqlalchemy.orm import Session, RelationshipProperty
@@ -22,14 +23,15 @@ logger = logging.getLogger(__name__)
 # --- Helper Functions ---
 
 def _serialize_value(value: Any) -> Any:
-    """Converts special types (like enums and UUIDs) to JSON-serializable formats."""
+    """Converts special types (like enums, UUIDs, and datetimes) to JSON-serializable formats."""
     if isinstance(value, Enum):
         return value.value
-    # --- THIS IS THE FIX ---
     # Add a check for UUID objects and convert them to strings.
     if isinstance(value, uuid.UUID):
         return str(value)
-    # --- END OF FIX ---
+    # Add a check for datetime objects and convert them to ISO format strings.
+    if isinstance(value, datetime):
+        return value.isoformat()
     return value
 
 def _get_primary_key_value(obj) -> str:

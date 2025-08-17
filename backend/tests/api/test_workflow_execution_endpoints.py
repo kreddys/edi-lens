@@ -52,35 +52,42 @@ def cleanup_overrides():
 
 async def create_test_workflow(db_session: AsyncSession) -> Workflow:
     """Helper function to create a test workflow for execution testing."""
+    from tests.conftest import generate_unique_template_data, generate_unique_workflow_data
+    
+    # Generate unique template data
+    template_data = generate_unique_template_data(tenant_id="tenant-a")
     
     # First create a test template
     template = WorkflowTemplate(
-        template_id="test-execution-template-v1.0",
-        name="Test Execution Template",
-        description="Template for testing workflow execution",
-        scope="TENANT",
-        tenant_id="tenant-a",
-        category="BATCH",
-        version="1.0",
-        flow_definition={"processors": [], "connections": []},
-        configuration_schema={"type": "object", "properties": {}},
-        deployment_method="registry",
-        status="ACTIVE",
-        maintainer="test-user",
+        template_id=template_data["template_id"],
+        name=template_data["name"],
+        description=template_data["description"],
+        scope=template_data["scope"],
+        tenant_id=template_data["tenant_id"],
+        category=template_data["category"],
+        version=template_data["version"],
+        flow_definition=template_data["flow_definition"],
+        configuration_schema=template_data["configuration_schema"],
+        deployment_method=template_data["deployment_method"],
+        status=template_data["status"],
+        maintainer=template_data["maintainer"],
         usage_count=0
     )
     db_session.add(template)
     
+    # Generate unique workflow data
+    workflow_data = generate_unique_workflow_data(template_data["template_id"], "tenant-a")
+    
     # Create test workflow
     workflow = Workflow(
-        workflow_id=uuid4(),
-        tenant_id="tenant-a",
-        name="Test Execution Workflow",
-        description="Workflow for testing execution endpoints",
-        template_id="test-execution-template-v1.0",
-        configuration={"input_path": "/test/path"},
+        workflow_id=workflow_data["workflow_id"],
+        tenant_id=workflow_data["tenant_id"],
+        name=workflow_data["name"],
+        description=workflow_data["description"],
+        template_id=workflow_data["template_id"],
+        configuration=workflow_data["configuration"],
         status=WorkflowStatus.ACTIVE,
-        created_by="test-user"
+        created_by=workflow_data["created_by"]
     )
     db_session.add(workflow)
     await db_session.flush()

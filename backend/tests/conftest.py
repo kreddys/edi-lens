@@ -19,6 +19,68 @@ from src.core.database import get_db, Base
 from src.core.config import settings
 from src.core.auth import require_service_auth, ServiceContext, User, get_current_user
 from src.core.models.edi_schema_models import ImplementationGuideSchema
+import uuid
+import time
+
+# ==============================================================================
+# TEST DATA UTILITIES
+# ==============================================================================
+
+def generate_unique_id(prefix: str = "test") -> str:
+    """Generate a unique ID for tests using timestamp and random component."""
+    timestamp = int(time.time() * 1000)  # milliseconds
+    random_part = uuid.uuid4().hex[:8]
+    return f"{prefix}-{timestamp}-{random_part}"
+
+def generate_unique_name(base_name: str) -> str:
+    """Generate a unique name for tests."""
+    return f"{base_name} {generate_unique_id()}"
+
+def generate_unique_template_data(tenant_id: str = "tenant-a") -> dict:
+    """Generate unique workflow template data for tests."""
+    unique_id = generate_unique_id("template")
+    return {
+        "template_id": unique_id,
+        "name": f"Test Template {unique_id}",
+        "description": f"Test template created for integration testing - {unique_id}",
+        "category": "BATCH",
+        "scope": "TENANT",
+        "tenant_id": tenant_id,
+        "version": "1.0.0",
+        "flow_definition": {
+            "processors": [
+                {"id": f"processor-{unique_id}", "type": "ListSFTP", "properties": {"host": "example.com"}}
+            ],
+            "connections": []
+        },
+        "configuration_schema": {
+            "type": "object",
+            "properties": {
+                "sftp_host": {"type": "string", "description": "SFTP server hostname"}
+            },
+            "required": ["sftp_host"]
+        },
+        "deployment_method": "registry",
+        "tags": ["api-test", "batch-processing", unique_id],
+        "features": ["sftp", "validation"],
+        "documentation": f"API test template for workflow processing - {unique_id}",
+        "is_featured": False,
+        "maintainer": "test-user",
+        "status": "ACTIVE"
+    }
+
+def generate_unique_workflow_data(template_id: str, tenant_id: str = "tenant-a") -> dict:
+    """Generate unique workflow data for tests."""
+    unique_id = generate_unique_id("workflow")
+    return {
+        "workflow_id": str(uuid.uuid4()),
+        "tenant_id": tenant_id,
+        "name": f"Test Workflow {unique_id}",
+        "description": f"Test workflow for integration testing - {unique_id}",
+        "template_id": template_id,
+        "configuration": {"input_path": f"/test/path/{unique_id}"},
+        "created_by": "test-user"
+    }
 
 # ==============================================================================
 # PYTEST HOOKS & SESSION-WIDE FIXTURES
@@ -48,7 +110,17 @@ def setup_test_environment(pytestconfig):
 # INTEGRATION TEST FIXTURES
 # ==============================================================================
 
-test_engine = create_async_engine(settings.DATABASE_URL, echo=False)
+test_engine = create_async_engine(
+    settings.DATABASE_URL, 
+    echo=False,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_size=5,
+    max_overflow=10,
+    # Add these options to help with connection cleanup
+    pool_reset_on_return='commit',
+    pool_timeout=30
+)
 
 TestAsyncSessionLocal = sessionmaker(
     autocommit=False,
@@ -58,24 +130,67 @@ TestAsyncSessionLocal = sessionmaker(
     expire_on_commit=False,
 )
 
+async def _cleanup_database() -> None:
+    """Thoroughly clean up database before and after tests to ensure complete isolation."""
+    try:
+        async with TestAsyncSessionLocal() as cleanup_session:
+            # Use TRUNCATE CASCADE for complete cleanup - this is more thorough than DELETE
+            # First disable foreign key checks temporarily
+            await cleanup_session.execute(text("SET session_replication_role = 'replica';"))
+            
+            # Get all table names from the metadata
+            tables = Base.metadata.sorted_tables
+            
+            # Truncate all tables with CASCADE to handle foreign key dependencies
+            for table in tables:
+                await cleanup_session.execute(text(f"TRUNCATE TABLE {table.name} RESTART IDENTITY CASCADE;"))
+            
+            # Re-enable foreign key checks
+            await cleanup_session.execute(text("SET session_replication_role = 'origin';"))
+            
+            # Commit the cleanup
+            await cleanup_session.commit()
+    except Exception as e:
+        # If cleanup fails, log it but continue
+        print(f"Database cleanup failed: {e}")
+        try:
+            async with TestAsyncSessionLocal() as fallback_session:
+                await fallback_session.rollback()
+        except:
+            pass
+
+def _cleanup_app_state() -> None:
+    """Clean up FastAPI app state between tests."""
+    from src.main import app
+    # Clear all dependency overrides
+    app.dependency_overrides.clear()
+
 @pytest_asyncio.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """
-    Provides a clean database session for each test function.
-    Commits the transaction after the test and cleans up data using TRUNCATE.
+    Provides a completely clean database session for each test function.
+    Ensures complete test isolation with thorough cleanup before and after each test.
     """
-    async with TestAsyncSessionLocal() as session:
-        yield session
-        await session.commit()
-
-    async with test_engine.begin() as conn:
-        tables = Base.metadata.sorted_tables
-        await conn.execute(text("SET session_replication_role = 'replica';"))
-        for table in tables:
-            await conn.execute(text(f"TRUNCATE TABLE public.{table.name} RESTART IDENTITY CASCADE;"))
-        await conn.execute(text("SET session_replication_role = 'origin';"))
+    # Clean database AND app state BEFORE test starts
+    await _cleanup_database()
+    _cleanup_app_state()
     
-    await test_engine.dispose()
+    async with TestAsyncSessionLocal() as session:
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            # Ensure session is closed properly
+            try:
+                await session.close()
+            except:
+                pass
+            
+            # Clean up database AND app state AFTER test completes
+            await _cleanup_database()
+            _cleanup_app_state()
 
 @pytest_asyncio.fixture(scope="function")
 async def async_client(db_session: AsyncSession, user_context: Optional[User] = None) -> AsyncGenerator[AsyncClient, None]:

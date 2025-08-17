@@ -7,6 +7,7 @@ from httpx import AsyncClient
 
 from src.main import app
 from src.core.auth import get_current_user, User, RealmAccess
+from tests.conftest import generate_unique_template_data, generate_unique_id
 
 
 @pytest.fixture
@@ -42,32 +43,9 @@ async def test_create_workflow_template_simple(async_client: AsyncClient, admin_
         "Content-Type": "application/json"
     }
     
-    # Template creation data
-    template_data = {
-        "name": "Simple API Test Template",
-        "description": "Test template created via API",
-        "category": "BATCH",
-        "scope": "GLOBAL",
-        "version": "1.0.0",
-        "flow_definition": {
-            "processors": [
-                {"id": "processor1", "type": "ListSFTP", "properties": {"host": "example.com"}}
-            ],
-            "connections": []
-        },
-        "configuration_schema": {
-            "type": "object",
-            "properties": {
-                "sftp_host": {"type": "string", "description": "SFTP server hostname"}
-            },
-            "required": ["sftp_host"]
-        },
-        "deployment_method": "registry",
-        "tags": ["api-test", "batch-processing"],
-        "features": ["sftp", "validation"],
-        "documentation": "API test template for workflow processing",
-        "is_featured": False
-    }
+    # Generate unique template data
+    template_data = generate_unique_template_data(tenant_id="tenant-a")
+    template_data["scope"] = "GLOBAL"  # Override for this specific test
     
     # Create template via API
     response = await async_client.post(
@@ -98,6 +76,10 @@ async def test_create_workflow_template_simple(async_client: AsyncClient, admin_
     retrieved_template = get_response.json()
     assert retrieved_template["template_id"] == template_id
     assert retrieved_template["name"] == template_data["name"]
+    
+    # Clean up dependency override
+    if get_current_user in app.dependency_overrides:
+        del app.dependency_overrides[get_current_user]
 
 
 @pytest.mark.asyncio
@@ -112,17 +94,14 @@ async def test_workflow_template_permissions_simple(async_client: AsyncClient, a
         realm_access=RealmAccess(roles=["workflow:read"])
     )
     
-    # Template data
-    template_data = {
-        "name": "Permission Test Template",
+    # Generate unique template data
+    template_data = generate_unique_template_data(tenant_id="tenant-a")
+    template_data.update({
+        "name": f"Permission Test Template {generate_unique_id()}",
         "description": "Test template for permissions",
-        "category": "BATCH",
-        "scope": "TENANT",
-        "version": "1.0.0",
         "flow_definition": {"test": "permissions"},
-        "configuration_schema": {"type": "object"},
-        "deployment_method": "registry"
-    }
+        "configuration_schema": {"type": "object"}
+    })
     
     headers = {"X-Tenant-ID": "tenant-a", "Content-Type": "application/json"}
     
@@ -157,3 +136,7 @@ async def test_workflow_template_permissions_simple(async_client: AsyncClient, a
     )
     
     assert create_denied_response.status_code == 403
+    
+    # Clean up dependency override
+    if get_current_user in app.dependency_overrides:
+        del app.dependency_overrides[get_current_user]
