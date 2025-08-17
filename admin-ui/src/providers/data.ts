@@ -33,7 +33,12 @@ axiosInstance.interceptors.request.use(
 
 axiosInstance.interceptors.response.use(
     (response) => {
-        logger.log("Axios response:", response);
+        logger.log("Axios response:", {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+            data: response.data
+        });
         return response;
     },
     (error) => {
@@ -58,20 +63,58 @@ export const dataProvider: DataProvider = {
         logger.log("getList called with params:", params);
         try {
             const result = await baseDataProvider.getList(params);
-            logger.log("getList result:", result);
+            logger.log("getList raw result:", {
+                data: result.data,
+                total: result.total
+            });
             
             // Transform the data if it's the workflow-templates resource
             if (params.resource === "workflow-templates" && result.data) {
-                // Check if the data has the expected structure from our backend
+                // For workflow-templates, the backend returns { templates: [], total: 0, page: 1, page_size: 20 }
+                // But we need to check what structure we actually receive after the base provider processes it
+                logger.log("Workflow templates raw data:", result.data);
+                
+                // Check if this is the raw backend response structure
                 if (result.data && typeof result.data === 'object' && 'templates' in result.data) {
-                    logger.log("Transforming workflow-templates data structure");
+                    logger.log("Transforming workflow-templates data structure from backend format");
                     // Transform the data to match what Refine expects
                     return {
                         data: result.data.templates,
                         total: result.data.total
                     };
-                } else {
+                } 
+                // If it's already been transformed by the base provider, it might be in the correct format
+                else if (Array.isArray(result.data)) {
+                    logger.log("Workflow templates data is already in correct array format");
+                    return result;
+                } 
+                // Otherwise, log what we received
+                else {
                     logger.warn("Unexpected data structure for workflow-templates:", result.data);
+                    return result;
+                }
+            }
+            
+            // Also handle the workflows resource which might have similar issues
+            if (params.resource === "workflows" && result.data) {
+                // Check if the data has the expected structure from our backend
+                if (result.data && typeof result.data === 'object' && 'workflows' in result.data) {
+                    logger.log("Transforming workflows data structure");
+                    // Transform the data to match what Refine expects
+                    return {
+                        data: result.data.workflows,
+                        total: result.data.total
+                    };
+                } 
+                // If it's already been transformed by the base provider, it might be in the correct format
+                else if (Array.isArray(result.data)) {
+                    logger.log("Workflows data is already in correct array format");
+                    return result;
+                } 
+                // Otherwise, log what we received
+                else {
+                    logger.warn("Unexpected data structure for workflows:", result.data);
+                    return result;
                 }
             }
             

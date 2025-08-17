@@ -17,11 +17,18 @@ export const WorkflowTemplateList: React.FC<IResourceComponentsProps> = () => {
         logger.log("Raw data received from API:", data);
         if (data && typeof data === 'object' && 'data' in data) {
           logger.log("Data structure from Refine:", data.data);
-          if (data.data && typeof data.data === 'object' && 'templates' in data.data) {
+          logger.log("Data type:", typeof data.data);
+          if (Array.isArray(data.data)) {
+            logger.log("Templates array length:", data.data.length);
+            if (data.data.length > 0) {
+              logger.log("First template:", data.data[0]);
+            }
+          } else if (data.data && typeof data.data === 'object' && 'templates' in data.data) {
             logger.log("Templates array:", data.data.templates);
             logger.log("Total count:", data.data.total);
           } else {
-            logger.warn("Unexpected data structure - missing templates array");
+            logger.warn("Unexpected data structure - unknown format");
+            logger.log("Data content:", data.data);
           }
         } else {
           logger.warn("Unexpected data structure - missing data property");
@@ -38,9 +45,11 @@ export const WorkflowTemplateList: React.FC<IResourceComponentsProps> = () => {
     logger.log("Table props updated:", tableProps);
     if (tableProps?.dataSource) {
       logger.log("Data source type:", typeof tableProps.dataSource);
-      logger.log("Data source length:", tableProps.dataSource.length);
       if (Array.isArray(tableProps.dataSource)) {
-        logger.log("First item in data source:", tableProps.dataSource[0]);
+        logger.log("Data source length:", tableProps.dataSource.length);
+        if (tableProps.dataSource.length > 0) {
+          logger.log("First item in data source:", tableProps.dataSource[0]);
+        }
       } else {
         logger.error("Data source is not an array!", tableProps.dataSource);
       }
