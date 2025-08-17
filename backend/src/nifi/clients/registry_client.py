@@ -14,9 +14,10 @@ from urllib.parse import urljoin
 class NiFiRegistryClient:
     """Client for NiFi Registry API integration."""
 
-    def __init__(self, registry_url: str, auth_token: Optional[str] = None):
+    def __init__(self, registry_url: str, auth_token: Optional[str] = None, timeout: int = 30):
         self.registry_url = registry_url.rstrip('/')
         self.auth_token = auth_token
+        self.timeout = timeout
         self.session: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self):
@@ -26,7 +27,7 @@ class NiFiRegistryClient:
         
         self.session = aiohttp.ClientSession(
             headers=headers,
-            timeout=aiohttp.ClientTimeout(total=30)
+            timeout=aiohttp.ClientTimeout(total=self.timeout)
         )
         return self
 

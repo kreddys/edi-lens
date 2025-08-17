@@ -60,13 +60,13 @@ The NiFi integration has achieved production readiness with:
 ## Current Gaps
 
 ### Critical Missing Components (0% Complete)
-- Built-in Templates (3 required templates)
+- Built-in Templates (2 core templates with configurable translation)
 - Template Seeding Infrastructure
 - Template Documentation
 
 ## Next Steps
 
-1. **Implement Built-in Templates** - Create SFTP EDI Processor, HTTP EDI Processor, and Format Converter templates
+1. **Implement Built-in Templates** - Create Batch EDI Processor and Real-time EDI Processor templates with configurable translation
 2. **Build Seeding Infrastructure** - Automated template creation and management
 3. **Complete Documentation** - Usage guides and best practices
 4. **Address Remaining Issues** - Resolve NiFi state management timing issues

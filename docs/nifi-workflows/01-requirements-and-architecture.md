@@ -26,10 +26,11 @@ EDI Lens implements a template-driven workflow architecture powered by Apache Ni
 - **Monitoring**: Real-time status and health checks
 
 ### 4. Built-in Templates
-Three core built-in templates are required:
-1. **SFTP EDI Processor**: Monitors SFTP directories for EDI files
-2. **HTTP EDI Processor**: Processes EDI transactions via HTTP endpoints
-3. **Format Converter**: Converts between data formats (JSON/CSV/XML ↔ EDI)
+Two core built-in templates with configurable translation capabilities:
+1. **Batch EDI Processor**: Monitors SFTP directories for file processing with optional format translation
+2. **Real-time EDI Processor**: Processes EDI transactions via HTTP endpoints with optional format translation
+
+Each template includes configurable translation processors that can convert between EDI and other formats (JSON/CSV/XML) as needed.
 
 ## Architecture Components
 

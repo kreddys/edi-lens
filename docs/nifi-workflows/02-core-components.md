@@ -33,10 +33,11 @@ The NiFi integration consists of several core components that work together to p
 - **Parameter Management**: Workflow-specific configuration through parameter contexts
 
 #### BuiltInTemplatesService (`nifi/services/built_in_templates_service.py`)
-- Management of built-in workflow templates
-- Template seeding into database
+- Management of built-in workflow templates loaded from YAML files
+- Template seeding into database from `backend/data/templates/builtin/`
 - Registry registration for built-in templates
-- Three core templates: SFTP EDI Processor, HTTP EDI Processor, Format Converter
+- Dynamic template loading from YAML configuration files
+- Two core templates: Batch EDI Processor, Real-time EDI Processor
 
 #### TemplateSeederService (`nifi/services/template_seeder_service.py`)
 - Seeding of built-in templates into the system
@@ -78,31 +79,37 @@ The NiFi integration consists of several core components that work together to p
 
 ### Template Storage Strategy
 
-Templates are stored as JSON objects in PostgreSQL with two deployment methods:
+Templates are defined as YAML files and managed through multiple storage layers:
 
-1. **Registry Method** (Preferred): Templates stored in NiFi Registry as versioned flows
-2. **XML Method** (Fallback): Templates converted to XML and uploaded directly to NiFi
+1. **Source Definition**: Templates defined as YAML files in `backend/data/templates/builtin/`
+2. **Database Storage**: Template metadata and schemas stored in PostgreSQL
+3. **Registry Storage**: Templates deployed to NiFi Registry as versioned flows
+4. **Runtime Loading**: Templates loaded from YAML files at application startup
 
 ### Built-in Templates
 
-#### 1. SFTP EDI Processor Template
-- Monitors SFTP directories for EDI files
-- Validates content through EDI Lens backend
-- Generates TA1/999 acknowledgments
-- Archives processed files appropriately
-- Handles errors with separate error paths
+#### 1. Batch EDI Processor Template
+- **Core Function**: Monitors SFTP directories for file processing
+- **Translation Features**: 
+  - Optional input translation: JSON/CSV/XML → EDI (before validation)
+  - Optional output translation: EDI → JSON/CSV/XML (after processing)
+- **Processing Features**:
+  - Validates content through EDI Lens backend
+  - Generates TA1/999 acknowledgments
+  - Archives processed files appropriately
+  - Handles errors with separate error paths
+- **Configuration**: Toggle translation on/off, select formats, define mapping rules
 
-#### 2. HTTP EDI Processor Template
-- HTTP endpoint for real-time EDI processing
-- Synchronous validation and response
-- Immediate acknowledgment generation
-- Authentication and authorization validation
-
-#### 3. Format Converter Template
-- Converts between JSON/CSV/XML and EDI formats
-- Configurable mapping rules
-- Multiple input/output methods (SFTP, HTTP)
-- Validation of converted content
+#### 2. Real-time EDI Processor Template
+- **Core Function**: HTTP endpoint for synchronous EDI processing
+- **Translation Features**:
+  - Optional input translation: JSON/CSV/XML → EDI (before validation)
+  - Optional output translation: EDI → JSON/CSV/XML (in response)
+- **Processing Features**:
+  - Synchronous validation and response
+  - Immediate acknowledgment generation
+  - Authentication and authorization validation
+- **Configuration**: Toggle translation on/off, select formats, define mapping rules
 
 ### Parameter Context Management
 

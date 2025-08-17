@@ -33,6 +33,30 @@ class NiFiWorkflowService:
     def __init__(self, session: AsyncSession):
         self.session = session
     
+    async def create_workflow(self, workflow_data: dict, created_by: str) -> Workflow:
+        """
+        Create a new workflow in the database.
+        
+        Args:
+            workflow_data: Dictionary containing workflow data
+            created_by: User ID who created the workflow
+            
+        Returns:
+            Created Workflow object
+        """
+        workflow = Workflow(
+            name=workflow_data["name"],
+            description=workflow_data.get("description"),
+            template_id=workflow_data["template_id"],
+            configuration=workflow_data["configuration"],
+            tenant_id=workflow_data["tenant_id"],
+            created_by=created_by
+        )
+        self.session.add(workflow)
+        await self.session.commit()
+        await self.session.refresh(workflow)
+        return workflow
+    
     async def deploy_workflow(self, workflow: Workflow) -> Workflow:
         """
         Deploy a workflow to NiFi.
