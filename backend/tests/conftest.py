@@ -169,7 +169,7 @@ def _cleanup_app_state() -> None:
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """
     Provides a completely clean database session for each test function.
-    Ensures complete test isolation with thorough cleanup before and after each test.
+    Ensures complete test isolation with cleanup before test starts.
     """
     # Clean database AND app state BEFORE test starts
     await _cleanup_database()
@@ -181,16 +181,6 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
-        finally:
-            # Ensure session is closed properly
-            try:
-                await session.close()
-            except:
-                pass
-            
-            # Clean up database AND app state AFTER test completes
-            await _cleanup_database()
-            _cleanup_app_state()
 
 @pytest_asyncio.fixture(scope="function")
 async def async_client(db_session: AsyncSession, user_context: Optional[User] = None) -> AsyncGenerator[AsyncClient, None]:

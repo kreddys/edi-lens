@@ -141,12 +141,20 @@ class NiFiAPIClient:
         parameters: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """Create a new parameter context."""
+        # Transform parameters to NiFi format - each parameter must be wrapped in a "parameter" object
+        formatted_parameters = []
+        if parameters:
+            for param in parameters:
+                formatted_parameters.append({
+                    "parameter": param
+                })
+        
         param_context_data = {
             "revision": {"version": 0},
             "component": {
                 "name": name,
                 "description": description,
-                "parameters": parameters or []
+                "parameters": formatted_parameters
             }
         }
         

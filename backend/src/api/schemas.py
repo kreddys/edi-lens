@@ -551,6 +551,7 @@ class WorkflowResponse(BaseModel):
     created_by: Optional[str] = Field(None, description="Creator user ID")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
+    is_deployed: bool = Field(..., description="Whether the workflow is deployed to NiFi")
 
     model_config = ConfigDict(from_attributes=True)
 
