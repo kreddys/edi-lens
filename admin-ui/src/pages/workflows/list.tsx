@@ -1,65 +1,102 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { List, useTable } from "@refinedev/antd";
-import { Table, Space, Tag, Typography, Button, Alert } from "antd";
-import { IResourceComponentsProps, BaseRecord, HttpError } from "@refinedev/core";
+import { Table, Space, Tag, Typography, Button, Alert, notification } from "antd";
+import { IResourceComponentsProps, HttpError } from "@refinedev/core";
 import { EditButton, ShowButton } from "@refinedev/antd";
-import { PlayCircleOutlined, PauseCircleOutlined, RedoOutlined, CloudUploadOutlined, CloudDownloadOutlined } from "@ant-design/icons";
+import { 
+  PlayCircleOutlined, 
+  PauseCircleOutlined, 
+  RedoOutlined, 
+  CloudUploadOutlined, 
+  CloudDownloadOutlined 
+} from "@ant-design/icons";
 import { WorkflowStatusBadge, DeploymentBadge } from "../../components/workflow/StatusBadges";
-import { getLogger } from "../../utils";
+import { keycloak } from "../../utils";
 
 const { Text } = Typography;
-const logger = getLogger('WORKFLOW_LIST');
+
+// Define the type for our workflow
+interface Workflow {
+  workflow_id: string;
+  name: string;
+  description: string;
+  template_id: string;
+  status: string;
+  is_deployed: boolean;
+  nifi_status: string;
+  tags: string[];
+  configuration: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
 
 export const WorkflowList: React.FC<IResourceComponentsProps> = () => {
-  const { tableProps, tableQueryResult } = useTable<{ workflows: any[], total: number, page: number, page_size: number }, HttpError>({
-    // Add debug logging for data transformation
-    queryOptions: {
-      onSuccess: (data) => {
-        logger.log("Raw data received from API:", data);
-        if (data && typeof data === 'object' && 'data' in data) {
-          logger.log("Data structure from Refine:", data.data);
-          if (data.data && typeof data.data === 'object' && 'workflows' in data.data) {
-            logger.log("Workflows array:", data.data.workflows);
-            logger.log("Total count:", data.data.total);
-          } else {
-            logger.warn("Unexpected data structure - missing workflows array");
-          }
-        } else {
-          logger.warn("Unexpected data structure - missing data property");
-        }
-      },
-      onError: (error) => {
-        logger.error("Error fetching workflows:", error);
-      }
-    }
-  });
-
-  // Debug logging for table props
-  useEffect(() => {
-    logger.log("Table props updated:", tableProps);
-    if (tableProps?.dataSource) {
-      logger.log("Data source type:", typeof tableProps.dataSource);
-      logger.log("Data source length:", tableProps.dataSource.length);
-      if (Array.isArray(tableProps.dataSource)) {
-        logger.log("First item in data source:", tableProps.dataSource[0]);
-      } else {
-        logger.error("Data source is not an array!", tableProps.dataSource);
-      }
-    }
-  }, [tableProps]);
-
-  // Debug logging for query result
-  useEffect(() => {
-    if (tableQueryResult?.data) {
-      logger.log("Query result data:", tableQueryResult.data);
-    }
-    if (tableQueryResult?.error) {
-      logger.error("Query result error:", tableQueryResult.error);
-    }
-  }, [tableQueryResult]);
+  const { tableProps, tableQueryResult } = useTable<Workflow, HttpError>();
 
   // Check if we have a data structure issue
   const hasDataStructureError = tableProps?.dataSource && !Array.isArray(tableProps.dataSource);
+
+  // Workflow action handler
+  const handleWorkflowAction = async (workflowId: string, action: string) => {
+    try {
+      let endpoint = "";
+      switch (action) {
+        case "deploy":
+          endpoint = `/api/v1/workflows/${workflowId}/deploy`;
+          break;
+        case "undeploy":
+          endpoint = `/api/v1/workflows/${workflowId}/undeploy`;
+          break;
+        case "pause":
+          endpoint = `/api/v1/workflows/${workflowId}/pause`;
+          break;
+        case "resume":
+          endpoint = `/api/v1/workflows/${workflowId}/resume`;
+          break;
+        case "restart":
+          endpoint = `/api/v1/workflows/${workflowId}/restart`;
+          break;
+        default:
+          throw new Error("Invalid action");
+      }
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${keycloak.token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Failed to ${action} workflow`);
+      }
+
+      // Show success notification
+      const actionLabels: Record<string, string> = {
+        deploy: "deployed",
+        undeploy: "undeployed",
+        pause: "paused",
+        resume: "resumed",
+        restart: "restarted"
+      };
+
+      notification.success({
+        message: "Success",
+        description: `Workflow successfully ${actionLabels[action]}`
+      });
+
+      // Refresh the table data
+      tableQueryResult.refetch();
+    } catch (error: any) {
+      notification.error({
+        message: "Action Failed",
+        description: error.message || `An error occurred while ${action}ing the workflow`
+      });
+      console.error(`${action} error:`, error);
+    }
+  };
 
   return (
     <List>
@@ -114,29 +151,42 @@ export const WorkflowList: React.FC<IResourceComponentsProps> = () => {
         <Table.Column
           title="Actions"
           dataIndex="actions"
-          render={(_, record: BaseRecord) => (
+          render={(_, record: Workflow) => (
             <Space>
               <ShowButton hideText size="small" recordItemId={record.workflow_id} />
               <EditButton hideText size="small" recordItemId={record.workflow_id} />
               {record.is_deployed ? (
                 <>
-                  <Button 
-                    type="text" 
-                    size="small" 
-                    icon={<PauseCircleOutlined />} 
-                    title="Pause"
-                  />
+                  {record.status === "ACTIVE" ? (
+                    <Button 
+                      type="text" 
+                      size="small" 
+                      icon={<PauseCircleOutlined />} 
+                      title="Pause"
+                      onClick={() => handleWorkflowAction(record.workflow_id, "pause")}
+                    />
+                  ) : (
+                    <Button 
+                      type="text" 
+                      size="small" 
+                      icon={<PlayCircleOutlined />} 
+                      title="Resume"
+                      onClick={() => handleWorkflowAction(record.workflow_id, "resume")}
+                    />
+                  )}
                   <Button 
                     type="text" 
                     size="small" 
                     icon={<RedoOutlined />} 
                     title="Restart"
+                    onClick={() => handleWorkflowAction(record.workflow_id, "restart")}
                   />
                   <Button 
                     type="text" 
                     size="small" 
                     icon={<CloudDownloadOutlined />} 
                     title="Undeploy"
+                    onClick={() => handleWorkflowAction(record.workflow_id, "undeploy")}
                   />
                 </>
               ) : (
@@ -145,6 +195,7 @@ export const WorkflowList: React.FC<IResourceComponentsProps> = () => {
                   size="small" 
                   icon={<CloudUploadOutlined />} 
                   title="Deploy"
+                  onClick={() => handleWorkflowAction(record.workflow_id, "deploy")}
                 />
               )}
               <Button 
@@ -152,6 +203,7 @@ export const WorkflowList: React.FC<IResourceComponentsProps> = () => {
                 size="small" 
                 icon={<PlayCircleOutlined />} 
                 title="Execute"
+                onClick={() => window.location.href = `/workflows/show/${record.workflow_id}#execute`}
               />
             </Space>
           )}

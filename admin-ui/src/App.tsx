@@ -2,6 +2,7 @@ import { Refine } from "@refinedev/core";
 import { RefineKbar, RefineKbarProvider } from "@refinedev/kbar";
 // --- FIX: Removed unused 'Divider' ---
 import { ErrorComponent, useNotificationProvider } from "@refinedev/antd";
+import { App as AntdApp } from "antd";
 import "@refinedev/antd/dist/reset.css";
 
 import routerBindings, { NavigateToResource, UnsavedChangesNotifier } from "@refinedev/react-router-v6";
@@ -30,6 +31,7 @@ function App() {
     <BrowserRouter>
       <RefineKbarProvider>
         <ThemeProvider>
+          <AntdApp>
             <Refine
               dataProvider={dataProvider}
               routerProvider={routerBindings}
@@ -98,6 +100,7 @@ function App() {
               <RefineKbar />
               <UnsavedChangesNotifier />
             </Refine>
+          </AntdApp>
         </ThemeProvider>
       </RefineKbarProvider>
     </BrowserRouter>

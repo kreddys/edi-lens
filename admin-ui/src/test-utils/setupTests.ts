@@ -1,6 +1,37 @@
 import '@testing-library/jest-dom';
 import { configure } from '@testing-library/react';
 
+// Mock import.meta.env for Jest
+Object.defineProperty(globalThis, 'import', {
+  value: {
+    meta: {
+      env: {
+        VITE_KEYCLOAK_URL: 'http://localhost:8080',
+        VITE_KEYCLOAK_REALM: 'test-realm',
+        VITE_KEYCLOAK_CLIENT_ID: 'test-client',
+        VITE_API_URL: 'http://localhost:8000'
+      }
+    }
+  }
+});
+
+// Mock Keycloak module
+jest.mock('../utils/keycloak', () => ({
+  __esModule: true,
+  default: {
+    init: jest.fn(() => Promise.resolve(true)),
+    login: jest.fn(),
+    logout: jest.fn(),
+    authenticated: true,
+    token: 'mock-token',
+    tokenParsed: {
+      sub: 'test-user',
+      preferred_username: 'test-user',
+      email: 'test@example.com'
+    }
+  }
+}));
+
 // Mock axios globally for all tests
 jest.mock('axios', () => ({
   create: jest.fn(() => ({

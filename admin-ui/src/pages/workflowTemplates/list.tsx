@@ -9,8 +9,21 @@ import { getLogger } from "../../utils";
 const { Text } = Typography;
 const logger = getLogger('TEMPLATES_LIST');
 
+// Define the type for our workflow template
+interface WorkflowTemplate {
+  template_id: string;
+  name: string;
+  description: string;
+  category: string;
+  scope: string;
+  status: string;
+  version: string;
+  usage_count: number;
+  // Add other properties as needed
+}
+
 export const WorkflowTemplateList: React.FC<IResourceComponentsProps> = () => {
-  const { tableProps, tableQueryResult } = useTable<{ templates: any[], total: number, page: number, page_size: number }, HttpError>({
+  const { tableProps, tableQueryResult } = useTable<WorkflowTemplate, HttpError>({
     // Add debug logging for data transformation
     queryOptions: {
       onSuccess: (data) => {
@@ -23,11 +36,8 @@ export const WorkflowTemplateList: React.FC<IResourceComponentsProps> = () => {
             if (data.data.length > 0) {
               logger.log("First template:", data.data[0]);
             }
-          } else if (data.data && typeof data.data === 'object' && 'templates' in data.data) {
-            logger.log("Templates array:", data.data.templates);
-            logger.log("Total count:", data.data.total);
           } else {
-            logger.warn("Unexpected data structure - unknown format");
+            logger.warn("Unexpected data structure - not an array");
             logger.log("Data content:", data.data);
           }
         } else {

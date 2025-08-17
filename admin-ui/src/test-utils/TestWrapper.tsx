@@ -30,13 +30,18 @@ const mockAuthProvider = {
   onError: jest.fn(() => Promise.resolve()),
 };
 
-interface TestWrapperProps {
+export interface TestWrapperProps {
   children: React.ReactNode;
   queryClient?: QueryClient;
+  dataProvider?: any;
+  authProvider?: any;
+  navigation?: any;
 }
 
 export const TestWrapper: React.FC<TestWrapperProps> = ({ 
   children, 
+  dataProvider = mockDataProvider,
+  authProvider = mockAuthProvider,
   queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -49,14 +54,16 @@ export const TestWrapper: React.FC<TestWrapperProps> = ({
       <BrowserRouter>
         <ConfigProvider>
           <Refine
-            dataProvider={mockDataProvider}
-            authProvider={mockAuthProvider}
+            dataProvider={dataProvider}
+            authProvider={authProvider}
             routerProvider={routerProvider}
             resources={[
               { name: 'trading-partners', list: '/trading-partners' },
               { name: 'schemas', list: '/schemas' },
               { name: 'validation', list: '/validation' },
-              { name: 'history', list: '/history' }
+              { name: 'history', list: '/history' },
+              { name: 'workflow-templates', list: '/workflow-templates' },
+              { name: 'workflows', list: '/workflows' }
             ]}
             options={{ disableTelemetry: true }}
           >

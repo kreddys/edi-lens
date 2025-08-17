@@ -12,7 +12,7 @@ import {
   Row, 
   Col, 
   Spin,
-  notification
+  App
 } from "antd";
 import { 
   UploadOutlined, 
@@ -21,6 +21,7 @@ import {
   CheckCircleOutlined,
   ExclamationCircleOutlined
 } from "@ant-design/icons";
+import { useDataProvider } from "@refinedev/core";
 
 const { TextArea } = Input;
 const { Title, Text } = Typography;
@@ -43,6 +44,9 @@ export const WorkflowExecute: React.FC<{ workflowId: string }> = ({ workflowId }
   const [ediContent, setEdiContent] = useState<string>("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionResult, setExecutionResult] = useState<ValidationResult | null>(null);
+  const { notification } = App.useApp();
+  
+  const dataProvider = useDataProvider();
 
   const handleFileUpload = (file: File) => {
     const reader = new FileReader();
@@ -53,7 +57,7 @@ export const WorkflowExecute: React.FC<{ workflowId: string }> = ({ workflowId }
     return false; // Prevent auto upload
   };
 
-  const executeWorkflow = async () => {
+  const executeWorkflowProcess = async () => {
     if (!ediContent.trim()) {
       notification.error({
         message: "Execution Error",
@@ -64,34 +68,27 @@ export const WorkflowExecute: React.FC<{ workflowId: string }> = ({ workflowId }
 
     setIsExecuting(true);
     try {
-      // In a real implementation, this would call the workflow execution API
-      // POST /api/v1/workflows/{workflow_id}/process
-      const response = await fetch(`/api/v1/workflows/${workflowId}/process`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("auth_token")}` // Adjust as needed
-        },
-        body: JSON.stringify({
+      // Use data provider for API call
+      const result = await dataProvider().custom!({
+        url: `/workflows/${workflowId}/process`,
+        method: "post",
+        payload: {
           edi_content: ediContent,
           processing_options: {
             generate_ta1: true,
             generate_999: true
           }
-        })
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (result?.data) {
+        setExecutionResult(result.data);
+        
+        notification.success({
+          message: "Execution Complete",
+          description: `Workflow executed in ${result.data.processing_time_ms}ms`
+        });
       }
-
-      const data = await response.json();
-      setExecutionResult(data);
-      
-      notification.success({
-        message: "Execution Complete",
-        description: `Workflow executed in ${data.processing_time_ms}ms`
-      });
     } catch (error: any) {
       notification.error({
         message: "Execution Failed",
@@ -156,7 +153,7 @@ export const WorkflowExecute: React.FC<{ workflowId: string }> = ({ workflowId }
                   type="primary"
                   icon={<PlayCircleOutlined />}
                   loading={isExecuting}
-                  onClick={executeWorkflow}
+                  onClick={executeWorkflowProcess}
                   size="large"
                 >
                   Execute Workflow

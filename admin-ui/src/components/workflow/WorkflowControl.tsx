@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Space, notification } from "antd";
+import { Button, Space, App } from "antd";
 import {
   CloudUploadOutlined,
   CloudDownloadOutlined,
@@ -7,6 +7,7 @@ import {
   PauseCircleOutlined,
   RedoOutlined
 } from "@ant-design/icons";
+import { useDataProvider } from "@refinedev/core";
 
 interface WorkflowControlProps {
   workflowId: string;
@@ -21,43 +22,41 @@ export const WorkflowControl: React.FC<WorkflowControlProps> = ({
   status,
   onActionComplete
 }) => {
+  const { notification } = App.useApp();
+  
+  const dataProvider = useDataProvider();
+
   const handleAction = async (action: string) => {
     try {
       // Determine the API endpoint based on the action
       let endpoint = "";
       switch (action) {
         case "deploy":
-          endpoint = `/api/v1/workflows/${workflowId}/deploy`;
+          endpoint = `/workflows/${workflowId}/deploy`;
           break;
         case "undeploy":
-          endpoint = `/api/v1/workflows/${workflowId}/undeploy`;
+          endpoint = `/workflows/${workflowId}/undeploy`;
           break;
         case "start":
-          endpoint = `/api/v1/workflows/${workflowId}/start`;
+        case "resume":
+          endpoint = `/workflows/${workflowId}/resume`;
           break;
         case "stop":
-          endpoint = `/api/v1/workflows/${workflowId}/stop`;
+        case "pause":
+          endpoint = `/workflows/${workflowId}/pause`;
           break;
         case "restart":
-          endpoint = `/api/v1/workflows/${workflowId}/restart`;
+          endpoint = `/workflows/${workflowId}/restart`;
           break;
         default:
           throw new Error("Invalid action");
       }
 
-      // Make the API call
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("auth_token")}` // Adjust as needed
-        }
+      // Make the API call using data provider
+      await dataProvider().custom!({
+        url: endpoint,
+        method: "post"
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `Failed to ${action} workflow`);
-      }
 
       // Show success notification
       const actionLabels: Record<string, string> = {
@@ -65,6 +64,8 @@ export const WorkflowControl: React.FC<WorkflowControlProps> = ({
         undeploy: "undeployed",
         start: "started",
         stop: "stopped",
+        pause: "paused",
+        resume: "resumed",
         restart: "restarted"
       };
 
@@ -92,7 +93,7 @@ export const WorkflowControl: React.FC<WorkflowControlProps> = ({
             <Button 
               type="primary" 
               icon={<PauseCircleOutlined />} 
-              onClick={() => handleAction("stop")}
+              onClick={() => handleAction("pause")}
               danger
             >
               Pause
@@ -101,7 +102,7 @@ export const WorkflowControl: React.FC<WorkflowControlProps> = ({
             <Button 
               type="primary" 
               icon={<PlayCircleOutlined />} 
-              onClick={() => handleAction("start")}
+              onClick={() => handleAction("resume")}
             >
               Resume
             </Button>

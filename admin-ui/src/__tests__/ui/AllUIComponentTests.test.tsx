@@ -1,15 +1,16 @@
 /**
- * 🎯 ALL UI COMPONENT TESTS - BACKEND INDEPENDENT
+ * 🎯 LEGACY UI COMPONENT TESTS - BACKEND INDEPENDENT
  * 
- * This test suite validates all UI components work correctly WITHOUT requiring backend services.
- * All backend calls are properly mocked to ensure tests pass reliably in any environment.
+ * This test suite validates legacy UI components (Trading Partners, Schema Editor, Validation).
+ * Run with: ./run.sh dev:test ui --testNamePattern="Legacy UI"
+ * 
+ * For NiFi Workflow components, see WorkflowComponents.test.tsx
  * 
  * These tests focus on:
  * ✅ UI rendering and functionality
  * ✅ User interactions
  * ✅ Component behavior
  * ✅ Error handling
- * ✅ Accessibility
  */
 
 import React from 'react';
@@ -31,7 +32,7 @@ const mockedAxios = axios as jest.Mocked<typeof axios>;
 // Mock fetch globally
 global.fetch = jest.fn();
 
-describe('🎯 All UI Components - Backend Independent Tests', () => {
+describe('🎯 Legacy UI Components - Backend Independent Tests', () => {
   const user = userEvent.setup();
 
   beforeEach(() => {

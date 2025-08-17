@@ -51,6 +51,9 @@ if [ -z "$1" ] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]]; then
     echo "  dev:test integration [args...]  Run backend integration tests against the dev stack."
     echo "  dev:test e2e [args...]          Run backend end-to-end tests against the dev stack."
     echo "  dev:test ui [args...]           Run UI tests (Jest + React Testing Library)."
+    echo "  dev:test ui:workflows           Run workflow component tests specifically."
+    echo "  dev:test ui:integration         Run UI-backend integration tests."
+    echo "  dev:test ui:legacy              Run legacy UI component tests."
     exit 0
 fi
 
@@ -286,6 +289,36 @@ case "$ACTION" in
                 
                 info "Running Jest tests in admin-ui container..."
                 $DC_EXEC exec admin-ui npm run test -- --watchAll=false --coverage "$@"
+                ;;
+            ui:workflows)
+                check_docker
+                info "Running NiFi Workflow component tests..."
+                ensure_infra
+                info "Ensuring dev stack is running for workflow tests..."
+                $DC_EXEC up -d --build --wait admin-ui
+                
+                info "Running workflow component tests..."
+                $DC_EXEC exec admin-ui npm run test -- --watchAll=false --testNamePattern="Workflow" --coverage "$@"
+                ;;
+            ui:integration)
+                check_docker
+                info "Running UI-Backend integration tests..."
+                ensure_infra
+                info "Ensuring full dev stack is running for integration tests..."
+                $DC_EXEC up -d --wait backend admin-ui
+                
+                info "Running NiFi workflow integration tests..."
+                $DC_EXEC exec admin-ui npm run test -- --watchAll=false --testNamePattern="NiFi.*Integration" --coverage "$@"
+                ;;
+            ui:legacy)
+                check_docker
+                info "Running legacy UI component tests..."
+                ensure_infra
+                info "Ensuring dev stack is running for legacy tests..."
+                $DC_EXEC up -d --build --wait admin-ui
+                
+                info "Running legacy component tests..."
+                $DC_EXEC exec admin-ui npm run test -- --watchAll=false --testNamePattern="Legacy UI" --coverage "$@"
                 ;;
             integration|e2e)
                 check_docker
