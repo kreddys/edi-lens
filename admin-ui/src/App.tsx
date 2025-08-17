@@ -10,9 +10,20 @@ import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/layout";
 import { dataProvider, authProvider, accessControlProvider, ThemeProvider } from "./providers";
 
-import { TradingPartnerList, TradingPartnerCreate, TradingPartnerEdit, TradingPartnerShow } from "./pages/tradingPartners";
 import { SchemaEditorList } from "./pages/schemaEditor/SchemaEditorList";
 import { Validation, ProcessingHistory } from "./pages/validation";
+import { 
+  WorkflowTemplateList,
+  WorkflowTemplateCreate,
+  WorkflowTemplateEdit,
+  WorkflowTemplateShow
+} from "./pages/workflowTemplates";
+import { 
+  WorkflowList,
+  WorkflowCreate,
+  WorkflowEdit,
+  WorkflowShow
+} from "./pages/workflows";
 
 function App() {
   return (
@@ -27,12 +38,20 @@ function App() {
               accessControlProvider={accessControlProvider}
               resources={[
                 {
-                  name: "trading-partners",
-                  list: "/trading-partners",
-                  create: "/trading-partners/create",
-                  edit: "/trading-partners/edit/:id",
-                  show: "/trading-partners/show/:id",
-                  meta: { label: "Trading Partners" },
+                  name: "workflow-templates",
+                  list: "/workflow-templates",
+                  create: "/workflow-templates/create",
+                  edit: "/workflow-templates/edit/:id",
+                  show: "/workflow-templates/show/:id",
+                  meta: { label: "Workflow Templates" },
+                },
+                {
+                  name: "workflows",
+                  list: "/workflows",
+                  create: "/workflows/create",
+                  edit: "/workflows/edit/:id",
+                  show: "/workflows/show/:id",
+                  meta: { label: "Workflows" },
                 },
                 {
                     name: "schemas",
@@ -57,12 +76,18 @@ function App() {
             >
               <Routes>
                 <Route element={<Layout><Outlet /></Layout>}>
-                  <Route index element={<NavigateToResource resource="trading-partners" />} />
-                  <Route path="/trading-partners">
-                    <Route index element={<TradingPartnerList />} />
-                    <Route path="create" element={<TradingPartnerCreate />} />
-                    <Route path="edit/:id" element={<TradingPartnerEdit />} />
-                    <Route path="show/:id" element={<TradingPartnerShow />} />
+                  <Route index element={<NavigateToResource resource="workflow-templates" />} />
+                  <Route path="/workflow-templates">
+                    <Route index element={<WorkflowTemplateList />} />
+                    <Route path="create" element={<WorkflowTemplateCreate />} />
+                    <Route path="edit/:id" element={<WorkflowTemplateEdit />} />
+                    <Route path="show/:id" element={<WorkflowTemplateShow />} />
+                  </Route>
+                  <Route path="/workflows">
+                    <Route index element={<WorkflowList />} />
+                    <Route path="create" element={<WorkflowCreate />} />
+                    <Route path="edit/:id" element={<WorkflowEdit />} />
+                    <Route path="show/:id" element={<WorkflowShow />} />
                   </Route>
                   <Route path="/schema-editor" element={<SchemaEditorList />} />
                   <Route path="/processing-history" element={<ProcessingHistory />} />

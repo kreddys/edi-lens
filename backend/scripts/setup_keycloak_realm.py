@@ -224,6 +224,16 @@ def configure_client_mappers(admin_client: KeycloakAdmin, existing_clients_map: 
         else:
             raise
 
+    # Add audience mapper to UI client (so tokens from UI can access backend)
+    try:
+        admin_client.add_mapper_to_client(ui_client['id'], audience_mapper)
+        logging.info(f"  - Added 'backend-audience' mapper to UI client.")
+    except KeycloakPostError as e:
+        if e.response_code == 409:
+            logging.info(f"  - Mapper 'backend-audience' already exists on UI client.")
+        else:
+            raise
+
     # Add audience mapper to backend client
     try:
         admin_client.add_mapper_to_client(backend_client['id'], audience_mapper)

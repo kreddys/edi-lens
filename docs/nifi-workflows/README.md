@@ -1,6 +1,6 @@
 # NiFi Workflows Documentation
 
-This directory contains comprehensive documentation for the NiFi integration implementation, consolidated into 5 key documents that cover all aspects of the system.
+This directory contains comprehensive documentation for the NiFi integration implementation, consolidated into 9 key documents that cover all aspects of the system.
 
 ## Consolidated Documentation Structure
 
@@ -33,6 +33,34 @@ This directory contains comprehensive documentation for the NiFi integration imp
 - High-level executive overview
 - Business value and impact assessment
 - Strategic recommendations and next steps
+
+### 6. UI Integration Plan
+[06-ui-integration-plan.md](06-ui-integration-plan.md)
+- Plan for integrating NiFi workflows into the admin UI
+- Proposed UI structure and navigation
+- Component design and API integration points
+- Implementation phases and success metrics
+
+### 7. UI Component Implementation Plan
+[07-ui-component-implementation-plan.md](07-ui-component-implementation-plan.md)
+- Detailed implementation plan for UI components
+- Component structure and features
+- API integration details
+- Implementation phases and testing strategy
+
+### 8. UI Implementation Summary
+[08-ui-implementation-summary.md](08-ui-implementation-summary.md)
+- Summary of implemented UI components
+- Component structure and API integration points
+- User experience features and security considerations
+- Next steps and success metrics
+
+### 9. UI Development Guide
+[09-ui-development-guide.md](09-ui-development-guide.md)
+- Development environment setup and configuration
+- Component development guidelines and best practices
+- API integration patterns and error handling
+- Testing strategies and troubleshooting tips
 
 ## Implementation Status
 
