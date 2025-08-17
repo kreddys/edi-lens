@@ -43,7 +43,7 @@ function App() {
                   create: "/workflow-templates/create",
                   edit: "/workflow-templates/edit/:id",
                   show: "/workflow-templates/show/:id",
-                  meta: { label: "Workflow Templates" },
+                  meta: { label: "Templates" },
                 },
                 {
                   name: "workflows",

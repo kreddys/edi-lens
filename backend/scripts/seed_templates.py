@@ -38,7 +38,7 @@ async def seed_built_in_templates(force: bool = False) -> int:
         )
         
         # Get database session
-        async with get_db() as session:
+        async for session in get_db():
             results = await seeder_service.seed_built_in_templates(session)
             
             # Log results
@@ -60,6 +60,7 @@ async def seed_built_in_templates(force: bool = False) -> int:
             
     except Exception as e:
         logger.error(f"Failed to seed built-in templates: {str(e)}")
+        logger.exception("Full traceback:")
         return 1
 
 
@@ -75,7 +76,7 @@ async def seed_all_templates(force: bool = False) -> int:
         )
         
         # Get database session
-        async with get_db() as session:
+        async for session in get_db():
             results = await seeder_service.seed_all_templates(session)
             
             # Log results
@@ -108,7 +109,7 @@ async def import_template_from_file(file_path: str) -> int:
         )
         
         # Get database session
-        async with get_db() as session:
+        async for session in get_db():
             result = await seeder_service.import_template_from_file(session, file_path)
             logger.info(f"Import result: {result}")
             return 0
@@ -133,7 +134,7 @@ async def export_template_to_file(template_id: str, file_path: str) -> int:
         )
         
         # Get database session
-        async with get_db() as session:
+        async for session in get_db():
             result = await seeder_service.export_template_to_file(session, template_id, file_path)
             logger.info(f"Export result: {result}")
             return 0 if result else 1
@@ -158,7 +159,7 @@ async def register_templates_in_registry() -> int:
         )
         
         # Get database session
-        async with get_db() as session:
+        async for session in get_db():
             results = await seeder_service.register_all_templates_in_registry(session)
             
             # Log results

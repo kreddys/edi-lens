@@ -35,7 +35,7 @@ if [ -z "$1" ] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]]; then
     echo "  prod      Production environment."
     echo ""
     echo "COMMON ACTIONS (e.g., dev:start, stg:logs):"
-    echo "  start, stop, clean, build, logs, migrate:make \"msg\", migrate:run, setup:keycloak, setup:sftpgo, setup:seed"
+    echo "  start, stop, clean, build, logs, migrate:make \"msg\", migrate:run, setup:keycloak, setup:sftpgo, setup:seed, setup:templates"
     echo "  db:exec \"command\"           Execute SQL command in database (dev only)"
     echo ""
     echo "SFTP ACTIONS (dev environment only) - SECURE:"
@@ -171,6 +171,15 @@ case "$ACTION" in
         KC_END=$(date +%s)
         timing_info "✅ Keycloak setup completed in $((KC_END - KC_START)) seconds"
 
+        # --- TEMPLATE SEEDING ---
+        timing_info "Step 3.5/4: Seeding built-in workflow templates"
+        SEED_START=$(date +%s)
+        info "Seeding built-in workflow templates..."
+        # Seed built-in templates
+        $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.seed_templates built-in
+        SEED_END=$(date +%s)
+        timing_info "✅ Template seeding completed in $((SEED_END - SEED_START)) seconds"
+
         # --- REMAINING SERVICES ---
         timing_info "Step 4/4: Starting remaining services (SFTPGo, UI, Caddy, NiFi)"
         REMAINING_START=$(date +%s)
@@ -217,7 +226,7 @@ case "$ACTION" in
         $DC_EXEC logs --tail 50 "$@"
         ;;
     # --- setup:keycloak is now primarily for re-running the setup on an already running system ---
-    migrate:make|migrate:run|setup:keycloak|setup:sftpgo|setup:seed|db:exec)
+    migrate:make|migrate:run|setup:keycloak|setup:sftpgo|setup:seed|setup:templates|db:exec)
         check_docker
         if [ "$ACTION" == "migrate:make" ] && [ -z "$1" ]; then error "Migration message is required."; fi
         
@@ -236,6 +245,9 @@ case "$ACTION" in
             $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.setup_sftpgo_events
         elif [ "$ACTION" == "setup:seed" ]; then
             $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.seed "$@"
+        elif [ "$ACTION" == "setup:templates" ]; then
+            info "Seeding built-in workflow templates..."
+            $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.seed_templates built-in
         elif [ "$ACTION" == "db:exec" ]; then
             if [ "$ENV_CONTEXT" != "dev" ]; then error "'db:exec' action is only for the 'dev' environment."; fi
             if [ -z "$1" ]; then error "SQL command is required for db:exec."; fi

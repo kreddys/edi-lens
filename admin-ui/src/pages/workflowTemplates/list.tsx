@@ -7,7 +7,7 @@ import { TemplateStatusBadge, ScopeBadge, CategoryBadge } from "../../components
 import { getLogger } from "../../utils";
 
 const { Text } = Typography;
-const logger = getLogger('WORKFLOW_TEMPLATES_LIST');
+const logger = getLogger('TEMPLATES_LIST');
 
 export const WorkflowTemplateList: React.FC<IResourceComponentsProps> = () => {
   const { tableProps, tableQueryResult } = useTable<{ templates: any[], total: number, page: number, page_size: number }, HttpError>({
@@ -35,7 +35,7 @@ export const WorkflowTemplateList: React.FC<IResourceComponentsProps> = () => {
         }
       },
       onError: (error) => {
-        logger.error("Error fetching workflow templates:", error);
+        logger.error("Error fetching templates:", error);
       }
     }
   });

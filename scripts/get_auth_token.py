@@ -134,7 +134,7 @@ def get_user_token_from_keycloak(
         "client_id": client_id,
         "username": username,
         "password": password,
-        "scope": "openid profile email groups"
+        "scope": "openid profile email"
     }
     
     try:

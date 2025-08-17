@@ -65,7 +65,10 @@ keycloak-config/realm-export.json
 
 logs/
 tmp/
-data/
 backups/
 minio-data/
 docker/sftpgo/config
+
+# Data directories (excluding templates)
+data/
+!data/templates/
