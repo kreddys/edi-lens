@@ -106,15 +106,46 @@ class NiFiRegistryClient:
         comments: str = ""
     ) -> Dict[str, Any]:
         """Create a new version of an existing flow."""
+        # According to NiFi Registry API, we need to send a VersionedFlowSnapshot object
+        # which includes bucket info, snapshot metadata, and flow contents
+        flow_contents = version_data.get("flowContents", {})
+        
+        # Ensure the flow contents have the required version field
+        if "version" not in flow_contents:
+            flow_contents["version"] = 1
+            
+        # Ensure required fields are present
+        if "identifier" not in flow_contents:
+            flow_contents["identifier"] = flow_id
+            
         version_payload = {
-            "version": version_data,
-            "comments": comments
+            "bucket": {
+                "identifier": bucket_id
+            },
+            "snapshotMetadata": {
+                "flowIdentifier": flow_id,
+                "comments": comments,
+                "version": 1  # This is the version of the snapshot itself
+            },
+            "flowContents": flow_contents,
+            "parameterContexts": version_data.get("parameterContexts", {}),
+            "externalControllerServices": version_data.get("externalControllerServices", {})
         }
+        
+        # Debug logging
+        print(f"Sending version payload to NiFi Registry: {version_payload}")
         
         async with self.session.post(
             f"{self.registry_url}/nifi-registry-api/buckets/{bucket_id}/flows/{flow_id}/versions",
             json=version_payload
         ) as response:
+            # Log the request and response for debugging
+            if response.status >= 400:
+                try:
+                    error_text = await response.text()
+                    print(f"NiFi Registry API Error: {response.status} - {error_text}")
+                except:
+                    pass
             response.raise_for_status()
             return await response.json()
 

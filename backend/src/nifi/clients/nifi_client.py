@@ -150,12 +150,25 @@ class NiFiAPIClient:
             }
         }
         
+        # Debug logging
+        print(f"Sending parameter context data to NiFi: {param_context_data}")
+        
         async with self.session.post(
             f"{self.nifi_url}/nifi-api/parameter-contexts",
             json=param_context_data
         ) as response:
-            response.raise_for_status()
-            return await response.json()
+            # Log the response for debugging
+            if response.status >= 400:
+                try:
+                    error_text = await response.text()
+                    print(f"NiFi API Error: {response.status} - {error_text}")
+                    # Raise the error with more details
+                    response.raise_for_status()
+                except Exception as e:
+                    print(f"Exception while handling NiFi API error: {str(e)}")
+                    raise
+            else:
+                return await response.json()
 
     async def get_parameter_context(self, context_id: str) -> Dict[str, Any]:
         """Get parameter context by ID."""

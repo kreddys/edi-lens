@@ -310,14 +310,22 @@ class NiFiWorkflowService:
         Returns:
             Parameter context information from NiFi
         """
+        import json
+        
         async with NiFiAPIClient(settings.NIFI_URL) as nifi_client:
             # Convert workflow configuration to NiFi parameters
             parameters = []
             if workflow.configuration:
                 for key, value in workflow.configuration.items():
+                    # Convert value to string, but handle dictionaries properly
+                    if isinstance(value, (dict, list)):
+                        value_str = json.dumps(value)
+                    else:
+                        value_str = str(value) if value is not None else ""
+                        
                     parameters.append({
                         "name": key,
-                        "value": str(value) if value is not None else "",
+                        "value": value_str,
                         "sensitive": False,
                         "description": f"Configuration parameter {key}"
                     })

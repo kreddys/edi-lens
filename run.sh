@@ -212,9 +212,9 @@ case "$ACTION" in
         check_docker
         $DC_EXEC build "$@"
         ;;
-    logs)
+    logs:recent)
         check_docker
-        $DC_EXEC logs -f "$@"
+        $DC_EXEC logs --tail 50 "$@"
         ;;
     # --- setup:keycloak is now primarily for re-running the setup on an already running system ---
     migrate:make|migrate:run|setup:keycloak|setup:sftpgo|setup:seed|db:exec)
