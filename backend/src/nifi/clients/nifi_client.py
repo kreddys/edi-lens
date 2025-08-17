@@ -116,19 +116,49 @@ class NiFiAPIClient:
 
     async def start_process_group(self, process_group_id: str) -> Dict[str, Any]:
         """Start a process group."""
+        # Use the correct NiFi API endpoint and format for starting process groups
+        # The request body needs to include the process group ID and state
+        request_body = {
+            "id": process_group_id,
+            "state": "RUNNING"
+        }
+        
         async with self.session.put(
-            f"{self.nifi_url}/nifi-api/process-groups/{process_group_id}/state",
-            json={"state": "RUNNING"}
+            f"{self.nifi_url}/nifi-api/flow/process-groups/{process_group_id}",
+            json=request_body,
+            headers={"Content-Type": "application/json"}
         ) as response:
+            # Log the response for debugging
+            if response.status >= 400:
+                try:
+                    error_text = await response.text()
+                    print(f"NiFi API Error (start): {response.status} - {error_text}")
+                except:
+                    pass
             response.raise_for_status()
             return await response.json()
 
     async def stop_process_group(self, process_group_id: str) -> Dict[str, Any]:
         """Stop a process group."""
+        # Use the correct NiFi API endpoint and format for stopping process groups
+        # The request body needs to include the process group ID and state
+        request_body = {
+            "id": process_group_id,
+            "state": "STOPPED"
+        }
+        
         async with self.session.put(
-            f"{self.nifi_url}/nifi-api/process-groups/{process_group_id}/state",
-            json={"state": "STOPPED"}
+            f"{self.nifi_url}/nifi-api/flow/process-groups/{process_group_id}",
+            json=request_body,
+            headers={"Content-Type": "application/json"}
         ) as response:
+            # Log the response for debugging
+            if response.status >= 400:
+                try:
+                    error_text = await response.text()
+                    print(f"NiFi API Error (stop): {response.status} - {error_text}")
+                except:
+                    pass
             response.raise_for_status()
             return await response.json()
 

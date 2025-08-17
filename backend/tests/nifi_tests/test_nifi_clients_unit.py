@@ -313,8 +313,9 @@ class TestNiFiAPIClient:
                 result = await client.start_process_group("pg-123")
                 assert result == expected_result
                 mock_session.put.assert_called_once_with(
-                    "http://localhost:8080/nifi-api/process-groups/pg-123/state",
-                    json={"state": "RUNNING"}
+                    "http://localhost:8080/nifi-api/flow/process-groups/pg-123",
+                    json={"id": "pg-123", "state": "RUNNING"},
+                    headers={"Content-Type": "application/json"}
                 )
 
     @pytest.mark.asyncio
@@ -345,8 +346,9 @@ class TestNiFiAPIClient:
                 result = await client.stop_process_group("pg-123")
                 assert result == expected_result
                 mock_session.put.assert_called_once_with(
-                    "http://localhost:8080/nifi-api/process-groups/pg-123/state",
-                    json={"state": "STOPPED"}
+                    "http://localhost:8080/nifi-api/flow/process-groups/pg-123",
+                    json={"id": "pg-123", "state": "STOPPED"},
+                    headers={"Content-Type": "application/json"}
                 )
 
     @pytest.mark.asyncio
