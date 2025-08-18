@@ -39,12 +39,19 @@ jest.mock('../../utils', () => ({
       preferred_username: 'testuser',
       email: 'test@example.com',
       groups: ['tenant-a', 'tenant-b']
-    }))
+    })),
+    tokenParsed: {
+      sub: 'test-user-123',
+      name: 'Test User',
+      groups: ['tenant-a', 'tenant-b'],
+      realm_access: { roles: ['admin', 'user'] }
+    }
   },
   getLogger: jest.fn(() => ({
     log: jest.fn(),
     warn: jest.fn(),
-    error: jest.fn()
+    error: jest.fn(),
+    debug: jest.fn()
   }))
 }));
 
@@ -91,7 +98,7 @@ describe('🔧 Provider Tests', () => {
       
       const result = await authProvider.logout({});
       
-      expect(result).toEqual({ success: true });
+      expect(result).toEqual({ success: true, redirectTo: '/login' });
       expect(mockKeycloak.logout).toHaveBeenCalled();
       expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('selected_tenant');
     });

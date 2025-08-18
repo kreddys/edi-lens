@@ -1,8 +1,6 @@
 import React from "react";
 import {
   Show,
-  NumberField,
-  TagField,
 } from "@refinedev/antd";
 import {
   Card,
@@ -11,23 +9,18 @@ import {
   Typography,
   Tag,
   Space,
-  Divider,
   Descriptions,
   Spin,
-  Alert,
-  Button
 } from "antd";
-import { IResourceComponentsProps, useShow, useDataProvider } from "@refinedev/core";
+import { IResourceComponentsProps, useShow } from "@refinedev/core";
 import { TemplateStatusBadge } from "../../components/workflow/StatusBadges";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 export const WorkflowTemplateShow: React.FC<IResourceComponentsProps> = () => {
   const { queryResult } = useShow();
   const { data, isLoading } = queryResult;
   const record = data?.data;
-
-  const dataProvider = useDataProvider();
 
   if (isLoading) {
     return (

@@ -15,6 +15,18 @@ Object.defineProperty(globalThis, 'import', {
   }
 });
 
+// Also mock import.meta.env directly
+Object.defineProperty(globalThis, 'import.meta', {
+  value: {
+    env: {
+      VITE_KEYCLOAK_URL: 'http://localhost:8080',
+      VITE_KEYCLOAK_REALM: 'test-realm',
+      VITE_KEYCLOAK_CLIENT_ID: 'test-client',
+      VITE_API_URL: 'http://localhost:8000'
+    }
+  }
+});
+
 // Mock Keycloak module
 jest.mock('../utils/keycloak', () => ({
   __esModule: true,

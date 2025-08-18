@@ -25,7 +25,6 @@ import {
   CheckCircleOutlined,
   ExclamationCircleOutlined
 } from "@ant-design/icons";
-import { useCustom } from "@refinedev/core";
 import axios from "axios";
 
 const { TextArea } = Input;
@@ -54,14 +53,7 @@ interface ValidationResult {
   }>;
 }
 
-interface Profile {
-  id: number;
-  name: string;
-  implementation_guide: string;
-  snip_level: string;
-  generate_ta1: boolean;
-  generate_999: boolean;
-}
+
 
 export const ValidationHub: React.FC = () => {
   const [ediContent, setEdiContent] = useState<string>("");
@@ -219,7 +211,7 @@ export const ValidationHub: React.FC = () => {
                     onChange={setSelectedProfile}
                     style={{ width: "100%" }}
                     options={profiles.map(profile => ({
-                      label: `${profile.name} (${profile.implementation_guide})`,
+                      label: `${profile.name} (${profile.description})`,
                       value: profile.name
                     }))}
                   />

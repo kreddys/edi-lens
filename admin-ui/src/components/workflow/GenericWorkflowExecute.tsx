@@ -244,7 +244,8 @@ export const GenericWorkflowExecute: React.FC<GenericWorkflowExecuteProps> = ({
       });
 
       if (result?.data) {
-        setExecutionResult(result.data);
+        // Type assertion to ProcessingResult since we know the structure
+        setExecutionResult(result.data as ProcessingResult);
         
         notification.success({
           message: "Processing Complete",
@@ -397,7 +398,7 @@ export const GenericWorkflowExecute: React.FC<GenericWorkflowExecuteProps> = ({
                   message={`${result.code}: ${result.message}`}
                   type={result.level === "error" ? "error" : result.level === "warning" ? "warning" : "info"}
                   showIcon
-                  size="small"
+                  style={{ fontSize: '12px' }}
                 />
               ))}
             </Space>

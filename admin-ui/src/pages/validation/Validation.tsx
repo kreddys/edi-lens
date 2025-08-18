@@ -26,7 +26,6 @@ import {
   DownloadOutlined,
   FileTextOutlined,
 } from "@ant-design/icons";
-import { useCustom } from "@refinedev/core";
 import axios from "axios";
 
 const { TextArea } = Input;
@@ -48,10 +47,7 @@ interface ValidationResult {
   }>;
 }
 
-interface Profile {
-  id: number;
-  name: string;
-}
+
 
 export const Validation: React.FC = () => {
   const [form] = Form.useForm();
