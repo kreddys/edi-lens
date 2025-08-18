@@ -58,15 +58,14 @@ export const Validation: React.FC = () => {
   const [isValidating, setIsValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
 
-  const { data: profilesData, isLoading: isLoadingProfiles } = useCustom<Profile[]>({
-    url: "/trading-partners",
-    method: "get",
-  });
-
-  const allProfiles = useMemo(() => {
-    if (!profilesData?.data) return [];
-    return profilesData.data.flatMap((partner: any) => partner.profiles || []);
-  }, [profilesData]);
+  // Define standard EDI profiles for validation
+  const standardProfiles = useMemo(() => [
+    { name: 'auto-detect', description: 'Auto-detect format and validate' },
+    { name: 'x12-5010', description: 'X12 5010 Standard' },
+    { name: 'x12-4010', description: 'X12 4010 Standard' },
+    { name: 'edifact', description: 'UN/EDIFACT Standard' },
+    { name: 'custom', description: 'Custom validation rules' }
+  ], []);
 
   const handleFileUpload = (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
@@ -148,10 +147,9 @@ export const Validation: React.FC = () => {
               rules={[{ required: true, message: "Please select a validation profile." }]}
             >
               <Select
-                placeholder="Select a profile..."
-                loading={isLoadingProfiles}
-                options={allProfiles.map(profile => ({
-                  label: profile.name,
+                placeholder="Select validation profile..."
+                options={standardProfiles.map(profile => ({
+                  label: `${profile.name} - ${profile.description}`,
                   value: profile.name
                 }))}
                 showSearch

@@ -50,10 +50,10 @@ if [ -z "$1" ] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]]; then
     echo "  dev:test unit [args...]         Run backend unit tests (no Docker needed)."
     echo "  dev:test integration [args...]  Run backend integration tests against the dev stack."
     echo "  dev:test e2e [args...]          Run backend end-to-end tests against the dev stack."
-    echo "  dev:test ui [args...]           Run UI tests (Jest + React Testing Library)."
-    echo "  dev:test ui:workflows           Run workflow component tests specifically."
-    echo "  dev:test ui:integration         Run UI-backend integration tests."
-    echo "  dev:test ui:legacy              Run legacy UI component tests."
+    echo "  dev:test ui [args...]           Run UI tests (Jest + React Testing Library). Logs saved to tmp/ui-test-logs-*/"
+    echo "  dev:test ui:workflows           Run workflow component tests specifically. Logs saved to tmp/ui-workflow-test-logs-*/"
+    echo "  dev:test ui:integration         Run UI-backend integration tests. Logs saved to tmp/ui-integration-test-logs-*/"
+    echo "  dev:test ui:legacy              Run legacy UI component tests. Logs saved to tmp/ui-legacy-test-logs-*/"
     exit 0
 fi
 
@@ -285,40 +285,111 @@ case "$ACTION" in
                 info "Running UI tests in Docker with Jest and React Testing Library..."
                 ensure_infra
                 info "Ensuring dev stack is running for UI tests..."
-                $DC_EXEC up -d --build --wait admin-ui
+                
+                # Create temp directory for detailed logs within project
+                UI_LOG_DIR="$PROJECT_ROOT/tmp/ui-test-logs-$(date +%Y%m%d-%H%M%S)"
+                mkdir -p "$UI_LOG_DIR"
+                info "Detailed logs will be saved to: $UI_LOG_DIR"
+                
+                # Redirect verbose output to log files for cleaner console output
+                $DC_EXEC up -d --build --wait admin-ui 2>"$UI_LOG_DIR/docker-build.log" >"$UI_LOG_DIR/docker-output.log"
                 
                 info "Running Jest tests in admin-ui container..."
-                $DC_EXEC exec admin-ui npm run test -- --watchAll=false --coverage "$@"
+                $DC_EXEC exec admin-ui npm run test -- --watchAll=false --coverage "$@" 2>"$UI_LOG_DIR/test-errors.log" | tee "$UI_LOG_DIR/test-output.log"
+                test_exit_code=$?
+                
+                # Check if Jest reported coverage threshold failures
+                if grep -q "coverage threshold.*not met" "$UI_LOG_DIR/test-errors.log"; then
+                    echo -e "\033[31m[ERROR] UI tests failed: Coverage thresholds not met. Check logs in: $UI_LOG_DIR\033[0m" >&2
+                    echo -e "\033[34m[INFO] Coverage threshold failures detected in test-errors.log\033[0m"
+                    echo -e "\033[34m[INFO] Key log files:\033[0m"
+                    echo -e "\033[34m[INFO]   - Test output: $UI_LOG_DIR/test-output.log\033[0m"
+                    echo -e "\033[34m[INFO]   - Test errors: $UI_LOG_DIR/test-errors.log\033[0m" 
+                    echo -e "\033[34m[INFO]   - Docker build: $UI_LOG_DIR/docker-build.log\033[0m"
+                    exit 1
+                elif [ $test_exit_code -ne 0 ]; then
+                    echo -e "\033[31m[ERROR] UI tests failed with exit code $test_exit_code. Check logs in: $UI_LOG_DIR\033[0m" >&2
+                    echo -e "\033[34m[INFO] Key log files:\033[0m"
+                    echo -e "\033[34m[INFO]   - Test output: $UI_LOG_DIR/test-output.log\033[0m"
+                    echo -e "\033[34m[INFO]   - Test errors: $UI_LOG_DIR/test-errors.log\033[0m" 
+                    echo -e "\033[34m[INFO]   - Docker build: $UI_LOG_DIR/docker-build.log\033[0m"
+                    exit $test_exit_code
+                else
+                    success "UI tests completed successfully!"
+                    info "Test logs saved to: $UI_LOG_DIR"
+                fi
                 ;;
             ui:workflows)
                 check_docker
                 info "Running NiFi Workflow component tests..."
                 ensure_infra
                 info "Ensuring dev stack is running for workflow tests..."
-                $DC_EXEC up -d --build --wait admin-ui
+                
+                # Create temp directory for detailed logs within project
+                UI_LOG_DIR="$PROJECT_ROOT/tmp/ui-workflow-test-logs-$(date +%Y%m%d-%H%M%S)"
+                mkdir -p "$UI_LOG_DIR"
+                info "Detailed logs will be saved to: $UI_LOG_DIR"
+                
+                $DC_EXEC up -d --build --wait admin-ui 2>"$UI_LOG_DIR/docker-build.log" >"$UI_LOG_DIR/docker-output.log"
                 
                 info "Running workflow component tests..."
-                $DC_EXEC exec admin-ui npm run test -- --watchAll=false --testNamePattern="Workflow" --coverage "$@"
+                if $DC_EXEC exec admin-ui npm run test -- --watchAll=false --testNamePattern="Workflow" --coverage "$@" 2>"$UI_LOG_DIR/test-errors.log" | tee "$UI_LOG_DIR/test-output.log"; then
+                    success "Workflow tests completed successfully!"
+                    info "Test logs saved to: $UI_LOG_DIR"
+                else
+                    error_code=$?
+                    echo -e "\033[31m[ERROR] Workflow tests failed with exit code $error_code. Check logs in: $UI_LOG_DIR\033[0m" >&2
+                    echo -e "\033[34m[INFO] Check logs in: $UI_LOG_DIR\033[0m"
+                    exit $error_code
+                fi
                 ;;
             ui:integration)
                 check_docker
                 info "Running UI-Backend integration tests..."
                 ensure_infra
                 info "Ensuring full dev stack is running for integration tests..."
-                $DC_EXEC up -d --wait backend admin-ui
+                
+                # Create temp directory for detailed logs within project
+                UI_LOG_DIR="$PROJECT_ROOT/tmp/ui-integration-test-logs-$(date +%Y%m%d-%H%M%S)"
+                mkdir -p "$UI_LOG_DIR"
+                info "Detailed logs will be saved to: $UI_LOG_DIR"
+                
+                $DC_EXEC up -d --wait backend admin-ui 2>"$UI_LOG_DIR/docker-build.log" >"$UI_LOG_DIR/docker-output.log"
                 
                 info "Running NiFi workflow integration tests..."
-                $DC_EXEC exec admin-ui npm run test -- --watchAll=false --testNamePattern="NiFi.*Integration" --coverage "$@"
+                if $DC_EXEC exec admin-ui npm run test -- --watchAll=false --testNamePattern="NiFi.*Integration" --coverage "$@" 2>"$UI_LOG_DIR/test-errors.log" | tee "$UI_LOG_DIR/test-output.log"; then
+                    success "UI integration tests completed successfully!"
+                    info "Test logs saved to: $UI_LOG_DIR"
+                else
+                    error_code=$?
+                    echo -e "\033[31m[ERROR] UI integration tests failed with exit code $error_code. Check logs in: $UI_LOG_DIR\033[0m" >&2
+                    echo -e "\033[34m[INFO] Check logs in: $UI_LOG_DIR\033[0m"
+                    exit $error_code
+                fi
                 ;;
             ui:legacy)
                 check_docker
                 info "Running legacy UI component tests..."
                 ensure_infra
                 info "Ensuring dev stack is running for legacy tests..."
-                $DC_EXEC up -d --build --wait admin-ui
+                
+                # Create temp directory for detailed logs within project
+                UI_LOG_DIR="$PROJECT_ROOT/tmp/ui-legacy-test-logs-$(date +%Y%m%d-%H%M%S)"
+                mkdir -p "$UI_LOG_DIR"
+                info "Detailed logs will be saved to: $UI_LOG_DIR"
+                
+                $DC_EXEC up -d --build --wait admin-ui 2>"$UI_LOG_DIR/docker-build.log" >"$UI_LOG_DIR/docker-output.log"
                 
                 info "Running legacy component tests..."
-                $DC_EXEC exec admin-ui npm run test -- --watchAll=false --testNamePattern="Legacy UI" --coverage "$@"
+                if $DC_EXEC exec admin-ui npm run test -- --watchAll=false --testNamePattern="Legacy UI" --coverage "$@" 2>"$UI_LOG_DIR/test-errors.log" | tee "$UI_LOG_DIR/test-output.log"; then
+                    success "Legacy UI tests completed successfully!"
+                    info "Test logs saved to: $UI_LOG_DIR"
+                else
+                    error_code=$?
+                    echo -e "\033[31m[ERROR] Legacy UI tests failed with exit code $error_code. Check logs in: $UI_LOG_DIR\033[0m" >&2
+                    echo -e "\033[34m[INFO] Check logs in: $UI_LOG_DIR\033[0m"
+                    exit $error_code
+                fi
                 ;;
             integration|e2e)
                 check_docker

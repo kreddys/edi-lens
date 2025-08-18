@@ -1,0 +1,406 @@
+# Batch EDI Processor Template
+# Monitors SFTP directories for file processing with optional format translation
+
+metadata:
+  template_id: "global-batch-edi-processor-v1.0"
+  name: "Batch EDI Processor"
+  description: "Monitors SFTP directories for file processing with optional format translation and EDI validation"
+  category: "BATCH"
+  scope: "GLOBAL"
+  tenant_id: null
+  maintainer: "edi-lens-platform"
+  based_on: null
+  version: "1.0"
+  deployment_method: "registry"
+  tags:
+    - "sftp"
+    - "edi" 
+    - "batch"
+    - "validation"
+    - "acknowledgments"
+    - "translation"
+  features:
+    - "sftp-monitoring"
+    - "edi-validation"
+    - "ta1-generation"
+    - "999-generation"
+    - "file-archival"
+    - "error-handling"
+    - "format-translation"
+    - "configurable-translation"
+  is_featured: true
+  status: "ACTIVE"
+
+# NiFi Flow Definition
+flow_definition:
+  processors:
+    - id: "list-sftp-processor"
+      type: "ListSFTP"
+      name: "Monitor SFTP Directory"
+      position:
+        x: 100
+        y: 100
+      properties:
+        Hostname: "${SFTP_HOSTNAME}"
+        Port: "${SFTP_PORT}"
+        Username: "${SFTP_USERNAME}"
+        Password: "${SFTP_PASSWORD}"
+        Remote Path: "${INPUT_PATH}"
+        Search Recursively: "false"
+        File Filter Regex: "${FILE_PATTERN_REGEX}"
+        Polling Interval: "${POLLING_INTERVAL}"
+      auto_terminated_relationships: []
+      scheduling:
+        strategy: "TIMER_DRIVEN"
+        period: "${POLLING_INTERVAL}"
+
+    - id: "route-tenant-processor"
+      type: "RouteOnAttribute"
+      name: "Route by Tenant"
+      position:
+        x: 350
+        y: 100
+      properties:
+        Routing Strategy: "Route to Property name"
+      dynamic_properties:
+        "${TENANT_ID}": "${path:contains('/${TENANT_ID}/')}"
+      auto_terminated_relationships: ["unmatched"]
+
+    - id: "fetch-sftp-processor"
+      type: "FetchSFTP"
+      name: "Fetch File"
+      position:
+        x: 600
+        y: 100
+      properties:
+        Hostname: "${SFTP_HOSTNAME}"
+        Port: "${SFTP_PORT}"
+        Username: "${SFTP_USERNAME}"
+        Password: "${SFTP_PASSWORD}"
+        Remote File: "${path}/${filename}"
+        Move Destination Directory: "${path}/.processing"
+        Create Directory: "true"
+
+    # Conditional Input Translation Processor (enabled via configuration)
+    - id: "input-translation-processor"
+      type: "InvokeHTTP"
+      name: "Translate Input Format"
+      position:
+        x: 750
+        y: 50
+      properties:
+        HTTP Method: "POST"
+        Remote URL: "http://backend:8000/api/v1/edi/transform"
+        Content-Type: "application/json"
+        Authorization: "Bearer ${EDI_BACKEND_SERVICE_TOKEN}"
+        Request Body: |
+          {
+            "input_content": "${flowfile:content}",
+            "input_format": "${INPUT_TRANSLATION_SOURCE_FORMAT}",
+            "output_format": "EDI",
+            "mapping_rules": ${INPUT_TRANSLATION_MAPPING_RULES},
+            "tenant_id": "${TENANT_ID}",
+            "workflow_id": "${WORKFLOW_ID}"
+          }
+      condition: "${INPUT_TRANSLATION_ENABLED:equals('true')}"
+
+    - id: "validate-edi-processor"
+      type: "InvokeHTTP"
+      name: "Validate EDI Content"
+      position:
+        x: 1000
+        y: 100
+      properties:
+        HTTP Method: "POST"
+        Remote URL: "http://backend:8000/api/v1/edi/validate-batch"
+        Content-Type: "application/json"
+        Authorization: "Bearer ${EDI_BACKEND_SERVICE_TOKEN}"
+        Request Body: |
+          {
+            "edi_content": "${flowfile:content}",
+            "tenant_id": "${TENANT_ID}",
+            "workflow_id": "${WORKFLOW_ID}",
+            "validation_schema": "${VALIDATION_SCHEMA}",
+            "snip_level": ${SNIP_LEVEL},
+            "file_name": "${filename}",
+            "callback_url": "http://nifi:8080/webhook/batch-complete",
+            "generate_ta1": ${GENERATE_TA1},
+            "generate_999": ${GENERATE_999}
+          }
+      auto_terminated_relationships: ["retry"]
+
+    - id: "move-to-archive"
+      type: "PutSFTP"
+      name: "Archive Processed File"
+      position:
+        x: 1600
+        y: 50
+      properties:
+        Hostname: "${SFTP_HOSTNAME}"
+        Port: "${SFTP_PORT}"
+        Username: "${SFTP_USERNAME}"
+        Password: "${SFTP_PASSWORD}"
+        Remote Path: "${SUCCESS_ARCHIVE_PATH}/${now():format('yyyy/MM/dd')}"
+        Create Directory: "true"
+
+    - id: "move-to-errors"
+      type: "PutSFTP"
+      name: "Move Failed File to Errors"
+      position:
+        x: 1600
+        y: 150
+      properties:
+        Hostname: "${SFTP_HOSTNAME}"
+        Port: "${SFTP_PORT}"
+        Username: "${SFTP_USERNAME}"
+        Password: "${SFTP_PASSWORD}"
+        Remote Path: "${ERROR_ARCHIVE_PATH}/${now():format('yyyy/MM/dd')}"
+        Create Directory: "true"
+
+  connections:
+    - identifier: "list-to-route-connection"
+      name: "List to Route"
+      source:
+        id: "list-sftp-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "route-tenant-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["success"]
+    
+    - identifier: "route-to-fetch-connection"
+      name: "Route to Fetch"
+      source:
+        id: "route-tenant-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "fetch-sftp-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["${TENANT_ID}"]
+    
+    - identifier: "fetch-to-validate-connection"
+      name: "Fetch to Validate"
+      source:
+        id: "fetch-sftp-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "validate-edi-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["success"]
+    
+    - identifier: "validate-to-archive-connection"
+      name: "Validate to Archive"
+      source:
+        id: "validate-edi-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "move-to-archive"
+        type: "PROCESSOR"
+      selectedRelationships: ["Response"]
+
+# Configuration Schema for UI Generation
+configuration_schema:
+  type: "object"
+  required:
+    - "input_path"
+    - "file_patterns"
+    - "validation"
+    - "sftp_connection"
+    - "output_paths"
+  properties:
+    translation:
+      type: "object"
+      title: "Translation Configuration"
+      description: "Optional format translation settings"
+      properties:
+        input_translation:
+          type: "object"
+          title: "Input Translation"
+          properties:
+            enabled:
+              type: "boolean"
+              title: "Enable Input Translation"
+              description: "Convert input files to EDI before processing"
+              default: false
+            source_format:
+              type: "string"
+              title: "Source Format"
+              description: "Format of input files to convert"
+              enum: ["JSON", "XML", "CSV"]
+            mapping_rules:
+              type: "object"
+              title: "Input Mapping Rules"
+              description: "Custom mapping rules for input translation"
+        output_translation:
+          type: "object"
+          title: "Output Translation"
+          properties:
+            enabled:
+              type: "boolean"
+              title: "Enable Output Translation"
+              description: "Convert processed EDI to other formats"
+              default: false
+            target_format:
+              type: "string"
+              title: "Target Format"
+              description: "Format to convert processed EDI to"
+              enum: ["JSON", "XML", "CSV"]
+            mapping_rules:
+              type: "object"
+              title: "Output Mapping Rules"
+              description: "Custom mapping rules for output translation"
+
+    input_path:
+      type: "string"
+      title: "Input Directory Path"
+      description: "SFTP directory to monitor for incoming files"
+      pattern: "^/sftp/tenants/[^/]+/.+/$"
+      examples: ["/sftp/tenants/tenant-a/claims/in/"]
+
+    file_patterns:
+      type: "array"
+      title: "File Patterns"
+      description: "File patterns to match (glob patterns)"
+      items:
+        type: "string"
+      minItems: 1
+      examples: [["*.edi", "*.x12"]]
+
+    validation:
+      type: "object"
+      title: "Validation Configuration"
+      required: ["schema"]
+      properties:
+        schema:
+          type: "string"
+          title: "EDI Schema"
+          description: "EDI schema file for validation"
+          examples: ["837.5010.X222.A1.json"]
+        snip_level:
+          type: "integer"
+          title: "SNIP Level"
+          description: "Validation strictness level"
+          minimum: 1
+          maximum: 5
+          default: 3
+
+    sftp_connection:
+      type: "object"
+      title: "SFTP Connection"
+      required: ["hostname", "username"]
+      properties:
+        hostname:
+          type: "string"
+          title: "SFTP Hostname"
+          description: "SFTP server hostname or IP address"
+        port:
+          type: "integer"
+          title: "SFTP Port"
+          description: "SFTP server port"
+          default: 22
+          minimum: 1
+          maximum: 65535
+        username:
+          type: "string"
+          title: "SFTP Username"
+          description: "SFTP authentication username"
+        password:
+          type: "string"
+          title: "SFTP Password"
+          description: "SFTP authentication password"
+          format: "password"
+
+    output_paths:
+      type: "object"
+      title: "Output Path Configuration"
+      required: ["success_archive", "error_archive"]
+      properties:
+        success_archive:
+          type: "string"
+          title: "Success Archive Path"
+          description: "Directory for successfully processed files"
+          pattern: "^/sftp/tenants/[^/]+/.+/$"
+        error_archive:
+          type: "string"
+          title: "Error Archive Path"
+          description: "Directory for files with processing errors"
+          pattern: "^/sftp/tenants/[^/]+/.+/$"
+
+# UI Configuration for Dynamic Interface Generation
+ui_configuration:
+  input:
+    title: "📄 EDI Document Input"
+    accepted_file_types: [".edi", ".x12", ".txt"]
+    placeholder_text: "Paste your EDI content here or upload a file..."
+    supports_text_input: true
+    supports_file_upload: true
+    max_file_size_mb: 10
+  processing_options:
+    - name: "generate_ta1"
+      type: "boolean"
+      label: "Generate TA1 Acknowledgment"
+      description: "Generate technical acknowledgment for interchange"
+      default_value: true
+    - name: "generate_999"
+      type: "boolean"
+      label: "Generate 999 Acknowledgment"
+      description: "Generate functional acknowledgment for transaction sets"
+      default_value: false
+    - name: "validation_schema"
+      type: "select"
+      label: "Validation Schema"
+      description: "EDI schema to use for validation"
+      options: ["837.5010.X222.A1.json", "270.5010.X279.A1.json", "835.5010.X221.A1.json"]
+      default_value: "837.5010.X222.A1.json"
+    - name: "snip_level"
+      type: "select"
+      label: "Validation Level"
+      description: "SNIP validation strictness level"
+      options: ["1", "2", "3", "4", "5"]
+      default_value: "3"
+  outputs:
+    - name: "ta1_acknowledgment"
+      label: "TA1 Response"
+      type: "download"
+      description: "Technical acknowledgment"
+      file_extension: ".edi"
+    - name: "ack999_acknowledgment"
+      label: "999 Response"
+      type: "download"
+      description: "Functional acknowledgment"
+      file_extension: ".edi"
+    - name: "validation_report"
+      label: "Validation Results"
+      type: "display"
+      description: "Detailed validation findings"
+    - name: "processing_summary"
+      label: "Processing Summary"
+      type: "display"
+      description: "Summary of batch processing results"
+
+# Processing Capabilities
+processing_capabilities:
+  - "validation"
+  - "acknowledgment_generation"
+  - "batch_processing"
+  - "sftp_monitoring"
+
+# Supported File Types
+supported_file_types:
+  - ".edi"
+  - ".x12" 
+  - ".txt"
+
+# Use Cases
+use_cases:
+  - "edi_validation"
+  - "compliance_checking"
+  - "batch_processing"
+  - "sftp_automation"
+
+# Industry Tags
+industry_tags:
+  - "healthcare"
+  - "finance"
+  - "logistics"
+  - "insurance"

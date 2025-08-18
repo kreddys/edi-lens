@@ -71,13 +71,14 @@ export const ValidationHub: React.FC = () => {
   const [isValidating, setIsValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
 
-  // Fetch available profiles for manual selection
-  const { data: profilesData } = useCustom<Profile[]>({
-    url: "/trading-partners",
-    method: "get",
-  });
-
-  const profiles = profilesData?.data || [];
+  // Define standard validation profiles
+  const profiles = [
+    { name: 'auto-detect', description: 'Auto-detect format and validate' },
+    { name: 'x12-5010', description: 'X12 5010 Standard' },
+    { name: 'x12-4010', description: 'X12 4010 Standard' },
+    { name: 'edifact', description: 'UN/EDIFACT Standard' },
+    { name: 'custom', description: 'Custom validation rules' }
+  ];
 
   const handleFileUpload = (file: File) => {
     const reader = new FileReader();

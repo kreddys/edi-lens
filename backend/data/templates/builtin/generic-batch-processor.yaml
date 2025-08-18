@@ -1,0 +1,333 @@
+# Generic Batch File Processor Template
+# Monitors directories for file processing with optional format transformation
+
+metadata:
+  template_id: "global-generic-batch-processor-v1.0"
+  name: "Generic Batch Processor"
+  description: "Monitors directories for file processing with optional format transformation and validation"
+  category: "BATCH"
+  scope: "GLOBAL"
+  tenant_id: null
+  maintainer: "edi-lens-platform"
+  based_on: null
+  version: "1.0"
+  deployment_method: "registry"
+  tags:
+    - "batch"
+    - "file_monitoring"
+    - "validation"
+    - "transformation"
+  features:
+    - "file-monitoring"
+    - "validation"
+    - "format-transformation"
+    - "file-archival"
+    - "error-handling"
+  is_featured: true
+  status: "ACTIVE"
+
+# NiFi Flow Definition
+flow_definition:
+  processors:
+    - id: "list-files-processor"
+      type: "ListFile"
+      name: "Monitor Directory"
+      position:
+        x: 100
+        y: 100
+      properties:
+        Input Directory: "${INPUT_PATH}"
+        File Filter: "${FILE_PATTERN}"
+        Minimum File Age: "${MIN_FILE_AGE}"
+        Polling Interval: "${POLLING_INTERVAL}"
+      auto_terminated_relationships: []
+      scheduling:
+        strategy: "TIMER_DRIVEN"
+        period: "${POLLING_INTERVAL}"
+
+    - id: "fetch-file-processor"
+      type: "FetchFile"
+      name: "Fetch File"
+      position:
+        x: 350
+        y: 100
+      properties:
+        Filename: "${path}/${filename}"
+        Move Destination Directory: "${path}/.processing"
+        Move Conflict Strategy: "Replace"
+        Keep Source File: "false"
+
+    - id: "detect-file-type-processor"
+      type: "UpdateAttribute"
+      name: "Detect File Type"
+      position:
+        x: 600
+        y: 100
+      properties:
+        detected.file.type: "${filename:substringAfterLast('.')}"
+        processing.timestamp: "${now():format('yyyy-MM-dd HH:mm:ss')}"
+
+    # Conditional Input Transformation Processor (enabled via configuration)
+    - id: "input-transformation-processor"
+      type: "InvokeHTTP"
+      name: "Transform Input Format"
+      position:
+        x: 750
+        y: 50
+      properties:
+        HTTP Method: "POST"
+        Remote URL: "http://backend:8000/api/v1/files/transform"
+        Content-Type: "application/json"
+        Authorization: "Bearer ${BACKEND_SERVICE_TOKEN}"
+        Request Body: |
+          {
+            "input_content": "${flowfile:content}",
+            "input_format": "${INPUT_TRANSFORMATION_SOURCE_FORMAT}",
+            "output_format": "${INPUT_TRANSFORMATION_TARGET_FORMAT}",
+            "mapping_rules": ${INPUT_TRANSFORMATION_MAPPING_RULES},
+            "tenant_id": "${TENANT_ID}",
+            "workflow_id": "${WORKFLOW_ID}"
+          }
+      condition: "${INPUT_TRANSFORMATION_ENABLED:equals('true')}"
+
+    - id: "validate-content-processor"
+      type: "InvokeHTTP"
+      name: "Validate Content"
+      position:
+        x: 1000
+        y: 100
+      properties:
+        HTTP Method: "POST"
+        Remote URL: "http://backend:8000/api/v1/files/validate"
+        Content-Type: "application/json"
+        Authorization: "Bearer ${BACKEND_SERVICE_TOKEN}"
+        Request Body: |
+          {
+            "content": "${flowfile:content}",
+            "tenant_id": "${TENANT_ID}",
+            "workflow_id": "${WORKFLOW_ID}",
+            "validation_rules": "${VALIDATION_RULES}",
+            "file_name": "${filename}",
+            "callback_url": "http://nifi:8080/webhook/batch-complete"
+          }
+      auto_terminated_relationships: ["retry"]
+
+    - id: "move-to-success-archive"
+      type: "PutFile"
+      name: "Archive Processed File"
+      position:
+        x: 1600
+        y: 50
+      properties:
+        Directory: "${SUCCESS_ARCHIVE_PATH}/${now():format('yyyy/MM/dd')}"
+        Conflict Resolution Strategy: "replace"
+        Create Missing Directories: "true"
+
+    - id: "move-to-error-archive"
+      type: "PutFile"
+      name: "Move Failed File to Errors"
+      position:
+        x: 1600
+        y: 150
+      properties:
+        Directory: "${ERROR_ARCHIVE_PATH}/${now():format('yyyy/MM/dd')}"
+        Conflict Resolution Strategy: "replace"
+        Create Missing Directories: "true"
+
+  connections:
+    - identifier: "list-to-fetch-connection"
+      name: "List to Fetch"
+      source:
+        id: "list-files-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "fetch-file-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["success"]
+    
+    - identifier: "fetch-to-detect-connection"
+      name: "Fetch to Detect"
+      source:
+        id: "fetch-file-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "detect-file-type-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["success"]
+    
+    - identifier: "detect-to-validate-connection"
+      name: "Detect to Validate"
+      source:
+        id: "detect-file-type-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "validate-content-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["success"]
+    
+    - identifier: "validate-to-archive-connection"
+      name: "Validate to Archive"
+      source:
+        id: "validate-content-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "move-to-success-archive"
+        type: "PROCESSOR"
+      selectedRelationships: ["Response"]
+
+# Configuration Schema for UI Generation
+configuration_schema:
+  type: "object"
+  required:
+    - "input_path"
+    - "file_patterns"
+    - "validation"
+    - "output_paths"
+  properties:
+    transformation:
+      type: "object"
+      title: "Transformation Configuration"
+      description: "Optional format transformation settings"
+      properties:
+        input_transformation:
+          type: "object"
+          title: "Input Transformation"
+          properties:
+            enabled:
+              type: "boolean"
+              title: "Enable Input Transformation"
+              description: "Convert input files to target format before processing"
+              default: false
+            source_format:
+              type: "string"
+              title: "Source Format"
+              description: "Format of input files to convert"
+              enum: ["JSON", "XML", "CSV", "EDI"]
+            target_format:
+              type: "string"
+              title: "Target Format"
+              description: "Format to convert input files to"
+              enum: ["JSON", "XML", "CSV", "EDI"]
+            mapping_rules:
+              type: "object"
+              title: "Input Mapping Rules"
+              description: "Custom mapping rules for input transformation"
+
+    input_path:
+      type: "string"
+      title: "Input Directory Path"
+      description: "Directory to monitor for incoming files"
+      examples: ["/data/incoming/files/"]
+
+    file_patterns:
+      type: "array"
+      title: "File Patterns"
+      description: "File patterns to match (glob patterns)"
+      items:
+        type: "string"
+      minItems: 1
+      examples: [["*.csv", "*.json", "*.xml"]]
+
+    validation:
+      type: "object"
+      title: "Validation Configuration"
+      properties:
+        rules:
+          type: "object"
+          title: "Validation Rules"
+          description: "Custom validation rules for content"
+        strict_mode:
+          type: "boolean"
+          title: "Strict Validation Mode"
+          description: "Fail on warnings"
+          default: false
+
+    output_paths:
+      type: "object"
+      title: "Output Path Configuration"
+      required: ["success_archive", "error_archive"]
+      properties:
+        success_archive:
+          type: "string"
+          title: "Success Archive Path"
+          description: "Directory for successfully processed files"
+        error_archive:
+          type: "string"
+          title: "Error Archive Path"
+          description: "Directory for files with processing errors"
+
+# UI Configuration for Dynamic Interface Generation
+ui_configuration:
+  input:
+    title: "📁 File Input"
+    accepted_file_types: [".csv", ".json", ".xml", ".txt", ".edi", ".x12"]
+    placeholder_text: "Upload your file or paste content here..."
+    supports_text_input: true
+    supports_file_upload: true
+    max_file_size_mb: 100
+  processing_options:
+    - name: "input_transformation_enabled"
+      type: "boolean"
+      label: "Enable Input Transformation"
+      description: "Transform input files to target format before processing"
+      default_value: false
+    - name: "input_transformation_source_format"
+      type: "select"
+      label: "Source Format"
+      description: "Format of input files"
+      options: ["CSV", "JSON", "XML", "EDI", "Auto-detect"]
+      default_value: "Auto-detect"
+    - name: "input_transformation_target_format"
+      type: "select"
+      label: "Target Format"
+      description: "Format to convert input files to"
+      options: ["CSV", "JSON", "XML", "EDI"]
+      default_value: "JSON"
+    - name: "validation_strict_mode"
+      type: "boolean"
+      label: "Strict Validation"
+      description: "Fail on warnings"
+      default_value: false
+  outputs:
+    - name: "processed_file"
+      label: "Processed File"
+      type: "download"
+      description: "Successfully processed file"
+    - name: "validation_report"
+      label: "Validation Results"
+      type: "display"
+      description: "Detailed validation findings"
+    - name: "processing_summary"
+      label: "Processing Summary"
+      type: "display"
+      description: "Summary of batch processing results"
+
+# Processing Capabilities
+processing_capabilities:
+  - "validation"
+  - "transformation"
+  - "batch_processing"
+  - "file_monitoring"
+
+# Supported File Types
+supported_file_types:
+  - ".csv"
+  - ".json"
+  - ".xml"
+  - ".txt"
+  - ".edi"
+  - ".x12"
+
+# Use Cases
+use_cases:
+  - "file_validation"
+  - "format_conversion"
+  - "batch_processing"
+  - "file_monitoring"
+
+# Industry Tags
+industry_tags:
+  - "general"
+  - "data_processing"
+  - "integration"
+  - "automation"

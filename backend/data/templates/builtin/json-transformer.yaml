@@ -1,0 +1,305 @@
+# JSON Data Transformer Template
+# Transform JSON data to various formats (CSV, XML, YAML)
+
+metadata:
+  template_id: "global-json-transformer-v1.0"
+  name: "JSON Data Transformer"
+  description: "Transform JSON data to various formats (CSV, XML, YAML, Parquet)"
+  category: "TRANSFORMATION"
+  scope: "GLOBAL"
+  tenant_id: null
+  maintainer: "edi-lens-platform"
+  based_on: null
+  version: "1.0"
+  deployment_method: "registry"
+  tags:
+    - "json"
+    - "transformation"
+    - "data_conversion"
+    - "csv"
+    - "xml"
+    - "yaml"
+  features:
+    - "json-parsing"
+    - "format-conversion"
+    - "data-validation"
+    - "schema-generation"
+    - "nested-flattening"
+  is_featured: true
+  status: "ACTIVE"
+
+# NiFi Flow Definition
+flow_definition:
+  processors:
+    - id: "listen-http-processor"
+      type: "ListenHTTP"
+      name: "JSON Input Endpoint"
+      position:
+        x: 100
+        y: 100
+      properties:
+        Listening Port: "${HTTP_LISTENING_PORT}"
+        Base Path: "${HTTP_BASE_PATH}"
+        Max Data Size: "${MAX_PAYLOAD_SIZE}"
+
+    - id: "validate-json-processor"
+      type: "ValidateRecord"
+      name: "Validate JSON Structure"
+      position:
+        x: 350
+        y: 100
+      properties:
+        Record Reader: "JsonTreeReader"
+        Record Writer: "JsonRecordSetWriter"
+        Schema Access Strategy: "Infer Schema"
+
+    - id: "route-output-format-processor"
+      type: "RouteOnAttribute"
+      name: "Route by Output Format"
+      position:
+        x: 600
+        y: 100
+      properties:
+        Routing Strategy: "Route to Property name"
+      dynamic_properties:
+        csv: "${OUTPUT_FORMAT:equals('csv')}"
+        xml: "${OUTPUT_FORMAT:equals('xml')}"
+        yaml: "${OUTPUT_FORMAT:equals('yaml')}"
+        parquet: "${OUTPUT_FORMAT:equals('parquet')}"
+
+    - id: "convert-to-csv-processor"
+      type: "ConvertRecord"
+      name: "Convert to CSV"
+      position:
+        x: 850
+        y: 50
+      properties:
+        Record Reader: "JsonTreeReader"
+        Record Writer: "CSVRecordSetWriter"
+        Include Headers: "${INCLUDE_HEADERS}"
+
+    - id: "convert-to-xml-processor"
+      type: "ConvertRecord"
+      name: "Convert to XML"
+      position:
+        x: 850
+        y: 100
+      properties:
+        Record Reader: "JsonTreeReader"
+        Record Writer: "XMLRecordSetWriter"
+        Schema Access Strategy: "Infer Schema"
+
+    - id: "convert-to-yaml-processor"
+      type: "ReplaceText"
+      name: "Convert to YAML"
+      position:
+        x: 850
+        y: 150
+      properties:
+        Search Value: ".*"
+        Replacement Value: "${json:toYaml()}"
+
+    - id: "generate-summary-processor"
+      type: "ExecuteScript"
+      name: "Generate Conversion Summary"
+      position:
+        x: 1100
+        y: 100
+      properties:
+        Script Engine: "python"
+        Script Body: |
+          import json
+          flowFile = session.get()
+          if flowFile is not None:
+              content = session.read(flowFile).decode('utf-8')
+              try:
+                  data = json.loads(content) if content.strip().startswith('{') else content
+                  summary = {
+                      "conversion_status": "success",
+                      "input_size": len(content),
+                      "output_format": flowFile.getAttribute('OUTPUT_FORMAT'),
+                      "record_count": len(data) if isinstance(data, list) else 1,
+                      "processing_time": "< 1s"
+                  }
+                  flowFile = session.putAttribute(flowFile, 'conversion.summary', json.dumps(summary))
+              except Exception as e:
+                  flowFile = session.putAttribute(flowFile, 'conversion.error', str(e))
+              session.transfer(flowFile, REL_SUCCESS)
+
+  connections:
+    - identifier: "listen-to-validate-connection"
+      source:
+        id: "listen-http-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "validate-json-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["success"]
+
+    - identifier: "validate-to-route-connection"
+      source:
+        id: "validate-json-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "route-output-format-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["valid"]
+
+    - identifier: "route-to-csv-connection"
+      source:
+        id: "route-output-format-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "convert-to-csv-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["csv"]
+
+    - identifier: "route-to-xml-connection"
+      source:
+        id: "route-output-format-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "convert-to-xml-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["xml"]
+
+    - identifier: "route-to-yaml-connection"
+      source:
+        id: "route-output-format-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "convert-to-yaml-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["yaml"]
+
+    - identifier: "csv-to-summary-connection"
+      source:
+        id: "convert-to-csv-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "generate-summary-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["success"]
+
+# Configuration Schema
+configuration_schema:
+  type: "object"
+  required:
+    - "endpoint_config"
+    - "conversion_options"
+  properties:
+    endpoint_config:
+      type: "object"
+      title: "HTTP Endpoint Configuration"
+      required: ["listening_port", "base_path"]
+      properties:
+        listening_port:
+          type: "integer"
+          title: "Listening Port"
+          description: "Port for HTTP endpoint"
+          minimum: 1024
+          maximum: 65535
+          default: 8082
+        base_path:
+          type: "string"
+          title: "Base Path"
+          description: "HTTP base path for the endpoint"
+          default: "/api/transform/json"
+        max_payload_size:
+          type: "string"
+          title: "Max Payload Size"
+          description: "Maximum request payload size"
+          default: "50 MB"
+
+    conversion_options:
+      type: "object"
+      title: "Conversion Options"
+      required: ["output_format"]
+      properties:
+        output_format:
+          type: "string"
+          title: "Output Format"
+          description: "Target format for conversion"
+          enum: ["csv", "xml", "yaml", "parquet"]
+          default: "csv"
+        include_headers:
+          type: "boolean"
+          title: "Include Headers (CSV)"
+          description: "Include column headers in CSV output"
+          default: true
+        flatten_nested:
+          type: "boolean"
+          title: "Flatten Nested Objects"
+          description: "Convert nested objects to flat structure"
+          default: false
+
+# UI Configuration for Dynamic Interface Generation
+ui_configuration:
+  input:
+    title: "📊 JSON Data Input"
+    accepted_file_types: [".json"]
+    placeholder_text: "Paste your JSON data here or upload a file..."
+    supports_text_input: true
+    supports_file_upload: true
+    max_file_size_mb: 50
+  processing_options:
+    - name: "output_format"
+      type: "select"
+      label: "Output Format"
+      description: "Choose the target format for conversion"
+      options: ["csv", "xml", "yaml", "parquet"]
+      default_value: "csv"
+      required: true
+    - name: "include_headers"
+      type: "boolean"
+      label: "Include Headers"
+      description: "Include column headers in CSV output"
+      default_value: true
+    - name: "flatten_nested"
+      type: "boolean"
+      label: "Flatten Nested Objects"
+      description: "Convert nested objects to flat structure"
+      default_value: false
+    - name: "validate_schema"
+      type: "boolean"
+      label: "Validate JSON Schema"
+      description: "Validate JSON structure before conversion"
+      default_value: true
+  outputs:
+    - name: "converted_file"
+      label: "Converted Data"
+      type: "download"
+      description: "Data converted to selected format"
+    - name: "conversion_summary"
+      label: "Conversion Summary"
+      type: "display"
+      description: "Summary of conversion process"
+    - name: "schema_info"
+      label: "Schema Information"
+      type: "display"
+      description: "Detected JSON schema structure"
+
+# Processing Capabilities
+processing_capabilities:
+  - "transformation"
+  - "format_conversion"
+  - "schema_validation"
+  - "data_restructuring"
+
+# Supported File Types
+supported_file_types:
+  - ".json"
+
+# Use Cases
+use_cases:
+  - "data_transformation"
+  - "format_conversion"
+  - "data_migration"
+  - "api_integration"
+
+# Industry Tags
+industry_tags:
+  - "general"
+  - "data_analytics"
+  - "integration"
+  - "api_services"

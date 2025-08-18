@@ -7,6 +7,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Test logs and temporary files
+tmp/
+
 # Diagnostic reports
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
@@ -71,4 +74,4 @@ docker/sftpgo/config
 
 # Data directories (excluding templates)
 data/
-!data/templates/
+!backend/data/

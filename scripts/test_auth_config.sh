@@ -32,7 +32,7 @@ echo "🎫 Testing Token Generation:"
 
 # Test NiFi service token
 echo "  → Generating NiFi service token..."
-NIFI_TOKEN=$(python scripts/get_auth_token.py --service nifi-service)
+NIFI_TOKEN=$(python scripts/auth_token_helper.py --service nifi-service)
 if [ $? -eq 0 ]; then
     echo "    ✅ NiFi token generated successfully"
 else
@@ -42,7 +42,7 @@ fi
 
 # Test backend service token  
 echo "  → Generating backend service token..."
-BACKEND_TOKEN=$(python scripts/get_auth_token.py --service backend)
+BACKEND_TOKEN=$(python scripts/auth_token_helper.py --service backend)
 if [ $? -eq 0 ]; then
     echo "    ✅ Backend token generated successfully"
 else
@@ -79,10 +79,10 @@ echo "  ✅ .env.dev.example updated with clear documentation"
 echo ""
 echo "🔧 Usage examples:"
 echo "  # Generate NiFi service token:"
-echo "  python scripts/get_auth_token.py --service nifi-service"
+echo "  python scripts/auth_token_helper.py --service nifi-service"
 echo ""
 echo "  # Generate backend service token:"
-echo "  python scripts/get_auth_token.py --service backend"
+echo "  python scripts/auth_token_helper.py --service backend"
 echo ""
 echo "  # Generate user token (when user auth is fixed):"
-echo "  python scripts/get_auth_token.py --user admin.a@edilens.com --password password --tenant tenant-a"
+echo "  python scripts/auth_token_helper.py --user admin.a@edilens.com --password password --tenant tenant-a"

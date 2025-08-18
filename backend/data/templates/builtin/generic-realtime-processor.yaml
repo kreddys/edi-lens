@@ -1,0 +1,339 @@
+# Generic Real-time File Processor Template
+# Processes files in real-time via HTTP endpoint with optional transformation
+
+metadata:
+  template_id: "global-generic-realtime-processor-v1.0"
+  name: "Generic Real-time Processor"
+  description: "Processes files in real-time via HTTP endpoint with optional transformation and validation"
+  category: "REALTIME"
+  scope: "GLOBAL"
+  tenant_id: null
+  maintainer: "edi-lens-platform"
+  based_on: null
+  version: "1.0"
+  deployment_method: "registry"
+  tags:
+    - "realtime"
+    - "http"
+    - "validation"
+    - "transformation"
+  features:
+    - "http-processing"
+    - "validation"
+    - "format-transformation"
+    - "response-generation"
+  is_featured: true
+  status: "ACTIVE"
+
+# NiFi Flow Definition
+flow_definition:
+  processors:
+    - id: "listen-http-processor"
+      type: "ListenHTTP"
+      name: "HTTP Input Endpoint"
+      position:
+        x: 100
+        y: 100
+      properties:
+        Listening Port: "${HTTP_LISTENING_PORT}"
+        Base Path: "${HTTP_BASE_PATH}"
+        Max Data Size: "${MAX_PAYLOAD_SIZE}"
+
+    - id: "detect-content-type-processor"
+      type: "UpdateAttribute"
+      name: "Detect Content Type"
+      position:
+        x: 350
+        y: 100
+      properties:
+        content.type: "${http.headers.Content-Type:substringAfter('/')}"
+        processing.timestamp: "${now():format('yyyy-MM-dd HH:mm:ss')}"
+
+    # Conditional Input Transformation Processor (enabled via configuration)
+    - id: "input-transformation-processor"
+      type: "InvokeHTTP"
+      name: "Transform Input Format"
+      position:
+        x: 500
+        y: 50
+      properties:
+        HTTP Method: "POST"
+        Remote URL: "http://backend:8000/api/v1/files/transform"
+        Content-Type: "application/json"
+        Authorization: "Bearer ${BACKEND_SERVICE_TOKEN}"
+        Request Body: |
+          {
+            "input_content": "${flowfile:content}",
+            "input_format": "${INPUT_TRANSFORMATION_SOURCE_FORMAT}",
+            "output_format": "${INPUT_TRANSFORMATION_TARGET_FORMAT}",
+            "mapping_rules": ${INPUT_TRANSFORMATION_MAPPING_RULES},
+            "tenant_id": "${TENANT_ID}",
+            "workflow_id": "${WORKFLOW_ID}"
+          }
+      condition: "${INPUT_TRANSFORMATION_ENABLED:equals('true')}"
+
+    - id: "validate-content-processor"
+      type: "InvokeHTTP"
+      name: "Validate Content"
+      position:
+        x: 750
+        y: 100
+      properties:
+        HTTP Method: "POST"
+        Remote URL: "http://backend:8000/api/v1/files/validate"
+        Content-Type: "application/json"
+        Authorization: "Bearer ${BACKEND_SERVICE_TOKEN}"
+        Request Body: |
+          {
+            "content": "${flowfile:content}",
+            "tenant_id": "${TENANT_ID}",
+            "workflow_id": "${WORKFLOW_ID}",
+            "validation_rules": "${VALIDATION_RULES}",
+            "file_name": "${filename:or('realtime-input')}"
+          }
+      auto_terminated_relationships: ["retry"]
+
+    - id: "generate-response-processor"
+      type: "InvokeHTTP"
+      name: "Generate Response"
+      position:
+        x: 1000
+        y: 100
+      properties:
+        HTTP Method: "POST"
+        Remote URL: "http://backend:8000/api/v1/files/generate-response"
+        Content-Type: "application/json"
+        Authorization: "Bearer ${BACKEND_SERVICE_TOKEN}"
+        Request Body: |
+          {
+            "content": "${flowfile:content}",
+            "validation_results": "${validation.results}",
+            "tenant_id": "${TENANT_ID}",
+            "workflow_id": "${WORKFLOW_ID}",
+            "response_format": "${RESPONSE_FORMAT}"
+          }
+
+    - id: "respond-http-processor"
+      type: "RespondHTTP"
+      name: "Send HTTP Response"
+      position:
+        x: 1250
+        y: 100
+      properties:
+        HTTP Status Code: "${http.status.code}"
+        Content-Type: "${http.content.type}"
+
+  connections:
+    - identifier: "listen-to-detect-connection"
+      name: "Listen to Detect"
+      source:
+        id: "listen-http-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "detect-content-type-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["success"]
+
+    - identifier: "detect-to-validate-connection"
+      name: "Detect to Validate"
+      source:
+        id: "detect-content-type-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "validate-content-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["success"]
+
+    - identifier: "validate-to-response-connection"
+      name: "Validate to Response"
+      source:
+        id: "validate-content-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "generate-response-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["Response"]
+
+    - identifier: "response-to-respond-connection"
+      name: "Response to Respond"
+      source:
+        id: "generate-response-processor"
+        type: "PROCESSOR"
+      destination:
+        id: "respond-http-processor"
+        type: "PROCESSOR"
+      selectedRelationships: ["success"]
+
+# Configuration Schema
+configuration_schema:
+  type: "object"
+  required:
+    - "endpoint_config"
+    - "processing_options"
+  properties:
+    endpoint_config:
+      type: "object"
+      title: "HTTP Endpoint Configuration"
+      required: ["listening_port", "base_path"]
+      properties:
+        listening_port:
+          type: "integer"
+          title: "Listening Port"
+          description: "Port for HTTP endpoint"
+          minimum: 1024
+          maximum: 65535
+          default: 8081
+        base_path:
+          type: "string"
+          title: "Base Path"
+          description: "HTTP base path for the endpoint"
+          default: "/api/process"
+        max_payload_size:
+          type: "string"
+          title: "Max Payload Size"
+          description: "Maximum request payload size"
+          default: "10 MB"
+
+    transformation:
+      type: "object"
+      title: "Transformation Configuration"
+      description: "Optional format transformation settings"
+      properties:
+        input_transformation:
+          type: "object"
+          title: "Input Transformation"
+          properties:
+            enabled:
+              type: "boolean"
+              title: "Enable Input Transformation"
+              description: "Convert input files to target format before processing"
+              default: false
+            source_format:
+              type: "string"
+              title: "Source Format"
+              description: "Format of input files to convert"
+              enum: ["JSON", "XML", "CSV", "EDI", "Auto-detect"]
+            target_format:
+              type: "string"
+              title: "Target Format"
+              description: "Format to convert input files to"
+              enum: ["JSON", "XML", "CSV", "EDI"]
+            mapping_rules:
+              type: "object"
+              title: "Input Mapping Rules"
+              description: "Custom mapping rules for input transformation"
+
+    processing_options:
+      type: "object"
+      title: "Processing Options"
+      properties:
+        validation:
+          type: "object"
+          title: "Validation Configuration"
+          properties:
+            rules:
+              type: "object"
+              title: "Validation Rules"
+              description: "Custom validation rules for content"
+            strict_mode:
+              type: "boolean"
+              title: "Strict Validation Mode"
+              description: "Fail on warnings"
+              default: false
+        response:
+          type: "object"
+          title: "Response Configuration"
+          properties:
+            format:
+              type: "string"
+              title: "Response Format"
+              description: "Format for response output"
+              enum: ["JSON", "XML", "CSV"]
+              default: "JSON"
+            include_summary:
+              type: "boolean"
+              title: "Include Processing Summary"
+              description: "Include processing summary in response"
+              default: true
+
+# UI Configuration for Dynamic Interface Generation
+ui_configuration:
+  input:
+    title: "🌐 Real-time File Processing"
+    accepted_file_types: [".csv", ".json", ".xml", ".txt", ".edi", ".x12"]
+    placeholder_text: "Paste your content here or upload a file..."
+    supports_text_input: true
+    supports_file_upload: true
+    max_file_size_mb: 10
+  processing_options:
+    - name: "input_transformation_enabled"
+      type: "boolean"
+      label: "Enable Input Transformation"
+      description: "Transform input to target format before processing"
+      default_value: false
+    - name: "input_transformation_source_format"
+      type: "select"
+      label: "Source Format"
+      description: "Format of input content"
+      options: ["CSV", "JSON", "XML", "EDI", "Auto-detect"]
+      default_value: "Auto-detect"
+    - name: "input_transformation_target_format"
+      type: "select"
+      label: "Target Format"
+      description: "Format to convert input to"
+      options: ["CSV", "JSON", "XML", "EDI"]
+      default_value: "JSON"
+    - name: "validation_strict_mode"
+      type: "boolean"
+      label: "Strict Validation"
+      description: "Fail on warnings"
+      default_value: false
+    - name: "response_format"
+      type: "select"
+      label: "Response Format"
+      description: "Format for response output"
+      options: ["JSON", "XML", "CSV"]
+      default_value: "JSON"
+  outputs:
+    - name: "processed_response"
+      label: "Processed Response"
+      type: "display"
+      description: "Processed content response"
+    - name: "validation_report"
+      label: "Validation Results"
+      type: "display"
+      description: "Detailed validation findings"
+    - name: "processing_summary"
+      label: "Processing Summary"
+      type: "display"
+      description: "Summary of processing results"
+
+# Processing Capabilities
+processing_capabilities:
+  - "validation"
+  - "transformation"
+  - "realtime_processing"
+  - "http_integration"
+
+# Supported File Types
+supported_file_types:
+  - ".csv"
+  - ".json"
+  - ".xml"
+  - ".txt"
+  - ".edi"
+  - ".x12"
+
+# Use Cases
+use_cases:
+  - "realtime_processing"
+  - "api_integration"
+  - "format_conversion"
+  - "data_validation"
+
+# Industry Tags
+industry_tags:
+  - "general"
+  - "api_services"
+  - "integration"
+  - "realtime_processing"

@@ -439,7 +439,8 @@ class TestNiFiWorkflowAPIIntegration:
                     f"/api/v1/workflows/{workflow_id}/process",
                     headers=headers,
                     json={
-                        "edi_content": edi_content,
+                        "content": edi_content,
+                        "file_type": "edi",
                         "processing_options": {
                             "generate_ta1": True,
                             "generate_999": False
@@ -455,10 +456,11 @@ class TestNiFiWorkflowAPIIntegration:
                 if response.status_code == 200:
                     data = response.json()
                     # Check for the correct fields based on WorkflowExecutionResponse schema
-                    assert "valid" in data
+                    assert "success" in data  # Updated from "valid" to "success"
                     assert "processing_time_ms" in data
                     assert "workflow_id" in data
                     assert "processed_at" in data
+                    assert "outputs" in data  # New field in updated schema
                     
             except Exception as e:
                 pytest.fail(f"Workflow execution with NiFi test failed: {str(e)}")

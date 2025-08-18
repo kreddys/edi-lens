@@ -1,4 +1,4 @@
-# Scripts Directory
+# Utility Scripts Directory
 
 This directory contains utility scripts for the EDI Lens project.
 
@@ -6,9 +6,30 @@ This directory contains utility scripts for the EDI Lens project.
 
 ### 🔐 Security & Authentication
 
-- **`create_test_jwt.py`** - Generate test JWT tokens for development and testing
+- **`auth_token_helper.py`** - Generate JWT tokens from Keycloak for testing
   ```bash
-  python3 scripts/create_test_jwt.py
+  # Generate service token for NiFi
+  python3 scripts/auth_token_helper.py --service nifi-service
+  
+  # Generate user token for admin user  
+  python3 scripts/auth_token_helper.py --user admin.a@edilens.com --password password --tenant tenant-a
+  ```
+
+### 🧪 API Testing
+
+- **`test_api.py`** - Generic script for testing backend APIs with proper authentication
+  ```bash
+  # List workflow templates
+  python3 scripts/test_api.py
+  
+  # Get a specific template
+  python3 scripts/test_api.py -e /api/v1/workflow-templates/global-batch-edi-processor-v1.0
+  
+  # List schemas
+  python3 scripts/test_api.py -e /api/v1/schemas
+  
+  # Create a new schema (example)
+  python3 scripts/test_api.py -m POST -e /api/v1/schemas -d '{"name":"test","content":"{}"}'
   ```
 
 ### 📊 Development Tools
@@ -16,14 +37,9 @@ This directory contains utility scripts for the EDI Lens project.
 - **`export_for_llm.py`** - Export project structure for AI analysis
 - **`queries.sql`** - Common database queries for debugging
 
-### ⚠️ Legacy Scripts
-
-All legacy SFTP processors have been moved to `backend/scripts/` and are accessible via the secure CLI tools in `run.sh`. No legacy scripts remain in this directory.
-
 ## Security Notes
 
 - **Test JWT tokens are for development only** - Never use in production
-- **Legacy processors lack authentication** - Use secure alternatives via `./run.sh dev:sftp:process`
 - **Always use proper authentication** - All production operations require valid JWT tokens
 
 ## Usage
@@ -33,29 +49,34 @@ Most scripts should be run from the project root directory:
 ```bash
 # From project root
 cd /path/to/edi-lens
-python3 scripts/create_test_jwt.py
+
+# Generate a service token
+python3 scripts/auth_token_helper.py --service backend
+
+# Test an API endpoint
+python3 scripts/test_api.py -e /api/v1/workflows
 ```
 
-For SFTP operations, use the secure CLI tools via run.sh:
+## Script Details
 
-```bash
-# Secure SFTP operations (recommended)
-./run.sh dev:sftp:process --auth-token <JWT> --tenant <TENANT> --list-partners
+### `auth_token_helper.py`
 
-# Legacy operations (deprecated)
-./run.sh dev:sftp:legacy --tenant <TENANT> --partner <PARTNER>
-```
+This script generates JWT tokens from Keycloak for testing EDI validation endpoints and service authentication.
+Supports both user tokens and service account tokens.
 
-## Cleanup History
+### `test_api.py`
 
-**Removed Files** (no longer needed):
-- `manual_sftp_processor.py` - Original insecure processor
-- `manual_sftp_processor_v2.py` - Duplicate (kept in backend/scripts/ only)
-- `process_sftp.sh` - Old shell script approach  
-- `setup-sftpgo-users.py` - Replaced by automated setup
-- `secure_sftp_processor.py` - Moved to backend/scripts/
+This script provides a generic way to test any backend API endpoint with proper authentication.
+It handles token generation and API requests automatically.
 
-**Moved Files**:
-- JWT test generator moved from `/tmp/` to permanent location
+### `test_auth_config.sh`
 
-All legacy and insecure scripts have been removed or deprecated with proper warnings.
+This script demonstrates the standardized, environment-driven authentication configuration.
+It tests token generation and basic API endpoints to verify the authentication setup.
+
+## Best Practices
+
+1. **Always run from project root** - Scripts expect to be run from the project root directory
+2. **Use proper authentication** - Never bypass authentication in production
+3. **Test in development first** - Use these scripts to verify functionality before deploying
+4. **Keep credentials secure** - Never commit real credentials to version control

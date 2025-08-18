@@ -181,15 +181,35 @@ async def execute_workflow(
             auth_context
         )
         
+        # Convert WorkflowExecutionResult to WorkflowExecutionResponse
+        # Extract validation results from outputs
+        validation_results = []
+        
+        # Look for validation results in the outputs
+        for output in result.outputs:
+            if output.get("name") == "validation_results":
+                # If validation results are stored as content, extract them
+                content = output.get("content")
+                if content and isinstance(content, list):
+                    validation_results.extend(content)
+                elif content and isinstance(content, str):
+                    # Try to parse if it's a JSON string
+                    try:
+                        import json
+                        parsed = json.loads(content)
+                        if isinstance(parsed, list):
+                            validation_results.extend(parsed)
+                    except:
+                        pass
+        
         return WorkflowExecutionResponse(
-            valid=result.valid,
-            validation_results=result.validation_results,
-            ta1_acknowledgment=result.ta1_acknowledgment,
-            ack999_acknowledgment=result.ack999_acknowledgment,
+            success=result.valid,
+            outputs=result.outputs,
             processing_time_ms=result.processing_time_ms,
             request_id=result.request_id,
             workflow_id=str(result.workflow_id),
-            processed_at=result.processed_at
+            processed_at=result.processed_at,
+            validation_results=validation_results or None
         )
         
     except ValueError as e:

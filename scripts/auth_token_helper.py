@@ -45,8 +45,6 @@ def error(msg: str) -> None:
     print(f"{Colors.RED}[ERROR]{Colors.NC} {msg}", file=sys.stderr)
 
 
-
-
 def get_service_token_from_keycloak(
     service_name: str,
     keycloak_url: str,
@@ -118,8 +116,9 @@ def get_user_token_from_keycloak(
 ) -> str:
     """Get user token from Keycloak using password grant."""
     
-    # Get UI client configuration from environment
-    client_id = os.getenv("KEYCLOAK_UI_CLIENT_ID", "edi-lens-ui")
+    # Get backend client configuration from environment (using backend client for user auth)
+    client_id = os.getenv("KEYCLOAK_BACKEND_CLIENT_ID", "edi-lens-backend")
+    client_secret = os.getenv("KEYCLOAK_BACKEND_CLIENT_SECRET", "this-is-a-very-secret-key-change-it")
     
     if verbose:
         info(f"Authenticating user: {username}")
@@ -132,6 +131,7 @@ def get_user_token_from_keycloak(
     data = {
         "grant_type": "password",
         "client_id": client_id,
+        "client_secret": client_secret,
         "username": username,
         "password": password,
         "scope": "openid profile email"
@@ -216,7 +216,7 @@ Examples:
   python scripts/get_auth_token.py --service backend
 
   # Get user token for admin user  
-  python scripts/get_auth_token.py --user admin.a@edilens.com --password password --tenant tenant-a
+  python scripts/get_auth_token.py --user superuser@edilens.com --password password --tenant tenant-a
 
   # Test EDI endpoint with generated token
   TOKEN=$(python scripts/get_auth_token.py --service nifi-service)

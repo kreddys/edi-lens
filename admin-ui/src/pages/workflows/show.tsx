@@ -25,7 +25,7 @@ import {
 import { IResourceComponentsProps, useShow, useDataProvider } from "@refinedev/core";
 import { WorkflowStatusBadge, DeploymentBadge } from "../../components/workflow/StatusBadges";
 import { WorkflowControl } from "../../components/workflow/WorkflowControl";
-import { WorkflowExecute } from "../../components/workflow/WorkflowExecute";
+import { GenericWorkflowExecute } from "../../components/workflow/GenericWorkflowExecute";
 
 const { Text } = Typography;
 
@@ -242,8 +242,11 @@ export const WorkflowShow: React.FC<IResourceComponentsProps> = () => {
           {
             label: "Execute",
             key: "execute",
-            children: record?.workflow_id ? (
-              <WorkflowExecute workflowId={record.workflow_id} />
+            children: record?.workflow_id && record?.template_id ? (
+              <GenericWorkflowExecute 
+                workflowId={record.workflow_id} 
+                templateId={record.template_id}
+              />
             ) : (
               <div style={{ textAlign: "center", padding: "40px" }}>
                 <Spin />

@@ -56,6 +56,15 @@ class WorkflowTemplate(Base):
     documentation = Column(Text, nullable=True)  # Usage instructions
     examples = Column(JSONB, nullable=True)  # Example configurations
     
+    # UI configuration for dynamic interface generation
+    ui_configuration = Column(JSONB, nullable=True)  # WorkflowUIConfiguration
+    input_specifications = Column(JSONB, nullable=True)  # Supported input types and constraints
+    output_specifications = Column(JSONB, nullable=True)  # Expected output definitions
+    processing_capabilities = Column(ARRAY(Text), nullable=True)  # e.g., ['validation', 'transformation', 'routing']
+    supported_file_types = Column(ARRAY(Text), nullable=True)  # Supported file extensions
+    use_cases = Column(ARRAY(Text), nullable=True)  # Common use cases for this template
+    industry_tags = Column(ARRAY(Text), nullable=True)  # Industry-specific tags
+    
     # Status and lifecycle
     status = Column(String, nullable=False, default='ACTIVE')  # ACTIVE, DEPRECATED, ARCHIVED
     is_featured = Column(Boolean, nullable=False, default=False)  # Show in featured templates

@@ -312,25 +312,25 @@ describe('🖥️ UI Page Integration Tests', () => {
   // ✅ VALIDATION PAGE INTEGRATION
   // =========================================================================
   describe('✅ Validation Page Integration', () => {
-    it('✅ Validation page trading partners API integration', async () => {
+    it('✅ Validation page EDI processing integration', async () => {
       if (await skipIfBackendDown()) return;
 
-      console.log('\n✅ Testing Validation page trading partners integration');
+      console.log('\n✅ Testing Validation page EDI processing integration');
       
-      // Test trading partners API (used by validation page for profile selection)
-      const result = await callAPI('/trading-partners');
+      // Test EDI validation API (main functionality of validation page)
+      const testData = { content: 'ISA*00*TEST*EDI*CONTENT~', type: 'edi' };
+      const result = await callAPI('/validate', {
+        method: 'POST',
+        body: JSON.stringify(testData)
+      });
       
-      console.log(`✅ Trading partners API status: ${result.status}`);
+      console.log(`✅ EDI validation API status: ${result.status}`);
       
       if (result.status === 200) {
-        expect(Array.isArray(result.data)).toBe(true);
-        console.log(`✅ Validation page can load trading partner profiles`);
-        
-        // Check if profiles are available for selection
-        const profiles = result.data.flatMap((partner: any) => partner.profiles || []);
-        console.log(`✅ Found ${profiles.length} profiles for EDI validation`);
+        expect(result.data).toBeDefined();
+        console.log(`✅ Validation page can process EDI content`);
       } else {
-        console.log(`⚠️  Trading partners API returned ${result.status} (endpoint may not exist)`);
+        console.log(`⚠️  EDI validation API returned ${result.status} (expected - may require auth)`);
       }
     }, 15000);
 
@@ -419,8 +419,8 @@ IEA*1*000000001~`;
       const endpoints = [
         '/workflow-templates',
         '/workflows',
-        '/trading-partners',
-        '/processing-history'
+        '/processing-history',
+        '/schemas'
       ];
 
       for (const endpoint of endpoints) {
@@ -475,7 +475,7 @@ IEA*1*000000001~`;
       const mainRoutes = [
         { path: '/workflow-templates', api: '/workflow-templates', name: 'Templates' },
         { path: '/workflows', api: '/workflows', name: 'Workflows' },
-        { path: '/validation', api: '/trading-partners', name: 'Validation' },
+        { path: '/validation', api: '/validate', name: 'Validation' },
         { path: '/processing-history', api: '/processing-history', name: 'History' },
         { path: '/schema-editor', api: '/schemas', name: 'Schema Editor' }
       ];

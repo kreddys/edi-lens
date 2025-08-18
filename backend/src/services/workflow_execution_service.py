@@ -1,9 +1,9 @@
 """
-Service for executing workflows with EDI content.
+Service for executing workflows with generic file content.
 
 This service handles real-time workflow execution by coordinating with
-template definitions and processing EDI content through validation and
-acknowledgment generation.
+template definitions and processing content through validation and
+format-specific processing.
 
 Integrates with Apache NiFi for actual workflow processing.
 """
@@ -33,22 +33,20 @@ class WorkflowExecutionResult:
     def __init__(
         self,
         valid: bool,
-        validation_results: List[ValidationFinding],
-        ta1_acknowledgment: Optional[str] = None,
-        ack999_acknowledgment: Optional[str] = None,
+        outputs: List[Dict[str, Any]],
         processing_time_ms: int = 0,
         request_id: Optional[str] = None,
         workflow_id: str = "",
-        processed_at: Optional[datetime] = None
+        processed_at: Optional[datetime] = None,
+        metadata: Optional[Dict[str, Any]] = None
     ):
         self.valid = valid
-        self.validation_results = validation_results
-        self.ta1_acknowledgment = ta1_acknowledgment
-        self.ack999_acknowledgment = ack999_acknowledgment
+        self.outputs = outputs
         self.processing_time_ms = processing_time_ms
         self.request_id = request_id
         self.workflow_id = workflow_id
         self.processed_at = processed_at or datetime.utcnow()
+        self.metadata = metadata or {}
 
 
 class WorkflowExecutionService:
@@ -63,7 +61,7 @@ class WorkflowExecutionService:
         execution_request: WorkflowExecutionRequest,
         auth_context: AuthContext
     ) -> WorkflowExecutionResult:
-        """Execute workflow with EDI content."""
+        """Execute workflow with generic file content."""
         
         start_time = datetime.utcnow()
         
@@ -75,13 +73,13 @@ class WorkflowExecutionService:
             # 2. Validate workflow is ready for execution
             await self._validate_workflow_readiness(workflow, template)
             
-            # 3. Process EDI content through NiFi if deployed, otherwise use mock
+            # 3. Process content through NiFi if deployed, otherwise use mock
             if workflow.is_deployed:
-                processing_result = await self._process_edi_content_nifi(
+                processing_result = await self._process_content_nifi(
                     workflow, template, execution_request
                 )
             else:
-                processing_result = await self._process_edi_content_mock(
+                processing_result = await self._process_content_mock(
                     workflow, template, execution_request
                 )
             
@@ -91,13 +89,12 @@ class WorkflowExecutionService:
             # 5. Return execution result
             return WorkflowExecutionResult(
                 valid=processing_result["valid"],
-                validation_results=processing_result["validation_results"],
-                ta1_acknowledgment=processing_result.get("ta1_acknowledgment"),
-                ack999_acknowledgment=processing_result.get("ack999_acknowledgment"),
+                outputs=processing_result["outputs"],
                 processing_time_ms=int(processing_time),
                 request_id=execution_request.request_id,
                 workflow_id=workflow_id,
-                processed_at=datetime.utcnow()
+                processed_at=datetime.utcnow(),
+                metadata=processing_result.get("metadata", {})
             )
             
         except Exception as e:
@@ -106,18 +103,17 @@ class WorkflowExecutionService:
             
             return WorkflowExecutionResult(
                 valid=False,
-                validation_results=[
-                    ValidationFinding(
-                        level="error",
-                        code="EXECUTION_ERROR",
-                        message=f"Workflow execution failed: {str(e)}",
-                        location=FindingLocation(
-                            segment_id="ISA",
-                            segment_instance=1,
-                            element_position=1,
-                            line_number=1
-                        )
-                    )
+                outputs=[
+                    {
+                        "name": "error_report",
+                        "type": "display",
+                        "label": "Error Report",
+                        "content": f"Workflow execution failed: {str(e)}",
+                        "metadata": {
+                            "error_code": "EXECUTION_ERROR",
+                            "timestamp": datetime.utcnow().isoformat()
+                        }
+                    }
                 ],
                 processing_time_ms=int(processing_time),
                 request_id=execution_request.request_id,
@@ -173,16 +169,16 @@ class WorkflowExecutionService:
             if status["nifi_status"] not in ["RUNNING", "STOPPED"]:
                 raise ValueError(f"Workflow {workflow.workflow_id} NiFi process group is in invalid state: {status['nifi_status']}")
     
-    async def _process_edi_content_nifi(
+    async def _process_content_nifi(
         self,
         workflow: Workflow,
         template: WorkflowTemplate,
         execution_request: WorkflowExecutionRequest
     ) -> Dict[str, Any]:
         """
-        Process EDI content through deployed NiFi workflow.
+        Process content through deployed NiFi workflow.
         
-        This method sends the EDI content to the deployed NiFi process group
+        This method sends the content to the deployed NiFi process group
         for actual processing.
         """
         try:
@@ -199,54 +195,40 @@ class WorkflowExecutionService:
             config = workflow.configuration
             processing_options = execution_request.processing_options
             
-            # Generate validation results based on EDI content
-            validation_results = await self._realistic_edi_validation(
-                execution_request.edi_content,
-                config.get("validation", {})
+            # Process content based on template type and configuration
+            outputs = await self._generate_realistic_outputs(
+                execution_request.content,
+                execution_request.file_type,
+                template,
+                processing_options
             )
-            
-            # Generate acknowledgments if requested
-            ta1_acknowledgment = None
-            ack999_acknowledgment = None
-            
-            generate_ta1 = processing_options.get(
-                "generate_ta1", 
-                config.get("acknowledgments", {}).get("generate_ta1", True)
-            )
-            
-            generate_999 = processing_options.get(
-                "generate_999",
-                config.get("acknowledgments", {}).get("generate_999", False)
-            )
-            
-            if generate_ta1:
-                ta1_acknowledgment = await self._realistic_ta1_generation(execution_request.edi_content)
-            
-            if generate_999:
-                ack999_acknowledgment = await self._realistic_999_generation(
-                    execution_request.edi_content, validation_results
-                )
             
             # Determine if processing was successful
-            has_errors = any(finding.level == "error" for finding in validation_results)
+            has_errors = any(
+                output.get("metadata", {}).get("has_errors", False)
+                for output in outputs
+            )
             
             return {
                 "valid": not has_errors,
-                "validation_results": validation_results,
-                "ta1_acknowledgment": ta1_acknowledgment,
-                "ack999_acknowledgment": ack999_acknowledgment
+                "outputs": outputs,
+                "metadata": {
+                    "processing_method": "nifi",
+                    "template_id": template.template_id,
+                    "processing_options": processing_options
+                }
             }
             
         except Exception as e:
             raise Exception(f"NiFi workflow processing failed: {str(e)}")
     
-    async def _process_edi_content_mock(
+    async def _process_content_mock(
         self,
         workflow: Workflow,
         template: WorkflowTemplate,
         execution_request: WorkflowExecutionRequest
     ) -> Dict[str, Any]:
-        """Process EDI content with mock responses for development."""
+        """Process content with mock responses for development."""
         
         # Simulate processing delay
         await asyncio.sleep(0.1)
@@ -255,130 +237,97 @@ class WorkflowExecutionService:
         config = workflow.configuration
         processing_options = execution_request.processing_options
         
-        # Generate mock validation results based on EDI content
-        validation_results = await self._mock_edi_validation(
-            execution_request.edi_content,
-            config.get("validation", {})
+        # Process content based on template type and configuration
+        outputs = await self._generate_realistic_outputs(
+            execution_request.content,
+            execution_request.file_type,
+            template,
+            processing_options
         )
-        
-        # Generate mock acknowledgments if requested
-        ta1_acknowledgment = None
-        ack999_acknowledgment = None
-        
-        generate_ta1 = processing_options.get(
-            "generate_ta1", 
-            config.get("acknowledgments", {}).get("generate_ta1", True)
-        )
-        
-        generate_999 = processing_options.get(
-            "generate_999",
-            config.get("acknowledgments", {}).get("generate_999", False)
-        )
-        
-        if generate_ta1:
-            ta1_acknowledgment = await self._mock_ta1_generation(execution_request.edi_content)
-        
-        if generate_999:
-            ack999_acknowledgment = await self._mock_999_generation(
-                execution_request.edi_content, validation_results
-            )
         
         # Determine if processing was successful
-        has_errors = any(finding.level == "error" for finding in validation_results)
+        has_errors = any(
+            output.get("metadata", {}).get("has_errors", False)
+            for output in outputs
+        )
         
         return {
             "valid": not has_errors,
-            "validation_results": validation_results,
-            "ta1_acknowledgment": ta1_acknowledgment,
-            "ack999_acknowledgment": ack999_acknowledgment
+            "outputs": outputs,
+            "metadata": {
+                "processing_method": "mock",
+                "template_id": template.template_id,
+                "processing_options": processing_options
+            }
         }
     
-    async def _realistic_edi_validation(
+    async def _generate_realistic_outputs(
         self,
-        edi_content: str,
-        validation_config: Dict[str, Any]
-    ) -> List[ValidationFinding]:
-        """Generate realistic validation results based on EDI content."""
+        content: str,
+        file_type: Optional[str],
+        template: WorkflowTemplate,
+        processing_options: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Generate realistic outputs based on template configuration."""
         
-        findings = []
+        outputs = []
+        ui_config = template.ui_configuration or {}
+        output_configs = ui_config.get("outputs", [])
         
-        # Check basic EDI structure
-        if not edi_content.startswith("ISA*"):
-            findings.append(ValidationFinding(
-                level="error",
-                code="ISA001",
-                message="EDI interchange must begin with ISA segment",
-                location=FindingLocation(
-                    segment_id="ISA",
-                    segment_instance=1,
-                    element_position=1,
-                    line_number=1
+        for output_config in output_configs:
+            output_name = output_config.get("name", "")
+            output_type = output_config.get("type", "display")
+            
+            if output_type == "download":
+                # Generate downloadable content based on template type
+                processed_content = await self._process_content_by_template(
+                    content, template, processing_options
                 )
-            ))
-        
-        if not "IEA*" in edi_content:
-            findings.append(ValidationFinding(
-                level="error",
-                code="IEA001",
-                message="EDI interchange must end with IEA segment",
-                location=FindingLocation(
-                    segment_id="IEA",
-                    segment_instance=1,
-                    element_position=1,
-                    line_number=len(edi_content.split('\n'))
+                outputs.append({
+                    "name": output_name,
+                    "type": "download",
+                    "content": processed_content,
+                    "download_filename": f"processed_{output_name}.{self._get_file_extension(template)}",
+                    "mime_type": self._get_mime_type(template),
+                    "file_extension": f".{self._get_file_extension(template)}",
+                    "metadata": {
+                        "size": len(processed_content),
+                        "format": self._detect_output_format(template),
+                        "has_errors": False
+                    }
+                })
+                
+            elif output_type == "display":
+                # Generate display content like validation reports or summaries
+                display_content = await self._generate_display_output(
+                    content, output_name, template, processing_options
                 )
-            ))
-        
-        # Check segment terminators
-        if not edi_content.rstrip().endswith("~"):
-            findings.append(ValidationFinding(
-                level="error", 
-                code="SEG001",
-                message="EDI segments must end with segment terminator",
-                location=FindingLocation(
-                    segment_id="IEA",
-                    segment_instance=1,
-                    element_position=1,
-                    line_number=len(edi_content.split('\n'))
+                outputs.append({
+                    "name": output_name,
+                    "type": "display",
+                    "content": display_content,
+                    "metadata": {
+                        "format": "text",
+                        "has_errors": False
+                    }
+                })
+            
+            elif output_type == "status":
+                # Generate status information
+                status_content = await self._generate_status_output(
+                    content, output_name, template, processing_options
                 )
-            ))
+                outputs.append({
+                    "name": output_name,
+                    "type": "status",
+                    "content": status_content,
+                    "metadata": {
+                        "format": "status",
+                        "has_errors": False
+                    }
+                })
         
-        # Check for common segments
-        required_segments = ["ISA", "GS", "ST", "SE", "GE", "IEA"]
-        missing_segments = []
-        for segment in required_segments:
-            if not any(line.startswith(f"{segment}*") for line in edi_content.split('\n')):
-                missing_segments.append(segment)
-        
-        if missing_segments:
-            findings.append(ValidationFinding(
-                level="error",
-                code="STRUCT001",
-                message=f"Missing required segments: {', '.join(missing_segments)}",
-                location=FindingLocation(
-                    segment_id=missing_segments[0],
-                    segment_instance=1,
-                    element_position=1,
-                    line_number=1
-                )
-            ))
-        
-        # Schema-specific validation
-        schema = validation_config.get("schema", "")
-        if "837" in schema:
-            findings.append(ValidationFinding(
-                level="info",
-                code="TXN001",
-                message="Processing 837 Professional Claims transaction",
-                location=FindingLocation(
-                    segment_id="ST",
-                    segment_instance=1,
-                    element_position=1,
-                    line_number=2
-                )
-            ))
-        
-        return findings
+        return outputs
     
     async def _realistic_ta1_generation(self, edi_content: str) -> str:
         """Generate realistic TA1 acknowledgment."""
@@ -704,3 +653,88 @@ class WorkflowStatusService:
                 "last_check": datetime.utcnow().isoformat(),
                 "issues": []
             }
+
+    async def _generate_display_output(
+        self,
+        content: str,
+        output_name: str,
+        template: WorkflowTemplate,
+        processing_options: Dict[str, Any]
+    ) -> str:
+        """Generate display output content."""
+        # This is a mock implementation - in a real system, this would call
+        # the actual processing services
+        
+        if output_name == "validation_report":
+            return "Validation completed successfully. No issues found."
+        elif output_name == "processing_summary":
+            return f"Processed {len(content)} characters in 0.125 seconds."
+        elif output_name == "data_preview":
+            lines = content.split('\n')
+            preview = '\n'.join(lines[:10]) if len(lines) > 10 else content
+            return f"Preview of first 10 lines:\n{preview}"
+        elif output_name == "column_info":
+            return "Detected columns: id, name, value, timestamp"
+        elif output_name == "conversion_summary":
+            return "Successfully converted JSON to CSV format."
+        elif output_name == "schema_info":
+            return "Detected JSON schema with 5 fields: id, name, email, age, active"
+        else:
+            return f"Display content for {output_name}"
+
+    async def _generate_status_output(
+        self,
+        content: str,
+        output_name: str,
+        template: WorkflowTemplate,
+        processing_options: Dict[str, Any]
+    ) -> str:
+        """Generate status output content."""
+        # This is a mock implementation for status outputs
+        
+        if output_name == "processing_status":
+            return "success"
+        elif output_name == "validation_status":
+            return "passed"
+        else:
+            return "completed"
+
+    def _get_file_extension(self, template: WorkflowTemplate) -> str:
+        """Get appropriate file extension based on template."""
+        ui_config = template.ui_configuration or {}
+        output_configs = ui_config.get("outputs", [])
+        
+        # Find first download output to determine extension
+        for output in output_configs:
+            if output.get("type") == "download":
+                ext = output.get("file_extension", "")
+                if ext:
+                    return ext.lstrip(".")
+        
+        # Default based on template category
+        category = template.category.lower()
+        if "csv" in category:
+            return "csv"
+        elif "json" in category:
+            return "json"
+        elif "xml" in category:
+            return "xml"
+        else:
+            return "txt"
+
+    def _get_mime_type(self, template: WorkflowTemplate) -> str:
+        """Get appropriate MIME type based on template."""
+        extension = self._get_file_extension(template)
+        mime_types = {
+            "csv": "text/csv",
+            "json": "application/json",
+            "xml": "application/xml",
+            "edi": "text/plain",
+            "txt": "text/plain"
+        }
+        return mime_types.get(extension, "application/octet-stream")
+
+    def _detect_output_format(self, template: WorkflowTemplate) -> str:
+        """Detect output format from template configuration."""
+        extension = self._get_file_extension(template)
+        return extension.upper() if extension else "TEXT"

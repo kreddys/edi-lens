@@ -24,7 +24,53 @@ import {
 // Mock data provider for isolated testing
 const createMockDataProvider = () => ({
   getList: jest.fn().mockResolvedValue({ data: [], total: 0 }),
-  getOne: jest.fn().mockResolvedValue({ data: {} }),
+  getOne: jest.fn().mockImplementation(({ resource, id }) => {
+    if (resource === 'workflows') {
+      return Promise.resolve({
+        data: {
+          workflow_id: id,
+          template_id: 'test-template-123'
+        }
+      });
+    }
+    if (resource === 'workflow-templates') {
+      return Promise.resolve({
+        data: {
+          template_id: 'test-template-123',
+          ui_configuration: {
+        input: {
+          title: "📄 Content Input",
+          accepted_file_types: [".edi", ".txt"],
+          placeholder_text: "Paste your content here or upload a file...",
+          supports_text_input: true,
+          supports_file_upload: true,
+          max_file_size_mb: 10
+        },
+        processing_options: [
+          {
+            name: "generate_ta1",
+            type: "boolean",
+            label: "Generate TA1 Acknowledgment",
+            description: "Generate technical acknowledgment for EDI files",
+            default_value: true
+          }
+        ],
+        outputs: [
+          {
+            name: "ta1_acknowledgment",
+            label: "TA1 Acknowledgment", 
+            type: "download",
+            description: "Technical acknowledgment response",
+            file_extension: ".edi"
+          }
+        ],
+        help_text: "This workflow processes content and generates acknowledgments."
+          }
+        }
+      });
+    }
+    return Promise.resolve({ data: {} });
+  }),
   getMany: jest.fn().mockResolvedValue({ data: [] }),
   getManyReference: jest.fn().mockResolvedValue({ data: [], total: 0 }),
   create: jest.fn().mockResolvedValue({ data: { id: 'mock-id' } }),
@@ -50,7 +96,7 @@ describe('🧩 Clean Component Tests', () => {
   // 🎯 WORKFLOW EXECUTE COMPONENT TESTS
   // =========================================================================
   describe('🎯 WorkflowExecute Component', () => {
-    it('✅ renders workflow execute interface correctly', () => {
+    it('✅ renders workflow execute interface correctly', async () => {
       render(
         <TestWrapper dataProvider={mockDataProvider}>
           <AntdApp>
@@ -59,14 +105,18 @@ describe('🧩 Clean Component Tests', () => {
         </TestWrapper>
       );
 
+      // Wait for loading to complete
+      await waitFor(() => {
+        expect(screen.queryByText('Loading workflow configuration...')).not.toBeInTheDocument();
+      });
+
       // Check for main UI elements
-      expect(screen.getByText('Execute Workflow')).toBeInTheDocument();
-      expect(screen.getByText('📄 EDI Input')).toBeInTheDocument();
-      expect(screen.getByText('📊 Execution Results')).toBeInTheDocument();
+      expect(screen.getByText('📄 Content Input')).toBeInTheDocument();
+      expect(screen.getByText('📊 Processing Results')).toBeInTheDocument();
       
       // Check for input elements
-      expect(screen.getByPlaceholderText(/paste your edi content/i)).toBeInTheDocument();
-      expect(screen.getByText('Upload EDI File')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/paste your content here/i)).toBeInTheDocument();
+      expect(screen.getByText('Upload File')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /execute workflow/i })).toBeInTheDocument();
     });
 
@@ -79,19 +129,27 @@ describe('🧩 Clean Component Tests', () => {
         </TestWrapper>
       );
 
-      const textarea = screen.getByPlaceholderText(/paste your edi content/i);
-      const testEdiContent = 'ISA*00*TEST*EDI*CONTENT~';
+      // Wait for loading to complete
+      await waitFor(() => {
+        expect(screen.queryByText('Loading workflow configuration...')).not.toBeInTheDocument();
+      });
+
+      const textarea = screen.getByPlaceholderText(/paste your content here/i);
+      const testContent = 'ISA*00*TEST*EDI*CONTENT~';
       
-      await user.type(textarea, testEdiContent);
+      await user.type(textarea, testContent);
       
-      expect(textarea).toHaveValue(testEdiContent);
+      expect(textarea).toHaveValue(testContent);
     });
 
     it('✅ shows loading state during execution', async () => {
-      // Mock the custom API call to simulate loading
-      mockDataProvider.custom.mockImplementation(() => 
-        new Promise(resolve => setTimeout(() => resolve({ data: { valid: true } }), 100))
-      );
+      // Mock the custom API call to simulate longer loading
+      let resolvePromise: (value: any) => void;
+      const loadingPromise = new Promise(resolve => {
+        resolvePromise = resolve;
+      });
+      
+      mockDataProvider.custom.mockImplementation(() => loadingPromise);
 
       render(
         <TestWrapper dataProvider={mockDataProvider}>
@@ -101,27 +159,49 @@ describe('🧩 Clean Component Tests', () => {
         </TestWrapper>
       );
 
-      const textarea = screen.getByPlaceholderText(/paste your edi content/i);
+      // Wait for loading to complete
+      await waitFor(() => {
+        expect(screen.queryByText('Loading workflow configuration...')).not.toBeInTheDocument();
+      });
+
+      const textarea = screen.getByPlaceholderText(/paste your content here/i);
       const executeButton = screen.getByRole('button', { name: /execute workflow/i });
       
-      // Add EDI content
+      // Add content
       await user.type(textarea, 'ISA*00*TEST~');
+      
+      // Button should be enabled initially
+      expect(executeButton).not.toBeDisabled();
       
       // Click execute button
       await user.click(executeButton);
       
-      // Should show loading state
+      // Should show loading state immediately
+      expect(executeButton).toBeDisabled();
+      
+      // Resolve the promise to complete the test
+      resolvePromise!({ data: { success: true } });
+      
+      // Wait for button to be enabled again
       await waitFor(() => {
-        expect(executeButton).toBeDisabled();
+        expect(executeButton).not.toBeDisabled();
       });
     });
 
     it('✅ handles execution results correctly', async () => {
       const mockResult = {
-        valid: true,
+        success: true,
         processing_time_ms: 150,
         validation_results: [],
-        ta1_acknowledgment: 'TA1*0001*A',
+        outputs: [
+          {
+            name: "ta1_acknowledgment",
+            label: "TA1 Acknowledgment",
+            type: "download",
+            content: "TA1*0001*A",
+            download_filename: "acknowledgment.edi"
+          }
+        ],
         workflow_id: 'test-workflow-123',
         processed_at: new Date().toISOString()
       };
@@ -136,7 +216,12 @@ describe('🧩 Clean Component Tests', () => {
         </TestWrapper>
       );
 
-      const textarea = screen.getByPlaceholderText(/paste your edi content/i);
+      // Wait for loading to complete
+      await waitFor(() => {
+        expect(screen.queryByText('Loading workflow configuration...')).not.toBeInTheDocument();
+      });
+
+      const textarea = screen.getByPlaceholderText(/paste your content here/i);
       const executeButton = screen.getByRole('button', { name: /execute workflow/i });
       
       await user.type(textarea, 'ISA*00*TEST~');
@@ -157,7 +242,12 @@ describe('🧩 Clean Component Tests', () => {
         </TestWrapper>
       );
 
-      const textarea = screen.getByPlaceholderText(/paste your edi content/i);
+      // Wait for loading to complete
+      await waitFor(() => {
+        expect(screen.queryByText('Loading workflow configuration...')).not.toBeInTheDocument();
+      });
+
+      const textarea = screen.getByPlaceholderText(/paste your content here/i);
       const clearButton = screen.getByRole('button', { name: /clear/i });
       
       // Add content
@@ -189,8 +279,8 @@ describe('🧩 Clean Component Tests', () => {
       );
 
       // Should show workflow control buttons
-      expect(screen.getByTitle('Pause')).toBeInTheDocument();
-      expect(screen.getByTitle('Restart')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /pause/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /restart/i })).toBeInTheDocument();
     });
 
     it('✅ shows correct action buttons based on workflow state', () => {
@@ -208,8 +298,8 @@ describe('🧩 Clean Component Tests', () => {
       );
 
       // For deployed active workflow, should show pause and restart
-      expect(screen.getByTitle('Pause')).toBeInTheDocument();
-      expect(screen.getByTitle('Restart')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /pause/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /restart/i })).toBeInTheDocument();
     });
 
     it('✅ handles action clicks correctly', async () => {
@@ -229,7 +319,7 @@ describe('🧩 Clean Component Tests', () => {
         </TestWrapper>
       );
 
-      const pauseButton = screen.getByTitle('Pause');
+      const pauseButton = screen.getByRole('button', { name: /pause/i });
       await user.click(pauseButton);
 
       // Should call the API and trigger callback
@@ -321,12 +411,17 @@ describe('🧩 Clean Component Tests', () => {
         </TestWrapper>
       );
 
+      // Wait for components to load
+      await waitFor(() => {
+        expect(screen.queryByText('Loading workflow configuration...')).not.toBeInTheDocument();
+      });
+
       // Both components should render
-      expect(screen.getByTitle('Pause')).toBeInTheDocument();
-      expect(screen.getByText('Execute Workflow')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /pause/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /execute workflow/i })).toBeInTheDocument();
 
       // Execute workflow
-      const textarea = screen.getByPlaceholderText(/paste your edi content/i);
+      const textarea = screen.getByPlaceholderText(/paste your content here/i);
       const executeButton = screen.getByRole('button', { name: /execute workflow/i });
       
       await user.type(textarea, 'ISA*00*INTEGRATION*TEST~');
@@ -349,7 +444,12 @@ describe('🧩 Clean Component Tests', () => {
         </TestWrapper>
       );
 
-      const textarea = screen.getByPlaceholderText(/paste your edi content/i);
+      // Wait for loading to complete
+      await waitFor(() => {
+        expect(screen.queryByText('Loading workflow configuration...')).not.toBeInTheDocument();
+      });
+
+      const textarea = screen.getByPlaceholderText(/paste your content here/i);
       const executeButton = screen.getByRole('button', { name: /execute workflow/i });
       
       await user.type(textarea, 'ISA*00*ERROR*TEST~');
@@ -366,7 +466,7 @@ describe('🧩 Clean Component Tests', () => {
   // 📱 RESPONSIVE DESIGN TESTS
   // =========================================================================
   describe('📱 Responsive Design', () => {
-    it('✅ components render correctly on mobile screens', () => {
+    it('✅ components render correctly on mobile screens', async () => {
       // Mock mobile viewport
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
@@ -382,9 +482,14 @@ describe('🧩 Clean Component Tests', () => {
         </TestWrapper>
       );
 
+      // Wait for loading to complete
+      await waitFor(() => {
+        expect(screen.queryByText('Loading workflow configuration...')).not.toBeInTheDocument();
+      });
+
       // Components should still render on mobile
-      expect(screen.getByText('Execute Workflow')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText(/paste your edi content/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /execute workflow/i })).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/paste your content here/i)).toBeInTheDocument();
     });
   });
 

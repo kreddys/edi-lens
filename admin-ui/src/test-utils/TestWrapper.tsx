@@ -58,7 +58,6 @@ export const TestWrapper: React.FC<TestWrapperProps> = ({
             authProvider={authProvider}
             routerProvider={routerProvider}
             resources={[
-              { name: 'trading-partners', list: '/trading-partners' },
               { name: 'schemas', list: '/schemas' },
               { name: 'validation', list: '/validation' },
               { name: 'history', list: '/history' },

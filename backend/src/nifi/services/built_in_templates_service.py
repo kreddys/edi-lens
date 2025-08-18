@@ -60,6 +60,26 @@ class BuiltInTemplatesService:
             template['flow_definition'] = template_data['flow_definition']
             template['configuration_schema'] = template_data['configuration_schema']
             
+            # Add UI configuration if present
+            if 'ui_configuration' in template_data:
+                template['ui_configuration'] = template_data['ui_configuration']
+            
+            # Add processing capabilities if present
+            if 'processing_capabilities' in template_data:
+                template['processing_capabilities'] = template_data['processing_capabilities']
+            
+            # Add supported file types if present
+            if 'supported_file_types' in template_data:
+                template['supported_file_types'] = template_data['supported_file_types']
+            
+            # Add use cases if present
+            if 'use_cases' in template_data:
+                template['use_cases'] = template_data['use_cases']
+            
+            # Add industry tags if present
+            if 'industry_tags' in template_data:
+                template['industry_tags'] = template_data['industry_tags']
+            
             # Add source file information
             template['_source_file'] = str(yaml_file)
             
@@ -176,6 +196,11 @@ class BuiltInTemplatesService:
             features=template_data["features"],
             documentation="",  # TODO: Add detailed documentation
             examples={},  # TODO: Add examples
+            ui_configuration=template_data.get("ui_configuration"),
+            processing_capabilities=template_data.get("processing_capabilities"),
+            supported_file_types=template_data.get("supported_file_types"),
+            use_cases=template_data.get("use_cases"),
+            industry_tags=template_data.get("industry_tags"),
             is_featured=template_data["is_featured"],
             status=template_data["status"]
         )
