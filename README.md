@@ -46,7 +46,31 @@ EDI Lens is a full-stack web application designed for validating and managing El
     -   **Tenant B Viewer**: `viewer.b@edilens.com` / `password`
 
 ---
+## 📊 Monitoring
 
+The application includes a comprehensive monitoring stack with Grafana, Loki, and Prometheus for centralized logging and metrics visualization.
+
+### Starting with Monitoring
+To start the application along with monitoring services:
+```bash
+./run.sh dev:start --with-monitoring
+```
+
+### Accessing Monitoring Services
+- **Grafana**: [http://localhost:3030](http://localhost:3030) (admin/admin)
+- **Prometheus**: [http://localhost:9090](http://localhost:9090)
+- **Loki API**: [http://localhost:3100](http://localhost:3100)
+
+### Monitoring Management Commands
+| Command                               | Description                                                              |
+| :------------------------------------ | :----------------------------------------------------------------------- |
+| `./run.sh dev:monitoring:start`       | Starts only the monitoring services.                                     |
+| `./run.sh dev:monitoring:stop`        | Stops the monitoring services.                                           |
+| `./run.sh dev:monitoring:logs`        | Shows logs from monitoring services.                                     |
+
+For more details about the monitoring system, see [docs/monitoring/MONITORING.md](docs/monitoring/MONITORING.md).
+
+---
 ## Development Scripts
 
 All common development tasks are managed via the `./run.sh` script. The script uses the format `[environment]:[action]`.
@@ -65,7 +89,6 @@ All common development tasks are managed via the `./run.sh` script. The script u
 | `./run.sh dev:setup:keycloak`         | (Re)configures the Keycloak realm with required settings.                |
 
 ---
-
 ## 📚 Documentation
 
 This project contains several layers of documentation to aid developers and users.
@@ -77,6 +100,8 @@ This project contains several layers of documentation to aid developers and user
 -   **API Documentation**: Once the application is running, a full, interactive OpenAPI (Swagger UI) is available at [http://localhost:8000/docs](http://localhost:8000/docs). This documentation is automatically generated from the backend code.
 
 -   **Keycloak Setup Guide**: Our specific configuration for Keycloak, including the RBAC and multi-tenancy model, is detailed in the [`docs/keycloak_setup_guide.md`](./docs/keycloak_setup_guide.md) file.
+
+-   **Monitoring Documentation**: Details about the monitoring system can be found in the [`docs/monitoring/`](./docs/monitoring/) directory.
 
 -   **Architectural Decision Records (ADRs)**: Key architectural decisions are documented in the [`docs/adr`](./docs/adr) directory. These records explain *why* certain technical choices were made.
 

@@ -38,6 +38,11 @@ if [ -z "$1" ] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]]; then
     echo "  start, stop, clean, build, logs, migrate:make \"msg\", migrate:run, setup:keycloak, setup:sftpgo, setup:seed, setup:templates"
     echo "  db:exec \"command\"           Execute SQL command in database (dev only)"
     echo ""
+    echo "MONITORING ACTIONS:"
+    echo "  dev:monitoring:start         Start monitoring services (Loki, Prometheus, Grafana)"
+    echo "  dev:monitoring:stop          Stop monitoring services"
+    echo "  dev:monitoring:logs          View logs from monitoring services"
+    echo ""
     echo "SFTP ACTIONS (dev environment only) - SECURE:"
     echo "  dev:sftp:process --auth-token TOKEN --tenant TENANT --list-partners"
     echo "  dev:sftp:process --auth-token TOKEN --tenant TENANT --partner NAME --process-files"
@@ -131,6 +136,19 @@ case "$ACTION" in
         START_TIME=$(date +%s)
         timing_info "🚀 Starting EDI Lens development environment..."
         
+        # Check if monitoring should be started
+        START_MONITORING=false
+        for arg in "$@"; do
+            if [ "$arg" == "--with-monitoring" ]; then
+                START_MONITORING=true
+                break
+            fi
+        done
+        
+        if [ "$START_MONITORING" = true ]; then
+            timing_info "🔧 Monitoring services will be started (--with-monitoring flag detected)"
+        fi
+        
         # --- INFRASTRUCTURE SETUP ---
         timing_info "Step 1/4: Infrastructure setup (MinIO, NiFi Registry permissions)"
         INFRA_START=$(date +%s)
@@ -201,6 +219,16 @@ case "$ACTION" in
         NIFI_END=$(date +%s)
         timing_info "🔄 NiFi services ready in $((NIFI_END - NIFI_START)) seconds"
         
+        # Start monitoring services if requested
+        if [ "$START_MONITORING" = true ]; then
+            timing_info "📊 Starting monitoring services..."
+            MONITORING_START=$(date +%s)
+            info "Starting Loki, Prometheus, Grafana, and Promtail..."
+            $DC_EXEC up -d --wait loki prometheus grafana promtail
+            MONITORING_END=$(date +%s)
+            timing_info "✅ Monitoring services ready in $((MONITORING_END - MONITORING_START)) seconds"
+        fi
+        
         REMAINING_END=$(date +%s)
         timing_info "✅ All services healthy in $((REMAINING_END - REMAINING_START)) seconds"
         
@@ -209,6 +237,15 @@ case "$ACTION" in
         success "🎉 All services started and configured successfully!"
         timing_info "📊 TOTAL STARTUP TIME: ${TOTAL_TIME} seconds"
         timing_info "📋 Breakdown: Infra(${INFRA_END-INFRA_START}s) + Core(${CORE_END-CORE_START}s) + Keycloak(${KC_END-KC_START}s) + Remaining(${REMAINING_END-REMAINING_START}s)"
+        
+        # Show monitoring service URLs if they were started
+        if [ "$START_MONITORING" = true ]; then
+            echo ""
+            echo "📊 Monitoring Services:"
+            echo "   Grafana: http://localhost:3030 (admin/admin)"
+            echo "   Prometheus: http://localhost:9090"
+            echo "   Loki: http://localhost:3100"
+        fi
         # --- END OF NEW STARTUP SEQUENCE ---
         ;;
     stop)
@@ -269,6 +306,29 @@ case "$ACTION" in
         $DC_EXEC up -d --wait "$BACKEND_SERVICE"
         info "Running SFTP file processor..."
         $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.manual_sftp_processor_v2 --run "$@"
+        ;;
+    monitoring:start)
+        check_docker
+        if [ "$ENV_CONTEXT" != "dev" ]; then error "'monitoring:start' action is only for the 'dev' environment."; fi
+        info "Starting monitoring services (Loki, Prometheus, Grafana, Promtail)..."
+        $DC_EXEC up -d --wait loki prometheus grafana promtail
+        success "Monitoring services started successfully!"
+        echo "Grafana UI: http://localhost:3030 (admin/admin)"
+        echo "Prometheus UI: http://localhost:9090"
+        echo "Loki API: http://localhost:3100"
+        ;;
+    monitoring:stop)
+        check_docker
+        if [ "$ENV_CONTEXT" != "dev" ]; then error "'monitoring:stop' action is only for the 'dev' environment."; fi
+        info "Stopping monitoring services..."
+        $DC_EXEC stop loki prometheus grafana promtail
+        success "Monitoring services stopped successfully!"
+        ;;
+    monitoring:logs)
+        check_docker
+        if [ "$ENV_CONTEXT" != "dev" ]; then error "'monitoring:logs' action is only for the 'dev' environment."; fi
+        info "Showing logs from monitoring services..."
+        $DC_EXEC logs loki prometheus grafana promtail "$@"
         ;;
     test)
         if [ "$ENV_CONTEXT" != "dev" ]; then error "'test' action is only for the 'dev' environment."; fi

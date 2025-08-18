@@ -60,3 +60,18 @@
 :18080 {
     reverse_proxy nifi-registry:18080
 }
+
+# Grafana (Listens on :3030)
+:3030 {
+    reverse_proxy grafana:3000
+}
+
+# Prometheus (Listens on :9090)
+:9090 {
+    reverse_proxy prometheus:9090
+}
+
+# Loki (Listens on :3100)
+:3100 {
+    reverse_proxy loki:3100
+}

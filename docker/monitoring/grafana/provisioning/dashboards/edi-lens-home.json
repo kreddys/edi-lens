@@ -1,0 +1,132 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Logs Dashboard",
+      "tooltip": "",
+      "type": "link",
+      "url": "/d/edi-lens-logs/edi-lens-application-logs"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Metrics Dashboard",
+      "tooltip": "",
+      "type": "link",
+      "url": "/d/edi-lens-metrics/edi-lens-application-metrics"
+    }
+  ],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "# EDI Lens Monitoring Dashboard\n\nWelcome to the EDI Lens monitoring system. This is your central place for viewing logs and metrics from all application services.\n\nUse the links below to access specialized dashboards:\n\n- [Logs Dashboard](/d/edi-lens-logs/edi-lens-application-logs) - View logs from all services\n- [Metrics Dashboard](/d/edi-lens-metrics/edi-lens-application-metrics) - View application metrics\n\nYou can also use the Explore feature to write custom queries.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "9.4.7",
+      "title": "Welcome",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 2,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "builder",
+          "expr": "{job=\"docker\"} |~ \"(ERROR|Error|error|WARN|Warn|warn)\"",
+          "hide": false,
+          "legendFormat": "",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent Errors and Warnings",
+      "type": "logs"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "EDI Lens - Home",
+  "uid": "edi-lens-home",
+  "version": 1,
+  "weekStart": ""
+}
