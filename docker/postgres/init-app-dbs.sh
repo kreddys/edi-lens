@@ -14,6 +14,38 @@ EOSQL
 
 echo "✅ pgvector and Apache AGE extensions created successfully in database '$POSTGRES_DB'."
 
+# --- Create the dedicated database and user for Keycloak ---
+# We check if the database exists before creating it to make this script runnable multiple times.
+if ! psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -lqt | cut -d \| -f 1 | grep -qw "$POSTGRES_KC_DB"; then
+  echo "Database '$POSTGRES_KC_DB' does not exist. Creating it now..."
+  # <-- FIX: Added --dbname "$POSTGRES_DB" to connect to the main app DB to run the create command
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+      CREATE DATABASE "$POSTGRES_KC_DB";
+EOSQL
+  echo "✅ Database '$POSTGRES_KC_DB' created."
+else
+  echo "Database '$POSTGRES_KC_DB' already exists. Skipping creation."
+fi
+
+# We check if the user exists before creating it.
+# <-- FIX: Added --dbname "$POSTGRES_DB" to connect to the main app DB to run the check
+if ! psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -tAc "SELECT 1 FROM pg_roles WHERE rolname='$POSTGRES_KC_USER'" | grep -q 1; then
+  echo "User '$POSTGRES_KC_USER' does not exist. Creating it now..."
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+      CREATE USER "$POSTGRES_KC_USER" WITH PASSWORD '$POSTGRES_KC_PASSWORD';
+      GRANT ALL PRIVILEGES ON DATABASE "$POSTGRES_KC_DB" TO "$POSTGRES_KC_USER";
+EOSQL
+  echo "✅ User '$POSTGRES_KC_USER' created and granted privileges."
+else
+    echo "User '$POSTGRES_KC_USER' already exists. Skipping creation."
+fi
+
+echo "Granting schema permissions to '$POSTGRES_KC_USER' on database '$POSTGRES_KC_DB'..."
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_KC_DB" <<-EOSQL
+    GRANT USAGE, CREATE ON SCHEMA public TO "$POSTGRES_KC_USER";
+EOSQL
+echo "✅ Schema permissions granted to Keycloak user."
+
 # --- Create the dedicated database and user for SFTPGo ---
 # We check if the database exists before creating it to make this script runnable multiple times.
 if ! psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -lqt | cut -d \| -f 1 | grep -qw "$POSTGRES_SFTPGO_DB"; then

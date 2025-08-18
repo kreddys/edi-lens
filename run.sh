@@ -149,11 +149,11 @@ case "$ACTION" in
         CORE_START=$(date +%s)
         
         # Start databases first
-        info "Starting databases..."
+        info "Starting database..."
         DB_START=$(date +%s)
-        $DC_EXEC up -d --build --remove-orphans --wait db-keycloak db-app
+        $DC_EXEC up -d --build --remove-orphans --wait db
         DB_END=$(date +%s)
-        timing_info "🗄️  Databases ready in $((DB_END - DB_START)) seconds"
+        timing_info "🗄️  Database ready in $((DB_END - DB_START)) seconds"
         
         # Then start Keycloak and Backend
         info "Starting Keycloak and Backend..."

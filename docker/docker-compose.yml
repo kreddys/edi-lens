@@ -19,28 +19,11 @@ services:
       - edi_lens_network
     depends_on: [backend, admin-ui, keycloak, sftpgo]
 
-  db-keycloak:
-    image: postgres:15-alpine
-    container_name: db-keycloak
-    environment:
-      POSTGRES_USER: ${POSTGRES_KC_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_KC_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_KC_DB}
-    volumes:
-      - postgres_kc_data:/var/lib/postgresql/data/
-    networks:
-      - edi_lens_network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_KC_USER} -d ${POSTGRES_KC_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  db-app:
+  db:
     build:
       context: ..
       dockerfile: docker/postgres/Dockerfile
-    container_name: db-app
+    container_name: db
     ports:
       - "5432:5432"
     environment:
@@ -52,7 +35,10 @@ services:
       POSTGRES_SFTPGO_DB: ${POSTGRES_SFTPGO_DB}
       POSTGRES_NIFI_REGISTRY_USER: ${POSTGRES_NIFI_REGISTRY_USER}
       POSTGRES_NIFI_REGISTRY_PASSWORD: ${POSTGRES_NIFI_REGISTRY_PASSWORD}
-      POSTGRES_NIFI_REGISTRY_DB: ${POSTGRES_NIFI_REGISTRY_DB}      
+      POSTGRES_NIFI_REGISTRY_DB: ${POSTGRES_NIFI_REGISTRY_DB}
+      POSTGRES_KC_USER: ${POSTGRES_KC_USER}
+      POSTGRES_KC_PASSWORD: ${POSTGRES_KC_PASSWORD}
+      POSTGRES_KC_DB: ${POSTGRES_KC_DB}
     volumes:
       # ./ is now the /docker directory
       - ./postgres/init-app-dbs.sh:/docker-entrypoint-initdb.d/init-app-dbs.sh
@@ -68,13 +54,14 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:latest
     container_name: keycloak
-    depends_on: { db-keycloak: { condition: service_healthy } }
+    depends_on: { db: { condition: service_healthy } }
     environment:
       - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
       # Database Connection
       - KC_DB=postgres
-      - KC_DB_URL_HOST=${POSTGRES_KC_HOST}
+      - KC_DB_URL_HOST=${POSTGRES_HOST}
+      - KC_DB_URL_PORT=${POSTGRES_PORT}
       - KC_DB_URL_DATABASE=${POSTGRES_KC_DB}
       - KC_DB_USERNAME=${POSTGRES_KC_USER}
       - KC_DB_PASSWORD=${POSTGRES_KC_PASSWORD}
@@ -98,7 +85,7 @@ services:
       target: test
     container_name: backend
     depends_on:
-      - db-app
+      - db
       - keycloak
       - minio
     volumes:
@@ -110,7 +97,7 @@ services:
     environment:
       - WAIT_FOR_KEYCLOAK=true
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      test: ["CMD", "curl", "-f", "http://backend:8000/api/v1/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -143,7 +130,7 @@ services:
     networks:
       - edi_lens_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://minio:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -214,7 +201,7 @@ services:
     networks:
       - edi_lens_network
     depends_on:
-      - db-app
+      - db
       - minio
       - keycloak
       - backend
@@ -270,7 +257,7 @@ services:
       - backend
       - nifi-registry
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/nifi-api/system-diagnostics"]
+      test: ["CMD", "curl", "-f", "http://nifi:8080/nifi-api/system-diagnostics"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -303,7 +290,7 @@ services:
     environment:
       - NIFI_REGISTRY_WEB_HTTP_HOST=0.0.0.0
       - NIFI_REGISTRY_WEB_HTTP_PORT=18080
-      - NIFI_REGISTRY_DB_URL=jdbc:postgresql://db-app:5432/${POSTGRES_NIFI_REGISTRY_DB}
+      - NIFI_REGISTRY_DB_URL=jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_NIFI_REGISTRY_DB}
       - NIFI_REGISTRY_DB_USER=${POSTGRES_NIFI_REGISTRY_USER}
       - NIFI_REGISTRY_DB_PASS=${POSTGRES_NIFI_REGISTRY_PASSWORD}
       - NIFI_REGISTRY_DB_CLASS=org.postgresql.Driver
@@ -320,17 +307,16 @@ services:
     networks:
       - edi_lens_network
     depends_on:
-      db-app:
+      db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:18080/nifi-registry/"]
+      test: ["CMD", "curl", "-f", "http://nifi-registry:18080/nifi-registry/"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
 
 volumes:
-  postgres_kc_data: {}
   postgres_app_data: {}
   admin-ui-node-modules: {}
   minio_data: {}

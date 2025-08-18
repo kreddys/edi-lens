@@ -19,7 +19,7 @@ fi
 # From here on, the script is running as 'appuser' with the correct PATH.
 
 # Wait for database to be ready before proceeding
-DB_HOST=${POSTGRES_HOST:-db-app}
+DB_HOST=${POSTGRES_HOST:-db}
 DB_PORT=${POSTGRES_PORT:-5432}
 DB_USER=${POSTGRES_USER}
 DB_NAME=${POSTGRES_DB}
