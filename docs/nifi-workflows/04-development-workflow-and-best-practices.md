@@ -23,7 +23,7 @@ Project Setup:
 ### **Repository Structure**
 ```
 edi-lens/
-├── admin-ui/                 # React frontend application
+├── frontend/                 # React frontend application
 │   ├── src/
 │   │   ├── components/      # Reusable UI components  
 │   │   ├── pages/          # Page-level components

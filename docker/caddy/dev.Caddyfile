@@ -32,7 +32,7 @@
 
     # Handle all other traffic as the React UI
     handle {
-        reverse_proxy admin-ui:3000
+        reverse_proxy frontend:3000
     }
 }
 

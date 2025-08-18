@@ -190,7 +190,7 @@ case "$ACTION" in
         # Start lightweight services first
         info "Starting UI, SFTPGo, and Caddy..."
         LIGHT_START=$(date +%s)
-        $DC_EXEC up -d --wait admin-ui sftpgo caddy
+        $DC_EXEC up -d --wait frontend sftpgo caddy
         LIGHT_END=$(date +%s)
         timing_info "🚀 Lightweight services ready in $((LIGHT_END - LIGHT_START)) seconds"
         
@@ -292,10 +292,10 @@ case "$ACTION" in
                 info "Detailed logs will be saved to: $UI_LOG_DIR"
                 
                 # Redirect verbose output to log files for cleaner console output
-                $DC_EXEC up -d --build --wait admin-ui 2>"$UI_LOG_DIR/docker-build.log" >"$UI_LOG_DIR/docker-output.log"
+                $DC_EXEC up -d --build --wait frontend 2>"$UI_LOG_DIR/docker-build.log" >"$UI_LOG_DIR/docker-output.log"
                 
-                info "Running Jest tests in admin-ui container..."
-                $DC_EXEC exec admin-ui npm run test -- --watchAll=false --coverage "$@" 2>"$UI_LOG_DIR/test-errors.log" | tee "$UI_LOG_DIR/test-output.log"
+                info "Running Jest tests in frontend container..."
+                $DC_EXEC exec frontend npm run test -- --watchAll=false --coverage "$@" 2>"$UI_LOG_DIR/test-errors.log" | tee "$UI_LOG_DIR/test-output.log"
                 test_exit_code=$?
                 
                 # Check if Jest reported coverage threshold failures
@@ -330,10 +330,10 @@ case "$ACTION" in
                 mkdir -p "$UI_LOG_DIR"
                 info "Detailed logs will be saved to: $UI_LOG_DIR"
                 
-                $DC_EXEC up -d --build --wait admin-ui 2>"$UI_LOG_DIR/docker-build.log" >"$UI_LOG_DIR/docker-output.log"
+                $DC_EXEC up -d --build --wait frontend 2>"$UI_LOG_DIR/docker-build.log" >"$UI_LOG_DIR/docker-output.log"
                 
                 info "Running workflow component tests..."
-                if $DC_EXEC exec admin-ui npm run test -- --watchAll=false --testNamePattern="Workflow" --coverage "$@" 2>"$UI_LOG_DIR/test-errors.log" | tee "$UI_LOG_DIR/test-output.log"; then
+                if $DC_EXEC exec frontend npm run test -- --watchAll=false --testNamePattern="Workflow" --coverage "$@" 2>"$UI_LOG_DIR/test-errors.log" | tee "$UI_LOG_DIR/test-output.log"; then
                     success "Workflow tests completed successfully!"
                     info "Test logs saved to: $UI_LOG_DIR"
                 else
@@ -354,10 +354,10 @@ case "$ACTION" in
                 mkdir -p "$UI_LOG_DIR"
                 info "Detailed logs will be saved to: $UI_LOG_DIR"
                 
-                $DC_EXEC up -d --wait backend admin-ui 2>"$UI_LOG_DIR/docker-build.log" >"$UI_LOG_DIR/docker-output.log"
+                $DC_EXEC up -d --wait backend frontend 2>"$UI_LOG_DIR/docker-build.log" >"$UI_LOG_DIR/docker-output.log"
                 
                 info "Running NiFi workflow integration tests..."
-                if $DC_EXEC exec admin-ui npm run test -- --watchAll=false --testNamePattern="NiFi.*Integration" --coverage "$@" 2>"$UI_LOG_DIR/test-errors.log" | tee "$UI_LOG_DIR/test-output.log"; then
+                if $DC_EXEC exec frontend npm run test -- --watchAll=false --testNamePattern="NiFi.*Integration" --coverage "$@" 2>"$UI_LOG_DIR/test-errors.log" | tee "$UI_LOG_DIR/test-output.log"; then
                     success "UI integration tests completed successfully!"
                     info "Test logs saved to: $UI_LOG_DIR"
                 else
@@ -378,10 +378,10 @@ case "$ACTION" in
                 mkdir -p "$UI_LOG_DIR"
                 info "Detailed logs will be saved to: $UI_LOG_DIR"
                 
-                $DC_EXEC up -d --build --wait admin-ui 2>"$UI_LOG_DIR/docker-build.log" >"$UI_LOG_DIR/docker-output.log"
+                $DC_EXEC up -d --build --wait frontend 2>"$UI_LOG_DIR/docker-build.log" >"$UI_LOG_DIR/docker-output.log"
                 
                 info "Running legacy component tests..."
-                if $DC_EXEC exec admin-ui npm run test -- --watchAll=false --testNamePattern="Legacy UI" --coverage "$@" 2>"$UI_LOG_DIR/test-errors.log" | tee "$UI_LOG_DIR/test-output.log"; then
+                if $DC_EXEC exec frontend npm run test -- --watchAll=false --testNamePattern="Legacy UI" --coverage "$@" 2>"$UI_LOG_DIR/test-errors.log" | tee "$UI_LOG_DIR/test-output.log"; then
                     success "Legacy UI tests completed successfully!"
                     info "Test logs saved to: $UI_LOG_DIR"
                 else

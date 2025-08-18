@@ -1,4 +1,4 @@
-// FILE: admin-ui/src/providers/data.ts
+// FILE: frontend/src/providers/data.ts
 
 import simpleRestProvider from "@refinedev/simple-rest";
 import { DataProvider, GetOneParams, CreateParams, DeleteOneParams, CreateResponse } from "@refinedev/core";

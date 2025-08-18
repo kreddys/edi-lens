@@ -66,7 +66,7 @@ async function main() {
   }
 
   console.log('\n3. Testing backend services status:');
-  console.log('Run: docker ps --filter "name=backend" --filter "name=admin-ui" --filter "name=caddy"');
+  console.log('Run: docker ps --filter "name=backend" --filter "name=frontend" --filter "name=caddy"');
 }
 
 main().catch(console.error);

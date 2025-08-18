@@ -4,7 +4,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Install dependencies
-COPY admin-ui/package*.json ./
+COPY frontend/package*.json ./
 RUN npm install
 
 # Let Docker run your local files, so no need to copy the rest

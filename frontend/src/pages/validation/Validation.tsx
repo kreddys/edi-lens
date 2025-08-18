@@ -1,4 +1,4 @@
-// FILE: admin-ui/src/pages/validation/Validation.tsx
+// FILE: frontend/src/pages/validation/Validation.tsx
 
 import React, { useState, useMemo } from "react";
 import {

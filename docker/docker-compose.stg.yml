@@ -17,7 +17,7 @@ services:
       - ./backend/data/edi_schemas:/home/appuser/app/data/edi_schemas
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000
 
-  admin-ui-test:
+  frontend-test:
     image: ${DOCKERHUB_USERNAME}/edi-lens-ui:${UI_IMAGE_TAG:-latest}
     build: null # Disable building
     volumes: [] # Unset all volumes

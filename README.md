@@ -80,4 +80,4 @@ This project contains several layers of documentation to aid developers and user
 
 -   **Architectural Decision Records (ADRs)**: Key architectural decisions are documented in the [`docs/adr`](./docs/adr) directory. These records explain *why* certain technical choices were made.
 
--   **Service-Specific READMEs**: Each service (`backend/`, `admin-ui/`) has its own `README.md` file with details about its specific technology stack and development practices.
+-   **Service-Specific READMEs**: Each service (`backend/`, `frontend/`) has its own `README.md` file with details about its specific technology stack and development practices.

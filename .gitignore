@@ -27,11 +27,11 @@ coverage
 
 # Dependency directories
 node_modules/
-admin-ui/node_modules/ # Specific to new structure
+frontend/node_modules/ # Specific to new structure
 
 # Build output
 dist
-admin-ui/dist/ # Specific to new structure
+frontend/dist/ # Specific to new structure
 
 # Other
 .DS_Store

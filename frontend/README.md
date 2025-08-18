@@ -1,15 +1,15 @@
-### 3. Admin-UI `README.md`
+### 3. Frontend `README.md`
 
-Create a new file at `admin-ui/README.md`.
+Create a new file at `frontend/README.md`.
 
 ```markdown
-# EDI Lens - Admin UI
+# EDI Lens - Frontend
 
 This directory contains the frontend admin interface for the EDI Lens application.
 
 ## Overview
 
-The Admin UI is a Single-Page Application (SPA) built to provide a rich, interactive experience for managing application data.
+The Frontend is a Single-Page Application (SPA) built to provide a rich, interactive experience for managing application data.
 
 -   **Framework**: [React](https://reactjs.org/) with [Vite](https://vitejs.dev/)
 -   **UI/App Framework**: [Refine.js](https://refine.dev/) (handles data fetching, routing, and state management)
@@ -49,10 +49,10 @@ VITE_API_URL=http://localhost:8000/api/v1
 
 The UI is managed by the main `docker-compose.yml` and `scripts/run_app.sh` script in the project root. It's recommended to run it this way.
 
-However, if you need to run the UI standalone (e.g., for faster HMR), you can run the following commands from within the `admin-ui` directory, assuming the backend and Keycloak services are already running via Docker.
+However, if you need to run the UI standalone (e.g., for faster HMR), you can run the following commands from within the `frontend` directory, assuming the backend and Keycloak services are already running via Docker.
 
 ```bash
-# In the admin-ui/ directory
+# In the frontend/ directory
 npm install
 npm run dev
 ```

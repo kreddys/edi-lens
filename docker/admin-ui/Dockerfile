@@ -15,13 +15,13 @@ ENV VITE_KEYCLOAK_REALM=${VITE_KEYCLOAK_REALM}
 ENV VITE_KEYCLOAK_CLIENT_ID=${VITE_KEYCLOAK_CLIENT_ID}
 ENV VITE_API_URL=${VITE_API_URL}
 
-# Copy dependency files from the admin-ui directory
-COPY admin-ui/package*.json ./
+# Copy dependency files from the frontend directory
+COPY frontend/package*.json ./
 
 RUN npm install
 
-# Copy the entire admin-ui source code
-COPY admin-ui/ .
+# Copy the entire frontend source code
+COPY frontend/ .
 
 RUN npm run build
 

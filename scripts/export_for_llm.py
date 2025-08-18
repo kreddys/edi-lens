@@ -27,7 +27,7 @@ BINARY_EXTENSIONS = {
 # Directories to always ignore.
 IGNORE_PATHS = [
     'backend/migrations',
-    'admin-ui/tmp',
+    'frontend/tmp',
 ]
 
 # Filenames to always ignore by default.
@@ -106,7 +106,7 @@ def main():
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument('--backend', action='store_true', help='Export only the backend service and related configs.')
-    parser.add_argument('--admin', action='store_true', help='Export only the admin-ui service and related configs.')
+    parser.add_argument('--admin', action='store_true', help='Export only the frontend service and related configs.')
     parser.add_argument('-o', '--output', default='llm_export.txt', help='Output file name. (Default: llm_export.txt)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Print each file and its size as it is exported.')
     parser.add_argument('--include-lockfiles', action='store_true', help='Include poetry.lock and package-lock.json files (excluded by default).')
@@ -129,9 +129,9 @@ def main():
 
     if args.admin or scan_all:
         paths_to_scan.extend([
-            'admin-ui/src', 'admin-ui/package.json', 'admin-ui/tsconfig.json', 'admin-ui/vite.config.ts',
-            'admin-ui/tsconfig.node.json', 'admin-ui/index.html',
-            'admin-ui/README.md',
+            'frontend/src', 'frontend/package.json', 'frontend/tsconfig.json', 'frontend/vite.config.ts',
+            'frontend/tsconfig.node.json', 'frontend/index.html',
+            'frontend/README.md',
         ])
 
     if args.backend or args.admin or scan_all:

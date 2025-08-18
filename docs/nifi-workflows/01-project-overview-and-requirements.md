@@ -68,7 +68,7 @@ Transform EDI Lens from an EDI-specific platform into a **format-agnostic workfl
 
 ### **Frontend Architecture (React + Ant Design)**
 ```
-admin-ui/src/
+frontend/src/
 ├── App.tsx                    # Main application entry point
 ├── components/
 │   ├── layout.tsx            # Application layout wrapper

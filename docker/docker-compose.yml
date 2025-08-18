@@ -17,7 +17,7 @@ services:
       - ./caddy/dev.Caddyfile:/etc/caddy/Caddyfile
     networks:
       - edi_lens_network
-    depends_on: [backend, admin-ui, keycloak, sftpgo]
+    depends_on: [backend, frontend, keycloak, sftpgo]
 
   db:
     build:
@@ -104,14 +104,14 @@ services:
       start_period: 30s # Give it extra time to start up and run migrations    
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir alembic
 
-  admin-ui:
+  frontend:
     build:
       context: .. # <-- CHANGE: Go up one level to the project root for context
       dockerfile: docker/admin-ui/Dockerfile.dev
-    container_name: admin-ui
+    container_name: frontend
     volumes:
-      - ../admin-ui:/app:delegated # <-- CHANGE: Go up one level
-      - admin-ui-node-modules:/app/node_modules
+      - ../frontend:/app:delegated # <-- CHANGE: Go up one level
+      - frontend-node-modules:/app/node_modules
     env_file: [ ../.env.dev ] # <-- CHANGE: Go up one level
     depends_on: [ backend ]
     networks: [ edi_lens_network ]
@@ -318,7 +318,7 @@ services:
 
 volumes:
   postgres_app_data: {}
-  admin-ui-node-modules: {}
+  frontend-node-modules: {}
   minio_data: {}
   sftpgo_data: {}
   sftp_tenant_data: {}

@@ -524,7 +524,7 @@ Communication:
 ```bash
 # 1. Understand current state
 ./run.sh dev:test ui  # All tests should pass (63/63)
-cd admin-ui && npm run build  # Build should succeed
+cd frontend && npm run build  # Build should succeed
 
 # 2. Review documentation  
 cat docs/nifi-workflows/01-project-overview-and-requirements.md
@@ -538,11 +538,11 @@ cat docs/nifi-workflows/02-current-implementation-status.md
 ### **Key Files to Understand**
 ```
 Critical Components:
-├── admin-ui/src/components/workflow/GenericWorkflowExecute.tsx (main component)
-├── admin-ui/src/pages/workflowTemplates/list.tsx (template management)
-├── admin-ui/src/pages/workflows/list.tsx (workflow management)
-├── admin-ui/src/providers/data.ts (API integration)
-└── admin-ui/src/__tests__/ui/CleanComponentTests.test.tsx (test patterns)
+├── frontend/src/components/workflow/GenericWorkflowExecute.tsx (main component)
+├── frontend/src/pages/workflowTemplates/list.tsx (template management)
+├── frontend/src/pages/workflows/list.tsx (workflow management)
+├── frontend/src/providers/data.ts (API integration)
+└── frontend/src/__tests__/ui/CleanComponentTests.test.tsx (test patterns)
 
 Documentation:
 ├── docs/nifi-workflows/01-project-overview-and-requirements.md
