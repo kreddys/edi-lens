@@ -1,0 +1,1 @@
+# FILE: nifi-edi-processors/tests/edi_parser/__init__.py

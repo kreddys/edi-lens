@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nifi-edi-processors"
+version = "0.1.0"
+description = "NiFi Python processors for EDI processing"
+authors = [{name = "EDI Lens Team"}]
+license = {text = "MIT"}
+requires-python = ">=3.9"
+dependencies = [
+    "pydantic>=2.0.0",
+    "typing-extensions>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["processors*", "edi_common*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "unit: Pure unit tests with no external dependencies.",
+    "integration: Tests requiring external services or complex setups.",
+    "format: Tests for specific output format validation."
+]
+addopts = "--tb=short -v"
+log_cli = true
+log_cli_level = "INFO"

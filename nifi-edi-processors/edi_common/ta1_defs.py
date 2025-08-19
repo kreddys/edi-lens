@@ -1,0 +1,46 @@
+# Ported from backend/src/core/acknowledgements/ta1_defs.py
+from enum import Enum
+from pydantic import BaseModel
+from typing import Optional
+
+class TA1AcknowledgementCode(str, Enum):
+    """Corresponds to TA104"""
+    ACCEPTED = "A"
+    ACCEPTED_WITH_ERRORS = "E"
+    REJECTED = "R"
+
+class TA1NoteCode(str, Enum):
+    """Corresponds to TA105. Based on X12 specs."""
+    NO_ERROR = "000"
+    ICN_MISMATCH_IN_HEADER_TRAILER = "001"
+    UNSUPPORTED_STANDARD_ID = "002"
+    UNSUPPORTED_VERSION_ID = "003"
+    INVALID_SEGMENT_TERMINATOR = "004"
+    INVALID_SENDER_ID_QUALIFIER = "005"
+    INVALID_SENDER_ID = "006"
+    INVALID_RECEIVER_ID_QUALIFIER = "007"
+    INVALID_RECEIVER_ID = "008"
+    UNKNOWN_RECEIVER_ID = "009"
+    INVALID_AUTH_QUALIFIER = "010"
+    INVALID_AUTH_VALUE = "011"
+    INVALID_SECURITY_QUALIFIER = "012"
+    INVALID_SECURITY_VALUE = "013"
+    INVALID_INTERCHANGE_DATE = "014"
+    INVALID_INTERCHANGE_TIME = "015"
+    INVALID_INTERCHANGE_STANDARDS_ID = "016"
+    INVALID_INTERCHANGE_VERSION_ID = "017"
+    INVALID_INTERCHANGE_CONTROL_NUMBER = "018"
+    INVALID_ACKNOWLEDGMENT_REQUESTED = "019"
+    INVALID_TEST_INDICATOR = "020"
+    INVALID_GROUP_COUNT = "021"
+    INVALID_CONTROL_STRUCTURE = "022"
+    PREMATURE_END_OF_FILE = "023"
+    INVALID_INTERCHANGE_CONTENT = "024"
+    DUPLICATE_INTERCHANGE_CONTROL_NUMBER = "025"
+    INVALID_ELEMENT_SEPARATOR = "026"
+    INVALID_COMPONENT_SEPARATOR = "027"
+
+class InterchangeError(BaseModel):
+    """A structured error representing a TA1-level issue."""
+    note_code: TA1NoteCode
+    details: Optional[str] = None
