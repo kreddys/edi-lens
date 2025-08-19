@@ -25,49 +25,50 @@ scrape_configs:
       - targets: ["localhost:9090"]
 
   # Scrape configuration for EDI Lens services
-  - job_name: "edi-lens-backend"
-    static_configs:
-      - targets: ["backend:8000"]
-    metrics_path: "/api/v1/metrics"
-    scrape_interval: 10s
+  # NOTE: Commenting out services that don't expose metrics endpoints
+  # - job_name: "edi-lens-backend"
+  #   static_configs:
+  #     - targets: ["backend:8000"]
+  #   metrics_path: "/api/v1/metrics"
+  #   scrape_interval: 10s
 
-  - job_name: "edi-lens-frontend"
-    static_configs:
-      - targets: ["frontend:3000"]
-    scrape_interval: 10s
+  # - job_name: "edi-lens-frontend"
+  #   static_configs:
+  #     - targets: ["frontend:3000"]
+  #   scrape_interval: 10s
 
-  - job_name: "edi-lens-db"
-    static_configs:
-      - targets: ["db:9187"]
-    # Note: You'll need to add the postgres_exporter service to monitor PostgreSQL
-    scrape_interval: 30s
+  # - job_name: "edi-lens-db"
+  #   static_configs:
+  #     - targets: ["db:9187"]
+  #   # Note: You'll need to add the postgres_exporter service to monitor PostgreSQL
+  #   scrape_interval: 30s
 
-  - job_name: "edi-lens-keycloak"
-    static_configs:
-      - targets: ["keycloak:8080"]
-    scrape_interval: 30s
+  # - job_name: "edi-lens-keycloak"
+  #   static_configs:
+  #     - targets: ["keycloak:8080"]
+  #   scrape_interval: 30s
 
-  - job_name: "edi-lens-minio"
-    static_configs:
-      - targets: ["minio:9000"]
-    scrape_interval: 30s
+  # - job_name: "edi-lens-minio"
+  #   static_configs:
+  #     - targets: ["minio:9000"]
+  #   scrape_interval: 30s
 
-  - job_name: "edi-lens-sftpgo"
-    static_configs:
-      - targets: ["sftpgo:8080"]
-    scrape_interval: 30s
+  # - job_name: "edi-lens-sftpgo"
+  #   static_configs:
+  #     - targets: ["sftpgo:8080"]
+  #   scrape_interval: 30s
 
-  - job_name: "edi-lens-nifi"
-    static_configs:
-      - targets: ["nifi:8080"]
-    scrape_interval: 30s
+  # - job_name: "edi-lens-nifi"
+  #   static_configs:
+  #     - targets: ["nifi:8080"]
+  #   scrape_interval: 30s
 
-  - job_name: "edi-lens-nifi-registry"
-    static_configs:
-      - targets: ["nifi-registry:18080"]
-    scrape_interval: 30s
+  # - job_name: "edi-lens-nifi-registry"
+  #   static_configs:
+  #     - targets: ["nifi-registry:18080"]
+  #   scrape_interval: 30s
 
-  # Monitoring services
+  # Monitoring services that do expose metrics
   - job_name: "loki"
     static_configs:
       - targets: ["loki:3100"]

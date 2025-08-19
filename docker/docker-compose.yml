@@ -324,6 +324,9 @@ services:
   loki:
     image: grafana/loki:latest
     container_name: loki
+    volumes:
+      - ./monitoring/loki/local-config.yaml:/etc/loki/local-config.yaml
+      - loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml
     networks:
       - edi_lens_network
@@ -396,6 +399,7 @@ volumes:
   nifi_registry_flow_storage:
   prometheus_data: {}
   grafana_data: {}
+  loki_data: {}
 
 networks:
   edi_lens_network:
