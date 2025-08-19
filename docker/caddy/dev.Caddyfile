@@ -12,6 +12,11 @@
         reverse_proxy backend:8000
     }
 
+    # Route metrics endpoint to the backend
+    handle /metrics {
+        reverse_proxy backend:8000
+    }
+
     # Route OpenAPI spec and docs to the backend
     handle /openapi.json {
         reverse_proxy backend:8000

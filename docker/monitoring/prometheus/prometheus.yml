@@ -25,48 +25,37 @@ scrape_configs:
       - targets: ["localhost:9090"]
 
   # Scrape configuration for EDI Lens services
-  # NOTE: Commenting out services that don't expose metrics endpoints
-  # - job_name: "edi-lens-backend"
-  #   static_configs:
-  #     - targets: ["backend:8000"]
-  #   metrics_path: "/api/v1/metrics"
-  #   scrape_interval: 10s
+  - job_name: "edi-lens-backend"
+    static_configs:
+      - targets: ["backend:8000"]
+    metrics_path: "/metrics"
+    scrape_interval: 10s
 
-  # - job_name: "edi-lens-frontend"
-  #   static_configs:
-  #     - targets: ["frontend:3000"]
-  #   scrape_interval: 10s
+  # Services with built-in metrics endpoints
+  - job_name: "edi-lens-keycloak"
+    static_configs:
+      - targets: ["keycloak:8080"]
+    metrics_path: "/metrics"
+    scrape_interval: 30s
 
-  # - job_name: "edi-lens-db"
-  #   static_configs:
-  #     - targets: ["db:9187"]
-  #   # Note: You'll need to add the postgres_exporter service to monitor PostgreSQL
-  #   scrape_interval: 30s
+  - job_name: "edi-lens-minio"
+    static_configs:
+      - targets: ["minio:9000"]
+    metrics_path: "/minio/v2/metrics/cluster"
+    scrape_interval: 30s
 
-  # - job_name: "edi-lens-keycloak"
-  #   static_configs:
-  #     - targets: ["keycloak:8080"]
-  #   scrape_interval: 30s
+  # Docker and infrastructure metrics
+  - job_name: "docker-stats"
+    static_configs:
+      - targets: ["caddy:2019"]  # Caddy admin API with metrics
+    scrape_interval: 30s
+    metrics_path: "/metrics"
 
-  # - job_name: "edi-lens-minio"
-  #   static_configs:
-  #     - targets: ["minio:9000"]
-  #   scrape_interval: 30s
-
-  # - job_name: "edi-lens-sftpgo"
-  #   static_configs:
-  #     - targets: ["sftpgo:8080"]
-  #   scrape_interval: 30s
-
-  # - job_name: "edi-lens-nifi"
-  #   static_configs:
-  #     - targets: ["nifi:8080"]
-  #   scrape_interval: 30s
-
-  # - job_name: "edi-lens-nifi-registry"
-  #   static_configs:
-  #     - targets: ["nifi-registry:18080"]
-  #   scrape_interval: 30s
+  # Note: Services without metrics endpoints (commented out for now):
+  # - Frontend (React app - would need custom metrics)
+  # - PostgreSQL (would need postgres_exporter)
+  # - SFTPGo (check if it has metrics endpoint)
+  # - NiFi/NiFi Registry (have JMX metrics, would need jmx_exporter)
 
   # Monitoring services that do expose metrics
   - job_name: "loki"

@@ -16,6 +16,7 @@ from src.core.auth import get_current_user, User
 from src.core.config import setup_logging, settings
 from src.core.audit import before_flush, after_flush_postexec
 from src.core.schema_manager import schema_manager
+# from src.core.metrics import PrometheusMiddleware, get_metrics_response, init_app_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,9 @@ async def lifespan(app: FastAPI):
     
     logger.info("Audit logging system initialized.")
     
+    # Initialize metrics
+    # init_app_metrics(version="1.0.0", environment=os.getenv("ENVIRONMENT", "development"))
+    
     yield
     
     logger.info("--- Shutting down EDI Lens Validator API ---")
@@ -51,6 +55,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Add Prometheus metrics middleware
+# metrics_middleware = PrometheusMiddleware("edi-lens-backend")
+# app.middleware("http")(metrics_middleware)
+
 # Include routers
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(edi.router, prefix="/api/v1")
@@ -61,6 +69,11 @@ app.include_router(workflows.router, prefix="/api/v1")
 @app.get("/api/v1/health", tags=["health"])
 def health_check():
     return {"status": "ok"}
+
+@app.get("/metrics", tags=["monitoring"])
+def metrics():
+    """Prometheus metrics endpoint"""
+    return {"message": "Metrics endpoint placeholder - will be implemented with working monitoring system"}
 
 
 origins = ["http://localhost:3000", "http://localhost:3001"]
