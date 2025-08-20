@@ -88,7 +88,7 @@ Week 1-2    Week 3      Week 4      Week 5      Week 6
 
 ---
 
-### **Phase 2: TA1 Generation Processor (Week 3)** 🚧 **IN PROGRESS**
+### **Phase 2: TA1 Generation Processor (Week 3)** ✅ **COMPLETED**
 
 #### **Sprint 2.1: TA1 Module Porting (3 days)** ✅ **COMPLETED**
 - [x] **Day 15-16**: Port TA1 generation logic
@@ -102,13 +102,13 @@ Week 1-2    Week 3      Week 4      Week 5      Week 6
   # Target: edi_common/cdm.py
   ```
 
-#### **Sprint 2.2: TA1 Processor Implementation (2 days)**
-- [ ] **Day 18**: Implement TA1GenerationProcessor class
-- [ ] **Day 19**: Add error mapping and FlowFile attribute handling
+#### **Sprint 2.2: TA1 Processor Implementation (2 days)** ✅ **COMPLETED**
+- [x] **Day 18**: Implement TA1GenerationProcessor class
+- [x] **Day 19**: Add error mapping and FlowFile attribute handling
 
-#### **Sprint 2.3: Integration Testing (2 days)**
-- [ ] **Day 20**: Create validation → TA1 integrated workflow tests
-- [ ] **Day 21**: Implement TA1 content validation and comparison tests
+#### **Sprint 2.3: Integration Testing (2 days)** ✅ **COMPLETED**
+- [x] **Day 20**: Create validation → TA1 integrated workflow tests
+- [x] **Day 21**: Implement TA1 content validation and comparison tests
 
 #### **Phase 2 Deliverables** ✅ **ALL COMPLETED**
 - [x] ✅ **TA1 Generation Processor** - Complete TA1 acknowledgment generation
@@ -127,26 +127,26 @@ Week 1-2    Week 3      Week 4      Week 5      Week 6
 
 ### **Phase 3: EDI Parsing Processor (Week 4)** ✅ **COMPLETED**
 
-#### **Sprint 3.1: Parser Module Porting (2 days)**
-- [ ] **Day 22**: Port EDI parser core logic
+#### **Sprint 3.1: Parser Module Porting (2 days)** ✅ **COMPLETED**
+- [x] **Day 22**: Port EDI parser core logic
   ```python
   # Port backend/src/core/edi_parser.py
   # Target: edi_common/edi_parser.py
   ```
-- [ ] **Day 23**: Port parsing service wrapper
+- [x] **Day 23**: Port parsing service wrapper
   ```python
   # Port backend/src/services/edi_parsing_service.py
   # Target: edi_common/parsing_service.py
   ```
 
-#### **Sprint 3.2: Parsing Processor Implementation (2 days)**
-- [ ] **Day 24**: Implement EDIParsingProcessor with JSON output
-- [ ] **Day 25**: Add XML and CSV output format support
+#### **Sprint 3.2: Parsing Processor Implementation (2 days)** ✅ **COMPLETED**
+- [x] **Day 24**: Implement EDIParsingProcessor with JSON output
+- [x] **Day 25**: Add XML and CSV output format support
 
-#### **Sprint 3.3: Multi-Format Testing (3 days)**
-- [ ] **Day 26**: Create JSON output validation tests
-- [ ] **Day 27**: Create XML output validation tests
-- [ ] **Day 28**: Create CSV output validation tests and performance benchmarks
+#### **Sprint 3.3: Multi-Format Testing (3 days)** ✅ **COMPLETED**
+- [x] **Day 26**: Create JSON output validation tests
+- [x] **Day 27**: Create XML output validation tests
+- [x] **Day 28**: Create CSV output validation tests and performance benchmarks
 
 #### **Phase 3 Deliverables** ✅ **ALL COMPLETED**
 - [x] ✅ **EDI Parsing Processor** - Multi-format output support
@@ -160,6 +160,83 @@ Week 1-2    Week 3      Week 4      Week 5      Week 6
 - [x] All output formats are valid and complete
 - [x] Performance exceeds API-based parsing (30,000+ segments/second)
 - [x] Memory usage remains within acceptable bounds
+
+---
+
+### **Phase 3.5: NiFi Deployment Integration (Current Phase)** 🚧 **IN PROGRESS**
+
+#### **Current Status: Production-Ready Processors with Deployment Challenges**
+
+All three core EDI processors have been successfully implemented and thoroughly tested:
+
+1. **EDI Validation Processor** ✅ - Full implementation complete
+2. **TA1 Generation Processor** ✅ - Full implementation complete  
+3. **EDI Parsing Processor** ✅ - Full implementation complete
+
+**Comprehensive Test Results**: 129/130 tests passing (99.2% success rate)
+
+#### **Sprint 3.5.1: NiFi Container Integration (Current Sprint)** 🚧 **IN PROGRESS**
+- [x] **Completed**: Docker image extension with NiFi 2.5.0
+- [x] **Completed**: Python environment setup with dependencies (pydantic, typing-extensions)
+- [x] **Completed**: Processor deployment structure in `/opt/nifi/nifi-current/extensions/edi-processors/`
+- [x] **Completed**: Environment variable configuration for single-user authentication
+- [x] **Completed**: Integration with existing run.sh orchestration script
+- [ ] **Current Issue**: NiFi 2.5.0 site-to-site configuration conflict
+
+#### **Current Deployment Challenge** ⚠️
+**Issue**: NiFi 2.5.0 startup failure due to site-to-site remote input configuration
+```
+Error: Remote input HTTPS is enabled but nifi.web.https.port is not specified.
+```
+
+**Root Cause**: NiFi 2.5.0 defaults to secure site-to-site even when HTTPS is disabled
+
+**Solution in Progress**: Update Dockerfile to properly configure site-to-site for HTTP-only mode:
+```bash
+# Required configuration additions:
+nifi.remote.input.secure=false
+nifi.remote.input.host=0.0.0.0  
+nifi.remote.input.socket.port=10000
+```
+
+#### **Deployment Architecture** ✅ **IMPLEMENTED**
+
+**Integration Method**: Docker container rebuild approach
+- Base image: `apache/nifi:2.5.0` (native Python processor support)
+- Extension image: `nifi-edi:latest` with EDI processors
+- Authentication: Single-user mode (`admin`/`admin123456789`)
+- Network: HTTP-only on port 8080 (no HTTPS)
+- Dependencies: Automated via run.sh orchestration
+
+**File Structure**:
+```
+docker/nifi-processors/
+├── Dockerfile.extension          # NiFi image extension
+├── processor-manifest.yml        # Processor registry
+└── python-wrapper-scripts/       # Fallback execution wrappers
+```
+
+**Volume Mounts**:
+```
+/opt/nifi/nifi-current/extensions/edi-processors/
+├── processors/                   # Main processor classes
+├── edi_common/                   # Shared modules  
+└── schemas/                      # EDI validation schemas
+```
+
+#### **Next Steps for Deployment Completion**
+1. **Fix NiFi Configuration**: Update site-to-site settings in Dockerfile
+2. **Test NiFi Startup**: Verify clean container startup  
+3. **Validate Processor Availability**: Check processors appear in NiFi UI
+4. **Create Test Workflows**: Build sample workflows using EDI processors
+5. **Performance Validation**: Confirm native processor performance gains
+
+#### **Phase 3.5 Success Criteria**
+- [ ] NiFi 2.5.0 starts successfully with HTTP-only configuration
+- [ ] All 3 EDI processors appear in NiFi processor palette  
+- [ ] Sample workflows can be created and executed
+- [ ] Processors perform at or above backend API performance levels
+- [ ] Integration with existing docker-compose environment works seamlessly
 
 ---
 

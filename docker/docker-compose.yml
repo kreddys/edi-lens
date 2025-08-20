@@ -210,16 +210,21 @@ services:
       - backend
     restart: unless-stopped
     command: sftpgo serve
+    
 
 
   nifi:
-    image: apache/nifi:1.23.2
+    build:
+      context: ..
+      dockerfile: docker/nifi-processors/Dockerfile.extension
+    image: nifi-edi:latest
     container_name: nifi
     hostname: nifi
     environment:
-      # Basic Configuration
+      # Basic Configuration - HTTP only (disable HTTPS completely)
       - NIFI_WEB_HTTP_HOST=0.0.0.0
       - NIFI_WEB_HTTP_PORT=8080
+      - NIFI_WEB_HTTPS_PORT=""
       - NIFI_CLUSTER_IS_NODE=false
       - NIFI_SENSITIVE_PROPS_KEY=${NIFI_SENSITIVE_PROPS_KEY}
       
@@ -239,6 +244,10 @@ services:
       
       # Backend Integration
       - EDI_BACKEND_URL=http://backend:8000
+      
+      # EDI Processors Python Path
+      - PYTHONPATH=/opt/nifi/nifi-current/extensions/edi-processors:${PYTHONPATH:-}
+    command: ["/opt/nifi/nifi-current/bin/entrypoint.sh"]
       
     # ports:
       # - "8080:8080"  # Proxied through Caddy instead
@@ -288,7 +297,7 @@ services:
       - edi_lens_network
 
   nifi-registry:
-    image: apache/nifi-registry:1.23.2
+    image: apache/nifi-registry:2.5.0
     container_name: nifi-registry
     environment:
       - NIFI_REGISTRY_WEB_HTTP_HOST=0.0.0.0

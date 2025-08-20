@@ -1,0 +1,52 @@
+# Dockerfile for NiFi EDI Processors Extension
+# Extends the base NiFi image with EDI processing capabilities
+
+FROM apache/nifi:2.5.0
+
+# Switch to root to install packages and set up extensions
+USER root
+
+# Install Python and pip first
+RUN apt-get update && \
+    apt-get install -y python3 python3-pip python3-venv && \
+    ln -s /usr/bin/python3 /usr/bin/python && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies for EDI processors (bypass environment restrictions)
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
+    pydantic>=2.0.0 \
+    typing-extensions>=4.0.0
+
+# Create extensions directory
+RUN mkdir -p /opt/nifi/nifi-current/extensions/edi-processors
+
+# Copy EDI processors and dependencies
+COPY nifi-edi-processors/processors /opt/nifi/nifi-current/extensions/edi-processors/processors
+COPY nifi-edi-processors/edi_common /opt/nifi/nifi-current/extensions/edi-processors/edi_common  
+COPY nifi-edi-processors/schemas /opt/nifi/nifi-current/extensions/edi-processors/schemas
+
+# Create processor manifest
+COPY docker/nifi-processors/processor-manifest.yml /opt/nifi/nifi-current/extensions/edi-processors/
+
+# Set proper permissions
+RUN chown -R nifi:nifi /opt/nifi/nifi-current/extensions/edi-processors && \
+    chmod -R 755 /opt/nifi/nifi-current/extensions/edi-processors
+
+# Set NiFi Python path to include our processors
+ENV PYTHONPATH="/opt/nifi/nifi-current/extensions/edi-processors:${PYTHONPATH}"
+
+# Copy and set up the entrypoint script
+COPY docker/nifi-processors/entrypoint.sh /opt/nifi/nifi-current/bin/entrypoint.sh
+RUN chmod +x /opt/nifi/nifi-current/bin/entrypoint.sh
+
+# Switch back to nifi user
+USER nifi
+
+# Set the entrypoint
+ENTRYPOINT ["/opt/nifi/nifi-current/bin/entrypoint.sh"]
+
+# Add labels for identification
+LABEL version="1.0.0" \
+      description="NiFi with EDI Processors Extension" \
+      maintainer="EDI Lens Team"
