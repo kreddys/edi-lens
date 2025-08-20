@@ -28,7 +28,7 @@ class TestIntegratedWorkflow:
         self.validation_service = EDIValidationService("/tmp/test_schemas")
         self.ta1_generator = TA1Generator()
 
-    def test_valid_edi_no_ta1_requested(self):
+    def test_valid_edi_no_ta1_requested(self, standalone_schema):
         """Test valid EDI with no TA1 requested (ISA14=0)."""
         # Valid EDI with ISA14=0 (no ack requested)
         edi_content = """ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *210101*1000*^*00501*000000001*0*P*>~
@@ -42,7 +42,7 @@ GE*1*1~
 IEA*1*000000001~"""
 
         # Step 1: Validate EDI
-        with patch.object(self.validation_service.schema_manager, 'get_schema', return_value=None):
+        with patch.object(self.validation_service.schema_manager, 'get_schema', return_value=standalone_schema):
             validation_result = self.validation_service.validate_edi(
                 edi_content=edi_content,
                 schema_name="test.json",  # Will fail gracefully with schema not found
@@ -51,7 +51,7 @@ IEA*1*000000001~"""
             )
 
         # Step 2: Extract ISA header and check TA1 generation
-        parser = EdiParser(edi_content)
+        parser = EdiParser(edi_content, standalone_schema)
         segments = parser._segmentize(edi_content)
         isa_segment = segments[0]  # First segment should be ISA
 
@@ -63,7 +63,7 @@ IEA*1*000000001~"""
         assert isa_segment.get_element(14) == "0"  # No ack requested
         assert ta1_result is None  # No TA1 should be generated
 
-    def test_valid_edi_with_ta1_requested(self):
+    def test_valid_edi_with_ta1_requested(self, standalone_schema):
         """Test valid EDI with TA1 requested (ISA14=1)."""
         # Valid EDI with ISA14=1 (ack requested)
         edi_content = """ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *210101*1000*^*00501*000000001*1*P*>~
@@ -77,7 +77,7 @@ GE*1*1~
 IEA*1*000000001~"""
 
         # Step 1: Validate EDI
-        with patch.object(self.validation_service.schema_manager, 'get_schema', return_value=None):
+        with patch.object(self.validation_service.schema_manager, 'get_schema', return_value=standalone_schema):
             validation_result = self.validation_service.validate_edi(
                 edi_content=edi_content,
                 schema_name="test.json",
@@ -86,7 +86,7 @@ IEA*1*000000001~"""
             )
 
         # Step 2: Extract ISA header
-        parser = EdiParser(edi_content)
+        parser = EdiParser(edi_content, standalone_schema)
         segments = parser._segmentize(edi_content)
         isa_segment = segments[0]
 
@@ -100,7 +100,7 @@ IEA*1*000000001~"""
         assert "TA1*" in ta1_result  # Should contain TA1 segment
         assert "*A*" in ta1_result  # Should be acceptance (A)
 
-    def test_invalid_edi_with_ta1_generation(self):
+    def test_invalid_edi_with_ta1_generation(self, standalone_schema):
         """Test invalid EDI that should generate rejection TA1."""
         # Create invalid EDI with ISA14=1
         edi_content = """ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *210101*1000*^*00501*000000001*1*P*>~
@@ -112,7 +112,7 @@ GE*1*1~
 IEA*1*000000001~"""
 
         # Step 1: Extract ISA header
-        parser = EdiParser(edi_content)
+        parser = EdiParser(edi_content, standalone_schema)
         segments = parser._segmentize(edi_content)
         isa_segment = segments[0]
 
@@ -133,7 +133,7 @@ IEA*1*000000001~"""
         assert "*R*" in ta1_result  # Should be rejection (R)
         assert "024" in ta1_result  # Should contain error note code (without requiring asterisks)
 
-    def test_forced_ta1_generation(self):
+    def test_forced_ta1_generation(self, standalone_schema):
         """Test forced TA1 generation regardless of ISA14."""
         # Valid EDI with ISA14=0 but forced generation
         edi_content = """ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *210101*1000*^*00501*000000001*0*P*>~
@@ -147,7 +147,7 @@ GE*1*1~
 IEA*1*000000001~"""
 
         # Step 1: Extract ISA header
-        parser = EdiParser(edi_content)
+        parser = EdiParser(edi_content, standalone_schema)
         segments = parser._segmentize(edi_content)
         isa_segment = segments[0]
 
@@ -160,7 +160,7 @@ IEA*1*000000001~"""
         assert "TA1*" in ta1_result
         assert "*A*" in ta1_result  # Should be acceptance
 
-    def test_ta1_interchange_structure(self):
+    def test_ta1_interchange_structure(self, standalone_schema):
         """Test that generated TA1 has correct interchange structure."""
         # Sample EDI with TA1 requested
         edi_content = """ISA*00*          *00*          *ZZ*SENDER123      *ZZ*RECEIVER456    *210101*1000*^*00501*000000001*1*P*>~
@@ -174,7 +174,7 @@ GE*1*1~
 IEA*1*000000001~"""
 
         # Extract ISA header
-        parser = EdiParser(edi_content)
+        parser = EdiParser(edi_content, standalone_schema)
         segments = parser._segmentize(edi_content)
         isa_segment = segments[0]
 
@@ -202,7 +202,7 @@ IEA*1*000000001~"""
         assert ta1_parts[4] == 'A'  # Acceptance code
         assert ta1_parts[5] == '000'  # No error code
 
-    def test_workflow_integration_simulation(self):
+    def test_workflow_integration_simulation(self, standalone_schema):
         """Simulate the complete NiFi workflow integration."""
 
         # Simulate FlowFile data
@@ -217,7 +217,7 @@ GE*1*1~
 IEA*1*000000001~"""
 
         # Step 1: Simulate EDI Validation Processor
-        with patch.object(self.validation_service.schema_manager, 'get_schema', return_value=None):
+        with patch.object(self.validation_service.schema_manager, 'get_schema', return_value=standalone_schema):
             validation_result = self.validation_service.validate_edi(
                 edi_content=test_edi,
                 schema_name="test.json",
@@ -242,7 +242,7 @@ IEA*1*000000001~"""
 
         # Step 2: Simulate TA1 Generation Processor
         # Extract ISA header
-        parser = EdiParser(test_edi)
+        parser = EdiParser(test_edi, standalone_schema)
         segments = parser._segmentize(test_edi)
         isa_segment = segments[0]
 

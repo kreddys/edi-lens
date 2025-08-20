@@ -17,45 +17,41 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from edi_common.edi_parser import EdiParser
 from processors.edi_parsing_processor import EDIParsingProcessor
 
+@pytest.fixture
+def parsing_formats_fixtures(standalone_schema):
+    processor = EDIParsingProcessor()
+    sample_edi = """ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *210101*1000*^*00501*000000001*1*P*>~GS*HC*SENDER*RECEIVER*20210101*1000*1*X*005010~ST*270*0001~BHT*0022*13*10001234*20210101*1000~HL*1**20*1~NM1*PR*2*ABC INSURANCE*****PI*12345~SE*6*0001~GE*1*1~IEA*1*000000001~"""
+    parser = EdiParser(sample_edi, standalone_schema)
+    interchange = parser.parse()
+    metadata = {
+        "parsed_at": "2024-01-15T10:30:00Z",
+        "segment_count": 9,
+        "has_errors": False,
+        "interchange_control_number": "000000001",
+        "sender_id": "SENDER         ",
+        "receiver_id": "RECEIVER       ",
+        "transaction_sets": [
+            {
+                "transaction_set_identifier": "270",
+                "control_number": "0001",
+                "segment_count": 8
+            }
+        ]
+    }
+    return processor, interchange, metadata
+
 class TestParsingFormats:
     """Test cases for multi-format EDI parsing output."""
     
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.processor = EDIParsingProcessor()
-        
-        # Sample EDI for testing
-        self.sample_edi = """ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *210101*1000*^*00501*000000001*1*P*>~GS*HC*SENDER*RECEIVER*20210101*1000*1*X*005010~ST*270*0001~BHT*0022*13*10001234*20210101*1000~HL*1**20*1~NM1*PR*2*ABC INSURANCE*****PI*12345~SE*6*0001~GE*1*1~IEA*1*000000001~"""
-        
-        # Parse EDI for testing format methods
-        self.parser = EdiParser(self.sample_edi)
-        self.interchange = self.parser.parse()
-        
-        # Sample metadata
-        self.metadata = {
-            "parsed_at": "2024-01-15T10:30:00Z",
-            "segment_count": 9,
-            "has_errors": False,
-            "interchange_control_number": "000000001",
-            "sender_id": "SENDER         ",
-            "receiver_id": "RECEIVER       ",
-            "transaction_sets": [
-                {
-                    "transaction_set_identifier": "270",
-                    "control_number": "0001",
-                    "segment_count": 8
-                }
-            ]
-        }
-    
-    def test_json_output_format(self):
+    def test_json_output_format(self, parsing_formats_fixtures):
         """Test JSON output format compliance."""
+        processor, interchange, metadata = parsing_formats_fixtures
         
         # Generate JSON output
-        json_output = self.processor._format_as_json(
-            self.interchange, 
+        json_output = processor._format_as_json(
+            interchange,
             include_metadata=True, 
-            metadata=self.metadata
+            metadata=metadata
         )
         
         # Parse JSON to validate structure
@@ -99,14 +95,15 @@ class TestParsingFormats:
         
         print("✅ JSON format validation passed")
     
-    def test_xml_output_format(self):
+    def test_xml_output_format(self, parsing_formats_fixtures):
         """Test XML output format compliance."""
+        processor, interchange, metadata = parsing_formats_fixtures
         
         # Generate XML output
-        xml_output = self.processor._format_as_xml(
-            self.interchange,
+        xml_output = processor._format_as_xml(
+            interchange,
             include_metadata=True,
-            metadata=self.metadata
+            metadata=metadata
         )
         
         # Parse XML and validate structure
@@ -151,14 +148,15 @@ class TestParsingFormats:
         
         print("✅ XML format validation passed")
     
-    def test_csv_output_format(self):
+    def test_csv_output_format(self, parsing_formats_fixtures):
         """Test CSV output format compliance."""
+        processor, interchange, metadata = parsing_formats_fixtures
         
         # Generate CSV output
-        csv_output = self.processor._format_as_csv(
-            self.interchange,
+        csv_output = processor._format_as_csv(
+            interchange,
             include_metadata=True,
-            metadata=self.metadata
+            metadata=metadata
         )
         
         # Parse CSV and validate structure
@@ -194,13 +192,14 @@ class TestParsingFormats:
         
         print("✅ CSV format validation passed")
     
-    def test_json_output_without_metadata(self):
+    def test_json_output_without_metadata(self, parsing_formats_fixtures):
         """Test JSON output without metadata."""
+        processor, interchange, metadata = parsing_formats_fixtures
         
-        json_output = self.processor._format_as_json(
-            self.interchange, 
+        json_output = processor._format_as_json(
+            interchange,
             include_metadata=False, 
-            metadata=self.metadata
+            metadata=metadata
         )
         
         parsed_result = json.loads(json_output)
@@ -211,13 +210,14 @@ class TestParsingFormats:
         
         print("✅ JSON without metadata validation passed")
     
-    def test_xml_output_without_metadata(self):
+    def test_xml_output_without_metadata(self, parsing_formats_fixtures):
         """Test XML output without metadata."""
+        processor, interchange, metadata = parsing_formats_fixtures
         
-        xml_output = self.processor._format_as_xml(
-            self.interchange,
+        xml_output = processor._format_as_xml(
+            interchange,
             include_metadata=False,
-            metadata=self.metadata
+            metadata=metadata
         )
         
         root = ET.fromstring(xml_output)
@@ -231,13 +231,14 @@ class TestParsingFormats:
         
         print("✅ XML without metadata validation passed")
     
-    def test_csv_output_without_metadata(self):
+    def test_csv_output_without_metadata(self, parsing_formats_fixtures):
         """Test CSV output without metadata."""
+        processor, interchange, metadata = parsing_formats_fixtures
         
-        csv_output = self.processor._format_as_csv(
-            self.interchange,
+        csv_output = processor._format_as_csv(
+            interchange,
             include_metadata=False,
-            metadata=self.metadata
+            metadata=metadata
         )
         
         # Should not have metadata comments
@@ -246,13 +247,14 @@ class TestParsingFormats:
         
         print("✅ CSV without metadata validation passed")
     
-    def test_segment_content_accuracy(self):
+    def test_segment_content_accuracy(self, parsing_formats_fixtures):
         """Test that segment content is accurately represented across formats."""
+        processor, interchange, metadata = parsing_formats_fixtures
         
         # Get all format outputs
-        json_output = self.processor._format_as_json(self.interchange, False, {})
-        xml_output = self.processor._format_as_xml(self.interchange, False, {})
-        csv_output = self.processor._format_as_csv(self.interchange, False, {})
+        json_output = processor._format_as_json(interchange, False, {})
+        xml_output = processor._format_as_xml(interchange, False, {})
+        csv_output = processor._format_as_csv(interchange, False, {})
         
         # Parse JSON
         json_data = json.loads(json_output)
@@ -299,9 +301,10 @@ class TestParsingFormats:
     
     def test_processor_interface(self):
         """Test processor interface methods."""
+        processor = EDIParsingProcessor()
         
         # Test property descriptors
-        properties = self.processor.getPropertyDescriptors()
+        properties = processor.getPropertyDescriptors()
         assert len(properties) == 6
         
         property_names = [prop.name for prop in properties]
@@ -314,18 +317,19 @@ class TestParsingFormats:
             assert expected_prop in property_names
         
         # Test relationships
-        relationships = self.processor.getRelationships()
+        relationships = processor.getRelationships()
         assert len(relationships) == 2
         assert "success" in relationships
         assert "failure" in relationships
         
         print("✅ Processor interface validation passed")
     
-    def test_metadata_extraction(self):
+    def test_metadata_extraction(self, parsing_formats_fixtures):
         """Test metadata extraction functionality."""
+        processor, interchange, metadata = parsing_formats_fixtures
         
-        metadata = self.processor._extract_metadata(
-            self.interchange, 
+        metadata = processor._extract_metadata(
+            interchange,
             "2024-01-15T10:30:00Z", 
             "test-tenant"
         )

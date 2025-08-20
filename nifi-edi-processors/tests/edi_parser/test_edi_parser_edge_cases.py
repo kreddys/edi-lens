@@ -164,3 +164,103 @@ def test_parser_handles_missing_elements(standalone_schema: ImplementationGuideS
     nm1_segment = nm1_segments[0]
     error_messages = [e.message for e in nm1_segment.errors]
     assert any("NM108" in msg and "missing" in msg for msg in error_messages), f"Expected missing element error not found. Errors: {error_messages}"
+
+def test_validate_data_type_invalid(standalone_schema: ImplementationGuideSchema):
+    from edi_common.edi_parser import _validate_data_type
+    assert not _validate_data_type("a", "N0")
+    assert not _validate_data_type("a", "R")
+    assert not _validate_data_type("a", "UNKNOWN")
+
+def test_validate_format_unknown(standalone_schema: ImplementationGuideSchema):
+    from edi_common.edi_parser import _validate_format
+    assert _validate_format("any", "UNKNOWN")
+
+def test_get_guide_version_from_edi_no_gs(standalone_schema: ImplementationGuideSchema):
+    from edi_common.edi_parser import get_guide_version_from_edi
+    edi = "ISA*00* *00* *ZZ*SENDER*ZZ*RECEIVER*240715*1200*^*00501*1*0*P*>~IEA*1*1~"
+    assert get_guide_version_from_edi(edi) is None
+
+def test_get_effective_definition_no_context(standalone_schema: ImplementationGuideSchema):
+    from edi_common.edi_parser import _get_effective_definition
+    base_def = {"elements": [{"xid": "NM101", "name": "Name"}]}
+    assert _get_effective_definition(base_def, None) == base_def
+    assert _get_effective_definition(base_def, {}) == base_def
+
+def test_segment_validator_no_base_def(standalone_schema: ImplementationGuideSchema):
+    from edi_common.edi_parser import SegmentValidator
+    from edi_common.cdm import CdmSegment, CdmElement
+    validator = SegmentValidator(standalone_schema, "*")
+    segment = CdmSegment(segment_id="UNKNOWN", elements=[], line_number=1, raw_segment="UNKNOWN")
+    errors = validator.validate(segment)
+    assert len(errors) == 1
+    assert "Base definition for segment 'UNKNOWN' not found" in errors[0].message
+
+def test_evaluate_condition_clause_is_not(standalone_schema: ImplementationGuideSchema):
+    from edi_common.edi_parser import SegmentValidator
+    from edi_common.cdm import CdmSegment, CdmElement
+    validator = SegmentValidator(standalone_schema, "*")
+    segment = CdmSegment(segment_id="NM1", elements=[CdmElement(position=1, value="XX")], line_number=1, raw_segment="NM1*XX")
+    clause = {"element": "NM101", "operator": "IS_NOT", "value": "YY"}
+    assert validator._evaluate_condition_clause(segment, clause)
+
+def test_detect_delimiters_fallback(standalone_schema: ImplementationGuideSchema):
+    parser = EdiParser("DUMMY", standalone_schema)
+    assert parser.element_delimiter == "*"
+    assert parser.segment_terminator == "~"
+    assert parser.component_separator == ":"
+
+def test_parse_transaction_set_value_error(standalone_schema: ImplementationGuideSchema):
+    # This test is tricky because it requires a schema that will cause a ValueError
+    # during parsing. A simple way to do this is to have a schema with a non-integer
+    # `max_use` value, which will cause a `ValueError` in `_find_best_schema_match`.
+    # We will create a dummy schema for this test.
+    from edi_common.edi_schema_models import ImplementationGuideSchema, StructureLoop, StructureSegment
+
+    dummy_schema = ImplementationGuideSchema(
+        transactionName="test",
+        version="1.0",
+        description="test",
+        structure=[
+            StructureLoop(
+                xid="ST_LOOP",
+                name="Transaction Set",
+                type="loop",
+                repeat="1",
+                usage="R",
+                children=[
+                    StructureSegment(xid="ST", name="Transaction Set Header", type="segment", repeat="1", usage="R", max_use=1),
+                    StructureLoop(
+                        xid="2400",
+                        name="Service Line",
+                        type="loop",
+                        repeat=">1", # This will cause a ValueError
+                        usage="R",
+                        children=[]
+                    ),
+                    StructureSegment(xid="SE", name="Transaction Set Trailer", type="segment", repeat="1", usage="R", max_use=1)
+                ]
+            )
+        ],
+        segmentDefinitions={},
+        contextualDefinitions={}
+    )
+
+    edi = "ST*837*0001~SE*2*0001~"
+    parser = EdiParser(edi_string=edi, schema=dummy_schema)
+    transaction = parser._parse_transaction_set(parser.all_segments)
+    assert len(transaction.errors) > 0
+    assert "Required segment or loop '2400' (Service Line) is missing from loop 'ST_LOOP'." in transaction.errors[0].message
+
+def test_parse_unclosed_functional_group(standalone_schema: ImplementationGuideSchema):
+    edi = "ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *240715*1200*^*00501*000000001*0*P*>~GS*HC*SENDER*RECEIVER*20240715*1200*1*X*005010X222A1~IEA*1*000000001~"
+    parser = EdiParser(edi_string=edi, schema=standalone_schema)
+    interchange = parser.parse()
+    assert len(interchange.errors) > 0
+    assert "Unclosed functional group" in interchange.errors[0].message
+
+def test_parse_unclosed_transaction_set(standalone_schema: ImplementationGuideSchema):
+    edi = "ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *240715*1200*^*00501*000000001*0*P*>~GS*HC*SENDER*RECEIVER*20240715*1200*1*X*005010X222A1~ST*837*0001~GE*1*1~IEA*1*000000001~"
+    parser = EdiParser(edi_string=edi, schema=standalone_schema)
+    interchange = parser.parse()
+    assert len(interchange.errors) > 0
+    assert "Unclosed transaction set" in interchange.errors[0].message
