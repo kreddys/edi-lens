@@ -45,10 +45,6 @@ except ImportError:
         FLOWFILE_ATTRIBUTES = "FLOWFILE_ATTRIBUTES"
 
 # Import our EDI common modules
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
 from edi_common.edi_parser import EdiParser
 from edi_common.schema_manager import SchemaManager
 

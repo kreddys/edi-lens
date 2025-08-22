@@ -18,23 +18,22 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
     pydantic>=2.0.0 \
     typing-extensions>=4.0.0
 
-# Create extensions directory
-RUN mkdir -p /opt/nifi/nifi-current/extensions/edi-processors
+# Create directory for Python extensions and copy processors to root level
+RUN mkdir -p /opt/nifi/nifi-current/python/extensions
 
-# Copy EDI processors and dependencies
-COPY nifi-edi-processors/processors /opt/nifi/nifi-current/extensions/edi-processors/processors
-COPY nifi-edi-processors/edi_common /opt/nifi/nifi-current/extensions/edi-processors/edi_common  
-COPY nifi-edi-processors/schemas /opt/nifi/nifi-current/extensions/edi-processors/schemas
+# Copy individual processor files directly to extensions root
+COPY nifi-edi-processors/processors/*.py /opt/nifi/nifi-current/python/extensions/
 
-# Create processor manifest
-COPY docker/nifi-processors/processor-manifest.yml /opt/nifi/nifi-current/extensions/edi-processors/
+# Copy supporting modules to extensions directory
+COPY nifi-edi-processors/edi_common /opt/nifi/nifi-current/python/extensions/edi_common
+COPY nifi-edi-processors/schemas /opt/nifi/nifi-current/python/extensions/schemas
 
-# Set proper permissions
-RUN chown -R nifi:nifi /opt/nifi/nifi-current/extensions/edi-processors && \
-    chmod -R 755 /opt/nifi/nifi-current/extensions/edi-processors
+# Set proper permissions for Python extensions
+RUN chown -R nifi:nifi /opt/nifi/nifi-current/python/extensions && \
+    chmod -R 755 /opt/nifi/nifi-current/python/extensions
 
-# Set NiFi Python path to include our processors
-ENV PYTHONPATH="/opt/nifi/nifi-current/extensions/edi-processors:${PYTHONPATH}"
+# Set NiFi Python path to include extensions directory
+ENV PYTHONPATH="/opt/nifi/nifi-current/python/extensions:${PYTHONPATH}"
 
 # Copy and set up the entrypoint script
 COPY docker/nifi-processors/entrypoint.sh /opt/nifi/nifi-current/bin/entrypoint.sh

@@ -41,10 +41,6 @@ except ImportError:
         FLOWFILE_ATTRIBUTES = "FLOWFILE_ATTRIBUTES"
 
 # Import our EDI common modules
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
 from edi_common.ta1_generator import TA1Generator
 from edi_common.ta1_defs import InterchangeError, TA1NoteCode
 from edi_common.edi_parser import EdiParser

@@ -40,10 +40,6 @@ except ImportError:
         FLOWFILE_ATTRIBUTES = "FLOWFILE_ATTRIBUTES"
 
 # Import our EDI common modules
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
 from edi_common.validation_service import EDIValidationService, ValidationResult
 
 logger = logging.getLogger(__name__)
@@ -66,63 +62,68 @@ class EDIValidationProcessor(FlowFileTransform):
         Outputs validation results as FlowFile attributes and JSON content."""
         tags = ['edi', 'validation', 'x12', 'healthcare']
     
-    # Processor properties
-    VALIDATION_SCHEMA = PropertyDescriptor(
-        name="Validation Schema",
-        description="EDI schema file to validate against (e.g., '270.5010.X279.A1.json')",
-        required=True,
-        default_value="${validation.schema}",
-        expression_language_scope=ExpressionLanguageScope.FLOWFILE_ATTRIBUTES
-    )
-    
-    SNIP_LEVEL = PropertyDescriptor(
-        name="SNIP Level", 
-        description="Validation strictness level (1-5, where 5 is most strict)",
-        required=True,
-        default_value="3",
-        allowable_values=["1", "2", "3", "4", "5"],
-        expression_language_scope=ExpressionLanguageScope.FLOWFILE_ATTRIBUTES
-    )
-    
-    TENANT_ID = PropertyDescriptor(
-        name="Tenant ID",
-        description="Tenant identifier for multi-tenant schema support",
-        required=True,
-        default_value="${tenant.id}",
-        expression_language_scope=ExpressionLanguageScope.FLOWFILE_ATTRIBUTES
-    )
-    
-    SCHEMA_BASE_PATH = PropertyDescriptor(
-        name="Schema Base Path",
-        description="Base directory containing EDI schema files",
-        required=False,
-        default_value="/opt/nifi/schemas"
-    )
-    
-    CACHE_SCHEMAS = PropertyDescriptor(
-        name="Cache Schemas",
-        description="Enable schema caching for improved performance",
-        required=False,
-        default_value="true",
-        allowable_values=["true", "false"]
-    )
+    # Property descriptors are now defined in __init__
     
     # Relationships
     REL_SUCCESS = "success"
     REL_FAILURE = "failure"
     
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.validation_service = None
-    
-    def getPropertyDescriptors(self):
-        return [
+        pass
+        
+        # Define property descriptors as instance variables
+        self.VALIDATION_SCHEMA = PropertyDescriptor(
+            name="Validation Schema",
+            description="EDI schema file to validate against (e.g., '270.5010.X279.A1.json')",
+            required=True,
+            default_value="${validation.schema}",
+            expression_language_scope=ExpressionLanguageScope.FLOWFILE_ATTRIBUTES
+        )
+        
+        self.SNIP_LEVEL = PropertyDescriptor(
+            name="SNIP Level", 
+            description="Validation strictness level (1-5, where 5 is most strict)",
+            required=True,
+            default_value="3",
+            allowable_values=["1", "2", "3", "4", "5"],
+            expression_language_scope=ExpressionLanguageScope.FLOWFILE_ATTRIBUTES
+        )
+        
+        self.TENANT_ID = PropertyDescriptor(
+            name="Tenant ID",
+            description="Tenant identifier for multi-tenant schema support",
+            required=True,
+            default_value="${tenant.id}",
+            expression_language_scope=ExpressionLanguageScope.FLOWFILE_ATTRIBUTES
+        )
+        
+        self.SCHEMA_BASE_PATH = PropertyDescriptor(
+            name="Schema Base Path",
+            description="Base directory containing EDI schema files",
+            required=False,
+            default_value="/opt/nifi/schemas"
+        )
+        
+        self.CACHE_SCHEMAS = PropertyDescriptor(
+            name="Cache Schemas",
+            description="Enable schema caching for improved performance",
+            required=False,
+            default_value="true",
+            allowable_values=["true", "false"]
+        )
+        
+        self.property_descriptors = [
             self.VALIDATION_SCHEMA,
             self.SNIP_LEVEL, 
             self.TENANT_ID,
             self.SCHEMA_BASE_PATH,
             self.CACHE_SCHEMAS
         ]
+        
+        self.validation_service = None
+    
+    def getPropertyDescriptors(self):
+        return self.property_descriptors
     
     def getRelationships(self):
         return [self.REL_SUCCESS, self.REL_FAILURE]
