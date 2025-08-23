@@ -217,36 +217,78 @@ services:
     build:
       context: ..
       dockerfile: docker/nifi-processors/Dockerfile.extension
-    image: nifi-edi:latest
+    #image: nifi-edi:latest
     container_name: nifi
     hostname: nifi
     environment:
-      # Basic Configuration - HTTP only (disable HTTPS completely)
-      - NIFI_WEB_HTTP_HOST=0.0.0.0
-      - NIFI_WEB_HTTP_PORT=8080
-      - NIFI_WEB_HTTPS_PORT=""
-      - NIFI_CLUSTER_IS_NODE=false
-      - NIFI_SENSITIVE_PROPS_KEY=${NIFI_SENSITIVE_PROPS_KEY}
+      # === DEBUGGING AND LOGGING ===
+      - NIFI_LOG_LEVEL=DEBUG
+      - NIFI_ROOT_LOG_LEVEL=INFO
+      - NIFI_BOOTSTRAP_LOG_LEVEL=DEBUG
+      - NIFI_SECURITY_LOG_LEVEL=DEBUG
+      - JAVA_OPTS=-Xdebug -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps
       
-      # Security Configuration
+      # === WEB CONFIGURATION (SECURE MODE ONLY) ===
+      - NIFI_WEB_HTTPS_HOST=0.0.0.0
+      - NIFI_WEB_HTTPS_PORT=8443
+      
+      # === SECURITY CONFIGURATION (DEFAULT SECURE MODE) ===
+      # Using default NiFi security configuration
+      
+      # === REMOTE INPUT CONFIGURATION (DEFAULT SECURE MODE) ===
+      # Using default NiFi remote input configuration
+      
+      # === CLUSTER CONFIGURATION (DISABLE) ===
+      - NIFI_CLUSTER_IS_NODE=false
+      - NIFI_CLUSTER_NODE_PROTOCOL_PORT=
+      - NIFI_CLUSTER_NODE_PROTOCOL_THREADS=
+      - NIFI_CLUSTER_NODE_PROTOCOL_MAX_THREADS=
+      - NIFI_CLUSTER_NODE_EVENT_HISTORY_SIZE=
+      - NIFI_CLUSTER_NODE_CONNECTION_TIMEOUT=
+      - NIFI_CLUSTER_NODE_READ_TIMEOUT=
+      
+      # === SENSITIVE PROPERTIES ===
+      - NIFI_SENSITIVE_PROPS_KEY=${NIFI_SENSITIVE_PROPS_KEY}
+      - NIFI_SENSITIVE_PROPS_ALGORITHM=NIFI_PBKDF2_AES_GCM_256
+      - NIFI_SENSITIVE_PROPS_PROVIDER=BC
+      
+      # === PYTHON CONFIGURATION ===
+      - NIFI_PYTHON_COMMAND=/usr/bin/python3
+      - NIFI_PYTHON_EXTENSIONS_SOURCE_DIRECTORY_DEFAULT=/opt/nifi/nifi-current/python/extensions
+      - NIFI_PYTHON_FRAMEWORK_EXTENSIONS_DIRECTORY_DEFAULT=/opt/nifi/nifi-current/python/framework
+      - NIFI_PYTHON_WORK_DIRECTORY=/tmp/nifi-python
+      - NIFI_PYTHON_MAX_HEAP_SIZE=512m
+      
+      # === AUTHENTICATION (SINGLE USER MODE) ===
       - SINGLE_USER_CREDENTIALS_USERNAME=${NIFI_ADMIN_USER}
       - SINGLE_USER_CREDENTIALS_PASSWORD=${NIFI_ADMIN_PASSWORD}
       
-      # OIDC Configuration (Keycloak Integration)
-      - NIFI_SECURITY_USER_OIDC_DISCOVERY_URL=${KEYCLOAK_URL}/realms/edi-lens/.well-known/openid_configuration
-      - NIFI_SECURITY_USER_OIDC_CLIENT_ID=nifi
-      - NIFI_SECURITY_USER_OIDC_CLIENT_SECRET=${KEYCLOAK_NIFI_CLIENT_SECRET}
-      - NIFI_SECURITY_USER_OIDC_PREFERRED_JWSALGORITHM=RS256
-      
-      # JVM Configuration
+      # === JVM CONFIGURATION ===
       - NIFI_JVM_HEAP_INIT=${NIFI_JVM_HEAP_INIT}
       - NIFI_JVM_HEAP_MAX=${NIFI_JVM_HEAP_MAX}
+      - NIFI_JVM_DEBUGGER_PORT=
       
-      # Backend Integration
+      # === REPOSITORY CONFIGURATION ===
+      - NIFI_CONTENT_REPOSITORY_IMPLEMENTATION=org.apache.nifi.controller.repository.FileSystemRepository
+      - NIFI_FLOWFILE_REPOSITORY_IMPLEMENTATION=org.apache.nifi.controller.repository.WriteAheadFlowFileRepository
+      - NIFI_PROVENANCE_REPOSITORY_IMPLEMENTATION=org.apache.nifi.provenance.WriteAheadProvenanceRepository
+      
+      # === BACKEND INTEGRATION ===
       - EDI_BACKEND_URL=http://backend:8000
       
-      # EDI Processors Python Path
-      - PYTHONPATH=/opt/nifi/nifi-current/extensions/edi-processors:${PYTHONPATH:-}
+      # === PYTHON PATH FOR EDI PROCESSORS ===
+      - PYTHONPATH=/opt/nifi/nifi-current/python/extensions:${PYTHONPATH:-}
+      
+      # === DATABASE CONNECTION ===
+      - NIFI_DATABASE_DIRECTORY=/opt/nifi/nifi-current/database_repository
+      
+      # === FLOW CONFIGURATION ===
+      - NIFI_FLOW_CONFIGURATION_FILE=/opt/nifi/nifi-current/conf/flow.xml.gz
+      - NIFI_FLOW_CONFIGURATION_ARCHIVE_ENABLED=true
+      - NIFI_FLOW_CONFIGURATION_ARCHIVE_DIR=/opt/nifi/nifi-current/conf/archive/
+      
+      # === STARTUP DEBUGGING ===
+      - NIFI_BOOTSTRAP_VERBOSE_LOGGING=true
     command: ["/opt/nifi/nifi-current/bin/entrypoint.sh"]
       
     # ports:
@@ -269,11 +311,14 @@ services:
       - backend
       - nifi-registry
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://nifi:8080/nifi-api/system-diagnostics"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 60s  # Give NiFi time to fully initialize
+      test: [
+        "CMD-SHELL", 
+        "curl -k -f https://nifi:8443/nifi-api/system-diagnostics || exit 1"
+      ]
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 300s  # Give NiFi 5 minutes to fully initialize (including Python setup)
 
   # Init container to fix NiFi Registry volume permissions
   nifi-registry-init:
@@ -326,7 +371,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 10s
 
   # === MONITORING SERVICES ===
   # Loki for log aggregation

@@ -75,21 +75,21 @@ case "$ENV_CONTEXT" in
         ENV_FILE=".env.dev"
         DC_FILES="-f docker/docker-compose.yml"
         BACKEND_SERVICE="backend"
-        DB_SERVICE="db-app"
+        DB_SERVICE="db"
         ;;
     stg)
         PROJECT_NAME="edi-lens-stg"
         ENV_FILE=".env.stg"
         DC_FILES="-f docker/docker-compose.yml -f docker/docker-compose.stg.yml"
         BACKEND_SERVICE="backend"
-        DB_SERVICE="db-app"
+        DB_SERVICE="db"
         ;;
     prod)
         PROJECT_NAME="edi-lens-prod"
         ENV_FILE=".env.prod"
         DC_FILES="-f docker/docker-compose.yml -f docker/docker-compose.prod.yml"
         BACKEND_SERVICE="backend"
-        DB_SERVICE="db-app"
+        DB_SERVICE="db"
         ;;
     *)
         error "Unknown environment: '$ENV_CONTEXT'. Must be one of: dev, stg, prod."
@@ -215,7 +215,7 @@ case "$ACTION" in
         # Start NiFi services (heaviest) last
         info "Starting NiFi Registry and NiFi (this may take longer)..."
         NIFI_START=$(date +%s)
-        $DC_EXEC up -d --wait nifi-registry nifi
+        $DC_EXEC up -d --build --wait nifi-registry nifi
         NIFI_END=$(date +%s)
         timing_info "🔄 NiFi services ready in $((NIFI_END - NIFI_START)) seconds"
         
