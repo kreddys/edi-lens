@@ -43,7 +43,12 @@
 
 # Keycloak Admin UI (Listens on :8081)
 :8081 {
-    reverse_proxy keycloak:8080
+    reverse_proxy keycloak:8080 {
+        # Standard proxy headers for external access
+        header_up X-Forwarded-Host localhost:8081
+        header_up X-Forwarded-Proto http
+        header_up X-Forwarded-Port 8081
+    }
 }
 
 # MinIO Web Console (Standalone Port, Listens on :9001)
@@ -62,10 +67,22 @@
         transport http {
             tls_insecure_skip_verify
         }
-        header_up Host nifi:8443
+        # Standard forwarded headers
+        header_up Host {host}
         header_up X-Forwarded-Host {host}
         header_up X-Forwarded-Proto {scheme}
         header_up X-Forwarded-For {remote}
+        
+        # NiFi-specific proxy headers (as per NiFi Admin Guide)
+        header_up X-ProxyScheme "http"
+        header_up X-ProxyHost "localhost:8080"
+        header_up X-ProxyPort "8080"
+        header_up X-ProxyContextPath ""
+        
+        # Rewrite redirects from internal URLs to external ones
+        header_down Location "keycloak:8080" "localhost:8081"
+        header_down Location "caddy:8081" "localhost:8081"
+        header_down Location "nifi:8443" "localhost:8080"
     }
 }
 

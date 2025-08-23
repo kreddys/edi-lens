@@ -18,6 +18,8 @@ KEYCLOAK_BACKEND_CLIENT_ID = os.getenv("KEYCLOAK_BACKEND_CLIENT_ID", "edi-lens-b
 KEYCLOAK_UI_CLIENT_ID = os.getenv("KEYCLOAK_UI_CLIENT_ID", "edi-lens-ui")
 KEYCLOAK_NIFI_CLIENT_ID = os.getenv("KEYCLOAK_NIFI_CLIENT_ID", "nifi-service")
 KEYCLOAK_NIFI_CLIENT_SECRET = os.getenv("KEYCLOAK_NIFI_CLIENT_SECRET", "nifi-service-secret")
+KEYCLOAK_NIFI_OIDC_CLIENT_ID = os.getenv("KEYCLOAK_NIFI_OIDC_CLIENT_ID", "nifi-oidc")
+KEYCLOAK_NIFI_OIDC_CLIENT_SECRET = os.getenv("KEYCLOAK_NIFI_OIDC_CLIENT_SECRET", "nifi-oidc-secret")
 KEYCLOAK_SFTPGO_CLIENT_ID = os.getenv("KEYCLOAK_SFTPGO_CLIENT_ID", "sftpgo")
 KEYCLOAK_SFTPGO_CLIENT_SECRET = os.getenv("KEYCLOAK_SFTPGO_CLIENT_SECRET", "default-sftpgo-secret")
 REMOTE_HOST = os.getenv("REMOTE_HOST", "localhost")
@@ -107,6 +109,20 @@ CLIENTS = [
         "clientAuthenticatorType": "client-secret", 
         "serviceAccountsEnabled": True, 
         "directAccessGrantsEnabled": False
+    },
+    # NiFi OIDC Client for UI Authentication
+    {
+        "clientId": KEYCLOAK_NIFI_OIDC_CLIENT_ID,
+        "name": "NiFi OIDC",
+        "description": "OIDC client for NiFi UI authentication",
+        "secret": KEYCLOAK_NIFI_OIDC_CLIENT_SECRET,
+        "publicClient": False,
+        "clientAuthenticatorType": "client-secret",
+        "standardFlowEnabled": True,
+        "directAccessGrantsEnabled": True,
+        "redirectUris": [f"http://{REMOTE_HOST}:8080/nifi-api/access/oidc/callback"],
+        "webOrigins": [f"http://{REMOTE_HOST}:8080"],
+        "serviceAccountsEnabled": False,
     }
 ]
 
@@ -309,7 +325,7 @@ def main():
         if role_to_assign:
             admin_client.assign_group_realm_roles(group_id=group_id, roles=[role_to_assign])
 
-    logging.info("\n--- Creating/Updating Clients (edi-lens-ui, edi-lens-backend, nifi-service) ---")
+    logging.info("\n--- Creating/Updating Clients (edi-lens-ui, edi-lens-backend, nifi-service, nifi-oidc) ---")
     # First, get a preliminary list of clients
     initial_clients_map = {c['clientId']: c for c in admin_client.get_clients()}
     for client_payload in CLIENTS:

@@ -128,6 +128,16 @@ sed -i '/^nifi.web.https.host=/d' /opt/nifi/nifi-current/conf/nifi.properties
 sed -i '/^nifi.cluster.protocol.is.secure=/d' /opt/nifi/nifi-current/conf/nifi.properties
 sed -i '/^nifi.security.user.authorizer=/d' /opt/nifi/nifi-current/conf/nifi.properties
 sed -i '/^nifi.security.user.login.identity.provider=/d' /opt/nifi/nifi-current/conf/nifi.properties
+sed -i '/^nifi.security.user.oidc.discovery.url=/d' /opt/nifi/nifi-current/conf/nifi.properties
+sed -i '/^nifi.security.user.oidc.client.id=/d' /opt/nifi/nifi-current/conf/nifi.properties
+sed -i '/^nifi.security.user.oidc.client.secret=/d' /opt/nifi/nifi-current/conf/nifi.properties
+sed -i '/^nifi.security.user.oidc.claim.identifying.user=/d' /opt/nifi/nifi-current/conf/nifi.properties
+sed -i '/^nifi.security.user.oidc.preferred.jwsalgorithm=/d' /opt/nifi/nifi-current/conf/nifi.properties
+sed -i '/^nifi.security.user.oidc.additional.scopes=/d' /opt/nifi/nifi-current/conf/nifi.properties
+sed -i '/^nifi.security.user.oidc.fallback.claims.identifying.user=/d' /opt/nifi/nifi-current/conf/nifi.properties
+sed -i '/^nifi.web.proxy.host=/d' /opt/nifi/nifi-current/conf/nifi.properties
+sed -i '/^nifi.web.proxy.context.path=/d' /opt/nifi/nifi-current/conf/nifi.properties
+sed -i '/^nifi.remote.input.host=/d' /opt/nifi/nifi-current/conf/nifi.properties
 
 # Create a temporary properties override
 cat >> /opt/nifi/nifi-current/conf/nifi.properties << 'EOF'
@@ -141,13 +151,47 @@ nifi.remote.input.http.port=8081
 nifi.web.https.port=8443
 nifi.web.https.host=0.0.0.0
 
+# === PROXY CONFIGURATION ===
+nifi.web.proxy.host=localhost:8080
+nifi.web.proxy.context.path=
+
+# === REMOTE INPUT CONFIGURATION ===
+nifi.remote.input.host=localhost
+
 # === CLUSTER PROTOCOL SECURITY ===
 nifi.cluster.protocol.is.secure=false
 
-# === AUTHORIZER CONFIGURATION (SINGLE USER MODE) ===
+EOF
+
+# === AUTHENTICATION CONFIGURATION ===
+# Check if OIDC is configured
+if [ -n "${NIFI_SECURITY_USER_OIDC_CLIENT_ID}" ] && [ -n "${NIFI_SECURITY_USER_OIDC_DISCOVERY_URL}" ]; then
+    echo "OIDC authentication configured - using managed authorizer"
+    cat >> /opt/nifi/nifi-current/conf/nifi.properties << 'OIDC_EOF'
+    
+# OIDC Authentication Configuration
+nifi.security.user.authorizer=managed-authorizer
+nifi.security.user.login.identity.provider=
+
+OIDC_EOF
+    
+    # Add OIDC properties with variable substitution
+    cat >> /opt/nifi/nifi-current/conf/nifi.properties << OIDC_VARS
+nifi.security.user.oidc.discovery.url=${KEYCLOAK_URL}/realms/edi-lens/.well-known/openid-configuration
+nifi.security.user.oidc.client.id=${NIFI_SECURITY_USER_OIDC_CLIENT_ID}
+nifi.security.user.oidc.client.secret=${NIFI_SECURITY_USER_OIDC_CLIENT_SECRET}
+nifi.security.user.oidc.claim.identifying.user=preferred_username
+
+OIDC_VARS
+else
+    echo "Single user authentication configured"
+    cat >> /opt/nifi/nifi-current/conf/nifi.properties << 'SINGLE_EOF'
+    
+# Single User Authentication Configuration  
 nifi.security.user.authorizer=single-user-authorizer
 nifi.security.user.login.identity.provider=single-user-provider
-EOF
+SINGLE_EOF
+fi
 
 echo "Properties file updated with explicit remote input configuration"
 echo ""

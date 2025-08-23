@@ -232,6 +232,10 @@ services:
       - NIFI_WEB_HTTPS_HOST=0.0.0.0
       - NIFI_WEB_HTTPS_PORT=8443
       
+      # === PROXY CONFIGURATION (for Caddy reverse proxy) ===
+      - NIFI_WEB_PROXY_HOST=localhost:8080
+      - NIFI_WEB_PROXY_CONTEXT_PATH=/
+      
       # === SECURITY CONFIGURATION (DEFAULT SECURE MODE) ===
       # Using default NiFi security configuration
       
@@ -259,9 +263,17 @@ services:
       - NIFI_PYTHON_WORK_DIRECTORY=/tmp/nifi-python
       - NIFI_PYTHON_MAX_HEAP_SIZE=512m
       
-      # === AUTHENTICATION (SINGLE USER MODE) ===
-      - SINGLE_USER_CREDENTIALS_USERNAME=${NIFI_ADMIN_USER}
-      - SINGLE_USER_CREDENTIALS_PASSWORD=${NIFI_ADMIN_PASSWORD}
+      # === AUTHENTICATION (OIDC MODE) ===
+      # Disable single user auth and enable OIDC
+      - SINGLE_USER_CREDENTIALS_USERNAME=
+      - SINGLE_USER_CREDENTIALS_PASSWORD=
+      
+      # OIDC Configuration for Keycloak
+      - KEYCLOAK_URL=${KEYCLOAK_URL}
+      - NIFI_SECURITY_USER_OIDC_DISCOVERY_URL=http://keycloak:8080/realms/edi-lens/.well-known/openid-configuration
+      - NIFI_SECURITY_USER_OIDC_CLIENT_ID=${KEYCLOAK_NIFI_OIDC_CLIENT_ID}
+      - NIFI_SECURITY_USER_OIDC_CLIENT_SECRET=${KEYCLOAK_NIFI_OIDC_CLIENT_SECRET}
+      - REMOTE_HOST=${REMOTE_HOST}
       
       # === JVM CONFIGURATION ===
       - NIFI_JVM_HEAP_INIT=${NIFI_JVM_HEAP_INIT}
@@ -311,14 +323,10 @@ services:
       - backend
       - nifi-registry
     healthcheck:
-      test: [
-        "CMD-SHELL", 
-        "curl -k -f https://nifi:8443/nifi-api/system-diagnostics || exit 1"
-      ]
-      interval: 30s
-      timeout: 15s
-      retries: 10
-      start_period: 300s  # Give NiFi 5 minutes to fully initialize (including Python setup)
+      test: ["CMD", "curl", "-k", "https://localhost:8443/nifi"]
+      interval: 10s
+      retries: 5
+      timeout: 10s
 
   # Init container to fix NiFi Registry volume permissions
   nifi-registry-init:
