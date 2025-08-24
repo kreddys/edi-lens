@@ -210,101 +210,28 @@ services:
       - backend
     restart: unless-stopped
     command: sftpgo serve
-    
-
 
   nifi:
     build:
       context: ..
       dockerfile: docker/nifi-processors/Dockerfile.extension
-    #image: nifi-edi:latest
     container_name: nifi
     hostname: nifi
+    env_file: [ ../.env.dev ]
     environment:
-      # === DEBUGGING AND LOGGING ===
-      - NIFI_LOG_LEVEL=DEBUG
-      - NIFI_ROOT_LOG_LEVEL=INFO
-      - NIFI_BOOTSTRAP_LOG_LEVEL=DEBUG
-      - NIFI_SECURITY_LOG_LEVEL=DEBUG
-      - JAVA_OPTS=-Xdebug -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps
-      
-      # === WEB CONFIGURATION (SECURE MODE ONLY) ===
+      # === MINIMAL NiFi CONFIGURATION ===
       - NIFI_WEB_HTTPS_HOST=0.0.0.0
       - NIFI_WEB_HTTPS_PORT=8443
+      - NIFI_WEB_PROXY_HOST=${NIFI_WEB_PROXY_HOST}
       
-      # === PROXY CONFIGURATION (for Caddy reverse proxy) ===
-      - NIFI_WEB_PROXY_HOST=localhost:8080
-      - NIFI_WEB_PROXY_CONTEXT_PATH=/
+      # Use single-user authentication (temporary until OIDC is working)
+      - NIFI_SECURITY_USER_LOGIN_IDENTITY_PROVIDER=single-user-provider
+      - NIFI_SECURITY_USER_AUTHORIZER=single-user-authorizer
       
-      # === SECURITY CONFIGURATION (DEFAULT SECURE MODE) ===
-      # Using default NiFi security configuration
-      
-      # === REMOTE INPUT CONFIGURATION (DEFAULT SECURE MODE) ===
-      # Using default NiFi remote input configuration
-      
-      # === CLUSTER CONFIGURATION (DISABLE) ===
-      - NIFI_CLUSTER_IS_NODE=false
-      - NIFI_CLUSTER_NODE_PROTOCOL_PORT=
-      - NIFI_CLUSTER_NODE_PROTOCOL_THREADS=
-      - NIFI_CLUSTER_NODE_PROTOCOL_MAX_THREADS=
-      - NIFI_CLUSTER_NODE_EVENT_HISTORY_SIZE=
-      - NIFI_CLUSTER_NODE_CONNECTION_TIMEOUT=
-      - NIFI_CLUSTER_NODE_READ_TIMEOUT=
-      
-      # === SENSITIVE PROPERTIES ===
-      - NIFI_SENSITIVE_PROPS_KEY=${NIFI_SENSITIVE_PROPS_KEY}
-      - NIFI_SENSITIVE_PROPS_ALGORITHM=NIFI_PBKDF2_AES_GCM_256
-      - NIFI_SENSITIVE_PROPS_PROVIDER=BC
-      
-      # === PYTHON CONFIGURATION ===
-      - NIFI_PYTHON_COMMAND=/usr/bin/python3
-      - NIFI_PYTHON_EXTENSIONS_SOURCE_DIRECTORY_DEFAULT=/opt/nifi/nifi-current/python/extensions
-      - NIFI_PYTHON_FRAMEWORK_EXTENSIONS_DIRECTORY_DEFAULT=/opt/nifi/nifi-current/python/framework
-      - NIFI_PYTHON_WORK_DIRECTORY=/tmp/nifi-python
-      - NIFI_PYTHON_MAX_HEAP_SIZE=512m
-      
-      # === AUTHENTICATION (OIDC MODE) ===
-      # Disable single user auth and enable OIDC
-      - SINGLE_USER_CREDENTIALS_USERNAME=
-      - SINGLE_USER_CREDENTIALS_PASSWORD=
-      
-      # OIDC Configuration for Keycloak
-      - KEYCLOAK_URL=${KEYCLOAK_URL}
-      - NIFI_SECURITY_USER_OIDC_DISCOVERY_URL=http://keycloak:8080/realms/edi-lens/.well-known/openid-configuration
-      - NIFI_SECURITY_USER_OIDC_CLIENT_ID=${KEYCLOAK_NIFI_OIDC_CLIENT_ID}
-      - NIFI_SECURITY_USER_OIDC_CLIENT_SECRET=${KEYCLOAK_NIFI_OIDC_CLIENT_SECRET}
-      - REMOTE_HOST=${REMOTE_HOST}
-      
-      # === JVM CONFIGURATION ===
+      # JVM Configuration
       - NIFI_JVM_HEAP_INIT=${NIFI_JVM_HEAP_INIT}
       - NIFI_JVM_HEAP_MAX=${NIFI_JVM_HEAP_MAX}
-      - NIFI_JVM_DEBUGGER_PORT=
       
-      # === REPOSITORY CONFIGURATION ===
-      - NIFI_CONTENT_REPOSITORY_IMPLEMENTATION=org.apache.nifi.controller.repository.FileSystemRepository
-      - NIFI_FLOWFILE_REPOSITORY_IMPLEMENTATION=org.apache.nifi.controller.repository.WriteAheadFlowFileRepository
-      - NIFI_PROVENANCE_REPOSITORY_IMPLEMENTATION=org.apache.nifi.provenance.WriteAheadProvenanceRepository
-      
-      # === BACKEND INTEGRATION ===
-      - EDI_BACKEND_URL=http://backend:8000
-      
-      # === PYTHON PATH FOR EDI PROCESSORS ===
-      - PYTHONPATH=/opt/nifi/nifi-current/python/extensions:${PYTHONPATH:-}
-      
-      # === DATABASE CONNECTION ===
-      - NIFI_DATABASE_DIRECTORY=/opt/nifi/nifi-current/database_repository
-      
-      # === FLOW CONFIGURATION ===
-      - NIFI_FLOW_CONFIGURATION_FILE=/opt/nifi/nifi-current/conf/flow.xml.gz
-      - NIFI_FLOW_CONFIGURATION_ARCHIVE_ENABLED=true
-      - NIFI_FLOW_CONFIGURATION_ARCHIVE_DIR=/opt/nifi/nifi-current/conf/archive/
-      
-      # === STARTUP DEBUGGING ===
-      - NIFI_BOOTSTRAP_VERBOSE_LOGGING=true
-    command: ["/opt/nifi/nifi-current/bin/entrypoint.sh"]
-      
-    # ports:
-      # - "8080:8080"  # Proxied through Caddy instead
     volumes:
       # Data persistence
       - nifi_database_repository:/opt/nifi/nifi-current/database_repository
@@ -324,9 +251,11 @@ services:
       - nifi-registry
     healthcheck:
       test: ["CMD", "curl", "-k", "https://localhost:8443/nifi"]
-      interval: 10s
-      retries: 5
+      interval: 30s
+      retries: 10
       timeout: 10s
+      start_period: 120s
+    command: ["/opt/nifi/nifi-current/bin/entrypoint.sh"]
 
   # Init container to fix NiFi Registry volume permissions
   nifi-registry-init:

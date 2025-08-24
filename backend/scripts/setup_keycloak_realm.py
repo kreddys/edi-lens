@@ -16,10 +16,8 @@ REALM_NAME = os.getenv("KEYCLOAK_REALM", "edi-lens")
 CLIENT_SECRET = os.getenv("KEYCLOAK_BACKEND_CLIENT_SECRET", "this-is-a-default-secret-change-it")
 KEYCLOAK_BACKEND_CLIENT_ID = os.getenv("KEYCLOAK_BACKEND_CLIENT_ID", "edi-lens-backend")
 KEYCLOAK_UI_CLIENT_ID = os.getenv("KEYCLOAK_UI_CLIENT_ID", "edi-lens-ui")
-KEYCLOAK_NIFI_CLIENT_ID = os.getenv("KEYCLOAK_NIFI_CLIENT_ID", "nifi-service")
-KEYCLOAK_NIFI_CLIENT_SECRET = os.getenv("KEYCLOAK_NIFI_CLIENT_SECRET", "nifi-service-secret")
-KEYCLOAK_NIFI_OIDC_CLIENT_ID = os.getenv("KEYCLOAK_NIFI_OIDC_CLIENT_ID", "nifi-oidc")
-KEYCLOAK_NIFI_OIDC_CLIENT_SECRET = os.getenv("KEYCLOAK_NIFI_OIDC_CLIENT_SECRET", "nifi-oidc-secret")
+NIFI_OIDC_CLIENT_ID = os.getenv("NIFI_OIDC_CLIENT_ID", "nifi")
+NIFI_OIDC_CLIENT_SECRET = os.getenv("NIFI_OIDC_CLIENT_SECRET", "nifi-secret-change-this")
 KEYCLOAK_SFTPGO_CLIENT_ID = os.getenv("KEYCLOAK_SFTPGO_CLIENT_ID", "sftpgo")
 KEYCLOAK_SFTPGO_CLIENT_SECRET = os.getenv("KEYCLOAK_SFTPGO_CLIENT_SECRET", "default-sftpgo-secret")
 REMOTE_HOST = os.getenv("REMOTE_HOST", "localhost")
@@ -100,29 +98,24 @@ CLIENTS = [
         "serviceAccountsEnabled": True, 
         "directAccessGrantsEnabled": True
     },
-    # NiFi Service Client
+    # NiFi OIDC Client (Minimal Setup - UI Authentication Only)
     {
-        "clientId": KEYCLOAK_NIFI_CLIENT_ID, 
-        "name": "NiFi Service Account", 
-        "secret": KEYCLOAK_NIFI_CLIENT_SECRET, 
-        "publicClient": False, 
-        "clientAuthenticatorType": "client-secret", 
-        "serviceAccountsEnabled": True, 
-        "directAccessGrantsEnabled": False
-    },
-    # NiFi OIDC Client for UI Authentication
-    {
-        "clientId": KEYCLOAK_NIFI_OIDC_CLIENT_ID,
+        "clientId": NIFI_OIDC_CLIENT_ID,
         "name": "NiFi OIDC",
         "description": "OIDC client for NiFi UI authentication",
-        "secret": KEYCLOAK_NIFI_OIDC_CLIENT_SECRET,
+        "secret": NIFI_OIDC_CLIENT_SECRET,
         "publicClient": False,
         "clientAuthenticatorType": "client-secret",
         "standardFlowEnabled": True,
-        "directAccessGrantsEnabled": True,
+        "directAccessGrantsEnabled": False,
         "redirectUris": [f"http://{REMOTE_HOST}:8080/nifi-api/access/oidc/callback"],
         "webOrigins": [f"http://{REMOTE_HOST}:8080"],
         "serviceAccountsEnabled": False,
+        "attributes": {
+            "access.token.lifespan": "3600",  # 1 hour
+            "client.session.idle.timeout": "1800",  # 30 minutes
+            "client.session.max.lifespan": "7200"  # 2 hours
+        }
     }
 ]
 
@@ -210,7 +203,6 @@ def configure_client_mappers(admin_client: KeycloakAdmin, existing_clients_map: 
 
     ui_client = existing_clients_map.get(KEYCLOAK_UI_CLIENT_ID)
     backend_client = existing_clients_map.get(KEYCLOAK_BACKEND_CLIENT_ID)
-    nifi_client = existing_clients_map.get(KEYCLOAK_NIFI_CLIENT_ID)
     
     if not ui_client:
         logging.error(f"  - ERROR: Could not find UI client '{KEYCLOAK_UI_CLIENT_ID}' to add mappers.")
@@ -260,16 +252,7 @@ def configure_client_mappers(admin_client: KeycloakAdmin, existing_clients_map: 
         else:
             raise
 
-    # Add audience mapper to NiFi service client
-    if nifi_client:
-        try:
-            admin_client.add_mapper_to_client(nifi_client['id'], audience_mapper)
-            logging.info(f"  - Added 'backend-audience' mapper to {KEYCLOAK_NIFI_CLIENT_ID} client.")
-        except KeycloakPostError as e:
-            if e.response_code == 409:
-                logging.info(f"  - Mapper 'backend-audience' already exists on {KEYCLOAK_NIFI_CLIENT_ID} client.")
-            else:
-                raise
+    # Note: No service account mappers needed for minimal NiFi UI-only client
 
 def main():
     logging.info("--- Starting Keycloak Realm Setup ---")
@@ -348,50 +331,9 @@ def main():
     # Configure client mappers
     configure_client_mappers(admin_client, existing_clients_map)
     
-    # Assign roles to service accounts
-    assign_service_account_roles(admin_client, all_roles_map)
-    
     # Create users
     create_users(admin_client)
 
-def assign_service_account_roles(admin_client, all_roles_map):
-    """Assign necessary roles to service accounts."""
-    logging.info("\n--- Assigning Roles to Service Accounts ---")
-    
-    # Get the NiFi service account
-    try:
-        nifi_service_client = None
-        clients = admin_client.get_clients()
-        for client in clients:
-            if client['clientId'] == KEYCLOAK_NIFI_CLIENT_ID:
-                nifi_service_client = client
-                break
-        
-        if nifi_service_client:
-            # Get the service account user
-            service_account_user = admin_client.get_client_service_account_user(nifi_service_client['id'])
-            if service_account_user:
-                logging.info(f"  - Found service account user for '{KEYCLOAK_NIFI_CLIENT_ID}': {service_account_user['username']}")
-                
-                # Assign EDI processing roles
-                edi_roles = [
-                    all_roles_map.get('edi:process'),
-                    all_roles_map.get('edi:validate'),
-                    all_roles_map.get('edi:generate-acknowledgments'),
-                    all_roles_map.get('validation:run'),
-                    all_roles_map.get('schemas:read')
-                ]
-                
-                roles_to_assign = [role for role in edi_roles if role is not None]
-                if roles_to_assign:
-                    admin_client.assign_realm_roles(user_id=service_account_user['id'], roles=roles_to_assign)
-                    role_names = [role['name'] for role in roles_to_assign]
-                    logging.info(f"  - Assigned roles {role_names} to service account '{service_account_user['username']}'")
-        else:
-            logging.warning(f"  - {KEYCLOAK_NIFI_CLIENT_ID} service client not found")
-            
-    except Exception as e:
-        logging.error(f"  - Error assigning roles to service accounts: {e}")
 
 def create_users(admin_client):
     """Create test users for E2E testing."""

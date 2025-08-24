@@ -35,6 +35,11 @@ RUN chown -R nifi:nifi /opt/nifi/nifi-current/python/extensions && \
 # Set NiFi Python path to include extensions directory
 ENV PYTHONPATH="/opt/nifi/nifi-current/python/extensions:${PYTHONPATH}"
 
+# Copy OIDC configuration file and set proper permissions
+COPY docker/nifi-processors/login-identity-providers.xml /opt/nifi/nifi-current/conf/login-identity-providers.xml
+RUN chown nifi:nifi /opt/nifi/nifi-current/conf/login-identity-providers.xml && \
+    chmod 664 /opt/nifi/nifi-current/conf/login-identity-providers.xml
+
 # Copy and set up the entrypoint script
 COPY docker/nifi-processors/entrypoint.sh /opt/nifi/nifi-current/bin/entrypoint.sh
 RUN chmod +x /opt/nifi/nifi-current/bin/entrypoint.sh

@@ -64,26 +64,38 @@
 # Apache NiFi (Listens on :8080)
 :8080 {
     reverse_proxy https://nifi:8443 {
+        # Skip TLS verification for self-signed certificates
         transport http {
             tls_insecure_skip_verify
         }
-        # Standard forwarded headers
-        header_up Host {host}
-        header_up X-Forwarded-Host {host}
-        header_up X-Forwarded-Proto {scheme}
-        header_up X-Forwarded-For {remote}
         
-        # NiFi-specific proxy headers (as per NiFi Admin Guide)
+        # Required headers for NiFi OIDC and proxy configuration
+        header_up Host {upstream_hostport}
         header_up X-ProxyScheme "http"
         header_up X-ProxyHost "localhost:8080"
         header_up X-ProxyPort "8080"
         header_up X-ProxyContextPath ""
         
-        # Rewrite redirects from internal URLs to external ones
-        header_down Location "keycloak:8080" "localhost:8081"
-        header_down Location "caddy:8081" "localhost:8081"
-        header_down Location "nifi:8443" "localhost:8080"
+        # Standard forwarded headers
+        header_up X-Forwarded-Host "localhost:8080"
+        header_up X-Forwarded-Proto "http"
+        header_up X-Forwarded-Port "8080"
+        header_up X-Forwarded-For {remote_host}
+        
+        # Real IP headers
+        header_up X-Real-IP {remote_host}
     }
+    
+    # Add CORS headers for OIDC
+    header {
+        Access-Control-Allow-Origin "*"
+        Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        Access-Control-Allow-Headers "Origin, Content-Type, Accept, Authorization, X-Requested-With"
+    }
+    
+    # Handle preflight requests
+    @options method OPTIONS
+    respond @options 204
 }
 
 # Apache NiFi Registry (Listens on :18080)
