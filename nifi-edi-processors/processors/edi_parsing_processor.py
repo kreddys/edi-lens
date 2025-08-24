@@ -19,6 +19,7 @@ from xml.dom import minidom
 try:
     from nifiapi.flowfiletransform import FlowFileTransform, FlowFileTransformResult
     from nifiapi.properties import PropertyDescriptor, StandardValidators, ExpressionLanguageScope
+    from nifiapi.relationship import Relationship
 except ImportError:
     # Fallback for development/testing
     class FlowFileTransform:
@@ -43,10 +44,15 @@ except ImportError:
         POSITIVE_INTEGER_VALIDATOR = "POSITIVE_INTEGER"
     class ExpressionLanguageScope:
         FLOWFILE_ATTRIBUTES = "FLOWFILE_ATTRIBUTES"
+    class Relationship:
+        def __init__(self, name: str, description: str, auto_terminated: bool = False):
+            self.name = name
+            self.description = description
+            self.auto_terminated = auto_terminated
 
-# Import our EDI common modules
-from edi_common.edi_parser import EdiParser
-from edi_common.schema_manager import SchemaManager
+# Import our EDI common modules (using simple relative imports as per NiFi Python Dev Guide)
+from edi_parser import EdiParser
+from schema_manager import SchemaManager
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +74,7 @@ class EDIParsingProcessor(FlowFileTransform):
         Supports segment filtering, metadata extraction, and configurable output formats.
         Enables format-agnostic downstream processing."""
         tags = ['edi', 'parsing', 'x12', 'json', 'xml', 'csv']
+        dependencies = ['pydantic>=2.0.0', 'typing-extensions>=4.0.0']
     
     # Processor properties
     OUTPUT_FORMAT = PropertyDescriptor(
@@ -119,8 +126,16 @@ class EDIParsingProcessor(FlowFileTransform):
     )
     
     # Relationships
-    REL_SUCCESS = "success"
-    REL_FAILURE = "failure"
+    REL_SUCCESS = Relationship(
+        name="success",
+        description="FlowFiles that are successfully parsed",
+        auto_terminated=False
+    )
+    REL_FAILURE = Relationship(
+        name="failure", 
+        description="FlowFiles that fail parsing",
+        auto_terminated=False
+    )
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

@@ -4,8 +4,8 @@ import re
 from datetime import datetime
 from typing import List, Optional, Tuple, Dict, Any
 
-from .edi_schema_models import ImplementationGuideSchema, StructureLoop, StructureSegment, StructureChild
-from .cdm import CdmInterchange, CdmFunctionalGroup, CdmTransaction, CdmLoop, CdmSegment, CdmElement, CdmValidationError
+from edi_schema_models import ImplementationGuideSchema, StructureLoop, StructureSegment, StructureChild
+from cdm import CdmInterchange, CdmFunctionalGroup, CdmTransaction, CdmLoop, CdmSegment, CdmElement, CdmValidationError
 
 logger = logging.getLogger(__name__)
 

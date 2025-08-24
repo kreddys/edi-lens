@@ -2,8 +2,8 @@
 import logging
 from datetime import datetime
 from typing import Optional, List
-from .cdm import CdmSegment
-from .ta1_defs import InterchangeError, TA1AcknowledgementCode, TA1NoteCode
+from cdm import CdmSegment
+from ta1_defs import InterchangeError, TA1AcknowledgementCode, TA1NoteCode
 
 logger = logging.getLogger(__name__)
 

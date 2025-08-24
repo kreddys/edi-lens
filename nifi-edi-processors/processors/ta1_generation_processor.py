@@ -15,6 +15,7 @@ from typing import Dict, Any, List
 try:
     from nifiapi.flowfiletransform import FlowFileTransform, FlowFileTransformResult
     from nifiapi.properties import PropertyDescriptor, StandardValidators, ExpressionLanguageScope
+    from nifiapi.relationship import Relationship
 except ImportError:
     # Fallback for development/testing
     class FlowFileTransform:
@@ -39,12 +40,17 @@ except ImportError:
         POSITIVE_INTEGER_VALIDATOR = "POSITIVE_INTEGER"
     class ExpressionLanguageScope:
         FLOWFILE_ATTRIBUTES = "FLOWFILE_ATTRIBUTES"
+    class Relationship:
+        def __init__(self, name: str, description: str, auto_terminated: bool = False):
+            self.name = name
+            self.description = description
+            self.auto_terminated = auto_terminated
 
-# Import our EDI common modules
-from edi_common.ta1_generator import TA1Generator
-from edi_common.ta1_defs import InterchangeError, TA1NoteCode
-from edi_common.edi_parser import EdiParser
-from edi_common.cdm import CdmSegment
+# Import our EDI common modules (using simple relative imports as per NiFi Python Dev Guide)
+from ta1_generator import TA1Generator
+from ta1_defs import InterchangeError, TA1NoteCode
+from edi_parser import EdiParser
+from cdm import CdmSegment
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +71,7 @@ class TA1GenerationProcessor(FlowFileTransform):
         Supports forced generation and configurable response formats.
         Routes original and TA1 content to separate outputs."""
         tags = ['edi', 'ta1', 'acknowledgment', 'x12']
+        dependencies = ['pydantic>=2.0.0', 'typing-extensions>=4.0.0']
     
     # Processor properties
     GENERATE_TA1 = PropertyDescriptor(
@@ -110,9 +117,21 @@ class TA1GenerationProcessor(FlowFileTransform):
     )
     
     # Relationships
-    REL_TA1 = "ta1"
-    REL_ORIGINAL = "original" 
-    REL_FAILURE = "failure"
+    REL_TA1 = Relationship(
+        name="ta1",
+        description="Generated TA1 acknowledgment documents",
+        auto_terminated=False
+    )
+    REL_ORIGINAL = Relationship(
+        name="original",
+        description="Original EDI documents that were processed",
+        auto_terminated=False
+    )
+    REL_FAILURE = Relationship(
+        name="failure", 
+        description="FlowFiles that fail TA1 generation",
+        auto_terminated=False
+    )
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

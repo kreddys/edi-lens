@@ -18,22 +18,30 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
     pydantic>=2.0.0 \
     typing-extensions>=4.0.0
 
-# Create directory for Python extensions and copy processors to root level
+# Create directory for Python extensions
 RUN mkdir -p /opt/nifi/nifi-current/python_extensions
 
-# Copy individual processor files directly to extensions root
-COPY nifi-edi-processors/processors/*.py /opt/nifi/nifi-current/python_extensions/
+# Create EDI processors subdirectory as per NiFi Python Developer Guide
+RUN mkdir -p /opt/nifi/nifi-current/python_extensions/edi-processors
 
-# Copy supporting modules to extensions directory
-COPY nifi-edi-processors/edi_common /opt/nifi/nifi-current/python_extensions/edi_common
-COPY nifi-edi-processors/schemas /opt/nifi/nifi-current/python_extensions/schemas
+# Copy all edi_common modules directly to the subdirectory (flatten structure)
+COPY nifi-edi-processors/edi_common/*.py /opt/nifi/nifi-current/python_extensions/edi-processors/
+
+# Copy processor files to subdirectory  
+COPY nifi-edi-processors/processors/*.py /opt/nifi/nifi-current/python_extensions/edi-processors/
+
+# Copy schemas to processors subdirectory
+COPY nifi-edi-processors/schemas /opt/nifi/nifi-current/python_extensions/edi-processors/schemas
+
+# Create __init__.py for the processors package
+RUN echo "" > /opt/nifi/nifi-current/python_extensions/edi-processors/__init__.py
 
 # Set proper permissions for Python extensions
 RUN chown -R nifi:nifi /opt/nifi/nifi-current/python_extensions && \
     chmod -R 755 /opt/nifi/nifi-current/python_extensions
 
-# Set NiFi Python path to include extensions directory
-ENV PYTHONPATH="/opt/nifi/nifi-current/python_extensions:${PYTHONPATH}"
+# Set NiFi Python path to include extensions directory, processors subdirectory, and site-packages
+ENV PYTHONPATH="/opt/nifi/nifi-current/python_extensions:/opt/nifi/nifi-current/python_extensions/edi-processors:/usr/local/lib/python3.11/dist-packages:${PYTHONPATH}"
 
 # Copy OIDC configuration file and set proper permissions
 COPY docker/nifi-processors/login-identity-providers.xml /opt/nifi/nifi-current/conf/login-identity-providers.xml

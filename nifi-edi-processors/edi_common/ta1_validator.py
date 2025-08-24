@@ -1,7 +1,7 @@
 from typing import List
 from datetime import datetime
-from .cdm import CdmInterchange
-from .ta1_defs import InterchangeError, TA1NoteCode
+from cdm import CdmInterchange
+from ta1_defs import InterchangeError, TA1NoteCode
 
 def validate_interchange_envelope(interchange: CdmInterchange, raw_edi_string: str) -> List[InterchangeError]:
     """

@@ -14,6 +14,7 @@ from typing import Dict, Any
 try:
     from nifiapi.flowfiletransform import FlowFileTransform, FlowFileTransformResult
     from nifiapi.properties import PropertyDescriptor, StandardValidators, ExpressionLanguageScope
+    from nifiapi.relationship import Relationship
 except ImportError:
     # Fallback for development/testing
     class FlowFileTransform:
@@ -38,9 +39,14 @@ except ImportError:
         POSITIVE_INTEGER_VALIDATOR = "POSITIVE_INTEGER"
     class ExpressionLanguageScope:
         FLOWFILE_ATTRIBUTES = "FLOWFILE_ATTRIBUTES"
+    class Relationship:
+        def __init__(self, name: str, description: str, auto_terminated: bool = False):
+            self.name = name
+            self.description = description
+            self.auto_terminated = auto_terminated
 
-# Import our EDI common modules
-from edi_common.validation_service import EDIValidationService, ValidationResult
+# Import our EDI common modules (using simple relative imports as per NiFi Python Dev Guide)
+from validation_service import EDIValidationService, ValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -61,12 +67,21 @@ class EDIValidationProcessor(FlowFileTransform):
         Supports tenant-specific schemas and configurable SNIP validation levels.
         Outputs validation results as FlowFile attributes and JSON content."""
         tags = ['edi', 'validation', 'x12', 'healthcare']
+        dependencies = ['pydantic>=2.0.0', 'typing-extensions>=4.0.0']
     
     # Property descriptors are now defined in __init__
     
     # Relationships
-    REL_SUCCESS = "success"
-    REL_FAILURE = "failure"
+    REL_SUCCESS = Relationship(
+        name="success",
+        description="FlowFiles that are successfully validated",
+        auto_terminated=False
+    )
+    REL_FAILURE = Relationship(
+        name="failure", 
+        description="FlowFiles that fail validation",
+        auto_terminated=False
+    )
     
     def __init__(self, **kwargs):
         pass

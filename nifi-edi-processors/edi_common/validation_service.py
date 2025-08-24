@@ -2,9 +2,9 @@
 from typing import List, Optional
 import logging
 
-from .edi_parser import EdiParser
-from .schema_manager import SchemaManager
-from .cdm import CdmValidationError
+from edi_parser import EdiParser
+from schema_manager import SchemaManager
+from cdm import CdmValidationError
 
 logger = logging.getLogger(__name__)
 

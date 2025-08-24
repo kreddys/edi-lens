@@ -6,7 +6,7 @@ from typing import Dict, Optional
 
 # Note: For NiFi processors, we'll need to adapt the schema models
 # For now, we'll use a simplified schema representation
-from .edi_schema_models import ImplementationGuideSchema
+from edi_schema_models import ImplementationGuideSchema
 
 logger = logging.getLogger(__name__)
 
