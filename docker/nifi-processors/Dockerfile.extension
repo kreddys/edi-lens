@@ -19,21 +19,21 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
     typing-extensions>=4.0.0
 
 # Create directory for Python extensions and copy processors to root level
-RUN mkdir -p /opt/nifi/nifi-current/python/extensions
+RUN mkdir -p /opt/nifi/nifi-current/python_extensions
 
 # Copy individual processor files directly to extensions root
-COPY nifi-edi-processors/processors/*.py /opt/nifi/nifi-current/python/extensions/
+COPY nifi-edi-processors/processors/*.py /opt/nifi/nifi-current/python_extensions/
 
 # Copy supporting modules to extensions directory
-COPY nifi-edi-processors/edi_common /opt/nifi/nifi-current/python/extensions/edi_common
-COPY nifi-edi-processors/schemas /opt/nifi/nifi-current/python/extensions/schemas
+COPY nifi-edi-processors/edi_common /opt/nifi/nifi-current/python_extensions/edi_common
+COPY nifi-edi-processors/schemas /opt/nifi/nifi-current/python_extensions/schemas
 
 # Set proper permissions for Python extensions
-RUN chown -R nifi:nifi /opt/nifi/nifi-current/python/extensions && \
-    chmod -R 755 /opt/nifi/nifi-current/python/extensions
+RUN chown -R nifi:nifi /opt/nifi/nifi-current/python_extensions && \
+    chmod -R 755 /opt/nifi/nifi-current/python_extensions
 
 # Set NiFi Python path to include extensions directory
-ENV PYTHONPATH="/opt/nifi/nifi-current/python/extensions:${PYTHONPATH}"
+ENV PYTHONPATH="/opt/nifi/nifi-current/python_extensions:${PYTHONPATH}"
 
 # Copy OIDC configuration file and set proper permissions
 COPY docker/nifi-processors/login-identity-providers.xml /opt/nifi/nifi-current/conf/login-identity-providers.xml
