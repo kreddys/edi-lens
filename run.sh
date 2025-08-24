@@ -53,6 +53,8 @@ if [ -z "$1" ] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]]; then
     echo ""
     echo "TESTING ACTIONS (dev environment only):"
     echo "  dev:test unit [args...]         Run backend unit tests (no Docker needed)."
+    echo "  dev:test unit:all               Run all unit tests (backend + nifi-edi-processors)."
+    echo "  dev:test unit:edi               Run nifi-edi-processors unit tests only."
     echo "  dev:test integration [args...]  Run backend integration tests against the dev stack."
     echo "  dev:test e2e [args...]          Run backend end-to-end tests against the dev stack."
     echo "  dev:test ui [args...]           Run UI tests (Jest + React Testing Library). Logs saved to tmp/ui-test-logs-*/"
@@ -340,6 +342,24 @@ case "$ACTION" in
                 set -a; source "$ENV_FILE"; set +a                
                 (cd backend && poetry run pytest -m "unit" "$@")
                 ;;
+            unit:all)
+                info "Running all unit tests (backend + nifi-edi-processors)..."
+                info "Loading .env.dev for the local test session..."
+                set -a; source "$ENV_FILE"; set +a
+                
+                info "Running backend unit tests..."
+                (cd backend && poetry run pytest -m "unit" "$@")
+                
+                info "Running nifi-edi-processors unit tests..."
+                (cd nifi-edi-processors && python test_runner.py all)
+                ;;
+            unit:edi)
+                info "Running nifi-edi-processors unit tests only..."
+                info "Loading .env.dev for the local test session..."
+                set -a; source "$ENV_FILE"; set +a
+                
+                (cd nifi-edi-processors && python test_runner.py all)
+                ;;
             ui)
                 check_docker
                 info "Running UI tests in Docker with Jest and React Testing Library..."
@@ -466,7 +486,7 @@ case "$ACTION" in
                 fi
                 $DC_EXEC exec "$BACKEND_SERVICE" pytest -m "$TEST_TYPE" "$@"
                 ;;
-            *) error "Unknown test type: '$TEST_TYPE'. Must be 'unit', 'ui', 'integration', or 'e2e'." ;;
+            *) error "Unknown test type: '$TEST_TYPE'. Must be 'unit', 'unit:all', 'unit:edi', 'ui', 'integration', or 'e2e'." ;;
         esac
         ;;
     *)

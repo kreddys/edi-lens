@@ -87,7 +87,9 @@ def validate_interchange_envelope(interchange: CdmInterchange, raw_edi_string: s
     # TA105: 016 & 017: Invalid Standards/Version ID
     if isa.get_element(11) != "^":
         add_error(TA1NoteCode.INVALID_INTERCHANGE_STANDARDS_ID)
-    if not isa.get_element(12) or len(isa.get_element(12)) != 5:
+    version_id = isa.get_element(12)
+    # Version ID should be exactly 5 digits with no spaces
+    if not version_id or len(version_id) != 5 or not version_id.isdigit():
         add_error(TA1NoteCode.INVALID_INTERCHANGE_VERSION_ID)
 
     # TA105: 018: Invalid ICN
