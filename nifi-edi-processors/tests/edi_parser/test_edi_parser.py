@@ -1,7 +1,7 @@
 # FILE: backend/tests/core/test_edi_parser.py
 import pytest
-from edi_common.edi_parser import EdiParser
-from edi_common.edi_schema_models import ImplementationGuideSchema
+from edi_parser import EdiParser
+from edi_schema_models import ImplementationGuideSchema
 
 pytestmark = pytest.mark.unit
 

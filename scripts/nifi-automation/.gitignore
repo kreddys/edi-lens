@@ -1,0 +1,11 @@
+# Temporary files and test data
+tmp/
+*.pyc
+__pycache__/
+*.log
+*.tmp
+
+# Test results and generated files
+test_results_*
+*_test_*
+*.backup

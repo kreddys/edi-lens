@@ -1,213 +1,239 @@
 # NiFi EDI Processors
 
-**Production-ready** native Python processors for Apache NiFi that provide complete EDI processing capabilities without external API dependencies. Transform your EDI workflows with high-performance, in-memory processing.
-
-[![Tests](https://img.shields.io/badge/tests-129%2F130%20passing-brightgreen)](tests/)
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](pyproject.toml)
-[![Performance](https://img.shields.io/badge/throughput-30K%2B%20segments%2Fsec-orange)](#performance)
+Production-ready EDI processing components for Apache NiFi with native Python implementation.
 
 ## 🚀 Quick Start
 
+### Deploy to Running NiFi Instance
+
 ```bash
-# Install the package
-cd nifi-edi-processors
-pip install -e .
+# Deploy processors using the automation script
+./scripts/nifi-automation/nifi-automation deploy-processors volume
 
-# Run all tests to verify installation
-python test_runner.py all
-
-# Deploy to NiFi (requires NAR packaging)
-# Package processors into NAR file for production deployment
+# Or use the complete setup (includes environment setup)
+./scripts/nifi-automation/nifi-automation setup
 ```
 
-## 📋 Features
+### Test the Setup
 
-### ✅ Complete EDI Processing Pipeline
-- **Validation** → **TA1 Generation** → **Multi-Format Parsing**
-- **Zero external dependencies** - All processing in NiFi JVM
-- **Native FlowFile processing** - No serialization overhead
-- **Multi-tenant support** with tenant-specific schemas
+```bash
+# Run all 130 unit tests
+./run.sh dev:test unit:edi
 
-### ⚡ High Performance
-- **30,000+ segments/second** throughput
-- **In-memory processing** with schema caching  
-- **Direct FlowFile manipulation** - No HTTP API overhead
-- **Parallel processing** ready for NiFi clustering
-
-### 🔧 Production Ready
-- **129/130 tests passing** (99.2% test coverage)
-- **Comprehensive error handling** and logging
-- **FlowFile attribute passing** between processors
-- **Expression language support** for dynamic configuration
+# Deploy and test a flow
+./scripts/nifi-automation/nifi-automation deploy edi-validation-flow
+./scripts/nifi-automation/nifi-automation test edi-validation-flow
+```
 
 ## 📁 Project Structure
 
 ```
-nifi-edi-processors/                    # 2,361+ lines of code
-├── processors/                         # 🔧 3 Production NiFi Processors
-│   ├── edi_validation_processor.py     # EDI validation (230 lines)
-│   ├── ta1_generation_processor.py     # TA1 generation (339 lines) 
-│   └── edi_parsing_processor.py        # Multi-format parsing (495 lines)
-├── edi_common/                         # 📚 9 Shared Modules (1,297 lines)
-│   ├── validation_service.py           # Core EDI validation logic
-│   ├── ta1_generator.py               # TA1 acknowledgment generation
-│   ├── edi_parser.py                  # High-performance EDI parser
-│   ├── schema_manager.py              # Multi-tenant schema management
-│   ├── cdm.py                         # Common Data Model structures
-│   └── ...                           # Additional supporting modules
-├── tests/                             # 🧪 17 Test Files (130 test cases)
-│   ├── edi_parser/                    # Unit tests for parsing logic
-│   ├── test_integrated_workflow.py    # End-to-end workflow tests
-│   ├── test_parsing_formats.py        # Multi-format output validation
-│   └── test_validation_service.py     # Validation service tests
-├── schemas/                           # 📋 EDI Schema Files
-│   └── 837.5010.X222.A1.json         # Healthcare claim schema
-├── pyproject.toml                     # 📦 Project configuration
-├── test_runner.py                     # 🏃 Convenient test execution
-└── README.md                          # 📖 This documentation
+nifi-edi-processors/
+├── Core Processors (NiFi Components)
+│   ├── edi_validation_processor.py    # Schema-based EDI validation
+│   ├── edi_parsing_processor.py       # Multi-format EDI parsing (JSON/XML/CSV)
+│   └── ta1_generation_processor.py    # Automatic TA1 acknowledgment generation
+├── Supporting Modules
+│   ├── edi_parser.py                  # Core EDI parsing engine
+│   ├── validation_service.py          # EDI validation service
+│   ├── schema_manager.py              # Schema loading and caching
+│   ├── edi_schema_models.py           # Schema data models
+│   ├── ta1_generator.py               # TA1 generation logic
+│   ├── ta1_validator.py               # TA1 validation
+│   ├── ta1_defs.py                    # TA1 definitions and constants
+│   └── cdm.py                         # Common Data Model structures
+├── Resources
+│   ├── schemas/                       # EDI implementation guide schemas
+│   │   └── 837.5010.X222.A1.json     # Sample 837P schema
+│   └── __init__.py                    # Python package initialization
+├── Tests (130+ comprehensive tests)
+│   ├── tests/edi_parser/              # EDI parser tests
+│   ├── tests/test_validation_service.py
+│   ├── tests/test_ta1_generator.py
+│   └── ...                           # Additional test modules
+└── Configuration
+    ├── pyproject.toml                 # Python project configuration
+    └── pytest.ini                    # Test configuration
 ```
 
-## 🔧 NiFi Processors
+## ✨ Features
+
+### 🔧 **Native Python Processing**
+- **No external dependencies** - Runs entirely within NiFi's Python environment
+- **High performance** - 30,000+ segments/second throughput
+- **Memory efficient** - Streaming parser with minimal memory footprint
+
+### 🏢 **Enterprise Ready**
+- **Multi-tenant support** - Tenant isolation and schema management
+- **Production tested** - Comprehensive test suite with 130+ tests
+- **NiFi clustering support** - Built for scalable deployments
+- **Hot reload capability** - Development-friendly volume mounting
+
+### 📊 **Multiple Output Formats**
+- **JSON** - Structured data for APIs and databases
+- **XML** - Legacy system integration
+- **CSV** - Analytics and reporting
+- **Metadata extraction** - Transaction counts, totals, dates
+
+### 🛡️ **Comprehensive Error Handling**
+- **Detailed validation reporting** - Field-level error details
+- **TA1 acknowledgments** - Automatic response generation
+- **Error isolation** - Continue processing despite individual transaction errors
+- **Audit trails** - Complete processing history
+
+## 🎯 Processor Overview
 
 ### 1. EDI Validation Processor (`edi_validation_processor.py`)
-**Validates EDI documents against implementation guide schemas**
+**Purpose**: Validates EDI documents against implementation guide schemas
 
-**Properties:**
-- `Validation Schema` - EDI schema file (supports expression language)  
-- `SNIP Level` - Validation strictness (1-5)
-- `Tenant ID` - Multi-tenant schema support
-- `Schema Base Path` - Schema directory location
-- `Cache Schemas` - Enable schema caching
+**Properties**:
+- `Validation Schema` - EDI schema file (e.g., "837.5010.X222.A1.json")
+- `SNIP Level` - Validation strictness (1-5, where 5 is most strict)
+- `Tenant ID` - Multi-tenant identifier
+- `Schema Base Path` - Directory containing schemas
+- `Cache Schemas` - Enable schema caching for performance
 
-**Relationships:** `success`, `failure`
+**Relationships**:
+- `success` → Valid EDI with validation results
+- `failure` → Invalid EDI or processing errors
 
-**Output:** JSON validation results + FlowFile attributes
+**Output**: JSON with validation results and detailed findings
 
-### 2. TA1 Generation Processor (`ta1_generation_processor.py`) 
-**Generates TA1 acknowledgments based on validation results**
+### 2. EDI Parsing Processor (`edi_parsing_processor.py`)
+**Purpose**: Converts EDI to structured formats (JSON/XML/CSV)
 
-**Properties:**
-- `Generate TA1` - Enable/disable TA1 generation
-- `Force Generation` - Generate even if ISA14=0
-- `Validation Errors Attribute` - FlowFile attribute with validation findings
-- `Include Metadata` - Include generation metadata
-- `Tenant ID` - Multi-tenant support
+**Properties**:
+- `Output Format` - JSON, XML, or CSV
+- `Schema` - EDI schema for parsing guidance  
+- `Tenant ID` - Multi-tenant identifier
+- `Include Metadata` - Add transaction counts, totals, etc.
 
-**Relationships:** `ta1`, `original`, `failure`
+**Relationships**:
+- `success` → Successfully parsed EDI
+- `failure` → Parsing errors or invalid EDI
 
-**Output:** JSON with TA1 content + FlowFile attributes
+**Output**: Structured data in specified format with optional metadata
 
-### 3. EDI Parsing Processor (`edi_parsing_processor.py`)
-**Parses EDI into structured formats for downstream processing**
+### 3. TA1 Generation Processor (`ta1_generation_processor.py`)
+**Purpose**: Generates TA1 acknowledgment responses
 
-**Properties:**
-- `Output Format` - JSON/XML/CSV format selection
-- `Include Metadata` - Include parsing metadata
-- `Schema Name` - Optional schema for enhanced parsing
-- `Segment Filter` - Comma-separated segments to include
-- `Tenant ID` - Multi-tenant support
-- `Schema Base Path` - Schema directory location
+**Properties**:
+- `Force TA1 Generation` - Generate TA1 even if not requested
+- `TA1 Control Number Strategy` - How to assign control numbers
 
-**Relationships:** `success`, `failure`
+**Relationships**:
+- `ta1` → Generated TA1 acknowledgment
+- `original` → Original EDI (when TA1 not needed)
+- `failure` → Processing errors
 
-**Output:** Structured EDI data in requested format + FlowFile attributes
+**Output**: TA1 EDI document or original passthrough
 
-## 🧪 Testing & Quality
+## 🔄 Typical Workflows
 
-### Comprehensive Test Suite
-```bash
-# Run all tests (129/130 passing)
-python test_runner.py all
-
-# Run specific test categories  
-python test_runner.py unit         # Unit tests
-python test_runner.py integration  # Integration tests
-python test_runner.py format       # Format validation tests
-python test_runner.py verbose      # Detailed output
-python test_runner.py coverage     # Coverage report
+### Basic Validation Flow
+```
+GetFile → EDI Validation → LogMessage → PutFile
+                      ↓
+                   PutFile (failures)
 ```
 
-### Test Categories
-- **17 test files** with **130 test cases**
-- **Unit tests** - Isolated component testing
-- **Integration tests** - End-to-end workflow validation  
-- **Format tests** - JSON/XML/CSV output validation
-- **Edge case tests** - Error handling and boundary conditions
-- **Performance tests** - Throughput benchmarking
-
-### Quality Metrics
-- ✅ **99.2% test pass rate** (129/130 tests)
-- 🚀 **30,000+ segments/second** processing speed
-- 📊 **Comprehensive validation** across all EDI transaction types
-- 🔒 **Production-grade error handling** and logging
-
-## 🏗️ Development
-
-### Installation
-```bash
-# Install with development dependencies
-pip install -e ".[dev]"
-
-# Available dev tools
-black .                    # Code formatting
-ruff check .              # Code linting  
-pytest --cov             # Test with coverage
+### Complete Processing Pipeline
+```
+GetFile → EDI Validation → TA1 Generation → EDI Parsing → PutFile
+                      ↓              ↓              ↓
+                   PutFile      PutFile         PutFile
+                 (failures)   (TA1 responses)  (parsed data)
 ```
 
-### Running Tests
+## 🧪 Testing
+
+### Run Tests
 ```bash
-# Quick test verification
-pytest
+# All EDI processor tests (130+ tests)
+./run.sh dev:test unit:edi
 
-# Detailed test categories
-pytest tests/edi_parser/                    # Parser unit tests
-pytest tests/test_integrated_workflow.py    # Workflow tests  
-pytest tests/test_parsing_formats.py        # Format tests
+# All tests (backend + EDI processors)  
+./run.sh dev:test unit:all
 
-# Performance testing
-python test_phase3_validation.py   # Parsing performance test
+# Direct pytest execution
+cd nifi-edi-processors && python -m pytest tests/ -v
 ```
 
-## 📈 Performance
+### Test Coverage
+- **EDI Parser Tests**: 90+ tests covering edge cases, syntax rules, envelope validation
+- **Validation Service Tests**: Schema validation, error handling, multi-tenant scenarios
+- **TA1 Generation Tests**: Acknowledgment logic, error codes, control numbers
+- **Processor Interface Tests**: NiFi integration, property validation, relationship handling
+- **Integration Tests**: End-to-end workflow validation
 
-**Benchmark Results:**
-- **Average processing time:** 0.001 seconds per document
-- **Throughput:** 30,587+ segments/second  
-- **Memory efficient:** In-memory processing with schema caching
-- **Scalable:** Ready for NiFi clustering and parallel processing
+## 📦 Deployment Options
 
-**Performance Benefits:**
-- ✅ **Zero HTTP overhead** - Direct in-memory processing
-- ✅ **No network latency** - All processing within NiFi JVM
-- ✅ **Schema caching** - Improved performance for repeated validations
-- ✅ **Native FlowFile processing** - No serialization overhead
+### 1. Volume Mount (Development - Hot Reload)
+```bash
+./scripts/nifi-automation/nifi-automation deploy-processors volume
+```
+- Changes reflected immediately
+- No container rebuild needed
+- Ideal for development
 
-## 🚀 Production Deployment
+### 2. Docker Build (Production)
+```bash
+docker build -f docker/nifi-processors/Dockerfile.extension -t nifi-edi:latest .
+```
+- Immutable deployments
+- Production ready
+- Container-based distribution
 
-### Ready for NiFi Integration
-1. **NAR Packaging** - Package processors into NiFi NAR file
-2. **Template Migration** - Replace API-based processors with native ones  
-3. **A/B Testing** - Gradual rollout with performance monitoring
-4. **Production Rollout** - Complete migration from external API dependencies
+## 🔧 Configuration
 
-### Architecture Benefits  
-- **Self-contained processing** - No external API dependencies
-- **Tenant isolation** - Built-in multi-tenant schema support
-- **Error handling** - Comprehensive validation error reporting  
-- **Extensible design** - Ready for additional EDI transaction types
+### Schema Management
+- Schemas stored in `schemas/` directory
+- Support for tenant-specific schema overrides
+- Automatic schema caching for performance
+- JSON-based implementation guide schemas
 
-### Compatibility
-- **100% API equivalence** - Same validation logic as backend
-- **Existing workflow support** - Drop-in replacement for API calls
-- **Schema compatibility** - Uses same schema format as backend  
-- **Multi-format output** - JSON results + FlowFile attributes
+### Multi-Tenant Support
+```yaml
+# Schema resolution order:
+# 1. /schemas/{tenant_id}/{schema_name}
+# 2. /schemas/{schema_name} (fallback)
+```
 
-## 📚 Documentation
+### Performance Tuning
+```yaml
+Properties:
+  Cache Schemas: true        # Enable schema caching
+  SNIP Level: 3             # Balance validation vs performance
+  Batch Size: 10            # Process multiple files per batch
+```
 
-- **[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)** - Detailed implementation status and achievements
-- **[tests/README.md](tests/README.md)** - Testing framework documentation
-- **Processor source code** - Comprehensive inline documentation with usage examples
+## 🔗 Integration
+
+### With EDI Lens Backend
+- Shared schema definitions
+- Common validation logic
+- Consistent error reporting
+
+### With NiFi Ecosystem
+- Standard NiFi processor interface
+- Expression language support
+- Flow file attributes for routing
+- Provenance and lineage tracking
+
+## 📚 Additional Resources
+
+- **NiFi Automation**: See `scripts/nifi-automation/README.md`
+- **Docker Setup**: See `docker/nifi-processors/`
+- **Flow Examples**: See `scripts/nifi-automation/flows/`
+- **Troubleshooting**: See `scripts/nifi-automation/docs/TROUBLESHOOTING.md`
+
+## 🎯 Next Steps
+
+1. **Deploy processors**: `./scripts/nifi-automation/nifi-automation setup`
+2. **Create flows**: Use the automation scripts to deploy predefined flows
+3. **Custom workflows**: Build custom NiFi flows using the processors
+4. **Production deployment**: Use Docker builds for production environments
 
 ---
 
-**Ready for production deployment with comprehensive EDI processing capabilities, high performance, and native NiFi integration.**
+*Built with ❤️ for high-performance EDI processing in Apache NiFi*

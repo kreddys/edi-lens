@@ -10,8 +10,8 @@ from unittest.mock import patch, MagicMock
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from edi_common.validation_service import EDIValidationService, ValidationResult, ValidationFinding
-from edi_common.edi_schema_models import ImplementationGuideSchema
+from validation_service import EDIValidationService, ValidationResult, ValidationFinding
+from edi_schema_models import ImplementationGuideSchema
 
 pytestmark = pytest.mark.unit
 
@@ -94,7 +94,7 @@ IEA*1*000000001~"""
         mock_interchange.errors = []
 
         with patch.object(self.validation_service.schema_manager, 'get_schema', return_value=mock_schema), \
-             patch('edi_common.validation_service.EdiParser', return_value=mock_parser):
+             patch('validation_service.EdiParser', return_value=mock_parser):
             mock_parser.parse.return_value = mock_interchange
             mock_parser._collect_all_errors.return_value = []
 
@@ -124,7 +124,7 @@ IEA*1*000000001~"""
         mock_error.line_number = 1
 
         with patch.object(self.validation_service.schema_manager, 'get_schema', return_value=mock_schema), \
-             patch('edi_common.validation_service.EdiParser', return_value=mock_parser):
+             patch('validation_service.EdiParser', return_value=mock_parser):
             mock_parser.parse.return_value = mock_interchange
             mock_parser._collect_all_errors.return_value = [("ISA Segment", mock_error)]
 

@@ -1,7 +1,7 @@
 import pytest
 import json
 from pathlib import Path
-from edi_common.schema_manager import SchemaManager
+from schema_manager import SchemaManager
 
 @pytest.fixture
 def schema_dir(tmp_path: Path) -> Path:

@@ -19,7 +19,9 @@ try:
 except ImportError:
     # Fallback for development/testing
     class FlowFileTransform:
-        pass
+        def __init__(self, **kwargs):
+            # Accept any kwargs to be compatible with NiFi
+            pass
     class FlowFileTransformResult:
         def __init__(self, relationship: str, contents: str = None, attributes: Dict[str, str] = None):
             self.relationship = relationship
@@ -45,6 +47,10 @@ except ImportError:
             self.name = name
             self.description = description
             self.auto_terminated = auto_terminated
+            
+        def _get_object_id(self):
+            # Provide a dummy object ID for compatibility
+            return f"rel_{self.name}_{id(self)}"
 
 # Import our EDI common modules (using simple relative imports as per NiFi Python Dev Guide)
 from ta1_generator import TA1Generator
@@ -116,25 +122,35 @@ class TA1GenerationProcessor(FlowFileTransform):
         expression_language_scope=ExpressionLanguageScope.FLOWFILE_ATTRIBUTES
     )
     
-    # Relationships
-    REL_TA1 = Relationship(
-        name="ta1",
-        description="Generated TA1 acknowledgment documents",
-        auto_terminated=False
-    )
-    REL_ORIGINAL = Relationship(
-        name="original",
-        description="Original EDI documents that were processed",
-        auto_terminated=False
-    )
-    REL_FAILURE = Relationship(
-        name="failure", 
-        description="FlowFiles that fail TA1 generation",
-        auto_terminated=False
-    )
+    # Relationships - Define as class variables to be initialized properly
+    REL_TA1 = None
+    REL_ORIGINAL = None
+    REL_FAILURE = None
     
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        # Filter out NiFi-specific kwargs that FlowFileTransform doesn't accept
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ['jvm']}
+        super().__init__(**filtered_kwargs)
+        
+        # Initialize relationships - use our fallback class that has _get_object_id
+        if self.REL_TA1 is None:
+            self.REL_TA1 = Relationship(
+                name="ta1",
+                description="Generated TA1 acknowledgment documents"
+            )
+        
+        if self.REL_ORIGINAL is None:
+            self.REL_ORIGINAL = Relationship(
+                name="original",
+                description="Original EDI documents that were processed"
+            )
+        
+        if self.REL_FAILURE is None:
+            self.REL_FAILURE = Relationship(
+                name="failure",
+                description="FlowFiles that fail TA1 generation"
+            )
+        
         self.ta1_generator = None
     
     def getPropertyDescriptors(self):

@@ -14,8 +14,8 @@ from xml.etree import ElementTree as ET
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from edi_common.edi_parser import EdiParser
-from processors.edi_parsing_processor import EDIParsingProcessor
+from edi_parser import EdiParser
+from edi_parsing_processor import EDIParsingProcessor
 
 @pytest.fixture
 def parsing_formats_fixtures(standalone_schema):
@@ -319,8 +319,9 @@ class TestParsingFormats:
         # Test relationships
         relationships = processor.getRelationships()
         assert len(relationships) == 2
-        assert "success" in relationships
-        assert "failure" in relationships
+        relationship_names = [rel.name for rel in relationships]
+        assert "success" in relationship_names
+        assert "failure" in relationship_names
         
         print("✅ Processor interface validation passed")
     

@@ -23,7 +23,9 @@ try:
 except ImportError:
     # Fallback for development/testing
     class FlowFileTransform:
-        pass
+        def __init__(self, **kwargs):
+            # Accept any kwargs to be compatible with NiFi
+            pass
     class FlowFileTransformResult:
         def __init__(self, relationship: str, contents: str = None, attributes: Dict[str, str] = None):
             self.relationship = relationship
@@ -49,6 +51,10 @@ except ImportError:
             self.name = name
             self.description = description
             self.auto_terminated = auto_terminated
+            
+        def _get_object_id(self):
+            # Provide a dummy object ID for compatibility
+            return f"rel_{self.name}_{id(self)}"
 
 # Import our EDI common modules (using simple relative imports as per NiFi Python Dev Guide)
 from edi_parser import EdiParser
@@ -125,20 +131,28 @@ class EDIParsingProcessor(FlowFileTransform):
         default_value="/opt/nifi/schemas"
     )
     
-    # Relationships
-    REL_SUCCESS = Relationship(
-        name="success",
-        description="FlowFiles that are successfully parsed",
-        auto_terminated=False
-    )
-    REL_FAILURE = Relationship(
-        name="failure", 
-        description="FlowFiles that fail parsing",
-        auto_terminated=False
-    )
+    # Relationships - Define as class variables to be initialized properly
+    REL_SUCCESS = None
+    REL_FAILURE = None
     
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        # Filter out NiFi-specific kwargs that FlowFileTransform doesn't accept
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ['jvm']}
+        super().__init__(**filtered_kwargs)
+        
+        # Initialize relationships - use our fallback class that has _get_object_id
+        if self.REL_SUCCESS is None:
+            self.REL_SUCCESS = Relationship(
+                name="success",
+                description="FlowFiles that are successfully parsed"
+            )
+        
+        if self.REL_FAILURE is None:
+            self.REL_FAILURE = Relationship(
+                name="failure",
+                description="FlowFiles that fail parsing"
+            )
+        
         self.schema_manager = None
     
     def getPropertyDescriptors(self):

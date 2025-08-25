@@ -1,8 +1,8 @@
 import pytest
-from edi_common.edi_parser import EdiParser
-from edi_common.ta1_defs import TA1NoteCode
-from edi_common.edi_schema_models import ImplementationGuideSchema
-from edi_common.ta1_validator import validate_interchange_envelope
+from edi_parser import EdiParser
+from ta1_defs import TA1NoteCode
+from edi_schema_models import ImplementationGuideSchema
+from ta1_validator import validate_interchange_envelope
 
 pytestmark = pytest.mark.unit
 

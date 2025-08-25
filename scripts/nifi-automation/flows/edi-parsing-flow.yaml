@@ -1,0 +1,129 @@
+# EDI Parsing Flow Configuration
+# This YAML file defines an EDI parsing workflow for NiFi
+
+flow:
+  name: "EDI Parsing Test Flow"
+  description: "Parse EDI files to JSON format with validation"
+  
+  # Flow layout configuration - Spacious and professional
+  layout:
+    start_x: 150
+    start_y: 150
+    spacing_x: 500
+    spacing_y: 200
+
+  # Processor definitions with improved spacing and positioning
+  processors:
+    - id: "getfile"
+      name: "📁 GetFile - EDI Input"
+      type: "org.apache.nifi.processors.standard.GetFile"
+      position:
+        x: 150
+        y: 300
+      properties:
+        "Input Directory": "/tmp/nifi-test-data"
+        "File Filter": ".*\\.edi"
+        "Keep Source File": "true"
+        "Polling Interval": "10 sec"
+        "Batch Size": "1"
+      auto_terminated_relationships:
+        - "failure"
+      
+    - id: "edi_parsing"
+      name: "🔍 EDI Parsing Processor"
+      type: "EDIParsingProcessor"
+      position:
+        x: 650
+        y: 300
+      properties:
+        "Output Format": "JSON"
+        "Schema": "837.5010.X222.A1.json"
+        "Tenant ID": "tenant-a"
+        "Schema Base Path": "/opt/nifi/schemas"
+        "Include Metadata": "true"
+      auto_terminated_relationships:
+        - "original"
+        
+    - id: "log_success"
+      name: "📝 Log Parsing Success"
+      type: "org.apache.nifi.processors.standard.LogMessage"
+      position:
+        x: 1150
+        y: 150
+      properties: {}
+      auto_terminated_relationships:
+        - "success"
+        
+    - id: "log_failure"
+      name: "📝 Log Parsing Failure"
+      type: "org.apache.nifi.processors.standard.LogMessage"
+      position:
+        x: 1150
+        y: 450
+      properties: {}
+      auto_terminated_relationships:
+        - "success"
+        
+    - id: "put_success"
+      name: "💾 Output Parsed JSON"
+      type: "org.apache.nifi.processors.standard.PutFile"
+      position:
+        x: 1650
+        y: 150
+      properties:
+        "Directory": "/tmp/nifi-test-data/parsed"
+        "Conflict Resolution Strategy": "replace"
+      auto_terminated_relationships:
+        - "success"
+        - "failure"
+        
+    - id: "put_failure"
+      name: "💾 Output Parse Errors"
+      type: "org.apache.nifi.processors.standard.PutFile"
+      position:
+        x: 1650
+        y: 450
+      properties:
+        "Directory": "/tmp/nifi-test-data/parse-errors"
+        "Conflict Resolution Strategy": "replace"
+      auto_terminated_relationships:
+        - "success"
+        - "failure"
+
+  # Connection definitions
+  connections:
+    - id: "getfile_to_parsing"
+      source: "getfile"
+      destination: "edi_parsing"
+      relationships:
+        - "success"
+        
+    - id: "parsing_to_log_success"
+      source: "edi_parsing"
+      destination: "log_success"
+      relationships:
+        - "success"
+        
+    - id: "parsing_to_log_failure"
+      source: "edi_parsing"
+      destination: "log_failure"
+      relationships:
+        - "failure"
+        
+    - id: "log_success_to_put_success"
+      source: "log_success"
+      destination: "put_success"
+      relationships:
+        - "success"
+        
+    - id: "log_failure_to_put_failure"
+      source: "log_failure"
+      destination: "put_failure"
+      relationships:
+        - "success"
+
+  # Flow-level settings
+  settings:
+    auto_start: false
+    validate_connections: true
+    cleanup_on_error: true

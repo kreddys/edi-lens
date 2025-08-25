@@ -13,7 +13,7 @@ from typing import Generator
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from edi_common.edi_schema_models import ImplementationGuideSchema
+from edi_schema_models import ImplementationGuideSchema
 
 # ==============================================================================
 # PYTEST CONFIGURATION & HOOKS

@@ -24,11 +24,8 @@ RUN mkdir -p /opt/nifi/nifi-current/python_extensions
 # Create EDI processors subdirectory as per NiFi Python Developer Guide
 RUN mkdir -p /opt/nifi/nifi-current/python_extensions/edi-processors
 
-# Copy all edi_common modules directly to the subdirectory (flatten structure)
-COPY nifi-edi-processors/edi_common/*.py /opt/nifi/nifi-current/python_extensions/edi-processors/
-
-# Copy processor files to subdirectory  
-COPY nifi-edi-processors/processors/*.py /opt/nifi/nifi-current/python_extensions/edi-processors/
+# Copy all Python modules directly to the subdirectory (flat structure)
+COPY nifi-edi-processors/*.py /opt/nifi/nifi-current/python_extensions/edi-processors/
 
 # Copy schemas to processors subdirectory
 COPY nifi-edi-processors/schemas /opt/nifi/nifi-current/python_extensions/edi-processors/schemas

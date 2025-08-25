@@ -12,11 +12,11 @@ from unittest.mock import patch, MagicMock
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from edi_common.validation_service import EDIValidationService
-from edi_common.ta1_generator import TA1Generator
-from edi_common.edi_parser import EdiParser
-from edi_common.ta1_defs import InterchangeError, TA1NoteCode
-from edi_common.cdm import CdmSegment, CdmElement
+from validation_service import EDIValidationService
+from ta1_generator import TA1Generator
+from edi_parser import EdiParser
+from ta1_defs import InterchangeError, TA1NoteCode
+from cdm import CdmSegment, CdmElement
 
 pytestmark = pytest.mark.integration
 

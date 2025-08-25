@@ -351,14 +351,14 @@ case "$ACTION" in
                 (cd backend && poetry run pytest -m "unit" "$@")
                 
                 info "Running nifi-edi-processors unit tests..."
-                (cd nifi-edi-processors && python test_runner.py all)
+                (cd nifi-edi-processors && python -m pytest tests/ -v)
                 ;;
             unit:edi)
                 info "Running nifi-edi-processors unit tests only..."
                 info "Loading .env.dev for the local test session..."
                 set -a; source "$ENV_FILE"; set +a
                 
-                (cd nifi-edi-processors && python test_runner.py all)
+                (cd nifi-edi-processors && python -m pytest tests/ -v)
                 ;;
             ui)
                 check_docker

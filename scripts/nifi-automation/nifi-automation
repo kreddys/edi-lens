@@ -1,0 +1,483 @@
+#!/bin/bash
+# ==============================================================================
+# NiFi Automation - Single Interface for All NiFi Workflow Management
+# ==============================================================================
+# This script provides a unified interface for managing NiFi EDI workflows
+# Usage: ./nifi-automation <command> [options]
+
+set -e
+
+# Script directory and configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+UTILS_DIR="$SCRIPT_DIR/utils"
+FLOWS_DIR="$SCRIPT_DIR/flows"
+DOCS_DIR="$SCRIPT_DIR/docs"
+TMP_DIR="$SCRIPT_DIR/tmp"
+
+# Color output functions
+info() { echo -e "\033[34m[INFO] $1\033[0m"; }
+success() { echo -e "\033[32m[SUCCESS] $1\033[0m"; }
+warn() { echo -e "\033[33m[WARN] $1\033[0m"; }
+error() { echo -e "\033[31m[ERROR] $1\033[0m" >&2; }
+header() { echo -e "\033[35m\033[1m$1\033[0m"; }
+
+# Configuration
+NIFI_URL="http://localhost:8080"
+NIFI_USER="superuser@edilens.com"
+NIFI_PASS="password123456789"
+NIFI_CONTAINER="nifi"
+
+# Help function
+show_help() {
+    header "🚀 NiFi Automation - Unified Workflow Management"
+    echo ""
+    echo "USAGE:"
+    echo "  ./nifi-automation <command> [options]"
+    echo ""
+    echo "COMMANDS:"
+    echo "  setup                     Complete environment setup (one-time)"
+    echo "  deploy-processors [method] Deploy EDI processors to NiFi (volume/rebuild/copy)"
+    echo "  deploy <flow-name>        Deploy and start a specific flow"
+    echo "  test <flow-name>          Test a specific flow"
+    echo "  status [flow-name]        Show status (all flows or specific)"
+    echo "  clean [flow-name]         Clean flows (all or specific)"
+    echo "  flows                     List available flows"
+    echo "  restart                   Emergency restart and cleanup"
+    echo "  help                      Show this help message"
+    echo ""
+    echo "EXAMPLES:"
+    echo "  ./nifi-automation setup                    # Initial setup"
+    echo "  ./nifi-automation deploy-processors volume # Deploy processors (hot reload)"
+    echo "  ./nifi-automation deploy edi-validation    # Deploy EDI validation flow"
+    echo "  ./nifi-automation test edi-validation      # Test the flow"
+    echo "  ./nifi-automation status                   # Show all flows status"
+    echo "  ./nifi-automation clean                    # Clean all flows"
+    echo "  ./nifi-automation restart                  # Emergency restart"
+    echo ""
+    echo "FLOW MANAGEMENT:"
+    echo "  - Flows are auto-discovered from: $FLOWS_DIR/"
+    echo "  - Add new flows by placing YAML files in flows/ directory"
+    echo "  - Flow names are derived from filename (without .yaml extension)"
+    echo ""
+    echo "DOCUMENTATION:"
+    echo "  - Quick Start: $DOCS_DIR/QUICK_START.md"
+    echo "  - Troubleshooting: $DOCS_DIR/TROUBLESHOOTING.md"
+    echo "  - Main README: $SCRIPT_DIR/README.md"
+}
+
+# Auto-discover available flows
+discover_flows() {
+    local flows=()
+    if [ -d "$FLOWS_DIR" ]; then
+        for flow_file in "$FLOWS_DIR"/*.yaml; do
+            if [ -f "$flow_file" ]; then
+                local flow_name=$(basename "$flow_file" .yaml)
+                flows+=("$flow_name")
+            fi
+        done
+    fi
+    echo "${flows[@]}"
+}
+
+# Validate flow exists
+validate_flow() {
+    local flow_name="$1"
+    local flow_file="$FLOWS_DIR/${flow_name}.yaml"
+    
+    if [ ! -f "$flow_file" ]; then
+        error "Flow '$flow_name' not found!"
+        echo ""
+        echo "Available flows:"
+        list_flows
+        exit 1
+    fi
+}
+
+# List available flows
+list_flows() {
+    local flows=($(discover_flows))
+    
+    if [ ${#flows[@]} -eq 0 ]; then
+        warn "No flows found in $FLOWS_DIR/"
+        return 1
+    fi
+    
+    header "📋 Available Flows:"
+    echo ""
+    for flow in "${flows[@]}"; do
+        local flow_file="$FLOWS_DIR/${flow}.yaml"
+        local description=""
+        
+        # Try to extract description from YAML
+        if command -v yq >/dev/null 2>&1; then
+            description=$(yq eval '.flow.description // ""' "$flow_file" 2>/dev/null || echo "")
+        else
+            description=$(grep -E "^\s*description:" "$flow_file" 2>/dev/null | sed 's/.*description:\s*//' | tr -d '"' || echo "")
+        fi
+        
+        if [ -n "$description" ]; then
+            echo "  📄 $flow - $description"
+        else
+            echo "  📄 $flow"
+        fi
+    done
+    echo ""
+    echo "Usage: ./nifi-automation deploy <flow-name>"
+}
+
+# Check prerequisites
+check_prerequisites() {
+    local missing=()
+    
+    # Check Docker
+    if ! command -v docker >/dev/null 2>&1; then
+        missing+=("docker")
+    fi
+    
+    # Check Python3
+    if ! command -v python3 >/dev/null 2>&1; then
+        missing+=("python3")
+    fi
+    
+    # Check if NiFi container exists
+    if ! docker ps -a | grep -q "$NIFI_CONTAINER"; then
+        missing+=("nifi-container")
+    fi
+    
+    if [ ${#missing[@]} -gt 0 ]; then
+        error "Missing prerequisites: ${missing[*]}"
+        echo ""
+        echo "Please ensure:"
+        echo "  - Docker is installed and running"
+        echo "  - Python 3 is installed"
+        echo "  - NiFi container is available (run: docker-compose up -d)"
+        exit 1
+    fi
+}
+
+# Wait for NiFi to be ready
+wait_for_nifi() {
+    local timeout=60
+    local count=0
+    
+    info "⏳ Waiting for NiFi to be ready..."
+    
+    while [ $count -lt $timeout ]; do
+        if curl -s "$NIFI_URL/nifi" >/dev/null 2>&1; then
+            success "✅ NiFi is ready!"
+            return 0
+        fi
+        
+        count=$((count + 1))
+        if [ $((count % 10)) -eq 0 ]; then
+            info "Still waiting... ($count/${timeout}s)"
+        fi
+        sleep 1
+    done
+    
+    error "❌ NiFi not ready after ${timeout}s"
+    return 1
+}
+
+# Setup environment
+cmd_setup() {
+    header "🚀 Setting up NiFi Environment"
+    echo ""
+    
+    check_prerequisites
+    wait_for_nifi
+    
+    info "📦 Running environment setup..."
+    if [ -f "$UTILS_DIR/nifi-setup-environment.sh" ]; then
+        "$UTILS_DIR/nifi-setup-environment.sh"
+    else
+        error "Setup script not found: $UTILS_DIR/nifi-setup-environment.sh"
+        exit 1
+    fi
+    
+    success "✅ Environment setup completed!"
+    echo ""
+    echo "🎯 Next steps:"
+    echo "  ./nifi-automation flows      # List available flows"
+    echo "  ./nifi-automation deploy <flow-name>  # Deploy a flow"
+}
+
+# Deploy a flow
+cmd_deploy() {
+    local flow_name="$1"
+    
+    if [ -z "$flow_name" ]; then
+        error "Flow name required!"
+        echo ""
+        echo "Usage: ./nifi-automation deploy <flow-name>"
+        echo ""
+        list_flows
+        exit 1
+    fi
+    
+    validate_flow "$flow_name"
+    
+    header "🚀 Deploying Flow: $flow_name"
+    echo ""
+    
+    check_prerequisites
+    wait_for_nifi
+    
+    local flow_file="$FLOWS_DIR/${flow_name}.yaml"
+    
+    info "📦 Deploying flow from: $flow_file"
+    
+    # Use the flow manager to deploy
+    if python3 "$UTILS_DIR/nifi-flow-manager.py" create --config "$flow_file" --start --wait 10; then
+        success "✅ Flow '$flow_name' deployed and started successfully!"
+        echo ""
+        echo "🎯 Next steps:"
+        echo "  ./nifi-automation test $flow_name     # Test the flow"
+        echo "  ./nifi-automation status $flow_name   # Check status"
+        echo "  🌐 NiFi UI: $NIFI_URL"
+    else
+        error "❌ Failed to deploy flow '$flow_name'"
+        echo ""
+        echo "🔧 Troubleshooting:"
+        echo "  ./nifi-automation clean               # Clean existing flows"
+        echo "  ./nifi-automation restart             # Emergency restart"
+        echo "  cat $DOCS_DIR/TROUBLESHOOTING.md     # Detailed help"
+        exit 1
+    fi
+}
+
+# Test a flow
+cmd_test() {
+    local flow_name="$1"
+    
+    if [ -z "$flow_name" ]; then
+        error "Flow name required!"
+        echo ""
+        echo "Usage: ./nifi-automation test <flow-name>"
+        echo ""
+        list_flows
+        exit 1
+    fi
+    
+    validate_flow "$flow_name"
+    
+    header "🧪 Testing Flow: $flow_name"
+    echo ""
+    
+    check_prerequisites
+    wait_for_nifi
+    
+    info "🧪 Running workflow test..."
+    if [ -f "$UTILS_DIR/nifi-test-workflow.sh" ]; then
+        "$UTILS_DIR/nifi-test-workflow.sh"
+    else
+        # Run basic test using flow manager
+        python3 "$UTILS_DIR/nifi-flow-manager.py" status --verbose
+        
+        # Create test file if this is EDI validation flow
+        if [ "$flow_name" = "edi-validation" ]; then
+            info "📄 Creating test EDI file..."
+            if [ -f "$TMP_DIR/test-data/sample_837p_valid.edi" ]; then
+                docker exec "$NIFI_CONTAINER" cp /tmp/nifi-test-data/sample_837p_valid.edi "/tmp/nifi-test-data/test_${flow_name}_$(date +%s).edi" 2>/dev/null || true
+                info "⏳ Waiting 10 seconds for processing..."
+                sleep 10
+                
+                echo ""
+                info "📊 Test Results:"
+                docker exec "$NIFI_CONTAINER" ls -la /tmp/nifi-test-data/success/ 2>/dev/null || echo "No success files yet"
+                docker exec "$NIFI_CONTAINER" ls -la /tmp/nifi-test-data/failure/ 2>/dev/null || echo "No failure files yet"
+            fi
+        fi
+    fi
+    
+    success "✅ Test completed for flow '$flow_name'"
+}
+
+# Show status
+cmd_status() {
+    local flow_name="$1"
+    
+    header "📊 NiFi Status"
+    echo ""
+    
+    check_prerequisites
+    wait_for_nifi
+    
+    if [ -n "$flow_name" ]; then
+        validate_flow "$flow_name"
+        info "📊 Status for flow: $flow_name"
+    else
+        info "📊 Status for all flows"
+    fi
+    
+    echo ""
+    python3 "$UTILS_DIR/nifi-flow-manager.py" status --verbose
+}
+
+# Clean flows
+cmd_clean() {
+    local flow_name="$1"
+    
+    if [ -n "$flow_name" ]; then
+        validate_flow "$flow_name"
+        header "🧹 Cleaning Flow: $flow_name"
+    else
+        header "🧹 Cleaning All Flows"
+    fi
+    
+    echo ""
+    
+    check_prerequisites
+    wait_for_nifi
+    
+    info "🧹 Cleaning flows..."
+    
+    # Try nuclear cleanup first
+    if python3 "$UTILS_DIR/nifi-flow-manager.py" nuclear; then
+        success "✅ Cleanup completed successfully!"
+    else
+        warn "⚠️ Nuclear cleanup partial. Trying persistent data cleanup..."
+        echo ""
+        
+        # Ask user for persistent cleanup
+        echo "🗑️ Do you want to perform persistent data cleanup?"
+        echo "   This will completely reset NiFi (removes all flows permanently)"
+        read -p "   Continue? [y/N]: " -n 1 -r
+        echo
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            info "🗑️ Performing persistent data cleanup..."
+            if python3 "$UTILS_DIR/nifi-flow-manager.py" persistent; then
+                success "✅ Persistent data cleanup completed!"
+            else
+                warn "⚠️ Persistent cleanup failed. Use restart command."
+            fi
+        else
+            echo "🔧 For complete cleanup, use:"
+            echo "  ./nifi-automation restart"
+        fi
+    fi
+}
+
+# Deploy EDI processors
+cmd_deploy_processors() {
+    local method="${1:-volume}"
+    
+    header "🚀 Deploying EDI Processors to NiFi"
+    echo ""
+    
+    info "🔧 Deployment method: $method"
+    
+    check_prerequisites
+    
+    # Find project root
+    local project_root="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    local processors_source="$project_root/nifi-edi-processors"
+    
+    if [ ! -d "$processors_source" ]; then
+        error "EDI processors directory not found: $processors_source"
+        exit 1
+    fi
+    
+    case "$method" in
+        "volume"|"v")
+            info "📦 Method: Volume Mount Deployment (Hot Reload)"
+            
+            # Check if NiFi container is running
+            if ! docker ps | grep -q "$NIFI_CONTAINER"; then
+                warn "NiFi container is not running. Please start it first."
+                echo "Run: ./run.sh dev:start"
+                exit 1
+            fi
+            
+            # Create processors directory in NiFi volume
+            info "Creating EDI processors directory in NiFi..."
+            docker exec $NIFI_CONTAINER mkdir -p /opt/nifi/nifi-current/python_extensions/edi-processors
+            
+            # Copy processors (flat structure)
+            info "Copying processors..."
+            docker cp "$processors_source/." $NIFI_CONTAINER:/opt/nifi/nifi-current/python_extensions/edi-processors/
+            
+            # Install Python dependencies
+            info "Installing Python dependencies..."
+            docker exec $NIFI_CONTAINER pip install --break-system-packages pydantic typing-extensions
+            
+            # Set Python path
+            info "Configuring Python path..."
+            docker exec $NIFI_CONTAINER bash -c 'echo "export PYTHONPATH=/opt/nifi/nifi-current/python_extensions/edi-processors:\$PYTHONPATH" >> ~/.bashrc'
+            
+            # Set permissions (ignore errors)
+            info "Setting permissions..."
+            docker exec $NIFI_CONTAINER chown -R nifi:nifi /opt/nifi/nifi-current/python_extensions/edi-processors 2>/dev/null || true
+            docker exec $NIFI_CONTAINER chmod -R 755 /opt/nifi/nifi-current/python_extensions/edi-processors 2>/dev/null || true
+            
+            success "✅ EDI processors deployed via volume mount!"
+            info "🔄 Restart NiFi to load the processors: docker restart $NIFI_CONTAINER"
+            ;;
+            
+        "rebuild"|"r")
+            info "🏗️  Method: Container Rebuild (Production Method)"
+            error "Rebuild method not yet implemented in unified script. Use Docker build manually."
+            ;;
+            
+        *)
+            error "Unknown deployment method: $method. Use: volume (v), rebuild (r)"
+            ;;
+    esac
+    
+    echo ""
+    success "🎉 EDI Processors Deployment Complete!"
+    echo ""
+    echo "📋 Next Steps:"
+    echo "  1. Restart NiFi: docker restart nifi"
+    echo "  2. Wait for startup (60-90 seconds)"
+    echo "  3. Deploy flows: ./nifi-automation deploy <flow-name>"
+    echo "  4. Access NiFi UI: $NIFI_URL"
+}
+
+
+
+# Main command dispatcher
+main() {
+    local command="$1"
+    shift || true
+    
+    case "$command" in
+        setup)
+            cmd_setup "$@"
+            ;;
+        deploy-processors)
+            cmd_deploy_processors "$@"
+            ;;
+        deploy)
+            cmd_deploy "$@"
+            ;;
+        test)
+            cmd_test "$@"
+            ;;
+        status)
+            cmd_status "$@"
+            ;;
+        clean)
+            cmd_clean "$@"
+            ;;
+        flows)
+            list_flows
+            ;;
+        restart)
+            cmd_restart "$@"
+            ;;
+        help|--help|-h|"")
+            show_help
+            ;;
+        *)
+            error "Unknown command: $command"
+            echo ""
+            show_help
+            exit 1
+            ;;
+    esac
+}
+
+# Run main function with all arguments
+main "$@"

@@ -1,7 +1,7 @@
 import pytest
-from edi_common.ta1_generator import TA1Generator
-from edi_common.ta1_defs import InterchangeError, TA1NoteCode
-from edi_common.cdm import CdmSegment, CdmElement
+from ta1_generator import TA1Generator
+from ta1_defs import InterchangeError, TA1NoteCode
+from cdm import CdmSegment, CdmElement
 
 pytestmark = pytest.mark.unit
 

@@ -6,8 +6,8 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
-from edi_common.edi_parser import EdiParser
-from edi_common.edi_schema_models import ImplementationGuideSchema
+from edi_parser import EdiParser
+from edi_schema_models import ImplementationGuideSchema
 
 pytestmark = pytest.mark.unit
 
@@ -166,29 +166,29 @@ def test_parser_handles_missing_elements(standalone_schema: ImplementationGuideS
     assert any("NM108" in msg and "missing" in msg for msg in error_messages), f"Expected missing element error not found. Errors: {error_messages}"
 
 def test_validate_data_type_invalid(standalone_schema: ImplementationGuideSchema):
-    from edi_common.edi_parser import _validate_data_type
+    from edi_parser import _validate_data_type
     assert not _validate_data_type("a", "N0")
     assert not _validate_data_type("a", "R")
     assert not _validate_data_type("a", "UNKNOWN")
 
 def test_validate_format_unknown(standalone_schema: ImplementationGuideSchema):
-    from edi_common.edi_parser import _validate_format
+    from edi_parser import _validate_format
     assert _validate_format("any", "UNKNOWN")
 
 def test_get_guide_version_from_edi_no_gs(standalone_schema: ImplementationGuideSchema):
-    from edi_common.edi_parser import get_guide_version_from_edi
+    from edi_parser import get_guide_version_from_edi
     edi = "ISA*00* *00* *ZZ*SENDER*ZZ*RECEIVER*240715*1200*^*00501*1*0*P*>~IEA*1*1~"
     assert get_guide_version_from_edi(edi) is None
 
 def test_get_effective_definition_no_context(standalone_schema: ImplementationGuideSchema):
-    from edi_common.edi_parser import _get_effective_definition
+    from edi_parser import _get_effective_definition
     base_def = {"elements": [{"xid": "NM101", "name": "Name"}]}
     assert _get_effective_definition(base_def, None) == base_def
     assert _get_effective_definition(base_def, {}) == base_def
 
 def test_segment_validator_no_base_def(standalone_schema: ImplementationGuideSchema):
-    from edi_common.edi_parser import SegmentValidator
-    from edi_common.cdm import CdmSegment, CdmElement
+    from edi_parser import SegmentValidator
+    from cdm import CdmSegment, CdmElement
     validator = SegmentValidator(standalone_schema, "*")
     segment = CdmSegment(segment_id="UNKNOWN", elements=[], line_number=1, raw_segment="UNKNOWN")
     errors = validator.validate(segment)
@@ -196,8 +196,8 @@ def test_segment_validator_no_base_def(standalone_schema: ImplementationGuideSch
     assert "Base definition for segment 'UNKNOWN' not found" in errors[0].message
 
 def test_evaluate_condition_clause_is_not(standalone_schema: ImplementationGuideSchema):
-    from edi_common.edi_parser import SegmentValidator
-    from edi_common.cdm import CdmSegment, CdmElement
+    from edi_parser import SegmentValidator
+    from cdm import CdmSegment, CdmElement
     validator = SegmentValidator(standalone_schema, "*")
     segment = CdmSegment(segment_id="NM1", elements=[CdmElement(position=1, value="XX")], line_number=1, raw_segment="NM1*XX")
     clause = {"element": "NM101", "operator": "IS_NOT", "value": "YY"}
@@ -214,7 +214,7 @@ def test_parse_transaction_set_value_error(standalone_schema: ImplementationGuid
     # during parsing. A simple way to do this is to have a schema with a non-integer
     # `max_use` value, which will cause a `ValueError` in `_find_best_schema_match`.
     # We will create a dummy schema for this test.
-    from edi_common.edi_schema_models import ImplementationGuideSchema, StructureLoop, StructureSegment
+    from edi_schema_models import ImplementationGuideSchema, StructureLoop, StructureSegment
 
     dummy_schema = ImplementationGuideSchema(
         transactionName="test",

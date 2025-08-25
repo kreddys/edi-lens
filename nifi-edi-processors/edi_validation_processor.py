@@ -18,7 +18,9 @@ try:
 except ImportError:
     # Fallback for development/testing
     class FlowFileTransform:
-        pass
+        def __init__(self, **kwargs):
+            # Accept any kwargs to be compatible with NiFi
+            pass
     class FlowFileTransformResult:
         def __init__(self, relationship: str, contents: str = None, attributes: Dict[str, str] = None):
             self.relationship = relationship
@@ -44,6 +46,10 @@ except ImportError:
             self.name = name
             self.description = description
             self.auto_terminated = auto_terminated
+            
+        def _get_object_id(self):
+            # Provide a dummy object ID for compatibility
+            return f"rel_{self.name}_{id(self)}"
 
 # Import our EDI common modules (using simple relative imports as per NiFi Python Dev Guide)
 from validation_service import EDIValidationService, ValidationResult
@@ -71,20 +77,27 @@ class EDIValidationProcessor(FlowFileTransform):
     
     # Property descriptors are now defined in __init__
     
-    # Relationships
-    REL_SUCCESS = Relationship(
-        name="success",
-        description="FlowFiles that are successfully validated",
-        auto_terminated=False
-    )
-    REL_FAILURE = Relationship(
-        name="failure", 
-        description="FlowFiles that fail validation",
-        auto_terminated=False
-    )
+    # Relationships - Define as class variables to be initialized properly
+    REL_SUCCESS = None
+    REL_FAILURE = None
     
     def __init__(self, **kwargs):
-        pass
+        # Filter out NiFi-specific kwargs that FlowFileTransform doesn't accept
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ['jvm']}
+        super().__init__(**filtered_kwargs)
+        
+        # Initialize relationships - use our fallback class that has _get_object_id
+        if self.REL_SUCCESS is None:
+            self.REL_SUCCESS = Relationship(
+                name="success",
+                description="FlowFiles that are successfully validated"
+            )
+        
+        if self.REL_FAILURE is None:
+            self.REL_FAILURE = Relationship(
+                name="failure",
+                description="FlowFiles that fail validation"
+            )
         
         # Define property descriptors as instance variables
         self.VALIDATION_SCHEMA = PropertyDescriptor(
@@ -216,8 +229,11 @@ class EDIValidationProcessor(FlowFileTransform):
             
             logger.info(f"Validation completed: valid={validation_result.valid}, findings={len(validation_result.findings)}")
             
+            # Route based on validation result
+            relationship = "success" if validation_result.valid else "failure"
+            
             return FlowFileTransformResult(
-                relationship=self.REL_SUCCESS,
+                relationship=relationship,
                 contents=json_output,
                 attributes=result_attributes
             )
@@ -240,7 +256,7 @@ class EDIValidationProcessor(FlowFileTransform):
             }
             
             return FlowFileTransformResult(
-                relationship=self.REL_FAILURE,
+                relationship="failure",
                 contents=json.dumps(error_data, indent=2),
                 attributes=error_attributes
             )

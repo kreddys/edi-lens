@@ -1,8 +1,8 @@
 # FILE: backend/tests/core/test_edi_parser_837p_comprehensive.py
 import pytest
-from edi_common.edi_parser import EdiParser
-from edi_common.edi_schema_models import ImplementationGuideSchema
-from edi_common.cdm import CdmInterchange, CdmLoop
+from edi_parser import EdiParser
+from edi_schema_models import ImplementationGuideSchema
+from cdm import CdmInterchange, CdmLoop
 
 pytestmark = pytest.mark.unit
 
