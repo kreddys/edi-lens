@@ -224,6 +224,9 @@ services:
       - NIFI_WEB_HTTPS_PORT=8443
       - NIFI_WEB_PROXY_HOST=${NIFI_WEB_PROXY_HOST}
       
+      # Fix proxy context path for proper routing
+      - NIFI_WEB_PROXY_CONTEXT_PATH=
+      
       # Use single-user authentication (temporary until OIDC is working)
       - NIFI_SECURITY_USER_LOGIN_IDENTITY_PROVIDER=single-user-provider
       - NIFI_SECURITY_USER_AUTHORIZER=single-user-authorizer
