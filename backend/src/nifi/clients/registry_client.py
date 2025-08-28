@@ -109,7 +109,16 @@ class NiFiRegistryClient:
         """Create a new version of an existing flow."""
         # According to NiFi Registry API, we need to send a VersionedFlowSnapshot object
         # which includes bucket info, snapshot metadata, and flow contents
-        flow_contents = version_data.get("flowContents", {})
+        
+        # Handle both direct flow definition and nested flowContents structure
+        if "flowContents" in version_data:
+            flow_contents = version_data["flowContents"]
+        elif "flow_definition" in version_data:
+            # Our template structure has flow_definition at root level
+            flow_contents = version_data["flow_definition"]
+        else:
+            # Assume the version_data IS the flow contents
+            flow_contents = version_data
         
         # Ensure the flow contents have the required version field
         if "version" not in flow_contents:

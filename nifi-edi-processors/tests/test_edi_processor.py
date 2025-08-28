@@ -105,16 +105,10 @@ class TestEDIProcessorComprehensive:
         assert rel_dict["success"].description == "FlowFiles that are successfully processed (valid EDI)"
         assert rel_dict["failure"].description == "FlowFiles that fail validation or processing"
     
-    @patch('edi_processor.EDIValidationService')
-    @patch('edi_processor.EdiParser')
     @patch('edi_processor.TA1Generator')
-    def test_on_scheduled_success(self, mock_ta1_gen, mock_parser, mock_validation_service, processor):
+    @patch('edi_processor.EDIValidationService')
+    def test_on_scheduled_success(self, mock_validation_service, mock_ta1_generator, processor):
         """Test successful processor scheduling"""
-        # Setup mocks to not require constructor arguments
-        mock_validation_service.return_value = Mock()
-        mock_parser.return_value = Mock()
-        mock_ta1_gen.return_value = Mock()
-        
         context = self.create_mock_context({
             "Schema Base Path": "/test/schemas"
         })
@@ -124,11 +118,9 @@ class TestEDIProcessorComprehensive:
         
         # Verify services were initialized
         mock_validation_service.assert_called_once_with("/test/schemas")
-        mock_parser.assert_called_once()
-        mock_ta1_gen.assert_called_once()
+        mock_ta1_generator.assert_called_once()
         
         assert processor.validation_service is not None
-        assert processor.edi_parser is not None
         assert processor.ta1_generator is not None
     
     @patch('edi_processor.EDIValidationService')
@@ -254,27 +246,53 @@ class TestEDIProcessorComprehensive:
         mock_validation_result.findings = []
         processor.validation_service.validate_edi.return_value = mock_validation_result
         
-        # Setup parser to return structured data (not Mock objects)
-        mock_interchange = Mock()
-        mock_interchange.segments = []
+        # Mock schema manager and EdiParser
+        mock_schema = Mock()
+        processor.validation_service.schema_manager.get_schema.return_value = mock_schema
         
-        # Create a simple segment-like object that's JSON serializable
-        class MockSegment:
-            def __init__(self, segment_id, elements):
-                self.segment_id = segment_id
-                self.elements = elements
-                self.line_number = 1
-                self.raw_content = f"{segment_id}*{'*'.join(elements)}"
+        # Create a proper CdmInterchange mock that matches the expected structure
+        from cdm import CdmInterchange, CdmFunctionalGroup, CdmTransaction, CdmSegment, CdmElement, CdmLoop
         
-        mock_interchange.segments = [
-            MockSegment("ISA", ["00", "          ", "00", "          "]),
-            MockSegment("GS", ["HC", "SENDER", "RECEIVER"])
-        ]
-        mock_interchange.interchange_control_number = "000000001"
-        mock_interchange.sender_id = "SENDER"
-        mock_interchange.receiver_id = "RECEIVER"
+        # Create real CDM objects for proper JSON serialization
+        isa_segment = CdmSegment(
+            segment_id="ISA",
+            elements=[CdmElement(value="00", position=1), CdmElement(value="          ", position=2)],
+            line_number=1,
+            raw_segment="ISA*00*          *..."
+        )
         
-        processor.edi_parser.parse.return_value = mock_interchange
+        iea_segment = CdmSegment(
+            segment_id="IEA",
+            elements=[CdmElement(value="1", position=1), CdmElement(value="000000001", position=2)],
+            line_number=10,
+            raw_segment="IEA*1*000000001"
+        )
+        
+        gs_segment = CdmSegment(
+            segment_id="GS",
+            elements=[CdmElement(value="HC", position=1), CdmElement(value="SENDER", position=2)],
+            line_number=2,
+            raw_segment="GS*HC*SENDER*..."
+        )
+        
+        ge_segment = CdmSegment(
+            segment_id="GE",
+            elements=[CdmElement(value="1", position=1), CdmElement(value="1", position=2)],
+            line_number=9,
+            raw_segment="GE*1*1"
+        )
+        
+        functional_group = CdmFunctionalGroup(
+            header=gs_segment,
+            trailer=ge_segment,
+            transactions=[]
+        )
+        
+        mock_interchange = CdmInterchange(
+            header=isa_segment,
+            trailer=iea_segment,
+            functional_groups=[functional_group]
+        )
         
         context = self.create_mock_context({
             "Validation Schema": "837.5010.X222.A1.json",
@@ -286,50 +304,56 @@ class TestEDIProcessorComprehensive:
             "CDM Include Metadata": "true"
         })
         
-        # Test transform
-        result = processor.transform(context, mock_flowfile)
-        
-        # Verify results
-        assert result.relationship == "success"
-        
-        # Parse and verify output JSON
-        output_data = json.loads(result.contents)
-        assert "validation" in output_data
-        assert "cdm" in output_data
-        
-        # Verify proper CDM structure (hierarchical)
-        cdm = output_data["cdm"]
-        assert "header" in cdm  # ISA segment
-        assert "trailer" in cdm  # IEA segment
-        assert "functional_groups" in cdm
-        
-        # Verify CDM header structure
-        assert cdm["header"]["segment_id"] == "ISA"
-        assert "elements" in cdm["header"]
-        assert len(cdm["header"]["elements"]) > 0
-        
-        # Verify CDM elements have proper structure
-        first_element = cdm["header"]["elements"][0]
-        assert "value" in first_element
-        assert "position" in first_element
-        assert first_element["position"] == 1
-        
-        # Verify functional groups structure
-        if cdm["functional_groups"]:
-            fg = cdm["functional_groups"][0]
-            assert "header" in fg  # GS segment
-            assert "trailer" in fg  # GE segment
-            assert "transactions" in fg
-        
-        # Verify enhanced metadata
-        assert "metadata" in cdm
-        assert cdm["metadata"]["format"] == "CDM_HIERARCHICAL_V2"
-        assert "functional_group_count" in cdm["metadata"]
-        assert "transaction_count" in cdm["metadata"]
-        
-        # Verify attributes
-        assert result.attributes["edi.cdm.generated"] == "true"
-        assert result.attributes["edi.ta1.generated"] == "false"
+        # Mock EdiParser creation and parsing
+        with patch('edi_processor.EdiParser') as mock_parser_class:
+            mock_parser_instance = Mock()
+            mock_parser_instance.parse.return_value = mock_interchange
+            mock_parser_class.return_value = mock_parser_instance
+            
+            # Test transform
+            result = processor.transform(context, mock_flowfile)
+            
+            # Verify results
+            assert result.relationship == "success"
+            
+            # Parse and verify output JSON
+            output_data = json.loads(result.contents)
+            assert "validation" in output_data
+            assert "cdm" in output_data
+            
+            # Verify proper CDM structure (hierarchical)
+            cdm = output_data["cdm"]
+            assert "header" in cdm  # ISA segment
+            assert "trailer" in cdm  # IEA segment
+            assert "functional_groups" in cdm
+            
+            # Verify CDM header structure
+            assert cdm["header"]["segment_id"] == "ISA"
+            assert "elements" in cdm["header"]
+            assert len(cdm["header"]["elements"]) > 0
+            
+            # Verify CDM elements have proper structure
+            first_element = cdm["header"]["elements"][0]
+            assert "value" in first_element
+            assert "position" in first_element
+            assert first_element["position"] == 1
+            
+            # Verify functional groups structure
+            if cdm["functional_groups"]:
+                fg = cdm["functional_groups"][0]
+                assert "header" in fg  # GS segment
+                assert "trailer" in fg  # GE segment
+                assert "transactions" in fg
+            
+            # Verify enhanced metadata
+            assert "metadata" in cdm
+            assert cdm["metadata"]["format"] == "CDM_HIERARCHICAL_V2"
+            assert "functional_group_count" in cdm["metadata"]
+            assert "transaction_count" in cdm["metadata"]
+            
+            # Verify attributes
+            assert result.attributes["edi.cdm.generated"] == "true"
+            assert result.attributes["edi.ta1.generated"] == "false"
     
     def test_transform_with_ta1_generation(self, processor, mock_flowfile):
         """Test transform with TA1 generation enabled"""
@@ -344,15 +368,41 @@ class TestEDIProcessorComprehensive:
         mock_validation_result.findings = []
         processor.validation_service.validate_edi.return_value = mock_validation_result
         
-        # Setup parser for TA1 generation
-        class MockISASegment:
-            def __init__(self):
-                self.segment_id = "ISA"
-                self.elements = ["00", "          ", "00", "          ", "ZZ", "SENDER", "ZZ", "RECEIVER"]
+        # Mock schema manager and EdiParser for TA1 generation
+        mock_schema = Mock()
+        processor.validation_service.schema_manager.get_schema.return_value = mock_schema
         
-        mock_interchange = Mock()
-        mock_interchange.segments = [MockISASegment()]
-        processor.edi_parser.parse.return_value = mock_interchange
+        # Import CDM classes
+        from cdm import CdmInterchange, CdmSegment, CdmElement
+        
+        # Create ISA segment for TA1 generation
+        isa_segment = CdmSegment(
+            segment_id="ISA",
+            elements=[
+                CdmElement(value="00", position=1),
+                CdmElement(value="          ", position=2),
+                CdmElement(value="00", position=3),
+                CdmElement(value="          ", position=4),
+                CdmElement(value="ZZ", position=5),
+                CdmElement(value="SENDER", position=6),
+                CdmElement(value="ZZ", position=7),
+                CdmElement(value="RECEIVER", position=8)
+            ],
+            line_number=1,
+            raw_segment="ISA*00*          *00*          *ZZ*SENDER*ZZ*RECEIVER*..."
+        )
+        
+        mock_interchange = CdmInterchange(
+            header=isa_segment,
+            trailer=CdmSegment(segment_id="IEA", elements=[], line_number=2, raw_segment="IEA*1*000000001"),
+            functional_groups=[]
+        )
+        
+        # Mock EdiParser creation and parsing
+        with patch('edi_processor.EdiParser') as mock_parser_class:
+            mock_parser_instance = Mock()
+            mock_parser_instance.parse.return_value = mock_interchange
+            mock_parser_class.return_value = mock_parser_instance
         
         # Setup TA1 generator
         ta1_content = "ISA*00*          *00*          *ZZ*RECEIVER*ZZ*SENDER*230827*1030*^*00501*000000002*0*P*:~TA1*000000001*230827*1030*A*000~IEA*1*000000002~"
@@ -368,8 +418,14 @@ class TestEDIProcessorComprehensive:
             "CDM Include Metadata": "true"
         })
         
-        # Test transform
-        result = processor.transform(context, mock_flowfile)
+        # Mock EdiParser creation and parsing
+        with patch('edi_processor.EdiParser') as mock_parser_class:
+            mock_parser_instance = Mock()
+            mock_parser_instance.parse.return_value = mock_interchange
+            mock_parser_class.return_value = mock_parser_instance
+            
+            # Test transform
+            result = processor.transform(context, mock_flowfile)
         
         # Verify results
         assert result.relationship == "success"
@@ -403,25 +459,29 @@ class TestEDIProcessorComprehensive:
         mock_validation_result.findings = []
         processor.validation_service.validate_edi.return_value = mock_validation_result
         
-        # Setup parser for both CDM and TA1
-        class MockSegment:
-            def __init__(self, segment_id, elements):
-                self.segment_id = segment_id
-                self.elements = elements
-                self.line_number = 1
-                self.raw_content = f"{segment_id}*{'*'.join(elements)}"
+        # Mock schema manager and EdiParser for comprehensive test
+        mock_schema = Mock()
+        processor.validation_service.schema_manager.get_schema.return_value = mock_schema
         
-        mock_interchange = Mock()
-        mock_interchange.segments = [
-            MockSegment("ISA", ["00", "          ", "00", "          ", "ZZ", "SENDER", "ZZ", "RECEIVER"]),
-            MockSegment("GS", ["HC", "SENDER", "RECEIVER"]),
-            MockSegment("ST", ["837", "0001"])
-        ]
-        mock_interchange.interchange_control_number = "000000001"
-        mock_interchange.sender_id = "SENDER"
-        mock_interchange.receiver_id = "RECEIVER"
+        # Create proper CDM objects for comprehensive test
+        from cdm import CdmInterchange, CdmFunctionalGroup, CdmTransaction, CdmSegment, CdmElement, CdmLoop
         
-        processor.edi_parser.parse.return_value = mock_interchange
+        isa_segment = CdmSegment(
+            segment_id="ISA",
+            elements=[CdmElement(value="00", position=1), CdmElement(value="SENDER", position=6)],
+            line_number=1,
+            raw_segment="ISA*00*...*SENDER*..."
+        )
+        
+        mock_interchange = CdmInterchange(
+            header=isa_segment,
+            trailer=CdmSegment(segment_id="IEA", elements=[], line_number=10, raw_segment="IEA*1*000000001"),
+            functional_groups=[CdmFunctionalGroup(
+                header=CdmSegment(segment_id="GS", elements=[], line_number=2, raw_segment="GS*HC*..."),
+                trailer=CdmSegment(segment_id="GE", elements=[], line_number=9, raw_segment="GE*1*1"),
+                transactions=[]
+            )]
+        )
         
         # Setup TA1 generator
         ta1_content = "ISA*...*TA1*...*IEA*..."
@@ -437,8 +497,14 @@ class TestEDIProcessorComprehensive:
             "CDM Include Metadata": "true"
         })
         
-        # Test transform
-        result = processor.transform(context, mock_flowfile)
+        # Mock EdiParser creation and parsing
+        with patch('edi_processor.EdiParser') as mock_parser_class:
+            mock_parser_instance = Mock()
+            mock_parser_instance.parse.return_value = mock_interchange
+            mock_parser_class.return_value = mock_parser_instance
+            
+            # Test transform
+            result = processor.transform(context, mock_flowfile)
         
         # Verify results
         assert result.relationship == "success"
@@ -478,8 +544,9 @@ class TestEDIProcessorComprehensive:
         mock_validation_result.findings = []
         processor.validation_service.validate_edi.return_value = mock_validation_result
         
-        # Setup parser to raise exception
-        processor.edi_parser.parse.side_effect = Exception("Parsing failed")
+        # Mock schema manager
+        mock_schema = Mock()
+        processor.validation_service.schema_manager.get_schema.return_value = mock_schema
         
         context = self.create_mock_context({
             "Validation Schema": "837.5010.X222.A1.json",
@@ -491,8 +558,12 @@ class TestEDIProcessorComprehensive:
             "CDM Include Metadata": "true"
         })
         
-        # Test transform
-        result = processor.transform(context, mock_flowfile)
+        # Mock EdiParser to raise exception
+        with patch('edi_processor.EdiParser') as mock_parser_class:
+            mock_parser_class.side_effect = Exception("Parsing failed")
+            
+            # Test transform
+            result = processor.transform(context, mock_flowfile)
         
         # Should still succeed with validation, but CDM should have error
         assert result.relationship == "success"

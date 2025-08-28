@@ -111,10 +111,60 @@ async def delete_workflow(
     session: AsyncSession = Depends(get_db),
     auth_context: AuthContext = Depends(require_permission("workflow:write"))
 ):
-    """Delete a workflow."""
-    workflow = await get_workflow(workflow_id, session, auth_context)
+    """Delete a workflow with complete NiFi resource cleanup."""
+    log.info(f"Deleting workflow {workflow_id} for tenant {auth_context.tenant_id}")
+    
+    # Get the workflow database model directly
+    query = select(Workflow).where(Workflow.workflow_id == workflow_id)
+    result = await session.execute(query)
+    workflow = result.scalar_one_or_none()
+    if not workflow or workflow.tenant_id != auth_context.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found")
+    
+    # Clean up NiFi resources if workflow is deployed
+    if workflow.is_deployed:
+        log.info(f"Cleaning up NiFi resources for workflow {workflow_id}")
+        from src.nifi.clients.nifi_client import NiFiAPIClient
+        from src.core.config import settings
+        
+        try:
+            async with NiFiAPIClient(
+                nifi_url=settings.nifi_url,
+                username=settings.nifi_username,
+                password=settings.nifi_password
+            ) as nifi_client:
+                # Stop the process group first
+                if workflow.nifi_process_group_id:
+                    try:
+                        await nifi_client.stop_process_group(workflow.nifi_process_group_id)
+                        log.info(f"Stopped NiFi process group {workflow.nifi_process_group_id}")
+                    except Exception as e:
+                        log.warning(f"Could not stop process group {workflow.nifi_process_group_id}: {e}")
+                
+                # Delete the process group
+                if workflow.nifi_process_group_id:
+                    try:
+                        await nifi_client.delete_process_group(workflow.nifi_process_group_id)
+                        log.info(f"Deleted NiFi process group {workflow.nifi_process_group_id}")
+                    except Exception as e:
+                        log.warning(f"Could not delete process group {workflow.nifi_process_group_id}: {e}")
+                
+                # Delete the parameter context
+                if workflow.nifi_parameter_context_id:
+                    try:
+                        await nifi_client.delete_parameter_context(workflow.nifi_parameter_context_id)
+                        log.info(f"Deleted NiFi parameter context {workflow.nifi_parameter_context_id}")
+                    except Exception as e:
+                        log.warning(f"Could not delete parameter context {workflow.nifi_parameter_context_id}: {e}")
+                        
+        except Exception as e:
+            log.error(f"Error during NiFi resource cleanup for workflow {workflow_id}: {e}")
+            # Continue with database deletion even if NiFi cleanup fails
+    
+    # Delete from database
     await session.delete(workflow)
     await session.commit()
+    log.info(f"Successfully deleted workflow {workflow_id}")
 
 @router.post("/{workflow_id}/actions", response_model=WorkflowResponse)
 async def control_workflow(

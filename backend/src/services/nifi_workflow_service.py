@@ -120,7 +120,11 @@ class NiFiWorkflowService:
                 raise ValueError("Workflow is not deployed to NiFi")
             
             # Stop process group first
-            async with NiFiAPIClient(settings.NIFI_URL) as nifi_client:
+            async with NiFiAPIClient(
+                settings.NIFI_URL,
+                username=settings.NIFI_USERNAME,
+                password=settings.NIFI_PASSWORD
+            ) as nifi_client:
                 # Get current process group version
                 pg_info = await nifi_client.get_process_group(workflow.nifi_process_group_id)
                 version = pg_info["revision"]["version"]
@@ -164,7 +168,11 @@ class NiFiWorkflowService:
             if not workflow.nifi_process_group_id:
                 raise ValueError("Workflow is not deployed to NiFi")
             
-            async with NiFiAPIClient(settings.NIFI_URL) as nifi_client:
+            async with NiFiAPIClient(
+                settings.NIFI_URL,
+                username=settings.NIFI_USERNAME,
+                password=settings.NIFI_PASSWORD
+            ) as nifi_client:
                 await nifi_client.start_process_group(workflow.nifi_process_group_id)
             
             workflow.status = "ACTIVE"
@@ -188,7 +196,11 @@ class NiFiWorkflowService:
             if not workflow.nifi_process_group_id:
                 raise ValueError("Workflow is not deployed to NiFi")
             
-            async with NiFiAPIClient(settings.NIFI_URL) as nifi_client:
+            async with NiFiAPIClient(
+                settings.NIFI_URL,
+                username=settings.NIFI_USERNAME,
+                password=settings.NIFI_PASSWORD
+            ) as nifi_client:
                 await nifi_client.stop_process_group(workflow.nifi_process_group_id)
             
             workflow.status = "PAUSED"
@@ -226,7 +238,11 @@ class NiFiWorkflowService:
             }
         
         try:
-            async with NiFiAPIClient(settings.NIFI_URL) as nifi_client:
+            async with NiFiAPIClient(
+                settings.NIFI_URL,
+                username=settings.NIFI_USERNAME,
+                password=settings.NIFI_PASSWORD
+            ) as nifi_client:
                 # Get process group status
                 pg_info = await nifi_client.get_process_group(workflow.nifi_process_group_id)
                 nifi_status = pg_info["component"].get("state", "UNKNOWN")
@@ -336,7 +352,11 @@ class NiFiWorkflowService:
         """
         import json
         
-        async with NiFiAPIClient(settings.NIFI_URL) as nifi_client:
+        async with NiFiAPIClient(
+            settings.NIFI_URL,
+            username=settings.NIFI_USERNAME,
+            password=settings.NIFI_PASSWORD
+        ) as nifi_client:
             # Convert workflow configuration to NiFi parameters
             parameters = []
             if workflow.configuration:
@@ -375,7 +395,11 @@ class NiFiWorkflowService:
         Returns:
             Process group information from NiFi
         """
-        async with NiFiAPIClient(settings.NIFI_URL) as nifi_client:
+        async with NiFiAPIClient(
+            settings.NIFI_URL,
+            username=settings.NIFI_USERNAME,
+            password=settings.NIFI_PASSWORD
+        ) as nifi_client:
             # Get root process group ID
             root_pg = await nifi_client.get_process_group("root")
             root_pg_id = root_pg["component"]["id"]
@@ -387,11 +411,112 @@ class NiFiWorkflowService:
                 position={"x": 100, "y": 100}
             )
             
-            # TODO: Implement proper template instantiation when API is available
-            # For now, we'll just create the process group structure
-            # In a full implementation, we would:
-            # 1. Instantiate the template from Registry
-            # 2. Connect it to the parameter context
-            # 3. Configure any required settings
+            # Instantiate the template flow definition
+            await self._instantiate_template_flow(
+                nifi_client, 
+                process_group["component"]["id"], 
+                template, 
+                workflow,
+                param_context
+            )
             
             return process_group
+    
+    async def _instantiate_template_flow(
+        self,
+        nifi_client,
+        process_group_id: str,
+        template: WorkflowTemplate,
+        workflow: Workflow,
+        param_context: Dict[str, Any]
+    ):
+        """
+        Instantiate processors and connections from template flow definition.
+        """
+        import yaml
+        import re
+        
+        # Get flow definition from template model
+        flow_definition = template.flow_definition or {}
+        
+        if not flow_definition:
+            raise ValueError(f"Template {template.template_id} has no flow_definition")
+        
+        # Create a mapping of parameter values for substitution
+        param_values = {}
+        if workflow.configuration:
+            param_values.update(workflow.configuration)
+        param_values["tenant_id"] = workflow.tenant_id
+        
+        # Store processor IDs for connection creation
+        processor_ids = {}
+        
+        # Create processors
+        processors = flow_definition.get("processors", [])
+        log.info(f"Creating {len(processors)} processors for workflow {workflow.workflow_id}")
+        
+        for processor_def in processors:
+            # Substitute parameters in properties
+            properties = {}
+            if processor_def.get("properties"):
+                for key, value in processor_def["properties"].items():
+                    if isinstance(value, str):
+                        # Replace #{param_name} with actual values
+                        substituted_value = re.sub(
+                            r'#\{([^}]+)\}',
+                            lambda m: str(param_values.get(m.group(1), m.group(0))),
+                            value
+                        )
+                        properties[key] = substituted_value
+                    else:
+                        properties[key] = value
+            
+            # Create processor (basic creation first)
+            processor = await nifi_client.create_processor(
+                parent_group_id=process_group_id,
+                processor_type=processor_def["type"],
+                name=processor_def["name"],
+                position=processor_def.get("position", {"x": 100, "y": 100})
+            )
+            
+            processor_id = processor["component"]["id"]
+            
+            # Configure processor properties and scheduling after creation
+            if properties or processor_def.get("scheduling"):
+                await nifi_client.update_processor(
+                    processor_id=processor_id,
+                    properties=properties,
+                    scheduling=processor_def.get("scheduling")
+                )
+            
+            processor_ids[processor_def["id"]] = processor["component"]["id"]
+            log.info(f"Created processor {processor_def['name']} ({processor_def['id']})")
+        
+        # Create connections
+        connections = flow_definition.get("connections", [])
+        log.info(f"Creating {len(connections)} connections for workflow {workflow.workflow_id}")
+        
+        for conn_def in connections:
+            source_id = processor_ids.get(conn_def["source"]["id"])
+            destination_id = processor_ids.get(conn_def["destination"]["id"])
+            
+            if not source_id or not destination_id:
+                log.warning(f"Skipping connection {conn_def['id']} - missing processor IDs")
+                continue
+            
+            # Create connection
+            connection = await nifi_client.create_connection(
+                source_id=source_id,
+                source_type="PROCESSOR",
+                destination_id=destination_id,
+                destination_type="PROCESSOR",
+                relationships=conn_def.get("selectedRelationships", []),
+                name=conn_def.get("name"),
+                back_pressure_object_threshold=conn_def.get("backPressureObjectThreshold", 1000),
+                back_pressure_data_size_threshold=conn_def.get("backPressureDataSizeThreshold", "1 GB"),
+                flow_file_expiration=conn_def.get("flowFileExpiration", "0 sec")
+            )
+            
+            log.info(f"Created connection {conn_def['name']} ({conn_def['id']})")
+        
+        log.info(f"Successfully instantiated template flow for workflow {workflow.workflow_id}")

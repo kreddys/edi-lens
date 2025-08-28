@@ -155,7 +155,8 @@ class TestEDIProcessorE2E:
                         "properties": {
                             "Directory": test_output_dir,
                             "Conflict Resolution Strategy": "replace"
-                        }
+                        },
+                        "autoTerminatedRelationships": ["success", "failure"]
                     }
                 }
             }
@@ -230,7 +231,10 @@ class TestEDIProcessorE2E:
                 requests.put(f"{self.NIFI_URL}/nifi-api/processors/{edi_id}", headers=nifi_headers, json=auto_terminate_config)
                 print("✅ Auto-terminated failure relationship")
             
-            # Step 7: Start all processors
+            # Step 7: Wait for processor initialization before starting
+            time.sleep(3)
+            
+            # Step 8: Start all processors
             processors = [getfile_id, edi_id, putfile_id]
             for proc_id in processors:
                 proc_response = requests.get(f"{self.NIFI_URL}/nifi-api/processors/{proc_id}", headers=nifi_headers)
@@ -249,17 +253,34 @@ class TestEDIProcessorE2E:
                         print(f"✅ Started processor: {proc_id}")
                     else:
                         print(f"⚠️ Failed to start processor {proc_id}: {start_response.status_code}")
+                        print(f"   Response: {start_response.text}")
             
-            # Step 8: Create test EDI file
+            # Wait for processors to be fully running
+            time.sleep(5)
+            
+            # Step 9: Create test EDI file
             test_filename = f"test_edi_{int(time.time())}.edi"
             
-            # Write EDI content to container
-            os.system(f"docker exec nifi bash -c 'echo \"{sample_edi}\" > {test_input_dir}/{test_filename}'")
-            print(f"✅ Created test EDI file: {test_filename}")
+            # Escape the EDI content properly for shell
+            escaped_edi = sample_edi.replace('"', '\\"').replace('$', '\\$')
             
-            # Step 9: Wait for processing and check results
+            # Write EDI content to container
+            write_result = os.system(f'docker exec nifi bash -c \'echo "{escaped_edi}" > {test_input_dir}/{test_filename}\'')
+            if write_result == 0:
+                print(f"✅ Created test EDI file: {test_filename}")
+            else:
+                print(f"⚠️ Failed to create test file, exit code: {write_result}")
+            
+            # Verify file was created
+            file_check = os.popen(f"docker exec nifi ls -la {test_input_dir}/{test_filename} 2>/dev/null").read().strip()
+            if file_check:
+                print(f"✅ File verified: {file_check}")
+            else:
+                print(f"⚠️ File not found after creation")
+            
+            # Step 10: Wait for processing and check results
             print("⏰ Waiting for file processing...")
-            time.sleep(10)
+            time.sleep(15)  # Increased wait time
             
             # Check if output file was created
             result = os.system(f"docker exec nifi ls -la {test_output_dir}/")
@@ -303,11 +324,41 @@ class TestEDIProcessorE2E:
                     print("⚠️ Could not read output file content")
             else:
                 print("❌ No output files found")
+                
+                # Debug: Check processor status
+                print("🔍 Debugging processor status...")
+                for proc_id, proc_name in [(getfile_id, "GetFile"), (edi_id, "EDI"), (putfile_id, "PutFile")]:
+                    try:
+                        proc_response = requests.get(f"{self.NIFI_URL}/nifi-api/processors/{proc_id}", headers=nifi_headers)
+                        if proc_response.status_code == 200:
+                            proc_data = proc_response.json()
+                            state = proc_data['component']['state']
+                            print(f"   - {proc_name} processor state: {state}")
+                            
+                            # Check for validation errors
+                            validation_errors = proc_data['component'].get('validationErrors', [])
+                            if validation_errors:
+                                print(f"   - {proc_name} validation errors: {validation_errors}")
+                    except Exception as e:
+                        print(f"   - Error checking {proc_name}: {e}")
+                
                 # Check if input file is still there (processing failed)
                 input_check = os.popen(f"docker exec nifi ls {test_input_dir}/ 2>/dev/null").read().strip()
                 if input_check:
                     print(f"⚠️ Input file still present: {input_check}")
+                else:
+                    print("✅ Input file was consumed (good sign)")
                 
+                # Check NiFi logs for errors
+                print("🔍 Checking recent NiFi logs...")
+                log_check = os.popen("docker exec nifi tail -20 /opt/nifi/nifi-current/logs/nifi-app.log 2>/dev/null").read()
+                if "ERROR" in log_check or "Exception" in log_check:
+                    print("⚠️ Found errors in NiFi logs:")
+                    for line in log_check.split('\n'):
+                        if "ERROR" in line or "Exception" in line:
+                            print(f"   {line}")
+                
+                # If still no output after debugging, this is a real failure
                 assert False, "No output files were created"
         
         finally:

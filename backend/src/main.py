@@ -11,7 +11,7 @@ from pathlib import Path
 import os
 import openlit
 
-from src.api.endpoints import auth, schemas, edi, workflow_templates, workflows
+from src.api.endpoints import auth, schemas, edi, workflow_templates, workflows, workflow_execution
 from src.core.auth import get_current_user, User
 from src.core.config import setup_logging, settings
 from src.core.audit import before_flush, after_flush_postexec
@@ -65,6 +65,7 @@ app.include_router(edi.router, prefix="/api/v1")
 app.include_router(schemas.router, prefix="/api/v1")
 app.include_router(workflow_templates.router, prefix="/api/v1")
 app.include_router(workflows.router, prefix="/api/v1")
+app.include_router(workflow_execution.router, prefix="/api/v1")
 
 @app.get("/api/v1/health", tags=["health"])
 def health_check():

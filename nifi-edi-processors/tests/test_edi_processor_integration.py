@@ -142,6 +142,9 @@ class TestEDIProcessorIntegration:
         """Test EDI Processor properties are correctly configured"""
         processor_id = self.test_create_edi_processor(test_process_group, nifi_headers)
         
+        # Wait for processor to fully initialize
+        time.sleep(3)
+        
         # Get processor details
         response = requests.get(f"{self.NIFI_URL}/nifi-api/processors/{processor_id}", headers=nifi_headers)
         assert response.status_code == 200
@@ -169,6 +172,9 @@ class TestEDIProcessorIntegration:
     def test_edi_processor_relationships(self, test_process_group, nifi_headers):
         """Test EDI Processor relationships are correctly defined"""
         processor_id = self.test_create_edi_processor(test_process_group, nifi_headers)
+        
+        # Wait for processor to fully initialize
+        time.sleep(3)
         
         # Get processor details
         response = requests.get(f"{self.NIFI_URL}/nifi-api/processors/{processor_id}", headers=nifi_headers)

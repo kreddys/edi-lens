@@ -180,7 +180,13 @@ class WorkflowDeploymentService:
         """Deploy workflow using NiFi Registry."""
         try:
             # Connect to both NiFi and Registry
-            async with NiFiAPIClient(self.nifi_url, self.nifi_auth_token) as nifi_client, \
+            from src.core.config import settings
+            async with NiFiAPIClient(
+                self.nifi_url, 
+                self.nifi_auth_token,
+                username=settings.NIFI_USERNAME,
+                password=settings.NIFI_PASSWORD
+            ) as nifi_client, \
                        NiFiRegistryClient(self.registry_url, self.registry_auth_token) as registry_client:
                 
                 # 1. Ensure template is registered in Registry
@@ -232,7 +238,13 @@ class WorkflowDeploymentService:
     ) -> WorkflowDeploymentResult:
         """Deploy workflow using XML flow definition."""
         try:
-            async with NiFiAPIClient(self.nifi_url, self.nifi_auth_token) as nifi_client:
+            from src.core.config import settings
+            async with NiFiAPIClient(
+                self.nifi_url, 
+                self.nifi_auth_token,
+                username=settings.NIFI_USERNAME,
+                password=settings.NIFI_PASSWORD
+            ) as nifi_client:
                 # 1. Convert JSON flow definition to NiFi XML
                 xml_flow = self._convert_json_to_nifi_xml(template.flow_definition, workflow)
                 

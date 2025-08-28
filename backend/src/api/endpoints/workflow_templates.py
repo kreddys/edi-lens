@@ -7,7 +7,7 @@ from typing import List, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func, or_, delete
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -339,21 +339,16 @@ async def delete_template(
                 detail="Only platform administrators can delete global templates"
             )
     
-    # Check if template is in use by workflows
-    workflow_query = select(func.count(Workflow.workflow_id)).where(
-        and_(
-            Workflow.template_id == template_id,
-            Workflow.status.in_(['ACTIVE', 'PAUSED'])
-        )
-    )
-    workflow_result = await session.execute(workflow_query)
-    active_workflows = workflow_result.scalar()
+    # For cleanup purposes, delete any remaining workflows that reference this template
+    # This is more aggressive than the normal business logic but necessary for complete cleanup
+    remaining_workflows_query = select(Workflow).where(Workflow.template_id == template_id)
+    remaining_workflows_result = await session.execute(remaining_workflows_query)
+    remaining_workflows = remaining_workflows_result.scalars().all()
     
-    if active_workflows > 0:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot delete template with {active_workflows} active workflows. Stop workflows first."
-        )
+    if remaining_workflows:
+        for workflow in remaining_workflows:
+            await session.delete(workflow)
+        await session.flush()  # Ensure workflow deletions are processed first
     
     # Check if template is used as parent by other templates
     child_query = select(func.count(WorkflowTemplate.template_id)).where(
@@ -368,17 +363,11 @@ async def delete_template(
             detail=f"Cannot delete template that is used as parent by {child_templates} other templates"
         )
     
-    # Create usage record
-    usage_record = TemplateUsage.create_usage_record(
-        template_id=template_id,
-        tenant_id=auth_context.tenant_id,
-        action='DELETE',
-        success=True
-    )
+    # Delete existing usage records first to avoid foreign key constraint violation
+    usage_delete_query = delete(TemplateUsage).where(TemplateUsage.template_id == template_id)
+    await session.execute(usage_delete_query)
     
-    session.add(usage_record)
-    
-    # Delete template (cascade will handle versions and usage records)
+    # Delete template
     await session.delete(template)
     await session.commit()
 

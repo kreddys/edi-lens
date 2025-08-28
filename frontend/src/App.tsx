@@ -25,6 +25,7 @@ import {
   WorkflowEdit,
   WorkflowShow
 } from "./pages/workflows";
+import EdiBatchProcessorPage from "./pages/workflows/edi-batch-processor";
 
 function App() {
   return (
@@ -90,6 +91,7 @@ function App() {
                     <Route path="create" element={<WorkflowCreate />} />
                     <Route path="edit/:id" element={<WorkflowEdit />} />
                     <Route path="show/:id" element={<WorkflowShow />} />
+                    <Route path="edi-batch-processor" element={<EdiBatchProcessorPage />} />
                   </Route>
                   <Route path="/schema-editor" element={<SchemaEditorList />} />
                   <Route path="/processing-history" element={<ProcessingHistory />} />

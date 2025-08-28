@@ -7,28 +7,70 @@ running instances of workflows as process groups.
 
 import aiohttp
 import json
+import logging
 from typing import Optional, List, Dict, Any, Union
 from urllib.parse import urljoin
+
+log = logging.getLogger(__name__)
 
 
 class NiFiAPIClient:
     """Client for NiFi REST API integration."""
 
-    def __init__(self, nifi_url: str, auth_token: Optional[str] = None):
+    def __init__(self, nifi_url: str, auth_token: Optional[str] = None, username: Optional[str] = None, password: Optional[str] = None):
         self.nifi_url = nifi_url.rstrip('/')
         self.auth_token = auth_token
+        self.username = username
+        self.password = password
         self.session: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self):
+        # Create SSL context that skips certificate verification for development
+        import ssl
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        connector = aiohttp.TCPConnector(ssl=ssl_context)
+        
+        # Create session without auth headers first
+        self.session = aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=30),
+            connector=connector
+        )
+        
+        # Get auth token if username/password provided
+        if not self.auth_token and self.username and self.password:
+            self.auth_token = await self._get_auth_token()
+        
+        # Update session headers with auth token
         headers = {'Content-Type': 'application/json'}
         if self.auth_token:
             headers['Authorization'] = f'Bearer {self.auth_token}'
         
+        # Close and recreate session with auth headers
+        await self.session.close()
         self.session = aiohttp.ClientSession(
             headers=headers,
-            timeout=aiohttp.ClientTimeout(total=30)
+            timeout=aiohttp.ClientTimeout(total=30),
+            connector=aiohttp.TCPConnector(ssl=ssl_context)
         )
         return self
+    
+    async def _get_auth_token(self) -> str:
+        """Get authentication token from NiFi."""
+        auth_data = f"username={self.username}&password={self.password}"
+        
+        async with self.session.post(
+            f"{self.nifi_url}/nifi-api/access/token",
+            data=auth_data,
+            headers={'Content-Type': 'application/x-www-form-urlencoded'}
+        ) as response:
+            if response.status == 201:
+                return await response.text()
+            else:
+                error_text = await response.text()
+                raise Exception(f"Failed to authenticate with NiFi: {response.status} - {error_text}")
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.session:
@@ -132,7 +174,7 @@ class NiFiAPIClient:
             if response.status >= 400:
                 try:
                     error_text = await response.text()
-                    print(f"NiFi API Error (start): {response.status} - {error_text}")
+                    log.error(f"NiFi API Error (start): {response.status} - {error_text}")
                 except:
                     pass
             response.raise_for_status()
@@ -156,7 +198,7 @@ class NiFiAPIClient:
             if response.status >= 400:
                 try:
                     error_text = await response.text()
-                    print(f"NiFi API Error (stop): {response.status} - {error_text}")
+                    log.error(f"NiFi API Error (stop): {response.status} - {error_text}")
                 except:
                     pass
             response.raise_for_status()
@@ -189,7 +231,7 @@ class NiFiAPIClient:
         }
         
         # Debug logging
-        print(f"Sending parameter context data to NiFi: {param_context_data}")
+        log.debug(f"Sending parameter context data to NiFi: {param_context_data}")
         
         async with self.session.post(
             f"{self.nifi_url}/nifi-api/parameter-contexts",
@@ -199,11 +241,11 @@ class NiFiAPIClient:
             if response.status >= 400:
                 try:
                     error_text = await response.text()
-                    print(f"NiFi API Error: {response.status} - {error_text}")
+                    log.error(f"NiFi API Error: {response.status} - {error_text}")
                     # Raise the error with more details
                     response.raise_for_status()
                 except Exception as e:
-                    print(f"Exception while handling NiFi API error: {str(e)}")
+                    log.error(f"Exception while handling NiFi API error: {str(e)}")
                     raise
             else:
                 return await response.json()
@@ -296,6 +338,133 @@ class NiFiAPIClient:
             response.raise_for_status()
             return await response.json()
 
+    # --- Processors ---
+
+    async def create_processor(
+        self,
+        parent_group_id: str,
+        processor_type: str,
+        name: str,
+        position: Dict[str, int],
+        properties: Optional[Dict[str, Any]] = None,
+        scheduling: Optional[Dict[str, Any]] = None,
+        auto_terminated_relationships: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """Create a processor in the specified process group."""
+        processor_data = {
+            "revision": {"version": 0},
+            "component": {
+                "name": name,
+                "type": processor_type,
+                "parentGroupId": parent_group_id,
+                "position": position
+            }
+        }
+        
+        async with self.session.post(
+            f"{self.nifi_url}/nifi-api/process-groups/{parent_group_id}/processors",
+            json=processor_data
+        ) as response:
+            response.raise_for_status()
+            return await response.json()
+
+    async def get_processor(self, processor_id: str) -> Dict[str, Any]:
+        """Get processor details by ID."""
+        async with self.session.get(
+            f"{self.nifi_url}/nifi-api/processors/{processor_id}"
+        ) as response:
+            response.raise_for_status()
+            return await response.json()
+
+    async def update_processor(
+        self,
+        processor_id: str,
+        properties: Optional[Dict[str, Any]] = None,
+        scheduling: Optional[Dict[str, Any]] = None,
+        version: int = 0
+    ) -> Dict[str, Any]:
+        """Update processor configuration."""
+        # First get current state to get the revision
+        current = await self.get_processor(processor_id)
+        current_version = current.get("revision", {}).get("version", 0)
+        
+        update_data = {
+            "revision": {"version": current_version},
+            "component": {
+                "id": processor_id
+            }
+        }
+        
+        if properties or scheduling:
+            config = {}
+            if properties:
+                config["properties"] = properties
+            if scheduling:
+                config.update({
+                    "schedulingPeriod": scheduling.get("period", "0 sec"),
+                    "schedulingStrategy": scheduling.get("strategy", "TIMER_DRIVEN"),
+                    "concurrentlySchedulableTaskCount": scheduling.get("concurrent_tasks", 1)
+                })
+            update_data["component"]["config"] = config
+            
+        async with self.session.put(
+            f"{self.nifi_url}/nifi-api/processors/{processor_id}",
+            json=update_data
+        ) as response:
+            response.raise_for_status()
+            return await response.json()
+
+    # --- Connections ---
+
+    async def create_connection(
+        self,
+        source_id: str,
+        source_type: str,
+        destination_id: str,
+        destination_type: str,
+        relationships: List[str],
+        name: Optional[str] = None,
+        back_pressure_object_threshold: int = 1000,
+        back_pressure_data_size_threshold: str = "1 GB",
+        flow_file_expiration: str = "0 sec"
+    ) -> Dict[str, Any]:
+        """Create a connection between processors."""
+        connection_data = {
+            "revision": {"version": 0},
+            "component": {
+                "name": name or f"{source_id} -> {destination_id}",
+                "source": {
+                    "id": source_id,
+                    "type": source_type,
+                    "groupId": source_id  # This might need adjustment based on NiFi API
+                },
+                "destination": {
+                    "id": destination_id,
+                    "type": destination_type,
+                    "groupId": destination_id  # This might need adjustment based on NiFi API
+                },
+                "selectedRelationships": relationships,
+                "backPressureObjectThreshold": back_pressure_object_threshold,
+                "backPressureDataSizeThreshold": back_pressure_data_size_threshold,
+                "flowFileExpiration": flow_file_expiration
+            }
+        }
+        
+        async with self.session.post(
+            f"{self.nifi_url}/nifi-api/connections",
+            json=connection_data
+        ) as response:
+            response.raise_for_status()
+            return await response.json()
+
+    async def get_connection(self, connection_id: str) -> Dict[str, Any]:
+        """Get connection details by ID."""
+        async with self.session.get(
+            f"{self.nifi_url}/nifi-api/connections/{connection_id}"
+        ) as response:
+            response.raise_for_status()
+            return await response.json()
+
     # --- Health and Diagnostics ---
 
     async def get_system_diagnostics(self) -> Dict[str, Any]:
@@ -309,6 +478,21 @@ class NiFiAPIClient:
         async with self.session.get(f"{self.nifi_url}/nifi-api/flow/status") as response:
             response.raise_for_status()
             return await response.json()
+
+    async def delete_parameter_context(self, context_id: str, version: int = 0) -> bool:
+        """Delete a parameter context."""
+        async with self.session.delete(
+            f"{self.nifi_url}/nifi-api/parameter-contexts/{context_id}",
+            params={"version": version}
+        ) as response:
+            if response.status >= 400:
+                try:
+                    error_text = await response.text()
+                    log.error(f"NiFi API Error (delete parameter context): {response.status} - {error_text}")
+                except:
+                    pass
+            response.raise_for_status()
+            return response.status == 200
 
     async def health_check(self) -> bool:
         """Check if NiFi is healthy."""

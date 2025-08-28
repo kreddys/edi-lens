@@ -1,0 +1,382 @@
+# Template metadata (matches WorkflowTemplate database schema)
+metadata:
+  template_id: "edi-batch-processor-v2"
+  name: "EDI Batch Processor v2"
+  description: "Consolidated EDI batch processing using the new EDI Processor"
+  version: "2.0.0"
+  scope: "GLOBAL"
+  category: "BATCH"
+  tenant_id: null
+  maintainer: "EDI Lens Team"
+  based_on: null
+  deployment_method: "registry"
+  tags: ["edi", "batch", "processing", "consolidated"]
+  features: ["validation", "cdm_generation", "ta1_acknowledgments", "batch_processing"]
+  is_featured: true
+  status: "ACTIVE"
+  author: "EDI Lens Team"
+  created_date: "2025-01-28"
+  updated_date: "2025-01-28"
+  min_nifi_version: "1.20.0"
+  processor_requirements:
+    - "EDIProcessor"
+    - "org.apache.nifi.processors.standard.GetFile"
+    - "org.apache.nifi.processors.standard.PutFile"
+
+# Configuration schema for UI form generation
+configuration_schema:
+  type: "object"
+  properties:
+    # GetFile Configuration
+    input_directory:
+      type: "string"
+      title: "Input Directory"
+      description: "Directory to monitor for EDI files"
+      default: "/data/input"
+      required: true
+      ui_component: "text"
+      validation:
+        pattern: "^/.*"
+        message: "Must be an absolute path"
+    
+    filename_filter:
+      type: "string"
+      title: "Filename Filter"
+      description: "Regex pattern to match filenames (e.g., .*\\.edi$)"
+      default: ".*\\.(edi|x12|txt)$"
+      required: true
+      ui_component: "text"
+    
+    polling_interval:
+      type: "string"
+      title: "Polling Interval"
+      description: "How often to check for new files"
+      default: "10 sec"
+      required: true
+      ui_component: "select"
+      options:
+        - "5 sec"
+        - "10 sec"
+        - "30 sec"
+        - "1 min"
+        - "5 min"
+    
+    keep_source_file:
+      type: "boolean"
+      title: "Keep Source File"
+      description: "Whether to keep the original file after processing"
+      default: false
+      ui_component: "checkbox"
+    
+    # EDI Processor Configuration
+    validation_schema:
+      type: "string"
+      title: "Validation Schema"
+      description: "EDI schema file for validation (e.g., 837.5010.X222.A1.json)"
+      default: "837.5010.X222.A1.json"
+      required: true
+      ui_component: "select"
+      options:
+        - "837.5010.X222.A1.json"
+        - "835.5010.X221.A1.json"
+        - "270.5010.X279.A1.json"
+        - "271.5010.X279.A1.json"
+    
+    snip_level:
+      type: "integer"
+      title: "SNIP Level"
+      description: "Validation strictness level (1-5)"
+      default: 3
+      required: true
+      ui_component: "select"
+      options: [1, 2, 3, 4, 5]
+      validation:
+        minimum: 1
+        maximum: 5
+    
+    generate_cdm:
+      type: "boolean"
+      title: "Generate CDM"
+      description: "Generate Common Data Model output"
+      default: true
+      ui_component: "checkbox"
+    
+    generate_ta1:
+      type: "boolean"
+      title: "Generate TA1"
+      description: "Generate TA1 acknowledgments"
+      default: false
+      ui_component: "checkbox"
+    
+    force_ta1:
+      type: "boolean"
+      title: "Force TA1"
+      description: "Force TA1 generation even for valid files"
+      default: false
+      ui_component: "checkbox"
+      depends_on: "generate_ta1"
+    
+    cdm_include_metadata:
+      type: "boolean"
+      title: "Include CDM Metadata"
+      description: "Include enhanced metadata in CDM output"
+      default: true
+      ui_component: "checkbox"
+      depends_on: "generate_cdm"
+    
+    # PutFile Configuration
+    output_directory:
+      type: "string"
+      title: "Output Directory"
+      description: "Directory to write processed files"
+      default: "/data/output"
+      required: true
+      ui_component: "text"
+      validation:
+        pattern: "^/.*"
+        message: "Must be an absolute path"
+    
+    output_filename_strategy:
+      type: "string"
+      title: "Output Filename Strategy"
+      description: "How to name output files"
+      default: "timestamp_prefix"
+      ui_component: "select"
+      options:
+        - value: "original"
+          label: "Keep Original Name"
+        - value: "timestamp_prefix"
+          label: "Add Timestamp Prefix"
+        - value: "timestamp_suffix"
+          label: "Add Timestamp Suffix"
+        - value: "custom"
+          label: "Custom Pattern"
+    
+    custom_filename_pattern:
+      type: "string"
+      title: "Custom Filename Pattern"
+      description: "Custom filename pattern (use ${filename}, ${timestamp}, etc.)"
+      default: "processed_${timestamp}_${filename}"
+      ui_component: "text"
+      depends_on: 
+        field: "output_filename_strategy"
+        value: "custom"
+    
+    conflict_resolution:
+      type: "string"
+      title: "Conflict Resolution"
+      description: "What to do if output file already exists"
+      default: "replace"
+      ui_component: "select"
+      options:
+        - "replace"
+        - "ignore"
+        - "fail"
+    
+    # Advanced Configuration
+    max_concurrent_tasks:
+      type: "integer"
+      title: "Max Concurrent Tasks"
+      description: "Maximum number of files to process simultaneously"
+      default: 1
+      ui_component: "number"
+      validation:
+        minimum: 1
+        maximum: 10
+    
+    tenant_id:
+      type: "string"
+      title: "Tenant ID"
+      description: "Tenant identifier for multi-tenant processing"
+      default: "#{tenant_id}"
+      ui_component: "text"
+      readonly: true
+
+# Flow definition using the new consolidated EDI Processor
+flow_definition:
+  processors:
+    - id: "getfile-001"
+      name: "Get EDI Files"
+      type: "org.apache.nifi.processors.standard.GetFile"
+      position:
+        x: 100
+        y: 200
+      properties:
+        "Input Directory": "#{input_directory}"
+        "File Filter": "#{filename_filter}"
+        "Keep Source File": "#{keep_source_file}"
+        "Minimum File Age": "1 sec"
+        "Polling Interval": "#{polling_interval}"
+        "Batch Size": "10"
+        "Ignore Hidden Files": "true"
+      scheduling:
+        strategy: "TIMER_DRIVEN"
+        period: "#{polling_interval}"
+        concurrent_tasks: "#{max_concurrent_tasks}"
+      auto_terminated_relationships: []
+    
+    - id: "edi-processor-001"
+      name: "Process EDI"
+      type: "EDIProcessor"
+      position:
+        x: 400
+        y: 200
+      properties:
+        "Validation Schema": "#{validation_schema}"
+        "SNIP Level": "#{snip_level}"
+        "Tenant ID": "#{tenant_id}"
+        "Generate CDM": "#{generate_cdm}"
+        "Generate TA1": "#{generate_ta1}"
+        "Force TA1": "#{force_ta1}"
+        "CDM Include Metadata": "#{cdm_include_metadata}"
+        "Schema Base Path": "/opt/nifi/nifi-current/python_extensions/edi-processors/schemas"
+      scheduling:
+        strategy: "TIMER_DRIVEN"
+        period: "0 sec"
+        concurrent_tasks: "#{max_concurrent_tasks}"
+      auto_terminated_relationships: []
+    
+    - id: "putfile-success-001"
+      name: "Save Processed Files"
+      type: "org.apache.nifi.processors.standard.PutFile"
+      position:
+        x: 700
+        y: 150
+      properties:
+        "Directory": "#{output_directory}/success"
+        "Conflict Resolution Strategy": "#{conflict_resolution}"
+        "Create Missing Directories": "true"
+        "Maximum File Count": "-1"
+        "Last Modified Time": ""
+        "Permissions": ""
+        "Owner": ""
+        "Group": ""
+      scheduling:
+        strategy: "TIMER_DRIVEN"
+        period: "0 sec"
+        concurrent_tasks: "#{max_concurrent_tasks}"
+      auto_terminated_relationships: ["success", "failure"]
+    
+    - id: "putfile-failure-001"
+      name: "Save Failed Files"
+      type: "org.apache.nifi.processors.standard.PutFile"
+      position:
+        x: 700
+        y: 300
+      properties:
+        "Directory": "#{output_directory}/failed"
+        "Conflict Resolution Strategy": "#{conflict_resolution}"
+        "Create Missing Directories": "true"
+        "Maximum File Count": "-1"
+        "Last Modified Time": ""
+        "Permissions": ""
+        "Owner": ""
+        "Group": ""
+      scheduling:
+        strategy: "TIMER_DRIVEN"
+        period: "0 sec"
+        concurrent_tasks: "#{max_concurrent_tasks}"
+      auto_terminated_relationships: ["success", "failure"]
+
+  connections:
+    - id: "conn-001"
+      name: "Files to Process"
+      source:
+        id: "getfile-001"
+        type: "PROCESSOR"
+      destination:
+        id: "edi-processor-001"
+        type: "PROCESSOR"
+      selectedRelationships: ["success"]
+      backPressureObjectThreshold: 1000
+      backPressureDataSizeThreshold: "1 GB"
+      flowFileExpiration: "0 sec"
+      prioritizers: []
+    
+    - id: "conn-002"
+      name: "Successful Processing"
+      source:
+        id: "edi-processor-001"
+        type: "PROCESSOR"
+      destination:
+        id: "putfile-success-001"
+        type: "PROCESSOR"
+      selectedRelationships: ["success"]
+      backPressureObjectThreshold: 1000
+      backPressureDataSizeThreshold: "1 GB"
+      flowFileExpiration: "0 sec"
+      prioritizers: []
+    
+    - id: "conn-003"
+      name: "Failed Processing"
+      source:
+        id: "edi-processor-001"
+        type: "PROCESSOR"
+      destination:
+        id: "putfile-failure-001"
+        type: "PROCESSOR"
+      selectedRelationships: ["failure"]
+      backPressureObjectThreshold: 1000
+      backPressureDataSizeThreshold: "1 GB"
+      flowFileExpiration: "0 sec"
+      prioritizers: []
+
+# Deployment configuration
+deployment:
+  parameter_context:
+    name: "edi-batch-processor-v2-params"
+    description: "Parameters for EDI Batch Processor v2"
+  
+  process_group:
+    name: "EDI Batch Processor v2"
+    description: "Consolidated EDI batch processing workflow"
+    
+# Monitoring and alerting configuration
+monitoring:
+  metrics:
+    - name: "files_processed"
+      description: "Number of files processed"
+      type: "counter"
+    - name: "processing_time"
+      description: "Average processing time per file"
+      type: "gauge"
+    - name: "validation_errors"
+      description: "Number of validation errors"
+      type: "counter"
+  
+  alerts:
+    - name: "high_failure_rate"
+      condition: "failure_rate > 0.1"
+      description: "Alert when failure rate exceeds 10%"
+    - name: "processing_delay"
+      condition: "avg_processing_time > 30000"
+      description: "Alert when average processing time exceeds 30 seconds"
+
+# Documentation
+documentation:
+  overview: |
+    This template creates a comprehensive EDI batch processing workflow using the new consolidated EDI Processor.
+    It monitors a directory for EDI files, processes them through validation, CDM generation, and TA1 acknowledgments,
+    then saves the results to separate success/failure directories.
+  
+  use_cases:
+    - "Healthcare claims processing (837P)"
+    - "Payment remittance processing (835)"
+    - "Eligibility verification (270/271)"
+    - "General EDI X12 document processing"
+  
+  configuration_guide: |
+    1. Set input_directory to the folder containing EDI files
+    2. Configure filename_filter to match your file naming convention
+    3. Select appropriate validation_schema for your EDI transaction type
+    4. Set SNIP level based on validation strictness requirements
+    5. Enable CDM and/or TA1 generation as needed
+    6. Configure output directories for processed files
+  
+  troubleshooting:
+    - issue: "Files not being picked up"
+      solution: "Check input_directory path and filename_filter pattern"
+    - issue: "Validation failures"
+      solution: "Verify validation_schema matches your EDI format and check SNIP level"
+    - issue: "Processing too slow"
+      solution: "Increase max_concurrent_tasks or adjust polling_interval"

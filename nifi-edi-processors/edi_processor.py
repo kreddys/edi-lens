@@ -194,7 +194,7 @@ class EDIProcessor(FlowFileTransform):
             
             # Initialize services
             self.validation_service = EDIValidationService(schema_base_path)
-            self.edi_parser = EdiParser()
+            # Note: EdiParser will be initialized per-flowfile since it needs edi_string and schema
             self.ta1_generator = TA1Generator()
             
             logger.info(f"EDI Processor scheduled with schema path: {schema_base_path}")
@@ -242,14 +242,28 @@ class EDIProcessor(FlowFileTransform):
             cdm_data = None
             if generate_cdm:
                 try:
+                    # Get schema for parsing
+                    schema = self.validation_service.schema_manager.get_schema(schema_name, tenant_id)
+                    if not schema:
+                        raise ValueError(f"Schema not found: {schema_name}")
+                    
                     # Parse EDI content to get proper CDM structure
-                    parsed_interchange = self.edi_parser.parse(edi_content)
+                    edi_parser = EdiParser(edi_content, schema)
+                    parsed_interchange = edi_parser.parse()
                     
                     # Convert the parsed interchange to proper CDM JSON format
                     # This should use the CdmInterchange structure from cdm.py
                     cdm_data = self._convert_to_cdm_json(parsed_interchange, include_metadata)
                     
-                    logger.info(f"Generated proper CDM structure with {len(parsed_interchange.segments)} segments")
+                    # Count total segments across all functional groups and transactions
+                    total_segments = 2  # ISA + IEA
+                    for fg in parsed_interchange.functional_groups:
+                        total_segments += 2  # GS + GE
+                        for transaction in fg.transactions:
+                            total_segments += 2  # ST + SE
+                            total_segments += len(transaction.body.segments)
+                    
+                    logger.info(f"Generated proper CDM structure with {total_segments} segments")
                 except Exception as e:
                     logger.warning(f"CDM generation failed: {e}")
                     cdm_data = {"error": f"CDM generation failed: {str(e)}"}
@@ -258,15 +272,18 @@ class EDIProcessor(FlowFileTransform):
             ta1_data = None
             if generate_ta1:
                 try:
+                    # Get schema for parsing
+                    schema = self.validation_service.schema_manager.get_schema(schema_name, tenant_id)
+                    if not schema:
+                        raise ValueError(f"Schema not found: {schema_name}")
+                    
                     # Parse to get ISA header for TA1 generation
-                    parsed_interchange = self.edi_parser.parse(edi_content)
+                    edi_parser = EdiParser(edi_content, schema)
+                    parsed_interchange = edi_parser.parse()
                     isa_segment = None
                     
-                    # Find ISA segment
-                    for segment in parsed_interchange.segments:
-                        if segment.segment_id == "ISA":
-                            isa_segment = segment
-                            break
+                    # Get ISA segment from interchange header
+                    isa_segment = parsed_interchange.header
                     
                     if isa_segment:
                         # Convert validation findings to interchange errors for TA1
@@ -421,67 +438,10 @@ class EDIProcessor(FlowFileTransform):
     def _build_cdm_interchange(self, parsed_interchange):
         """
         Build a proper CdmInterchange from the parsed EDI data.
+        The parsed_interchange is already a CdmInterchange, so we just return it.
         """
-        # Find ISA and IEA segments
-        isa_segment = None
-        iea_segment = None
-        functional_groups = []
-        
-        current_fg = None
-        current_transaction = None
-        current_loop = None
-        
-        for segment in parsed_interchange.segments:
-            segment_id = getattr(segment, 'segment_id', '')
-            
-            if segment_id == 'ISA':
-                isa_segment = self._convert_segment_to_cdm_segment(segment)
-            elif segment_id == 'IEA':
-                iea_segment = self._convert_segment_to_cdm_segment(segment)
-            elif segment_id == 'GS':
-                # Start new functional group
-                if current_fg:
-                    functional_groups.append(current_fg)
-                current_fg = CdmFunctionalGroup(
-                    header=self._convert_segment_to_cdm_segment(segment),
-                    trailer=CdmSegment(segment_id="GE", elements=[], line_number=0, raw_segment="")  # Placeholder
-                )
-            elif segment_id == 'GE':
-                # End functional group
-                if current_fg:
-                    current_fg.trailer = self._convert_segment_to_cdm_segment(segment)
-            elif segment_id == 'ST':
-                # Start new transaction
-                if current_transaction and current_fg:
-                    current_fg.transactions.append(current_transaction)
-                current_transaction = CdmTransaction(
-                    header=self._convert_segment_to_cdm_segment(segment),
-                    trailer=CdmSegment(segment_id="SE", elements=[], line_number=0, raw_segment=""),  # Placeholder
-                    body=CdmLoop(loop_id="TRANSACTION_BODY")
-                )
-                current_loop = current_transaction.body
-            elif segment_id == 'SE':
-                # End transaction
-                if current_transaction:
-                    current_transaction.trailer = self._convert_segment_to_cdm_segment(segment)
-            else:
-                # Add segment to current loop/transaction
-                if current_loop:
-                    cdm_segment = self._convert_segment_to_cdm_segment(segment)
-                    current_loop.segments.append(cdm_segment)
-        
-        # Close any open structures
-        if current_transaction and current_fg:
-            current_fg.transactions.append(current_transaction)
-        if current_fg:
-            functional_groups.append(current_fg)
-        
-        # Create the interchange
-        return CdmInterchange(
-            header=isa_segment or CdmSegment(segment_id="ISA", elements=[], line_number=0, raw_segment=""),
-            trailer=iea_segment or CdmSegment(segment_id="IEA", elements=[], line_number=0, raw_segment=""),
-            functional_groups=functional_groups
-        )
+        # The parsed_interchange is already a proper CdmInterchange structure
+        return parsed_interchange
     
     def _convert_segment_to_cdm_segment(self, segment):
         """
@@ -517,4 +477,13 @@ class EDIProcessor(FlowFileTransform):
             for transaction in fg.transactions:
                 count += 2  # ST + SE
                 count += len(transaction.body.segments)
+                # Also count segments in nested loops
+                def count_loop_segments(loop):
+                    segment_count = len(loop.segments)
+                    for loop_list in loop.loops.values():
+                        for nested_loop in loop_list:
+                            segment_count += count_loop_segments(nested_loop)
+                    return segment_count
+                
+                count += count_loop_segments(transaction.body)
         return count
