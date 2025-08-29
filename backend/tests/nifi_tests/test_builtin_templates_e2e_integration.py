@@ -32,6 +32,12 @@ class TestBuiltInTemplatesEndToEnd:
     def production_yaml_template(self):
         """Create a realistic YAML template similar to production templates."""
         template_id = f"test-e2e-batch-{uuid4()}"
+        
+        # Generate consistent IDs for processors to use in connections
+        list_sftp_id = f"list-sftp-{uuid4()}"
+        fetch_sftp_id = f"fetch-sftp-{uuid4()}"
+        validate_edi_id = f"validate-edi-{uuid4()}"
+        
         return {
             "metadata": {
                 "template_id": template_id,
@@ -61,7 +67,7 @@ class TestBuiltInTemplatesEndToEnd:
                 "description": "Complete test flow for E2E validation",
                 "processors": [
                     {
-                        "identifier": f"list-sftp-{uuid4()}",
+                        "identifier": list_sftp_id,
                         "name": "Monitor SFTP Directory",
                         "type": "org.apache.nifi.processors.standard.ListSFTP",
                         "position": {"x": 100.0, "y": 100.0},
@@ -77,7 +83,7 @@ class TestBuiltInTemplatesEndToEnd:
                         "autoTerminatedRelationships": []
                     },
                     {
-                        "identifier": f"fetch-sftp-{uuid4()}",
+                        "identifier": fetch_sftp_id,
                         "name": "Fetch EDI File",
                         "type": "org.apache.nifi.processors.standard.FetchSFTP",
                         "position": {"x": 350.0, "y": 100.0},
@@ -91,7 +97,7 @@ class TestBuiltInTemplatesEndToEnd:
                         "autoTerminatedRelationships": []
                     },
                     {
-                        "identifier": f"validate-edi-{uuid4()}",
+                        "identifier": validate_edi_id,
                         "name": "Validate EDI Content",
                         "type": "org.apache.nifi.processors.standard.InvokeHTTP",
                         "position": {"x": 600.0, "y": 100.0},
@@ -109,11 +115,11 @@ class TestBuiltInTemplatesEndToEnd:
                         "identifier": f"list-to-fetch-{uuid4()}",
                         "name": "List to Fetch",
                         "source": {
-                            "id": f"list-sftp-{uuid4()}",
+                            "id": list_sftp_id,
                             "type": "PROCESSOR"
                         },
                         "destination": {
-                            "id": f"fetch-sftp-{uuid4()}",
+                            "id": fetch_sftp_id,
                             "type": "PROCESSOR"
                         },
                         "selectedRelationships": ["success"]
@@ -122,11 +128,11 @@ class TestBuiltInTemplatesEndToEnd:
                         "identifier": f"fetch-to-validate-{uuid4()}",
                         "name": "Fetch to Validate",
                         "source": {
-                            "id": f"fetch-sftp-{uuid4()}",
+                            "id": fetch_sftp_id,
                             "type": "PROCESSOR"
                         },
                         "destination": {
-                            "id": f"validate-edi-{uuid4()}",
+                            "id": validate_edi_id,
                             "type": "PROCESSOR"
                         },
                         "selectedRelationships": ["success"]

@@ -191,14 +191,21 @@ class TestNiFiWorkflowDeploymentIntegration:
             try:
                 # Test NiFi connectivity first
                 from src.nifi.clients.nifi_client import NiFiAPIClient
-                async with NiFiAPIClient(settings.NIFI_URL) as nifi_client:
+                async with NiFiAPIClient(
+                    nifi_url=settings.NIFI_URL,
+                    username=settings.NIFI_USERNAME,
+                    password=settings.NIFI_PASSWORD
+                ) as nifi_client:
                     nifi_health = await nifi_client.health_check()
                     if not nifi_health:
                         pytest.skip("NiFi is not accessible")
                 
                 # Test NiFi Registry connectivity
                 from src.nifi.clients.registry_client import NiFiRegistryClient
-                async with NiFiRegistryClient(settings.NIFI_REGISTRY_URL) as registry_client:
+                async with NiFiRegistryClient(
+                    registry_url=settings.NIFI_REGISTRY_URL,
+                    auth_token=settings.NIFI_REGISTRY_AUTH_TOKEN
+                ) as registry_client:
                     try:
                         registry_info = await registry_client.get_registry_info()
                         if not registry_info:
@@ -365,7 +372,11 @@ class TestNiFiWorkflowDeploymentIntegration:
             try:
                 # Test NiFi connectivity first
                 from src.nifi.clients.nifi_client import NiFiAPIClient
-                async with NiFiAPIClient(settings.NIFI_URL) as nifi_client:
+                async with NiFiAPIClient(
+                    nifi_url=settings.NIFI_URL,
+                    username=settings.NIFI_USERNAME,
+                    password=settings.NIFI_PASSWORD
+                ) as nifi_client:
                     nifi_health = await nifi_client.health_check()
                     if not nifi_health:
                         pytest.skip("NiFi is not accessible")

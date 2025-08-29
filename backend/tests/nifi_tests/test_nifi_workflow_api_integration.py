@@ -177,14 +177,21 @@ class TestNiFiWorkflowAPIIntegration:
             try:
                 # Test NiFi connectivity first
                 from src.nifi.clients.nifi_client import NiFiAPIClient
-                async with NiFiAPIClient(settings.NIFI_URL) as nifi_client:
+                async with NiFiAPIClient(
+                    nifi_url=settings.NIFI_URL,
+                    username=settings.NIFI_USERNAME,
+                    password=settings.NIFI_PASSWORD
+                ) as nifi_client:
                     nifi_health = await nifi_client.health_check()
                     if not nifi_health:
                         pytest.skip("NiFi is not accessible")
                 
                 # Test NiFi Registry connectivity
                 from src.nifi.clients.registry_client import NiFiRegistryClient
-                async with NiFiRegistryClient(settings.NIFI_REGISTRY_URL) as registry_client:
+                async with NiFiRegistryClient(
+                    registry_url=settings.NIFI_REGISTRY_URL,
+                    auth_token=settings.NIFI_REGISTRY_AUTH_TOKEN
+                ) as registry_client:
                     try:
                         registry_info = await registry_client.get_registry_info()
                         if not registry_info:
@@ -411,7 +418,11 @@ class TestNiFiWorkflowAPIIntegration:
             try:
                 # Test NiFi connectivity first
                 from src.nifi.clients.nifi_client import NiFiAPIClient
-                async with NiFiAPIClient(settings.NIFI_URL) as nifi_client:
+                async with NiFiAPIClient(
+                    nifi_url=settings.NIFI_URL,
+                    username=settings.NIFI_USERNAME,
+                    password=settings.NIFI_PASSWORD
+                ) as nifi_client:
                     nifi_health = await nifi_client.health_check()
                     if not nifi_health:
                         pytest.skip("NiFi is not accessible")
@@ -456,11 +467,13 @@ class TestNiFiWorkflowAPIIntegration:
                 if response.status_code == 200:
                     data = response.json()
                     # Check for the correct fields based on WorkflowExecutionResponse schema
-                    assert "success" in data  # Updated from "valid" to "success"
-                    assert "processing_time_ms" in data
                     assert "workflow_id" in data
-                    assert "processed_at" in data
-                    assert "outputs" in data  # New field in updated schema
+                    assert "execution_id" in data
+                    assert "message" in data
+                    assert "deployment_method" in data
+                    # Health check may be present
+                    if "health_check" in data:
+                        assert "status" in data["health_check"]
                     
             except Exception as e:
                 pytest.fail(f"Workflow execution with NiFi test failed: {str(e)}")

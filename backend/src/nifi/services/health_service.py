@@ -16,7 +16,7 @@ from src.nifi.clients.registry_client import NiFiRegistryClient
 logger = logging.getLogger(__name__)
 
 
-class NiFiHealthService:
+class HealthService:
     """Service for monitoring NiFi instance health."""
 
     def __init__(
@@ -218,3 +218,6 @@ class NiFiHealthService:
                 "nifi_url": self.nifi_url,
                 "registry_url": self.registry_url
             }
+
+
+

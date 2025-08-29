@@ -95,7 +95,10 @@ class TestNiFiTemplateManagementIntegration:
         try:
             # Skip test if NiFi Registry is not accessible
             try:
-                async with NiFiRegistryClient(settings.NIFI_REGISTRY_URL) as registry_client:
+                async with NiFiRegistryClient(
+                    registry_url=settings.NIFI_REGISTRY_URL,
+                    auth_token=settings.NIFI_REGISTRY_AUTH_TOKEN
+                ) as registry_client:
                     registry_info = await registry_client.get_registry_info()
                     if not registry_info:
                         pytest.skip("NiFi Registry is not accessible")
@@ -207,7 +210,10 @@ class TestNiFiTemplateManagementIntegration:
         try:
             # Skip test if NiFi Registry is not accessible
             try:
-                async with NiFiRegistryClient(settings.NIFI_REGISTRY_URL) as registry_client:
+                async with NiFiRegistryClient(
+                    registry_url=settings.NIFI_REGISTRY_URL,
+                    auth_token=settings.NIFI_REGISTRY_AUTH_TOKEN
+                ) as registry_client:
                     registry_info = await registry_client.get_registry_info()
                     if not registry_info:
                         pytest.skip("NiFi Registry is not accessible")

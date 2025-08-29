@@ -18,7 +18,17 @@ class NiFiAPIClient:
     """Client for NiFi REST API integration."""
 
     def __init__(self, nifi_url: str, auth_token: Optional[str] = None, username: Optional[str] = None, password: Optional[str] = None):
-        self.nifi_url = nifi_url.rstrip('/')
+        """
+        Initialize NiFi API Client.
+        
+        Args:
+            nifi_url: Base NiFi URL (e.g., 'http://nifi:8080')
+            auth_token: Optional Bearer token for authentication
+            username: Optional username for token-based auth
+            password: Optional password for token-based auth
+        """
+        self.base_url = nifi_url.rstrip('/')
+        self.nifi_url = f"{self.base_url}/nifi-api"
         self.auth_token = auth_token
         self.username = username
         self.password = password
@@ -31,17 +41,24 @@ class NiFiAPIClient:
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
         
-        connector = aiohttp.TCPConnector(ssl=ssl_context)
-        
-        # Create session without auth headers first
+        # Create session without basic auth (we'll use token auth instead)
+        # Use different connector based on URL scheme
+        if self.nifi_url.startswith('https'):
+            session_connector = aiohttp.TCPConnector(ssl=ssl_context)
+        else:
+            session_connector = aiohttp.TCPConnector()  # No SSL for HTTP
+            
         self.session = aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=30),
-            connector=connector
+            connector=session_connector
         )
         
         # Get auth token if username/password provided
         if not self.auth_token and self.username and self.password:
-            self.auth_token = await self._get_auth_token()
+            try:
+                self.auth_token = await self._get_auth_token()
+            except Exception as e:
+                log.warning(f"Failed to get auth token: {e}")
         
         # Update session headers with auth token
         headers = {'Content-Type': 'application/json'}
@@ -50,19 +67,27 @@ class NiFiAPIClient:
         
         # Close and recreate session with auth headers
         await self.session.close()
+        
+        # Use appropriate connector for the session
+        if self.nifi_url.startswith('https'):
+            session_connector = aiohttp.TCPConnector(ssl=ssl_context)
+        else:
+            session_connector = aiohttp.TCPConnector()
+            
         self.session = aiohttp.ClientSession(
             headers=headers,
             timeout=aiohttp.ClientTimeout(total=30),
-            connector=aiohttp.TCPConnector(ssl=ssl_context)
+            connector=session_connector
         )
         return self
     
     async def _get_auth_token(self) -> str:
         """Get authentication token from NiFi."""
         auth_data = f"username={self.username}&password={self.password}"
+        token_url = f"{self.nifi_url}/access/token"
         
         async with self.session.post(
-            f"{self.nifi_url}/nifi-api/access/token",
+            token_url,
             data=auth_data,
             headers={'Content-Type': 'application/x-www-form-urlencoded'}
         ) as response:
@@ -99,7 +124,7 @@ class NiFiAPIClient:
             process_group_data["component"]["templateId"] = template_id
         
         async with self.session.post(
-            f"{self.nifi_url}/nifi-api/process-groups/{parent_group_id}/process-groups",
+            f"{self.nifi_url}/process-groups/{parent_group_id}/process-groups",
             json=process_group_data
         ) as response:
             response.raise_for_status()
@@ -108,7 +133,7 @@ class NiFiAPIClient:
     async def get_process_group(self, process_group_id: str) -> Dict[str, Any]:
         """Get process group details by ID."""
         async with self.session.get(
-            f"{self.nifi_url}/nifi-api/process-groups/{process_group_id}"
+            f"{self.nifi_url}/process-groups/{process_group_id}"
         ) as response:
             response.raise_for_status()
             return await response.json()
@@ -137,7 +162,7 @@ class NiFiAPIClient:
             update_data["component"]["position"] = position
             
         async with self.session.put(
-            f"{self.nifi_url}/nifi-api/process-groups/{process_group_id}",
+            f"{self.nifi_url}/process-groups/{process_group_id}",
             json=update_data
         ) as response:
             response.raise_for_status()
@@ -150,7 +175,7 @@ class NiFiAPIClient:
     ) -> bool:
         """Delete a process group."""
         async with self.session.delete(
-            f"{self.nifi_url}/nifi-api/process-groups/{process_group_id}",
+            f"{self.nifi_url}/process-groups/{process_group_id}",
             params={"version": version}
         ) as response:
             response.raise_for_status()
@@ -166,7 +191,7 @@ class NiFiAPIClient:
         }
         
         async with self.session.put(
-            f"{self.nifi_url}/nifi-api/flow/process-groups/{process_group_id}",
+            f"{self.nifi_url}/flow/process-groups/{process_group_id}",
             json=request_body,
             headers={"Content-Type": "application/json"}
         ) as response:
@@ -190,7 +215,7 @@ class NiFiAPIClient:
         }
         
         async with self.session.put(
-            f"{self.nifi_url}/nifi-api/flow/process-groups/{process_group_id}",
+            f"{self.nifi_url}/flow/process-groups/{process_group_id}",
             json=request_body,
             headers={"Content-Type": "application/json"}
         ) as response:
@@ -234,7 +259,7 @@ class NiFiAPIClient:
         log.debug(f"Sending parameter context data to NiFi: {param_context_data}")
         
         async with self.session.post(
-            f"{self.nifi_url}/nifi-api/parameter-contexts",
+            f"{self.nifi_url}/parameter-contexts",
             json=param_context_data
         ) as response:
             # Log the response for debugging
@@ -253,7 +278,7 @@ class NiFiAPIClient:
     async def get_parameter_context(self, context_id: str) -> Dict[str, Any]:
         """Get parameter context by ID."""
         async with self.session.get(
-            f"{self.nifi_url}/nifi-api/parameter-contexts/{context_id}"
+            f"{self.nifi_url}/parameter-contexts/{context_id}"
         ) as response:
             response.raise_for_status()
             return await response.json()
@@ -274,7 +299,7 @@ class NiFiAPIClient:
         }
         
         async with self.session.put(
-            f"{self.nifi_url}/nifi-api/parameter-contexts/{context_id}",
+            f"{self.nifi_url}/parameter-contexts/{context_id}",
             json=update_data
         ) as response:
             response.raise_for_status()
@@ -284,7 +309,7 @@ class NiFiAPIClient:
 
     async def list_templates(self) -> List[Dict[str, Any]]:
         """List all available templates."""
-        async with self.session.get(f"{self.nifi_url}/nifi-api/templates") as response:
+        async with self.session.get(f"{self.nifi_url}/templates") as response:
             response.raise_for_status()
             data = await response.json()
             return data.get("templates", [])
@@ -303,7 +328,7 @@ class NiFiAPIClient:
         }
         
         async with self.session.post(
-            f"{self.nifi_url}/nifi-api/process-groups/{parent_group_id}/template-instance",
+            f"{self.nifi_url}/process-groups/{parent_group_id}/template-instance",
             json=template_data
         ) as response:
             response.raise_for_status()
@@ -332,7 +357,7 @@ class NiFiAPIClient:
             service_data["component"]["properties"] = properties
         
         async with self.session.post(
-            f"{self.nifi_url}/nifi-api/controller-services",
+            f"{self.nifi_url}/process-groups/{parent_group_id}/controller-services",
             json=service_data
         ) as response:
             response.raise_for_status()
@@ -362,7 +387,7 @@ class NiFiAPIClient:
         }
         
         async with self.session.post(
-            f"{self.nifi_url}/nifi-api/process-groups/{parent_group_id}/processors",
+            f"{self.nifi_url}/process-groups/{parent_group_id}/processors",
             json=processor_data
         ) as response:
             response.raise_for_status()
@@ -371,7 +396,7 @@ class NiFiAPIClient:
     async def get_processor(self, processor_id: str) -> Dict[str, Any]:
         """Get processor details by ID."""
         async with self.session.get(
-            f"{self.nifi_url}/nifi-api/processors/{processor_id}"
+            f"{self.nifi_url}/processors/{processor_id}"
         ) as response:
             response.raise_for_status()
             return await response.json()
@@ -408,7 +433,7 @@ class NiFiAPIClient:
             update_data["component"]["config"] = config
             
         async with self.session.put(
-            f"{self.nifi_url}/nifi-api/processors/{processor_id}",
+            f"{self.nifi_url}/processors/{processor_id}",
             json=update_data
         ) as response:
             response.raise_for_status()
@@ -423,6 +448,7 @@ class NiFiAPIClient:
         destination_id: str,
         destination_type: str,
         relationships: List[str],
+        parent_group_id: str,
         name: Optional[str] = None,
         back_pressure_object_threshold: int = 1000,
         back_pressure_data_size_threshold: str = "1 GB",
@@ -436,12 +462,12 @@ class NiFiAPIClient:
                 "source": {
                     "id": source_id,
                     "type": source_type,
-                    "groupId": source_id  # This might need adjustment based on NiFi API
+                    "groupId": parent_group_id
                 },
                 "destination": {
                     "id": destination_id,
                     "type": destination_type,
-                    "groupId": destination_id  # This might need adjustment based on NiFi API
+                    "groupId": parent_group_id
                 },
                 "selectedRelationships": relationships,
                 "backPressureObjectThreshold": back_pressure_object_threshold,
@@ -451,7 +477,7 @@ class NiFiAPIClient:
         }
         
         async with self.session.post(
-            f"{self.nifi_url}/nifi-api/connections",
+            f"{self.nifi_url}/process-groups/{parent_group_id}/connections",
             json=connection_data
         ) as response:
             response.raise_for_status()
@@ -460,7 +486,7 @@ class NiFiAPIClient:
     async def get_connection(self, connection_id: str) -> Dict[str, Any]:
         """Get connection details by ID."""
         async with self.session.get(
-            f"{self.nifi_url}/nifi-api/connections/{connection_id}"
+            f"{self.nifi_url}/connections/{connection_id}"
         ) as response:
             response.raise_for_status()
             return await response.json()
@@ -469,20 +495,20 @@ class NiFiAPIClient:
 
     async def get_system_diagnostics(self) -> Dict[str, Any]:
         """Get system diagnostics."""
-        async with self.session.get(f"{self.nifi_url}/nifi-api/system-diagnostics") as response:
+        async with self.session.get(f"{self.nifi_url}/system-diagnostics") as response:
             response.raise_for_status()
             return await response.json()
 
     async def get_flow_status(self) -> Dict[str, Any]:
         """Get overall flow status."""
-        async with self.session.get(f"{self.nifi_url}/nifi-api/flow/status") as response:
+        async with self.session.get(f"{self.nifi_url}/flow/status") as response:
             response.raise_for_status()
             return await response.json()
 
     async def delete_parameter_context(self, context_id: str, version: int = 0) -> bool:
         """Delete a parameter context."""
         async with self.session.delete(
-            f"{self.nifi_url}/nifi-api/parameter-contexts/{context_id}",
+            f"{self.nifi_url}/parameter-contexts/{context_id}",
             params={"version": version}
         ) as response:
             if response.status >= 400:
@@ -497,7 +523,7 @@ class NiFiAPIClient:
     async def health_check(self) -> bool:
         """Check if NiFi is healthy."""
         try:
-            async with self.session.get(f"{self.nifi_url}/nifi-api/system-diagnostics") as response:
+            async with self.session.get(f"{self.nifi_url}/system-diagnostics") as response:
                 return response.status == 200
         except Exception:
             return False

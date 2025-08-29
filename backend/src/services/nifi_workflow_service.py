@@ -489,8 +489,8 @@ class NiFiWorkflowService:
                     scheduling=processor_def.get("scheduling")
                 )
             
-            processor_ids[processor_def["id"]] = processor["component"]["id"]
-            log.info(f"Created processor {processor_def['name']} ({processor_def['id']})")
+            processor_ids[processor_def.get("identifier", processor_def.get("id"))] = processor["component"]["id"]
+            log.info(f"Created processor {processor_def['name']} ({processor_def.get('identifier', processor_def.get('id'))})")
         
         # Create connections
         connections = flow_definition.get("connections", [])
@@ -501,7 +501,7 @@ class NiFiWorkflowService:
             destination_id = processor_ids.get(conn_def["destination"]["id"])
             
             if not source_id or not destination_id:
-                log.warning(f"Skipping connection {conn_def['id']} - missing processor IDs")
+                log.warning(f"Skipping connection {conn_def.get('identifier', conn_def.get('id', 'unknown'))} - missing processor IDs")
                 continue
             
             # Create connection
@@ -511,12 +511,13 @@ class NiFiWorkflowService:
                 destination_id=destination_id,
                 destination_type="PROCESSOR",
                 relationships=conn_def.get("selectedRelationships", []),
+                parent_group_id=process_group_id,
                 name=conn_def.get("name"),
                 back_pressure_object_threshold=conn_def.get("backPressureObjectThreshold", 1000),
                 back_pressure_data_size_threshold=conn_def.get("backPressureDataSizeThreshold", "1 GB"),
                 flow_file_expiration=conn_def.get("flowFileExpiration", "0 sec")
             )
             
-            log.info(f"Created connection {conn_def['name']} ({conn_def['id']})")
+            log.info(f"Created connection {conn_def['name']} ({conn_def.get('identifier', conn_def.get('id', 'unknown'))})")
         
         log.info(f"Successfully instantiated template flow for workflow {workflow.workflow_id}")

@@ -20,23 +20,25 @@ class TestNiFiAPIClient:
     @pytest.fixture
     def mock_response(self):
         """Create a mock aiohttp response."""
-        response = MagicMock(spec=ClientResponse)
+        response = AsyncMock(spec=ClientResponse)
         response.status = 200
-        response.raise_for_status = MagicMock()
+        response.raise_for_status = AsyncMock()
         return response
 
     @pytest.mark.asyncio
     async def test_nifi_client_initialization(self):
         """Test NiFi API client initialization."""
         client = NiFiAPIClient("http://localhost:8080")
-        assert client.nifi_url == "http://localhost:8080"
+        assert client.base_url == "http://localhost:8080"
+        assert client.nifi_url == "http://localhost:8080/nifi-api"
         assert client.session is None
 
     @pytest.mark.asyncio
     async def test_nifi_client_initialization_with_trailing_slash(self):
         """Test NiFi API client initialization with trailing slash."""
         client = NiFiAPIClient("http://localhost:8080/")
-        assert client.nifi_url == "http://localhost:8080"
+        assert client.base_url == "http://localhost:8080"
+        assert client.nifi_url == "http://localhost:8080/nifi-api"
         assert client.session is None
 
     @pytest.mark.asyncio
@@ -386,9 +388,9 @@ class TestNiFiRegistryClient:
     @pytest.fixture
     def mock_response(self):
         """Create a mock aiohttp response."""
-        response = MagicMock(spec=ClientResponse)
+        response = AsyncMock(spec=ClientResponse)
         response.status = 200
-        response.raise_for_status = MagicMock()
+        response.raise_for_status = AsyncMock()
         return response
 
     @pytest.mark.asyncio

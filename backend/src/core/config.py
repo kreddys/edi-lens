@@ -32,8 +32,8 @@ class Settings(BaseSettings):
     NIFI_REGISTRY_URL: str = "http://nifi-registry:18080"
     NIFI_AUTH_TOKEN: str = ""
     NIFI_REGISTRY_AUTH_TOKEN: str = ""
-    NIFI_USERNAME: str = "superuser@edilens.com"
-    NIFI_PASSWORD: str = "password123456789"
+    NIFI_USERNAME: str = ""
+    NIFI_PASSWORD: str = ""
 
     STORAGE_ACCESS_KEY: str
     STORAGE_SECRET_KEY: str

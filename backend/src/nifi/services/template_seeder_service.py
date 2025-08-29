@@ -6,13 +6,15 @@ including built-in templates and custom tenant templates.
 """
 
 import logging
+import yaml
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from src.models.workflow_template import WorkflowTemplate
+from src.models.workflow_template import WorkflowTemplate, TemplateVersion
 from src.nifi.services.built_in_templates_service import BuiltInTemplatesService
 from src.core.database import get_db
 
@@ -145,7 +147,7 @@ class TemplateSeederService:
         session.add(template)
         
         # Create initial version
-        initial_version = WorkflowTemplate.TemplateVersion(
+        initial_version = TemplateVersion(
             template_id=template_data["template_id"],
             version=template_data["version"],
             flow_definition=template_data["flow_definition"],
@@ -221,3 +223,44 @@ class TemplateSeederService:
                 })
         
         return results
+
+    async def seed_templates_from_directory(
+        self,
+        session: AsyncSession,
+        templates_directory: str,
+        include_patterns: List[str] = ["*.yaml", "*.yml"],
+        exclude_patterns: Optional[List[str]] = None,
+        continue_on_error: bool = True,
+    ) -> Dict[str, Any]:
+        """Seed templates from a directory of YAML files."""
+        results = {
+            "seeded": [],
+            "skipped": [],
+            "errors": [],
+            "total_processed": 0,
+        }
+
+        template_files = []
+        for pattern in include_patterns:
+            template_files.extend(Path(templates_directory).rglob(pattern))
+
+        for file_path in template_files:
+            results["total_processed"] += 1
+            try:
+                template_data = self._load_template_from_file(file_path)
+                result = await self._seed_custom_template(template_data, session)
+                if result["status"] == "seeded":
+                    results["seeded"].append(result)
+                else:
+                    results["skipped"].append(result)
+            except Exception as e:
+                logger.error(f"Failed to seed template from {file_path}: {e}")
+                results["errors"].append({"file": str(file_path), "error": str(e)})
+                if not continue_on_error:
+                    break
+        return results
+
+    def _load_template_from_file(self, file_path: Path) -> Dict[str, Any]:
+        """Load a template from a YAML file."""
+        with open(file_path, "r") as f:
+            return yaml.safe_load(f)
