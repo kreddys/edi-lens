@@ -3,6 +3,7 @@ API endpoints for workflow management.
 """
 
 import logging
+import uuid
 from typing import List, Optional
 from uuid import UUID
 
@@ -13,6 +14,7 @@ from sqlalchemy.future import select
 from src.api.schemas import (
     WorkflowCreate, WorkflowUpdate, WorkflowResponse, WorkflowListResponse,
     WorkflowActionRequest, WorkflowExecutionRequest, WorkflowExecutionResponse,
+    WorkflowStatus,
     WorkflowStatusResponse
 )
 from src.core.auth import require_permission, AuthContext
@@ -100,7 +102,6 @@ async def update_workflow(
     update_data = workflow_data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(workflow, key, value)
-    session.add(workflow)
     await session.commit()
     await session.refresh(workflow)
     return WorkflowResponse.model_validate(workflow)
@@ -231,6 +232,9 @@ async def execute_workflow(
             auth_context
         )
         
+        # Get workflow for response metadata
+        workflow = await execution_service._get_workflow(workflow_id, auth_context.tenant_id)
+        
         # Convert WorkflowExecutionResult to WorkflowExecutionResponse
         # Extract validation results from outputs
         validation_results = []
@@ -253,13 +257,21 @@ async def execute_workflow(
                         pass
         
         return WorkflowExecutionResponse(
-            success=result.valid,
-            outputs=result.outputs,
-            processing_time_ms=result.processing_time_ms,
-            request_id=result.request_id,
             workflow_id=str(result.workflow_id),
-            processed_at=result.processed_at,
-            validation_results=validation_results or None
+            execution_id=result.request_id or str(uuid.uuid4()),
+            status=WorkflowStatus.RUNNING if result.valid else WorkflowStatus.FAILED,
+            nifi_process_group_id=workflow.nifi_process_group_id,
+            nifi_status="RUNNING" if workflow.is_deployed else "NOT_DEPLOYED",
+            deployment_method="registry" if workflow.is_deployed else None,
+            started_at=result.processed_at,
+            stopped_at=result.processed_at,
+            message=f"Workflow execution {'completed successfully' if result.valid else 'failed'}",
+            monitoring_enabled=execution_request.enable_monitoring,
+            health_check={
+                "status": "healthy" if result.valid else "unhealthy",
+                "processing_time_ms": result.processing_time_ms,
+                "outputs_count": len(result.outputs)
+            }
         )
         
     except ValueError as e:

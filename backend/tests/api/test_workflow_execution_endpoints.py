@@ -186,21 +186,24 @@ async def test_execute_workflow_success(
     assert response.status_code == 200
     data = response.json()
     
-    # Verify response structure
-    assert "success" in data
-    assert "outputs" in data
-    assert "processing_time_ms" in data
+    # Verify response structure (new WorkflowExecutionResponse schema)
     assert "workflow_id" in data
-    assert "processed_at" in data
+    assert "execution_id" in data
+    assert "status" in data
+    assert "message" in data
+    assert "health_check" in data
     
     # Verify workflow ID matches
     assert data["workflow_id"] == str(test_workflow.workflow_id)
     
-    # Verify request ID is echoed back
-    assert data["request_id"] == "test-request-123"
+    # Verify execution ID is echoed back
+    assert data["execution_id"] == "test-request-123"
+    
+    # Verify health check contains processing time
+    assert "processing_time_ms" in data["health_check"]
     
     # Should have outputs since we requested TA1 generation
-    assert len(data["outputs"]) > 0
+    assert data["health_check"]["outputs_count"] > 0
 
 
 @pytest.mark.asyncio  
@@ -413,27 +416,17 @@ async def test_workflow_execution_validation_errors(
     assert response.status_code == 200
     data = response.json()
     
-    # Should be marked as unsuccessful due to validation errors
-    assert data["success"] == False
+    # Should be marked as unsuccessful due to validation errors (status should be FAILED)
+    assert data["status"] == "FAILED"
     
-    # Check if validation results are provided - they might be None or in outputs
-    validation_results = data.get("validation_results") or []
+    # Check health check status
+    assert data["health_check"]["status"] == "unhealthy"
     
-    # If validation results are in outputs, extract them
-    if not validation_results and data.get("outputs"):
-        for output in data["outputs"]:
-            if output.get("name") == "validation_results" and output.get("content"):
-                validation_results = output["content"]
-                break
+    # Should have outputs for validation results
+    assert data["health_check"]["outputs_count"] > 0
     
-    # Should have some form of validation feedback (either in validation_results or outputs indicating failure)
-    assert validation_results is not None or data["success"] == False
-    
-    # If we have validation results, check for ISA error
-    if validation_results and len(validation_results) > 0:
-        isa_error = next((e for e in validation_results if "ISA" in e.get("message", "")), None)
-        if isa_error:
-            assert isa_error["level"] == "error"
+    # Should have some form of validation feedback (status should indicate failure)
+    assert data["status"] == "FAILED"
 
 
 @pytest.mark.asyncio
@@ -465,7 +458,7 @@ async def test_processing_time_measurement(
     data = response.json()
     
     # Processing time should be positive and reasonable
-    processing_time = data["processing_time_ms"]
+    processing_time = data["health_check"]["processing_time_ms"]
     assert isinstance(processing_time, int)
     assert processing_time > 0
     assert processing_time < 5000  # Should be less than 5 seconds for mock processing

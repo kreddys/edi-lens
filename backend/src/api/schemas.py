@@ -647,6 +647,7 @@ class WorkflowSearchRequest(BaseModel):
 
 class WorkflowExecutionRequest(BaseModel):
     """Request schema for executing a workflow."""
+    request_id: Optional[str] = Field(default=None, description="Optional request ID for tracking")
     enable_monitoring: bool = Field(default=True, description="Enable background monitoring")
     monitoring_interval_seconds: int = Field(default=30, description="Monitoring check interval")
     execution_parameters: Optional[Dict[str, Any]] = Field(None, description="Additional execution parameters")

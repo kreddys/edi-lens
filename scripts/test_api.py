@@ -71,7 +71,12 @@ def test_api(
     if data:
         headers["Content-Type"] = "application/json"
     
-    response = requests.request(method, url, headers=headers, json=data)
+    # Handle tenant_id parameter for workflows endpoint
+    params = {}
+    if "/workflows" in endpoint and method == "GET":
+        params["tenant_id"] = tenant
+    
+    response = requests.request(method, url, headers=headers, json=data, params=params)
     response.raise_for_status()
     
     try:
