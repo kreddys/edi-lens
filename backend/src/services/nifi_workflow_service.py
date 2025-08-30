@@ -8,6 +8,7 @@ and the NiFi API for runtime process group management.
 
 import logging
 import uuid
+import asyncio
 from typing import Dict, Any, Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -118,21 +119,23 @@ class NiFiWorkflowService:
         try:
             if not workflow.nifi_process_group_id:
                 raise ValueError("Workflow is not deployed to NiFi")
-            
-            # Stop process group first
+
             async with NiFiAPIClient(
                 settings.NIFI_URL,
                 username=settings.NIFI_USERNAME,
                 password=settings.NIFI_PASSWORD
             ) as nifi_client:
-                # Get current process group version
-                pg_info = await nifi_client.get_process_group(workflow.nifi_process_group_id)
-                version = pg_info["revision"]["version"]
-                
-                # Stop the process group
+                # Stop the process group first to ensure it can be deleted
                 await nifi_client.stop_process_group(workflow.nifi_process_group_id)
                 
-                # Delete the process group
+                # Add a small delay to allow NiFi to process the state change
+                await asyncio.sleep(1)
+
+                # Refetch the process group to get the latest revision after stopping
+                pg_info = await nifi_client.get_process_group(workflow.nifi_process_group_id)
+                version = pg_info["revision"]["version"]
+
+                # Delete the process group with the latest version
                 await nifi_client.delete_process_group(workflow.nifi_process_group_id, version)
                 
                 # Delete parameter context if it exists
