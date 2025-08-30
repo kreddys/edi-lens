@@ -1,5 +1,8 @@
 """
-Simple integration test for workflow template API to verify functionality works.
+DEPRECATED: Old workflow template API tests.
+
+These tests are deprecated in favor of the new Registry-first architecture.
+See test_registry_template_api.py for the new tests.
 """
 
 import pytest
@@ -33,7 +36,13 @@ def cleanup_overrides():
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_create_workflow_template_simple(async_client: AsyncClient, admin_user):
-    """Test creating workflow template via API works with relationships."""
+    """DEPRECATED: Test creating workflow template via API works with relationships.
+    
+    This test is deprecated. The old workflow_templates table has been removed
+    in favor of the Registry-first architecture. See test_registry_template_api.py
+    for the new Registry-first tests.
+    """
+    pytest.skip("Deprecated: Use Registry-first architecture tests in test_registry_template_api.py")
     
     # Override authentication dependency
     app.dependency_overrides[get_current_user] = lambda: admin_user
@@ -85,7 +94,12 @@ async def test_create_workflow_template_simple(async_client: AsyncClient, admin_
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_workflow_template_permissions_simple(async_client: AsyncClient, admin_user):
-    """Test workflow template permission enforcement."""
+    """DEPRECATED: Test workflow template permission enforcement.
+    
+    This test is deprecated. See test_registry_template_api.py for the new
+    Registry-first permission tests.
+    """
+    pytest.skip("Deprecated: Use Registry-first architecture tests in test_registry_template_api.py")
     
     limited_user = User(
         sub="limited-user",

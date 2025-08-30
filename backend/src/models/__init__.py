@@ -8,9 +8,11 @@ from .audit_log import AuditLog
 from .validation_transaction import ValidationTransaction
 from .processing_log import ProcessingLog
 
-# Workflow template management models - imported separately to isolate FK issues
-# These will use deferred foreign key resolution
-from .workflow_template import WorkflowTemplate, TemplateVersion, TemplateUsage, Workflow
+# Registry-first workflow models (NEW)
+from .registry_models import RegistryTemplate, WorkflowInstance, RegistryBucket
+
+# Legacy workflow models (OLD - will be removed)
+# from .workflow_template import WorkflowTemplate, TemplateVersion, TemplateUsage, Workflow
 
 # Configure SQLAlchemy relationships after all models are imported
 # This ensures foreign key references can be properly resolved

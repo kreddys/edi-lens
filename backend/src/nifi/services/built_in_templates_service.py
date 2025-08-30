@@ -10,12 +10,14 @@ import logging
 import yaml
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from src.models.workflow_template import WorkflowTemplate, TemplateVersion
+from src.models.registry_models import RegistryTemplate
 from src.nifi.clients.registry_client import NiFiRegistryClient
+from src.services.registry_service import RegistryService
 
 logger = logging.getLogger(__name__)
 
@@ -163,80 +165,55 @@ class BuiltInTemplatesService:
         return results
 
     async def _seed_template(self, template_data: Dict[str, Any], session: AsyncSession) -> Dict[str, Any]:
-        """Seed a single template into the database."""
-        # Check if template already exists
-        existing_query = select(WorkflowTemplate).where(
-            WorkflowTemplate.template_id == template_data["template_id"]
-        )
-        existing_result = await session.execute(existing_query)
-        existing_template = existing_result.scalar_one_or_none()
+        """Seed a single template into the database using Registry-first architecture."""
+        try:
+            registry_service = RegistryService(session)
+            
+            # Check if template already exists in Registry
+            template_id_uuid = UUID(template_data["template_id"])
+            existing_template = await registry_service.get_template(template_id_uuid)
+            
+            if existing_template:
+                return {
+                    "template_id": template_data["template_id"],
+                    "status": "skipped",
+                    "reason": "Template already exists"
+                }
+            
+            # Create template using Registry service
+            template = await registry_service.create_template(
+                name=template_data["name"],
+                description=template_data["description"],
+                flow_definition=template_data["flow_definition"],
+                scope=template_data["scope"],
+                tenant_id=template_data.get("tenant_id"),
+                created_by=template_data.get("maintainer", "system")
+            )
         
-        if existing_template:
+            
+            return {
+                "template_id": str(template.template_id),
+                "status": "seeded",
+                "name": template.name
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to seed template {template_data.get('name')}: {str(e)}")
             return {
                 "template_id": template_data["template_id"],
-                "status": "skipped",
-                "reason": "Template already exists"
+                "status": "error",
+                "error": str(e)
             }
-        
-        # Create template
-        template = WorkflowTemplate(
-            template_id=template_data["template_id"],
-            name=template_data["name"],
-            description=template_data["description"],
-            category=template_data["category"],
-            scope=template_data["scope"],
-            tenant_id=template_data["tenant_id"],
-            maintainer=template_data["maintainer"],
-            based_on=template_data["based_on"],
-            version=template_data["version"],
-            flow_definition=template_data["flow_definition"],
-            configuration_schema=template_data["configuration_schema"],
-            deployment_method=template_data["deployment_method"],
-            tags=template_data["tags"],
-            features=template_data["features"],
-            documentation="",  # TODO: Add detailed documentation
-            examples={},  # TODO: Add examples
-            ui_configuration=template_data.get("ui_configuration"),
-            processing_capabilities=template_data.get("processing_capabilities"),
-            supported_file_types=template_data.get("supported_file_types"),
-            use_cases=template_data.get("use_cases"),
-            industry_tags=template_data.get("industry_tags"),
-            is_featured=template_data["is_featured"],
-            status=template_data["status"]
-        )
-        
-        session.add(template)
-        
-        # Create initial version
-        initial_version = TemplateVersion(
-            template_id=template_data["template_id"],
-            version=template_data["version"],
-            flow_definition=template_data["flow_definition"],
-            configuration_schema=template_data["configuration_schema"],
-            changes="Initial built-in template version",
-            created_by=template_data["maintainer"],
-            is_current=True
-        )
-        
-        session.add(initial_version)
-        
-        await session.commit()
-        await session.refresh(template)
-        
-        return {
-            "template_id": template_data["template_id"],
-            "status": "seeded",
-            "name": template_data["name"]
-        }
 
     async def register_template_in_registry(
         self,
-        template: WorkflowTemplate
+        template: RegistryTemplate
     ) -> bool:
-        """Register a template in NiFi Registry."""
-        try:
-            async with NiFiRegistryClient(self.registry_url, self.registry_auth_token, self.timeout) as registry_client:
-                # 1. Check if bucket exists for EDI Lens templates
+        """Register a template in NiFi Registry - already done during seeding in Registry-first architecture."""
+        # In Registry-first architecture, templates are already registered in Registry during creation
+        # This method is kept for backward compatibility but just returns True
+        logger.info(f"Template {template.template_id} is already registered in Registry")
+        return True
                 buckets = await registry_client.list_buckets()
                 edi_lens_bucket = None
                 

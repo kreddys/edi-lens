@@ -12,7 +12,7 @@ import os
 import openlit
 
 
-from src.api.endpoints import auth, schemas, workflow_templates, workflows, workflow_execution
+from src.api.endpoints import auth, schemas, workflow_templates, workflows, workflow_execution, registry_templates
 from src.core.auth import get_current_user, User
 from src.core.config import setup_logging, settings
 from src.core.audit import before_flush, after_flush_postexec
@@ -102,5 +102,6 @@ api_router.include_router(schemas.router, tags=["Schema Management"])
 api_router.include_router(workflow_templates.router, tags=["Workflow Templates"])
 api_router.include_router(workflows.router, tags=["Workflows"])
 api_router.include_router(workflow_execution.router, tags=["Workflow Execution"])
+api_router.include_router(registry_templates.router, tags=["Registry Templates"])
 
 app.include_router(api_router)

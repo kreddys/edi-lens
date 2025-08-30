@@ -288,8 +288,8 @@ case "$ACTION" in
         elif [ "$ACTION" == "setup:seed" ]; then
             $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.seed "$@"
         elif [ "$ACTION" == "setup:templates" ]; then
-            info "Seeding built-in workflow templates..."
-            $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.seed_templates built-in
+            info "Seeding built-in workflow templates using Registry-first architecture..."
+            $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.seed_registry_templates seed --builtin
         elif [ "$ACTION" == "db:exec" ]; then
             if [ "$ENV_CONTEXT" != "dev" ]; then error "'db:exec' action is only for the 'dev' environment."; fi
             if [ -z "$1" ]; then error "SQL command is required for db:exec."; fi

@@ -128,6 +128,14 @@ class NiFiRegistryClient:
         if "identifier" not in flow_contents:
             flow_contents["identifier"] = flow_id
             
+        # Get existing versions to determine next version number
+        existing_versions = await self.list_flow_versions(bucket_id, flow_id)
+        if existing_versions:
+            max_version = max(v["version"] for v in existing_versions)
+            next_version = max_version + 1
+        else:
+            next_version = 1
+        
         version_payload = {
             "bucket": {
                 "identifier": bucket_id
@@ -135,7 +143,7 @@ class NiFiRegistryClient:
             "snapshotMetadata": {
                 "flowIdentifier": flow_id,
                 "comments": comments,
-                "version": 1  # This is the version of the snapshot itself
+                "version": next_version
             },
             "flowContents": flow_contents,
             "parameterContexts": version_data.get("parameterContexts", {}),

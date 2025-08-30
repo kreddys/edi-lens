@@ -1078,3 +1078,134 @@ class ConfigurationValidationResponse(BaseModel):
             }
         }
     )
+
+
+# === Registry-First Template and Workflow Schemas ===
+
+class RegistryTemplateCreateRequest(BaseModel):
+    """Request schema for creating a new Registry template."""
+    name: str = Field(..., min_length=1, max_length=255, description="Template name")
+    description: Optional[str] = Field(None, max_length=1000, description="Template description")
+    flow_definition: Dict[str, Any] = Field(..., description="NiFi flow definition (processors, connections, etc.)")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "EDI Validation Template",
+                "description": "Template for validating EDI files",
+                "flow_definition": {
+                    "processors": [
+                        {
+                            "id": "getfile",
+                            "name": "Get EDI Files",
+                            "type": "org.apache.nifi.processors.standard.GetFile",
+                            "position": {"x": 100, "y": 100},
+                            "properties": {
+                                "Input Directory": "/tmp/input",
+                                "File Filter": ".*\\.edi"
+                            }
+                        }
+                    ],
+                    "connections": []
+                }
+            }
+        }
+    )
+
+
+class RegistryTemplateUpdateRequest(BaseModel):
+    """Request schema for updating a Registry template."""
+    flow_definition: Dict[str, Any] = Field(..., description="Updated NiFi flow definition")
+    comments: Optional[str] = Field(None, max_length=500, description="Version update comments")
+
+
+class RegistryTemplateResponse(BaseModel):
+    """Response schema for Registry template."""
+    template_id: PyUUID = Field(..., description="Template ID (Registry flow ID)")
+    bucket_id: PyUUID = Field(..., description="Registry bucket ID")
+    current_version: int = Field(..., description="Current version number")
+    name: str = Field(..., description="Template name")
+    description: Optional[str] = Field(None, description="Template description")
+    scope: str = Field(..., description="Template scope (GLOBAL or TENANT)")
+    tenant_id: Optional[str] = Field(None, description="Tenant ID for tenant-scoped templates")
+    status: str = Field(..., description="Template status")
+    is_featured: bool = Field(..., description="Whether template is featured")
+    usage_count: int = Field(..., description="Number of times template has been used")
+    created_by: Optional[str] = Field(None, description="User who created the template")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+    deprecated_at: Optional[datetime] = Field(None, description="Deprecation timestamp")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WorkflowInstanceCreateRequest(BaseModel):
+    """Request schema for creating a workflow instance."""
+    name: str = Field(..., min_length=1, max_length=255, description="Workflow instance name")
+    description: Optional[str] = Field(None, max_length=1000, description="Workflow instance description")
+    configuration: Dict[str, Any] = Field(default_factory=dict, description="Instance configuration parameters")
+    template_version: Optional[int] = Field(None, description="Specific template version to use (defaults to current)")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "Production EDI Validator",
+                "description": "EDI validation workflow for production environment",
+                "configuration": {
+                    "input_directory": "/data/edi/input",
+                    "output_directory": "/data/edi/output",
+                    "schema_name": "837.5010.X222.A1.json",
+                    "tenant_id": "tenant-a"
+                },
+                "template_version": 2
+            }
+        }
+    )
+
+
+class WorkflowInstanceResponse(BaseModel):
+    """Response schema for workflow instance."""
+    workflow_id: PyUUID = Field(..., description="Workflow instance ID")
+    name: str = Field(..., description="Workflow instance name")
+    description: Optional[str] = Field(None, description="Workflow instance description")
+    tenant_id: str = Field(..., description="Tenant ID")
+    template_id: PyUUID = Field(..., description="Template ID")
+    template_version: int = Field(..., description="Template version used")
+    configuration: Dict[str, Any] = Field(..., description="Instance configuration")
+    nifi_process_group_id: Optional[PyUUID] = Field(None, description="NiFi process group ID")
+    nifi_parameter_context_id: Optional[PyUUID] = Field(None, description="NiFi parameter context ID")
+    nifi_registry_client_id: Optional[str] = Field(None, description="NiFi registry client ID")
+    version_control_info: Optional[Dict[str, Any]] = Field(None, description="NiFi version control metadata")
+    status: str = Field(..., description="Workflow status")
+    created_by: Optional[str] = Field(None, description="User who created the workflow")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+    deployed_at: Optional[datetime] = Field(None, description="Deployment timestamp")
+    last_started_at: Optional[datetime] = Field(None, description="Last start timestamp")
+    last_stopped_at: Optional[datetime] = Field(None, description="Last stop timestamp")
+    
+    # Include template information
+    template: Optional[RegistryTemplateResponse] = Field(None, description="Template information")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FlowDefinitionResponse(BaseModel):
+    """Response schema for flow definition from Registry."""
+    template_id: PyUUID = Field(..., description="Template ID")
+    version: int = Field(..., description="Flow version")
+    flow_definition: Dict[str, Any] = Field(..., description="Flow definition from Registry")
+
+
+class RegistryBucketResponse(BaseModel):
+    """Response schema for Registry bucket."""
+    bucket_id: PyUUID = Field(..., description="Registry bucket ID")
+    name: str = Field(..., description="Bucket name")
+    description: Optional[str] = Field(None, description="Bucket description")
+    scope: str = Field(..., description="Bucket scope (GLOBAL or TENANT)")
+    tenant_id: Optional[str] = Field(None, description="Tenant ID for tenant-scoped buckets")
+    created_by: Optional[str] = Field(None, description="User who created the bucket")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+
+    model_config = ConfigDict(from_attributes=True)

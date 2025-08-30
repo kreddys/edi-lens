@@ -1,7 +1,11 @@
 """
-Integration tests for the NiFiWorkflowService.
+DEPRECATED: Old NiFiWorkflowService integration tests.
 
-These tests validate the service's interaction with a live NiFi instance and a test database.
+These tests are deprecated in favor of the new Registry-first architecture.
+The old WorkflowTemplate and Workflow models have been replaced with
+RegistryTemplate and WorkflowInstance models.
+
+See test_registry_workflow_service_integration.py for the new tests.
 """
 
 import pytest
@@ -9,8 +13,9 @@ import uuid
 import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.services.nifi_workflow_service import NiFiWorkflowService, NiFiWorkflowDeploymentError
-from src.models.workflow_template import Workflow, WorkflowTemplate
+# Note: These imports will fail because the old models were removed
+# from src.services.nifi_workflow_service import NiFiWorkflowService, NiFiWorkflowDeploymentError
+# from src.models.workflow_template import Workflow, WorkflowTemplate
 from src.core.config import settings
 from src.nifi.clients.nifi_client import NiFiAPIClient
 
@@ -18,12 +23,12 @@ pytestmark = [pytest.mark.integration]
 
 
 @pytest.fixture
-def nifi_workflow_service(db_session: AsyncSession) -> NiFiWorkflowService:
-    """Provides an instance of the NiFiWorkflowService."""
-    return NiFiWorkflowService(db_session)
+def nifi_workflow_service(db_session: AsyncSession):
+    """DEPRECATED: Provides an instance of the NiFiWorkflowService."""
+    pytest.skip("Deprecated: NiFiWorkflowService replaced by Registry-first architecture")
 
 
-async def create_test_template(db_session: AsyncSession) -> WorkflowTemplate:
+async def create_test_template(db_session: AsyncSession):
     """Helper function to create a test workflow template."""
     template = WorkflowTemplate(
         template_id=f"test-template-{uuid.uuid4()}",
@@ -53,24 +58,22 @@ async def create_test_template(db_session: AsyncSession) -> WorkflowTemplate:
     return template
 
 
-async def create_test_workflow(nifi_workflow_service: NiFiWorkflowService, template: WorkflowTemplate) -> Workflow:
-    """Helper function to create a test workflow."""
-    workflow_data = {
-        "name": "Test Workflow",
-        "description": "A test workflow.",
-        "template_id": template.template_id,
-        "configuration": {"param1": "value1"},
-        "tenant_id": "test-tenant",
-    }
-    return await nifi_workflow_service.create_workflow(workflow_data, "test-user")
+async def create_test_workflow(nifi_workflow_service, template):
+    """DEPRECATED: Helper function to create a test workflow."""
+    pytest.skip("Deprecated: Workflow model replaced by WorkflowInstance")
 
 
 class TestNiFiWorkflowServiceIntegration:
-    """Integration tests for the NiFiWorkflowService."""
+    """DEPRECATED: Integration tests for the NiFiWorkflowService.
+    
+    These tests are deprecated. See test_registry_workflow_service_integration.py
+    for the new Registry-first tests.
+    """
 
     @pytest.mark.asyncio
-    async def test_create_workflow(self, nifi_workflow_service: NiFiWorkflowService, db_session: AsyncSession):
-        """Tests the creation of a workflow."""
+    async def test_create_workflow(self, nifi_workflow_service, db_session: AsyncSession):
+        """DEPRECATED: Tests the creation of a workflow."""
+        pytest.skip("Deprecated: Use Registry-first architecture tests")
         template = await create_test_template(db_session)
         workflow = await create_test_workflow(nifi_workflow_service, template)
 
@@ -86,8 +89,9 @@ class TestNiFiWorkflowServiceIntegration:
         await db_session.commit()
 
     @pytest.mark.asyncio
-    async def test_deploy_and_undeploy_workflow(self, nifi_workflow_service: NiFiWorkflowService, db_session: AsyncSession):
-        """Tests the deployment and undeployment of a workflow."""
+    async def test_deploy_and_undeploy_workflow(self, nifi_workflow_service, db_session: AsyncSession):
+        """DEPRECATED: Tests the deployment and undeployment of a workflow."""
+        pytest.skip("Deprecated: Use Registry-first architecture tests")
         template = await create_test_template(db_session)
         workflow = await create_test_workflow(nifi_workflow_service, template)
 
@@ -122,8 +126,9 @@ class TestNiFiWorkflowServiceIntegration:
         await db_session.commit()
 
     @pytest.mark.asyncio
-    async def test_start_stop_workflow(self, nifi_workflow_service: NiFiWorkflowService, db_session: AsyncSession):
-        """Tests starting and stopping a deployed workflow."""
+    async def test_start_stop_workflow(self, nifi_workflow_service, db_session: AsyncSession):
+        """DEPRECATED: Tests starting and stopping a deployed workflow."""
+        pytest.skip("Deprecated: Use Registry-first architecture tests")
         template = await create_test_template(db_session)
         workflow = await create_test_workflow(nifi_workflow_service, template)
 
@@ -151,8 +156,9 @@ class TestNiFiWorkflowServiceIntegration:
         await db_session.commit()
 
     @pytest.mark.asyncio
-    async def test_get_workflow_status(self, nifi_workflow_service: NiFiWorkflowService, db_session: AsyncSession):
-        """Tests getting the status of a deployed workflow."""
+    async def test_get_workflow_status(self, nifi_workflow_service, db_session: AsyncSession):
+        """DEPRECATED: Tests getting the status of a deployed workflow."""
+        pytest.skip("Deprecated: Use Registry-first architecture tests")
         template = await create_test_template(db_session)
         workflow = await create_test_workflow(nifi_workflow_service, template)
 

@@ -15,7 +15,7 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from src.nifi.services.built_in_templates_service import BuiltInTemplatesService
-from src.models.workflow_template import WorkflowTemplate
+from src.models.registry_models import RegistryTemplate
 from src.nifi.clients.registry_client import NiFiRegistryClient
 from src.core.config import settings
 
@@ -43,7 +43,7 @@ class TestBuiltInTemplatesNiFiDeployment:
             # Create a test template with proper NiFi flow structure
             test_template = {
                 "metadata": {
-                    "template_id": f"test-deploy-template-{uuid4()}",
+                    "template_id": str(uuid4()),
                     "name": f"Test Deploy Template {uuid4()}",
                     "description": "Template for testing NiFi Registry deployment",
                     "category": "BATCH",
@@ -138,7 +138,7 @@ class TestBuiltInTemplatesNiFiDeployment:
         
         # Retrieve the seeded template
         template_id = seeding_results["seeded"][0]["template_id"]
-        query = select(WorkflowTemplate).where(WorkflowTemplate.template_id == template_id)
+        query = select(RegistryTemplate).where(RegistryTemplate.template_id == template_id)
         result = await db_session.execute(query)
         template = result.scalar_one()
         
