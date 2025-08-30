@@ -194,17 +194,8 @@ case "$ACTION" in
         KC_END=$(date +%s)
         timing_info "✅ Keycloak setup completed in $((KC_END - KC_START)) seconds"
 
-        # --- TEMPLATE SEEDING ---
-        timing_info "Step 3.5/4: Seeding built-in workflow templates"
-        SEED_START=$(date +%s)
-        info "Seeding built-in workflow templates..."
-        # Seed built-in templates
-        $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.seed_templates built-in
-        SEED_END=$(date +%s)
-        timing_info "✅ Template seeding completed in $((SEED_END - SEED_START)) seconds"
-
         # --- REMAINING SERVICES ---
-        timing_info "Step 4/4: Starting remaining services (SFTPGo, UI, Caddy, NiFi)"
+        timing_info "Step 4/5: Starting remaining services (SFTPGo, UI, Caddy, NiFi)"
         REMAINING_START=$(date +%s)
         
         # Start lightweight services first
@@ -220,6 +211,15 @@ case "$ACTION" in
         $DC_EXEC up -d --build --wait nifi-registry nifi
         NIFI_END=$(date +%s)
         timing_info "🔄 NiFi services ready in $((NIFI_END - NIFI_START)) seconds"
+
+        # --- TEMPLATE SEEDING ---
+        timing_info "Step 5/5: Seeding built-in workflow templates (after NiFi Registry is ready)"
+        SEED_START=$(date +%s)
+        info "Seeding built-in workflow templates..."
+        # Seed built-in templates now that NiFi Registry is available
+        $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.seed_templates built-in
+        SEED_END=$(date +%s)
+        timing_info "✅ Template seeding completed in $((SEED_END - SEED_START)) seconds"
         
         # Start monitoring services if requested
         if [ "$START_MONITORING" = true ]; then
@@ -238,7 +238,7 @@ case "$ACTION" in
         TOTAL_TIME=$((END_TIME - START_TIME))
         success "🎉 All services started and configured successfully!"
         timing_info "📊 TOTAL STARTUP TIME: ${TOTAL_TIME} seconds"
-        timing_info "📋 Breakdown: Infra(${INFRA_END-INFRA_START}s) + Core(${CORE_END-CORE_START}s) + Keycloak(${KC_END-KC_START}s) + Remaining(${REMAINING_END-REMAINING_START}s)"
+        timing_info "📋 Breakdown: Infra(${INFRA_END-INFRA_START}s) + Core(${CORE_END-CORE_START}s) + Keycloak(${KC_END-KC_START}s) + Services(${REMAINING_END-REMAINING_START}s) + Templates(${SEED_END-SEED_START}s)"
         
         # Show monitoring service URLs if they were started
         if [ "$START_MONITORING" = true ]; then
@@ -476,7 +476,9 @@ case "$ACTION" in
                 # Ensure infrastructure is ready before running tests
                 ensure_infra
                 info "Ensuring dev stack is running for '$TEST_TYPE' tests..."
-                $DC_EXEC up -d --wait backend
+                # Start NiFi Registry for Registry-first architecture integration tests
+                info "Starting NiFi Registry for Registry-first integration tests..."
+                $DC_EXEC up -d --wait backend nifi-registry
                 if [[ "$TEST_TYPE" == "e2e" ]]; then
                     info "Configuring Keycloak for E2E tests..."
                     sleep 5

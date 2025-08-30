@@ -67,34 +67,87 @@ class RegistryService:
             # 2. Get or create bucket
             bucket = await self._ensure_bucket_exists(scope, tenant_id)
             
-            # 3. Create flow in NiFi Registry
+            # 3. Check if flow already exists and create if needed
             async with NiFiRegistryClient(settings.NIFI_REGISTRY_URL) as registry_client:
-                # Create flow
-                registry_flow = await registry_client.create_flow(
-                    bucket_id=str(bucket.bucket_id),
-                    flow_name=name,
-                    flow_description=description or f"Template: {name}"
-                )
+                # Check if flow already exists in Registry bucket
+                existing_flows = await registry_client.list_flows(str(bucket.bucket_id))
+                registry_flow = None
+                
+                for flow in existing_flows:
+                    if flow["name"] == name:
+                        registry_flow = flow
+                        break
+                
+                # Create flow if it doesn't exist
+                if not registry_flow:
+                    registry_flow = await registry_client.create_flow(
+                        bucket_id=str(bucket.bucket_id),
+                        flow_name=name,
+                        flow_description=description or f"Template: {name}"
+                    )
                 
                 flow_id = UUID(registry_flow["identifier"])
                 
-                # Create initial version
-                version_data = {
-                    "flowContents": flow_definition,
-                    "parameterContexts": {},
-                    "externalControllerServices": {}
-                }
+                # Check if flow already has versions and create initial version if needed
+                try:
+                    # Try to get existing versions
+                    existing_versions = await registry_client.list_flow_versions(
+                        bucket_id=str(bucket.bucket_id),
+                        flow_id=str(flow_id)
+                    )
+                    
+                    # If no versions exist, create initial version
+                    if not existing_versions:
+                        version_data = {
+                            "flowContents": flow_definition,
+                            "parameterContexts": {},
+                            "externalControllerServices": {}
+                        }
+                        
+                        await registry_client.create_flow_version(
+                            bucket_id=str(bucket.bucket_id),
+                            flow_id=str(flow_id),
+                            version_data=version_data,
+                            comments="Initial version created via EDI Lens"
+                        )
+                        log.info(f"Created initial version for flow {flow_id}")
+                    else:
+                        log.info(f"Flow {flow_id} already has {len(existing_versions)} version(s)")
+                        
+                except Exception as version_error:
+                    # If getting versions fails, try creating one (might be first version)
+                    log.debug(f"Could not get existing versions, attempting to create: {version_error}")
+                    try:
+                        version_data = {
+                            "flowContents": flow_definition,
+                            "parameterContexts": {},
+                            "externalControllerServices": {}
+                        }
+                        
+                        await registry_client.create_flow_version(
+                            bucket_id=str(bucket.bucket_id),
+                            flow_id=str(flow_id),
+                            version_data=version_data,
+                            comments="Initial version created via EDI Lens"
+                        )
+                        log.info(f"Created initial version for flow {flow_id}")
+                    except Exception as create_error:
+                        log.info(f"Flow {flow_id} already has versions (409 expected): {create_error}")
                 
-                await registry_client.create_flow_version(
-                    bucket_id=str(bucket.bucket_id),
-                    flow_id=str(flow_id),
-                    version_data=version_data,
-                    comments="Initial version created via EDI Lens"
-                )
-                
-                log.info(f"Created flow {flow_id} in Registry bucket {bucket.bucket_id}")
+                log.info(f"Ensured flow {flow_id} exists in Registry bucket {bucket.bucket_id}")
             
-            # 4. Store reference in database
+            # 4. Store reference in database (with idempotency check)
+            # Check if database record already exists
+            existing_db_template = await self.session.execute(
+                select(RegistryTemplate).where(RegistryTemplate.template_id == flow_id)
+            )
+            db_template = existing_db_template.scalar_one_or_none()
+            
+            if db_template:
+                log.info(f"Template reference {flow_id} already exists in database")
+                return db_template
+            
+            # Create new database record
             template = RegistryTemplate(
                 template_id=flow_id,
                 bucket_id=bucket.bucket_id,

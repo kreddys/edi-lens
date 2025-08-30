@@ -93,10 +93,14 @@ class RegistryIntegrationService:
             registry_client = None
             for client in registry_clients:
                 log.info(f"Client structure: {client}")
-                # Try different possible field names for URI
+                # Try different possible field names for URI and name matching
                 uri = None
+                name = None
                 if isinstance(client, dict):
                     component = client.get("component", {})
+                    name = component.get("name", "")
+                    
+                    # Check URI in various locations
                     if "uri" in component:
                         uri = component["uri"]
                     elif "uri" in client:
@@ -108,8 +112,11 @@ class RegistryIntegrationService:
                     elif component.get("properties", {}).get("URL"):
                         uri = component["properties"]["URL"]
                         
-                if uri == settings.NIFI_REGISTRY_URL:
+                # Match by URI or by name (for cases where URI might be different)
+                if (uri == settings.NIFI_REGISTRY_URL or 
+                    "EDI Lens Registry" in name):
                     registry_client = client
+                    log.info(f"Found matching registry client: {name} with URI: {uri}")
                     break
             
             if not registry_client:
@@ -117,26 +124,25 @@ class RegistryIntegrationService:
             
             registry_client_id = registry_client["component"]["id"]
             
-            # 2. Create process group with version control
-            process_group_data = {
+            # 2. Import process group from Registry using the correct NiFi API
+            # Use the version control import endpoint instead of creating a process group directly
+            import_data = {
                 "revision": {"version": 0},
                 "component": {
-                    "name": process_group_name,
-                    "position": position or {"x": 100, "y": 100},
-                    "parentGroupId": parent_group_id,
                     "versionControlInformation": {
                         "registryId": registry_client_id,
                         "bucketId": bucket_id,
                         "flowId": flow_id,
                         "version": flow_version
-                    }
+                    },
+                    "position": position or {"x": 100, "y": 100}
                 }
             }
             
-            # 3. Create process group from Registry
+            # 3. Import process group from Registry using the correct endpoint
             response = await nifi_client.session.post(
                 f"{nifi_client.nifi_url}/process-groups/{parent_group_id}/process-groups",
-                json=process_group_data
+                json=import_data
             )
             response.raise_for_status()
             process_group = await response.json()

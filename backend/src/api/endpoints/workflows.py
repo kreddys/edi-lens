@@ -30,7 +30,6 @@ router = APIRouter(prefix="/workflows", tags=["workflows"])
 
 @router.get("/", response_model=WorkflowListResponse)
 async def list_workflows(
-    tenant_id: str,
     template_id: Optional[str] = Query(None, description="Filter by template ID"),
     status: Optional[str] = Query(None, description="Filter by status"),
     tags: Optional[List[str]] = Query(None, description="Filter by tags"),
@@ -41,7 +40,7 @@ async def list_workflows(
 ):
     """List workflows for a tenant."""
     # Basic implementation, will be expanded
-    query = select(Workflow).where(Workflow.tenant_id == tenant_id)
+    query = select(Workflow).where(Workflow.tenant_id == auth_context.tenant_id)
     result = await session.execute(query)
     workflows = result.scalars().all()
     return WorkflowListResponse(

@@ -7,8 +7,11 @@ workflow templates as versioned flows.
 
 import aiohttp
 import json
+import logging
 from typing import Optional, List, Dict, Any, Union
 from urllib.parse import urljoin
+
+log = logging.getLogger(__name__)
 
 
 class NiFiRegistryClient:
@@ -151,21 +154,37 @@ class NiFiRegistryClient:
         }
         
         # Debug logging
-        print(f"Sending version payload to NiFi Registry: {version_payload}")
+        log.debug(f"Creating flow version {next_version} for flow {flow_id}")
         
         async with self.session.post(
             f"{self.registry_url}/nifi-registry-api/buckets/{bucket_id}/flows/{flow_id}/versions",
             json=version_payload
         ) as response:
             # Log the request and response for debugging
+            response_text = await response.text()
+            
             if response.status >= 400:
-                try:
-                    error_text = await response.text()
-                    print(f"NiFi Registry API Error: {response.status} - {error_text}")
-                except:
-                    pass
-            response.raise_for_status()
-            return await response.json()
+                log.error(f"NiFi Registry API Error: {response.status} - {response_text}")
+                response.raise_for_status()
+            
+            # Parse the response
+            try:
+                result = json.loads(response_text)
+                
+                # Check if there are any validation warnings or issues
+                if "flowContents" in result:
+                    sent_processors = len(version_payload.get("flowContents", {}).get("processors", []))
+                    received_processors = len(result["flowContents"].get("processors", []))
+                    if sent_processors != received_processors:
+                        log.warning(f"Processor count mismatch: sent {sent_processors}, received {received_processors}")
+                        log.warning(f"Sent processors: {[p.get('name', p.get('id', 'unknown')) for p in version_payload.get('flowContents', {}).get('processors', [])]}")
+                        log.warning(f"Received processors: {[p.get('name', p.get('identifier', 'unknown')) for p in result['flowContents'].get('processors', [])]}")
+                
+                return result
+            except json.JSONDecodeError as e:
+                log.error(f"Failed to parse Registry response as JSON: {e}")
+                log.error(f"Raw response: {response_text}")
+                raise
 
     async def get_flow(self, bucket_id: str, flow_id: str) -> Dict[str, Any]:
         """Get flow details by ID."""
@@ -204,9 +223,11 @@ class NiFiRegistryClient:
         if version:
             url += f"/versions/{version}"
         
+        log.debug(f"Getting flow version {version or 'latest'} for flow {flow_id}")
         async with self.session.get(url) as response:
             response.raise_for_status()
-            return await response.json()
+            result = await response.json()
+            return result
 
     async def list_flow_versions(self, bucket_id: str, flow_id: str) -> List[Dict[str, Any]]:
         """List all versions of a flow."""

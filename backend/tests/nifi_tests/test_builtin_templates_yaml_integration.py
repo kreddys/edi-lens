@@ -6,7 +6,6 @@ lifecycle with real database and NiFi services.
 """
 
 import pytest
-import asyncio
 import tempfile
 import yaml
 from pathlib import Path
@@ -14,8 +13,7 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from src.nifi.services.built_in_templates_service import BuiltInTemplatesService
-from src.models.workflow_template import WorkflowTemplate, TemplateVersion
-from src.nifi.clients.registry_client import NiFiRegistryClient
+from src.models.registry_models import RegistryTemplate
 from src.core.config import settings
 
 
@@ -495,16 +493,13 @@ class TestBuiltInTemplatesSeeding:
     @pytest.mark.asyncio
     async def test_template_seeding_success(self, temp_templates_service, db_session):
         """Test successful seeding of YAML templates into database."""
-        # Clean up any existing templates first to ensure test isolation
-        from src.models.workflow_template import WorkflowTemplate, TemplateVersion, Workflow
+        # Clean up any existing templates first to ensure test isolation (Registry-first architecture)
         from sqlalchemy import text
-        await db_session.execute(text("DELETE FROM workflows"))
-        await db_session.execute(text("DELETE FROM template_versions"))
-        await db_session.execute(text("DELETE FROM workflow_templates"))
+        await db_session.execute(text("DELETE FROM registry_templates"))
         await db_session.commit()
         
         # Verify database is clean
-        query = select(WorkflowTemplate)
+        query = select(RegistryTemplate)
         result = await db_session.execute(query)
         initial_templates = result.scalars().all()
         assert len(initial_templates) == 0
@@ -521,39 +516,28 @@ class TestBuiltInTemplatesSeeding:
         assert len(seeding_results["skipped"]) == 0
         assert len(seeding_results["errors"]) == 0
         
-        # Verify templates were created in database
-        query = select(WorkflowTemplate)
+        # Verify templates were created in database (Registry-first architecture)
+        query = select(RegistryTemplate)
         result = await db_session.execute(query)
         db_templates = result.scalars().all()
         assert len(db_templates) == 1
         
         template = db_templates[0]
         assert template.name == "Test Seeding Template"
-        assert template.category == "BATCH"
-        assert template.maintainer == "test-system"
+        assert template.scope == "GLOBAL"
+        assert template.created_by == "test-system"
         
-        # Verify template version was created
-        query = select(TemplateVersion).where(
-            TemplateVersion.template_id == template.template_id
-        )
-        result = await db_session.execute(query)
-        versions = result.scalars().all()
-        assert len(versions) == 1
-        
-        version = versions[0]
-        assert version.version == "1.0.0"
-        assert version.is_current is True
-        assert version.created_by == "test-system"
+        # In Registry-first architecture, versions are managed by NiFi Registry, not database
+        # Verify the template has Registry IDs
+        assert template.bucket_id is not None
+        assert template.current_version == 1
 
     @pytest.mark.asyncio
     async def test_template_seeding_idempotency(self, temp_templates_service, db_session):
         """Test that re-seeding existing templates is handled correctly."""
-        # Clean up any existing templates first to ensure test isolation
-        from src.models.workflow_template import WorkflowTemplate, TemplateVersion, Workflow
+        # Clean up any existing templates first to ensure test isolation (Registry-first architecture)
         from sqlalchemy import text
-        await db_session.execute(text("DELETE FROM workflows"))
-        await db_session.execute(text("DELETE FROM template_versions"))
-        await db_session.execute(text("DELETE FROM workflow_templates"))
+        await db_session.execute(text("DELETE FROM registry_templates"))
         await db_session.commit()
         
         # First seeding
@@ -568,7 +552,7 @@ class TestBuiltInTemplatesSeeding:
         assert second_results["skipped"][0]["reason"] == "Template already exists"
         
         # Verify only one template exists in database
-        query = select(WorkflowTemplate)
+        query = select(RegistryTemplate)
         result = await db_session.execute(query)
         db_templates = result.scalars().all()
         assert len(db_templates) == 1

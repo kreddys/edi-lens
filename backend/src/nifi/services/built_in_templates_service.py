@@ -10,13 +10,10 @@ import logging
 import yaml
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 
 from src.models.registry_models import RegistryTemplate
-from src.nifi.clients.registry_client import NiFiRegistryClient
 from src.services.registry_service import RegistryService
 
 logger = logging.getLogger(__name__)
@@ -154,11 +151,17 @@ class BuiltInTemplatesService:
                 result = await self._seed_template(template_data, session)
                 if result["status"] == "seeded":
                     results["seeded"].append(result)
+                elif result["status"] == "skipped":
+                    results["skipped"].append(result)
+                elif result["status"] == "error":
+                    results["errors"].append(result)
                 else:
+                    # Fallback for unknown status
                     results["skipped"].append(result)
             except Exception as e:
                 results["errors"].append({
-                    "template_id": template_data["template_id"],
+                    "template_id": template_data.get("template_id", "unknown"),
+                    "name": template_data.get("name", "unknown"),
                     "error": str(e)
                 })
         
@@ -169,18 +172,22 @@ class BuiltInTemplatesService:
         try:
             registry_service = RegistryService(session)
             
-            # Check if template already exists in Registry
-            template_id_uuid = UUID(template_data["template_id"])
-            existing_template = await registry_service.get_template(template_id_uuid)
+            # Check if template already exists in database (for idempotency)
+            existing_templates = await registry_service.list_templates(
+                scope=template_data["scope"], 
+                tenant_id=template_data.get("tenant_id")
+            )
             
-            if existing_template:
-                return {
-                    "template_id": template_data["template_id"],
-                    "status": "skipped",
-                    "reason": "Template already exists"
-                }
+            for existing in existing_templates:
+                if existing.name == template_data["name"]:
+                    return {
+                        "template_id": str(existing.template_id),
+                        "status": "skipped",
+                        "reason": "Template already exists",
+                        "name": existing.name
+                    }
             
-            # Create template using Registry service
+            # Create template using Registry service (handles Registry idempotency internally)
             template = await registry_service.create_template(
                 name=template_data["name"],
                 description=template_data["description"],
@@ -200,7 +207,8 @@ class BuiltInTemplatesService:
         except Exception as e:
             logger.error(f"Failed to seed template {template_data.get('name')}: {str(e)}")
             return {
-                "template_id": template_data["template_id"],
+                "template_id": template_data.get("template_id", "unknown"),
+                "name": template_data.get("name", "unknown"),
                 "status": "error",
                 "error": str(e)
             }
@@ -214,82 +222,3 @@ class BuiltInTemplatesService:
         # This method is kept for backward compatibility but just returns True
         logger.info(f"Template {template.template_id} is already registered in Registry")
         return True
-                buckets = await registry_client.list_buckets()
-                edi_lens_bucket = None
-                
-                for bucket in buckets:
-                    if bucket["name"] == "edi-lens-templates":
-                        edi_lens_bucket = bucket
-                        break
-                
-                # Create bucket if it doesn't exist
-                if not edi_lens_bucket:
-                    logger.info("Creating EDI Lens templates bucket in NiFi Registry")
-                    edi_lens_bucket = await registry_client.create_bucket(
-                        name="edi-lens-templates",
-                        description="Built-in EDI Lens workflow templates"
-                    )
-                
-                # 2. Check if flow exists for this template
-                flows = await registry_client.list_flows(edi_lens_bucket["identifier"])
-                template_flow = None
-                
-                for flow in flows:
-                    if flow["name"] == template.name:
-                        template_flow = flow
-                        break
-                
-                # 3. Create flow if it doesn't exist
-                if not template_flow:
-                    logger.info(f"Creating flow for template {template.template_id}")
-                    template_flow = await registry_client.create_flow(
-                        bucket_id=edi_lens_bucket["identifier"],
-                        flow_name=template.name,
-                        flow_description=template.description
-                    )
-                
-                # 4. Check if the latest flow version already exists with the same content
-                # First, try to get the latest version
-                try:
-                    latest_version = await registry_client.get_flow_version(
-                        bucket_id=edi_lens_bucket["identifier"],
-                        flow_id=template_flow["identifier"],
-                        version="latest"
-                    )
-                    
-                    # If we got here, the flow version exists. For idempotency, we'll return True
-                    # since the template is already registered
-                    version_number = latest_version.get('version') or latest_version.get('snapshotMetadata', {}).get('version', 'unknown')
-                    logger.info(f"Template {template.template_id} already registered in NiFi Registry as flow version {version_number}")
-                    return True
-                    
-                except Exception:
-                    # If getting the latest version fails, it means no version exists yet
-                    # Proceed to create the flow version
-                    pass
-                
-                # 5. Create flow version with template definition
-                logger.info(f"Creating flow version for template {template.template_id}")
-                
-                # Structure the data as VersionedFlowSnapshot for NiFi Registry API
-                version_data = {
-                    "flowContents": template.flow_definition,
-                    "parameterContexts": {},
-                    "externalControllerServices": {}
-                }
-                
-                flow_version = await registry_client.create_flow_version(
-                    bucket_id=edi_lens_bucket["identifier"],
-                    flow_id=template_flow["identifier"],
-                    version_data=version_data,
-                    comments=f"Template version {template.version} - {template.description}"
-                )
-                
-                # Get version from response (could be in different locations)
-                version_number = flow_version.get('version') or flow_version.get('snapshotMetadata', {}).get('version', 'unknown')
-                logger.info(f"Successfully registered template {template.template_id} in NiFi Registry as flow version {version_number}")
-                return True
-                
-        except Exception as e:
-            logger.error(f"Failed to register template {template.template_id} in NiFi Registry: {str(e)}")
-            return False

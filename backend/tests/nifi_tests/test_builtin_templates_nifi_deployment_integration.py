@@ -7,7 +7,6 @@ to NiFi Registry with real NiFi Registry services.
 
 import pytest
 import pytest_asyncio
-import asyncio
 import tempfile
 import yaml
 from pathlib import Path
@@ -152,7 +151,7 @@ class TestBuiltInTemplatesNiFiDeployment:
                 buckets = await registry_client.list_buckets()
                 
                 for bucket in buckets:
-                    if bucket["name"] == "edi-lens-templates":
+                    if bucket["name"] == "edi-lens-global":
                         try:
                             # List flows in the bucket
                             flows = await registry_client.list_flows(bucket["identifier"])
@@ -182,16 +181,16 @@ class TestBuiltInTemplatesNiFiDeployment:
         
         # Verify artifacts were created in registry
         async with registry_client:
-            # Check that EDI Lens templates bucket exists
+            # Check that EDI Lens templates bucket exists (Registry-first architecture uses "edi-lens-global")
             buckets = await registry_client.list_buckets()
             edi_lens_bucket = None
             
             for bucket in buckets:
-                if bucket["name"] == "edi-lens-templates":
+                if bucket["name"] == "edi-lens-global":
                     edi_lens_bucket = bucket
                     break
             
-            assert edi_lens_bucket is not None, "EDI Lens templates bucket should be created"
+            assert edi_lens_bucket is not None, "EDI Lens global templates bucket should be created"
             
             # Check that the template flow exists
             flows = await registry_client.list_flows(edi_lens_bucket["identifier"])
@@ -226,7 +225,7 @@ class TestBuiltInTemplatesNiFiDeployment:
             try:
                 buckets = await registry_client.list_buckets()
                 for bucket in buckets:
-                    if bucket["name"] == "edi-lens-templates":
+                    if bucket["name"] == "edi-lens-global":
                         # If bucket exists, we'll test the idempotent behavior
                         break
             except Exception:
@@ -240,7 +239,7 @@ class TestBuiltInTemplatesNiFiDeployment:
         async with registry_client:
             buckets = await registry_client.list_buckets()
             bucket_names = [bucket["name"] for bucket in buckets]
-            assert "edi-lens-templates" in bucket_names
+            assert "edi-lens-global" in bucket_names
 
     @pytest.mark.asyncio
     async def test_template_deployment_idempotency(self, temp_templates_service, seeded_template, registry_client):
@@ -259,7 +258,7 @@ class TestBuiltInTemplatesNiFiDeployment:
             edi_lens_bucket = None
             
             for bucket in buckets:
-                if bucket["name"] == "edi-lens-templates":
+                if bucket["name"] == "edi-lens-global":
                     edi_lens_bucket = bucket
                     break
             
@@ -273,8 +272,10 @@ class TestBuiltInTemplatesNiFiDeployment:
 
     @pytest.mark.asyncio
     async def test_template_deployment_error_handling(self, temp_templates_service, seeded_template):
-        """Test error handling when registry deployment fails."""
-        # Create a service with invalid registry URL and short timeout for testing
+        """Test error handling graceful behavior in Registry-first architecture."""
+        # In Registry-first architecture, register_template_in_registry just returns True
+        # since templates are already registered during creation (no separate deployment step)
+        # Create a service with invalid registry URL (though it won't be used)
         invalid_service = BuiltInTemplatesService(
             registry_url="http://invalid-registry-url:9999",
             registry_auth_token=None,
@@ -282,25 +283,21 @@ class TestBuiltInTemplatesNiFiDeployment:
             timeout=2  # Short timeout for testing
         )
         
-        # Deployment should fail gracefully
+        # In Registry-first architecture, this method just returns True (no actual deployment)
         deployment_success = await invalid_service.register_template_in_registry(seeded_template)
-        assert deployment_success is False
+        assert deployment_success is True
+        
+        # Verify the method's behavior matches the architecture design
+        # (Templates are registered during creation, not in a separate step)
 
     @pytest.mark.asyncio
     async def test_template_deployment_with_complex_flow(self, registry_client, db_session):
         """Test deploying a template with a more complex NiFi flow definition."""
-        # Create a template with multiple processors and connections
-        complex_template_id = f"test-complex-template-{uuid4()}"
-        complex_template = WorkflowTemplate(
-            template_id=complex_template_id,
-            name=f"Complex Test Template {uuid4()}",
-            description="Complex template for deployment testing",
-            category="BATCH",
-            scope="GLOBAL",
-            tenant_id=None,
-            maintainer="test-system",
-            version="1.0.0",
-            flow_definition={
+        # Create a complex flow definition (Registry-first architecture)
+        from src.services.registry_service import RegistryService
+        
+        complex_template_name = f"Complex Test Template {uuid4()}"
+        complex_flow_definition = {
                 "identifier": f"complex-flow-{uuid4()}",
                 "name": "Complex Test Flow",
                 "description": "Complex flow with multiple processors",
@@ -345,40 +342,30 @@ class TestBuiltInTemplatesNiFiDeployment:
                 "remoteProcessGroups": [],
                 "labels": [],
                 "variables": {}
-            },
-            configuration_schema={
-                "type": "object",
-                "properties": {"complex_config": {"type": "string"}}
-            },
-            deployment_method="registry",
-            tags=["test", "complex"],
-            features=["multi-processor"],
-            is_featured=False,
-            status="ACTIVE"
+            }
+        
+        # Create template using Registry service (Registry-first architecture)
+        registry_service = RegistryService(db_session)
+        complex_template = await registry_service.create_template(
+            name=complex_template_name,
+            description="Complex template for deployment testing",
+            flow_definition=complex_flow_definition,
+            scope="GLOBAL",
+            created_by="test-system"
         )
         
-        # Add to database
-        db_session.add(complex_template)
-        await db_session.commit()
-        await db_session.refresh(complex_template)
+        # Verify template was created successfully in Registry
+        assert complex_template is not None
+        assert complex_template.name == complex_template_name
         
-        # Deploy to registry
-        service = BuiltInTemplatesService(
-            registry_url=settings.NIFI_REGISTRY_URL,
-            registry_auth_token=getattr(settings, 'NIFI_REGISTRY_AUTH_TOKEN', None)
-        )
-        
-        deployment_success = await service.register_template_in_registry(complex_template)
-        assert deployment_success is True
-        
-        # Verify in registry
+        # Verify the template exists in NiFi Registry
         async with registry_client:
             buckets = await registry_client.list_buckets()
-            edi_lens_bucket = next((b for b in buckets if b["name"] == "edi-lens-templates"), None)
-            assert edi_lens_bucket is not None
+            global_bucket = next((b for b in buckets if b["name"] == "edi-lens-global"), None)
+            assert global_bucket is not None
             
-            flows = await registry_client.list_flows(edi_lens_bucket["identifier"])
-            complex_flow = next((f for f in flows if f["name"] == complex_template.name), None)
+            flows = await registry_client.list_flows(global_bucket["identifier"])
+            complex_flow = next((f for f in flows if f["name"] == complex_template_name), None)
             assert complex_flow is not None
 
     @pytest.mark.asyncio
@@ -399,9 +386,10 @@ class TestBuiltInTemplatesNiFiDeployment:
         # Seed one production template for testing
         first_template_data = production_templates[0]
         
-        # Check if template already exists in database
-        query = select(WorkflowTemplate).where(
-            WorkflowTemplate.template_id == first_template_data["template_id"]
+        # Check if template already exists in database (Registry-first architecture)
+        # Note: In Registry-first architecture, template_id is auto-generated, so we check by name
+        query = select(RegistryTemplate).where(
+            RegistryTemplate.name == first_template_data["name"]
         )
         result = await db_session.execute(query)
         existing_template = result.scalar_one_or_none()
@@ -424,7 +412,7 @@ class TestBuiltInTemplatesNiFiDeployment:
         # Verify in registry
         async with registry_client:
             buckets = await registry_client.list_buckets()
-            edi_lens_bucket = next((b for b in buckets if b["name"] == "edi-lens-templates"), None)
+            edi_lens_bucket = next((b for b in buckets if b["name"] == "edi-lens-global"), None)
             assert edi_lens_bucket is not None
             
             flows = await registry_client.list_flows(edi_lens_bucket["identifier"])
