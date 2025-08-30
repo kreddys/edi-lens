@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run Python Tests",
+            "type": "shell",
+            "command": "${workspaceFolder}/backend/.venv/bin/python",
+            "args": ["-m", "pytest"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            }
+        }
+    ]
+}

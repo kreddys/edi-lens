@@ -98,10 +98,24 @@ async def update_workflow(
     auth_context: AuthContext = Depends(require_permission("workflow:write"))
 ):
     """Update an existing workflow."""
-    workflow = await get_workflow(workflow_id, session, auth_context)
+    # Get the raw database model, not the response schema
+    query = select(Workflow).where(Workflow.workflow_id == workflow_id)
+    result = await session.execute(query)
+    workflow = result.scalar_one_or_none()
+    if not workflow or workflow.tenant_id != auth_context.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found")
+    
     update_data = workflow_data.model_dump(exclude_unset=True)
+    
+    # Only update database columns, not computed properties
+    valid_columns = {
+        'name', 'description', 'tags', 'configuration', 'status'
+    }
+    
     for key, value in update_data.items():
-        setattr(workflow, key, value)
+        if key in valid_columns:
+            setattr(workflow, key, value)
+    
     await session.commit()
     await session.refresh(workflow)
     return WorkflowResponse.model_validate(workflow)
@@ -130,7 +144,7 @@ async def delete_workflow(
         
         try:
             async with NiFiAPIClient(
-                nifi_url=settings.nifi_url,
+                nifi_url=settings.NIFI_URL,
                 username=settings.nifi_username,
                 password=settings.nifi_password
             ) as nifi_client:
@@ -295,6 +309,8 @@ async def get_workflow_status(
     """Get detailed workflow status including NiFi deployment information."""
     
     try:
+        # Debug logging
+        log.debug(f"Getting status for workflow {workflow_id} for user {auth_context.username} in tenant {auth_context.tenant_id}")
         status_service = WorkflowStatusService(session)
         status_data = await status_service.get_detailed_status(
             workflow_id,
@@ -304,11 +320,13 @@ async def get_workflow_status(
         return WorkflowStatusResponse(**status_data)
         
     except ValueError as e:
+        log.debug(f"ValueError in get_workflow_status: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
         )
     except Exception as e:
+        log.error(f"Exception in get_workflow_status: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get workflow status: {str(e)}"

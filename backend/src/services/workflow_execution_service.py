@@ -575,18 +575,29 @@ class WorkflowStatusService:
         workflow = result.scalar_one_or_none()
         
         if not workflow:
-            raise ValueError(f"Workflow {workflow_id} not found or access denied")
+            # Debug: Let's see what we're looking for
+            debug_query = select(Workflow).where(Workflow.workflow_id == workflow_id)
+            debug_result = await self.session.execute(debug_query)
+            debug_workflow = debug_result.scalar_one_or_none()
+            
+            if debug_workflow:
+                raise ValueError(f"Workflow {workflow_id} found but access denied. Workflow tenant: {debug_workflow.tenant_id}, User tenant: {auth_context.tenant_id}")
+            else:
+                raise ValueError(f"Workflow {workflow_id} not found or access denied")
         
         # For deployed workflows, get actual NiFi status
         if workflow.is_deployed and workflow.nifi_process_group_id:
             nifi_service = NiFiWorkflowService(self.session)
             nifi_status = await nifi_service.get_workflow_status(workflow)
+            # Add is_deployed field to the NiFi status response
+            nifi_status["is_deployed"] = workflow.is_deployed
             return nifi_status
         
         # For non-deployed workflows, return mock status
         return {
             "workflow_id": str(workflow.workflow_id),
             "status": workflow.status,
+            "is_deployed": workflow.is_deployed,
             "nifi_status": self._mock_nifi_status(workflow),
             "deployment_status": self._mock_deployment_status(workflow),
             "last_execution": self._mock_last_execution(),

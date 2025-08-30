@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from src.core.database import get_db
+from src.core.database import get_db, AsyncSessionLocal
 from src.core.auth import get_current_user, AuthContext, require_permission
 from src.models.workflow_template import Workflow
 from src.services.nifi_workflow_service import NiFiWorkflowService, NiFiWorkflowDeploymentError
@@ -72,7 +72,7 @@ async def execute_workflow(
         
         return WorkflowExecutionResponse(
             workflow_id=workflow_id,
-            execution_id=str(workflow.workflow_id),  # Using workflow_id as execution_id for now
+            execution_id=execution_request.request_id or str(workflow.workflow_id),
             status=WorkflowStatus.RUNNING,
             nifi_process_group_id=workflow.nifi_process_group_id,
             nifi_status=status_info.get("nifi_status"),
@@ -270,9 +270,8 @@ async def _monitor_workflow_execution(
 ):
     """Background task to monitor workflow execution."""
     import asyncio
-    from src.core.database import get_db
     
-    logger.info(f"Starting background monitoring for workflow {workflow_id}")
+    logger.info(f"Starting background monitoring for workflow {workflow_id} - NEW VERSION")
     
     try:
         # Monitor for a reasonable time (e.g., 1 hour)
@@ -281,7 +280,7 @@ async def _monitor_workflow_execution(
         
         while iteration < max_iterations:
             try:
-                async with get_db() as session:
+                async with AsyncSessionLocal() as session:
                     workflow = await _get_workflow(session, workflow_id, tenant_id)
                     nifi_service = NiFiWorkflowService(session)
                     status_info = await nifi_service.get_workflow_status(workflow)

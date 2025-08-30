@@ -34,40 +34,40 @@ def seeder_service(db_session: AsyncSession) -> TemplateSeederService:
 @pytest.fixture
 def temp_template_directory():
     """Create temporary directory with test YAML templates."""
-    temp_dir = tempfile.TemporaryDirectory()
-    temp_path = Path(temp_dir.name)
-    
-    # Create multiple test templates
-    templates = [
-        {
-            "template_id": f"seeder-test-template-1-{uuid4()}",
-            "name": "Seeder Test Template 1",
-            "description": "First test template for seeder integration",
-            "category": "BATCH",
-            "scope": "GLOBAL",
-            "tenant_id": None,
-            "flow_definition": {},
-            "configuration_schema": {},
-        },
-        {
-            "template_id": f"seeder-test-template-2-{uuid4()}",
-            "name": "Seeder Test Template 2",
-            "description": "Second test template for seeder integration",
-            "category": "REALTIME",
-            "scope": "TENANT",
-            "tenant_id": "tenant-seeder-test",
-            "flow_definition": {},
-            "configuration_schema": {},
-        }
-    ]
-    
-    # Write templates to YAML files
-    for i, template in enumerate(templates):
-        template_file = temp_path / f"template_{i+1}.yaml"
-        with open(template_file, 'w') as f:
-            yaml.dump(template, f)
-    
-    return temp_path, templates
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        
+        # Create multiple test templates
+        templates = [
+            {
+                "template_id": f"seeder-test-template-1-{uuid4()}",
+                "name": "Seeder Test Template 1",
+                "description": "First test template for seeder integration",
+                "category": "BATCH",
+                "scope": "GLOBAL",
+                "tenant_id": None,
+                "flow_definition": {},
+                "configuration_schema": {},
+            },
+            {
+                "template_id": f"seeder-test-template-2-{uuid4()}",
+                "name": "Seeder Test Template 2",
+                "description": "Second test template for seeder integration",
+                "category": "REALTIME",
+                "scope": "TENANT",
+                "tenant_id": "tenant-seeder-test",
+                "flow_definition": {},
+                "configuration_schema": {},
+            }
+        ]
+        
+        # Write templates to YAML files
+        for i, template in enumerate(templates):
+            template_file = temp_path / f"template_{i+1}.yaml"
+            with open(template_file, 'w') as f:
+                yaml.dump(template, f)
+        
+        yield temp_path, templates
 
 
 class TestTemplateSeederServiceIntegration:

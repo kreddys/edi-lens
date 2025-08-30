@@ -107,6 +107,51 @@ def setup_test_environment(pytestconfig):
     del os.environ["IS_PYTEST"]
 
 # ==============================================================================
+# E2E TEST FIXTURES  
+# ==============================================================================
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def seed_builtin_templates_for_e2e():
+    """
+    Session-scoped fixture to seed built-in templates for e2e tests.
+    This runs automatically for all e2e tests to ensure required templates exist.
+    """
+    # Only run for e2e tests
+    if not any("e2e" in item for item in sys.argv):
+        return
+        
+    try:
+        from src.nifi.services.built_in_templates_service import BuiltInTemplatesService
+        from src.core.config import settings
+        
+        # Create database session
+        async with TestAsyncSessionLocal() as session:
+            # Initialize service with proper settings
+            from pathlib import Path
+            templates_dir = Path(__file__).parent.parent / "data/templates/builtin"
+            
+            service = BuiltInTemplatesService(
+                registry_url=settings.NIFI_REGISTRY_URL,
+                templates_dir=str(templates_dir)
+            )
+            
+            # Seed all built-in templates
+            result = await service.seed_built_in_templates(session)
+            await session.commit()
+            
+            seeded_count = len(result.get('seeded', []))
+            print(f"E2E Template seeding completed: {seeded_count} templates seeded")
+            if seeded_count > 0:
+                for template in result.get('seeded', []):
+                    print(f"  - {template.get('template_id', 'unknown')}")
+            else:
+                print("  No new templates were seeded (may already exist)")
+            
+    except Exception as e:
+        print(f"Warning: Failed to seed templates for e2e tests: {e}")
+        # Don't fail tests if seeding fails - some tests might still pass
+
+# ==============================================================================
 # INTEGRATION TEST FIXTURES
 # ==============================================================================
 

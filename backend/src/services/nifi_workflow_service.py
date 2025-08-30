@@ -229,7 +229,9 @@ class NiFiWorkflowService:
         """
         if not workflow.nifi_process_group_id:
             return {
+                "workflow_id": str(workflow.workflow_id),
                 "status": "NOT_DEPLOYED",
+                "is_deployed": workflow.is_deployed,
                 "nifi_status": None,
                 "health_check": {
                     "status": "unknown",
@@ -251,7 +253,9 @@ class NiFiWorkflowService:
                 flow_status = await nifi_client.get_flow_status()
                 
                 return {
+                    "workflow_id": str(workflow.workflow_id),
                     "status": workflow.status,
+                    "is_deployed": workflow.is_deployed,
                     "nifi_status": nifi_status,
                     "flow_status": flow_status,
                     "health_check": {
@@ -263,7 +267,9 @@ class NiFiWorkflowService:
         except Exception as e:
             log.error(f"Failed to get status for workflow {workflow.workflow_id}: {str(e)}")
             return {
+                "workflow_id": str(workflow.workflow_id),
                 "status": "ERROR",
+                "is_deployed": workflow.is_deployed,
                 "nifi_status": None,
                 "health_check": {
                     "status": "unhealthy",
@@ -456,41 +462,61 @@ class NiFiWorkflowService:
         log.info(f"Creating {len(processors)} processors for workflow {workflow.workflow_id}")
         
         for processor_def in processors:
-            # Substitute parameters in properties
-            properties = {}
-            if processor_def.get("properties"):
-                for key, value in processor_def["properties"].items():
-                    if isinstance(value, str):
-                        # Replace #{param_name} with actual values
-                        substituted_value = re.sub(
-                            r'#\{([^}]+)\}',
-                            lambda m: str(param_values.get(m.group(1), m.group(0))),
-                            value
-                        )
-                        properties[key] = substituted_value
-                    else:
-                        properties[key] = value
+            log.info(f"Creating processor: {processor_def['name']} (type: {processor_def['type']})")
             
-            # Create processor (basic creation first)
-            processor = await nifi_client.create_processor(
-                parent_group_id=process_group_id,
-                processor_type=processor_def["type"],
-                name=processor_def["name"],
-                position=processor_def.get("position", {"x": 100, "y": 100})
-            )
+            # Generic parameter substitution function
+            def substitute_params(obj):
+                """Recursively substitute parameters in any data structure."""
+                if isinstance(obj, str):
+                    # Replace #{param_name} with actual values
+                    substituted_value = re.sub(
+                        r'#\{([^}]+)\}',
+                        lambda m: str(param_values.get(m.group(1), m.group(0))),
+                        obj
+                    )
+                    # Special handling for boolean values - ensure they're lowercase
+                    # Check if this looks like a boolean string
+                    lower_val = substituted_value.lower()
+                    if lower_val in ["true", "false"]:
+                        return lower_val
+                    return substituted_value
+                elif isinstance(obj, dict):
+                    return {k: substitute_params(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [substitute_params(item) for item in obj]
+                else:
+                    return obj
+            
+            # Substitute parameters in all processor configuration
+            substituted_def = substitute_params(processor_def)
+            
+            # Extract properties and scheduling after substitution
+            properties = substituted_def.get("properties", {})
+            scheduling = substituted_def.get("scheduling", {})
+            
+            log.info(f"Processor {processor_def['name']} properties after substitution: {properties}")
+            log.info(f"Processor {processor_def['name']} scheduling after substitution: {scheduling}")
+            
+            # Create processor with properties and scheduling configuration
+            try:
+                processor = await nifi_client.create_processor(
+                    parent_group_id=process_group_id,
+                    processor_type=processor_def["type"],
+                    name=processor_def["name"],
+                    position=processor_def.get("position", {"x": 100, "y": 100}),
+                    properties=properties if properties else None,
+                    scheduling=scheduling if scheduling else None
+                )
+            except Exception as e:
+                log.error(f"Failed to create processor '{processor_def['name']}' of type '{processor_def['type']}': {str(e)}")
+                log.error(f"Processor properties: {properties}")
+                log.error(f"Processor scheduling: {scheduling}")
+                raise Exception(f"Failed to create processor '{processor_def['name']}': {str(e)}") from e
             
             processor_id = processor["component"]["id"]
             
-            # Configure processor properties and scheduling after creation
-            if properties or processor_def.get("scheduling"):
-                await nifi_client.update_processor(
-                    processor_id=processor_id,
-                    properties=properties,
-                    scheduling=processor_def.get("scheduling")
-                )
-            
             processor_ids[processor_def.get("identifier", processor_def.get("id"))] = processor["component"]["id"]
-            log.info(f"Created processor {processor_def['name']} ({processor_def.get('identifier', processor_def.get('id'))})")
+            log.info(f"Created processor {processor_def['name']} ({processor_def.get('identifier', processor_def.get('id'))}) with ID {processor_id}")
         
         # Create connections
         connections = flow_definition.get("connections", [])

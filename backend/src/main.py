@@ -59,13 +59,7 @@ app = FastAPI(
 # metrics_middleware = PrometheusMiddleware("edi-lens-backend")
 # app.middleware("http")(metrics_middleware)
 
-# Include routers
-app.include_router(auth.router, prefix="/api/v1")
-app.include_router(edi.router, prefix="/api/v1")
-app.include_router(schemas.router, prefix="/api/v1")
-app.include_router(workflow_templates.router, prefix="/api/v1")
-app.include_router(workflows.router, prefix="/api/v1")
-app.include_router(workflow_execution.router, prefix="/api/v1")
+# Routers are included through api_router below
 
 @app.get("/api/v1/health", tags=["health"])
 def health_check():
@@ -106,5 +100,7 @@ api_router.include_router(auth.router, tags=["Authentication"])
 api_router.include_router(edi.router, tags=["EDI Processing"])
 api_router.include_router(schemas.router, tags=["Schema Management"])
 api_router.include_router(workflow_templates.router, tags=["Workflow Templates"])
+api_router.include_router(workflows.router, tags=["Workflows"])
+api_router.include_router(workflow_execution.router, tags=["Workflow Execution"])
 
 app.include_router(api_router)

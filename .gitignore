@@ -74,4 +74,4 @@ docker/sftpgo/config
 
 # Data directories (excluding templates)
 data/
-!backend/data/
+!backend/data/.vscode/

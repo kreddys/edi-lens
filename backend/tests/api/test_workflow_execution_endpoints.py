@@ -258,6 +258,7 @@ async def test_get_workflow_status(
     # Verify response structure
     assert "workflow_id" in data
     assert "status" in data
+    assert "is_deployed" in data
     assert "nifi_status" in data
     assert "deployment_status" in data
     assert "execution_count" in data
@@ -269,6 +270,9 @@ async def test_get_workflow_status(
     
     # Verify status matches workflow status
     assert data["status"] == test_workflow.status
+    
+    # Verify is_deployed field is present and correct
+    assert data["is_deployed"] == test_workflow.is_deployed
 
 
 @pytest.mark.asyncio

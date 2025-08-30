@@ -12,62 +12,68 @@ from src.core.config import settings
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture
-async def health_service():
-    """Create health service instance."""
-    service = HealthService(
-        nifi_url=settings.NIFI_URL,
-        registry_url=settings.NIFI_REGISTRY_URL,
-    )
-    return service
-
-
 class TestNiFiHealthServiceIntegration:
     """Integration tests for NiFi Health Service with real NiFi services."""
 
     @pytest.mark.asyncio
-    async def test_nifi_health_check_with_real_instance(self, health_service: HealthService):
+    async def test_nifi_health_check_with_real_instance(self):
         """Test NiFi health check against real NiFi instance."""
+        service = HealthService(
+            nifi_url=settings.NIFI_URL,
+            registry_url=settings.NIFI_REGISTRY_URL,
+        )
         try:
-            health_result = await health_service.check_nifi_health()
+            health_result = await service.check_nifi_health()
             assert isinstance(health_result, dict)
             assert "status" in health_result
             assert "timestamp" in health_result
         except Exception as e:
-            pytest.skip(f"NiFi not available for health check: {e}")
+            pytest.fail(f"NiFi health check failed with exception: {e}")
 
     @pytest.mark.asyncio
-    async def test_registry_health_check_with_real_instance(self, health_service: HealthService):
+    async def test_registry_health_check_with_real_instance(self):
         """Test NiFi Registry health check against real Registry instance."""
+        service = HealthService(
+            nifi_url=settings.NIFI_URL,
+            registry_url=settings.NIFI_REGISTRY_URL,
+        )
         try:
-            health_result = await health_service.check_registry_health()
+            health_result = await service.check_registry_health()
             assert isinstance(health_result, dict)
             assert "status" in health_result
             assert "timestamp" in health_result
         except Exception as e:
-            pytest.skip(f"NiFi Registry not available for health check: {e}")
+            pytest.fail(f"NiFi Registry health check failed with exception: {e}")
 
     @pytest.mark.asyncio
-    async def test_comprehensive_health_check(self, health_service: HealthService):
+    async def test_comprehensive_health_check(self):
         """Test comprehensive health check of both NiFi and Registry."""
+        service = HealthService(
+            nifi_url=settings.NIFI_URL,
+            registry_url=settings.NIFI_REGISTRY_URL,
+        )
         try:
-            comprehensive_result = await health_service.comprehensive_health_check()
+            comprehensive_result = await service.comprehensive_health_check()
             assert isinstance(comprehensive_result, dict)
             assert "overall_status" in comprehensive_result
             assert "nifi" in comprehensive_result
             assert "registry" in comprehensive_result
         except Exception as e:
-            pytest.skip(f"Services not available for comprehensive health check: {e}")
+            pytest.fail(f"Comprehensive health check failed with exception: {e}")
 
     @pytest.mark.asyncio
-    async def test_get_detailed_diagnostics(self, health_service: HealthService):
+    async def test_get_detailed_diagnostics(self):
         """Test detailed diagnostics collection from NiFi."""
+        service = HealthService(
+            nifi_url=settings.NIFI_URL,
+            registry_url=settings.NIFI_REGISTRY_URL,
+        )
         try:
-            diagnostics = await health_service.get_detailed_diagnostics()
+            diagnostics = await service.get_detailed_diagnostics()
             assert isinstance(diagnostics, dict)
             assert "timestamp" in diagnostics
         except Exception as e:
-            pytest.skip(f"NiFi not available for diagnostics collection: {e}")
+            pytest.fail(f"Detailed diagnostics collection failed with exception: {e}")
 
     @pytest.mark.asyncio
     async def test_health_service_error_handling(self):

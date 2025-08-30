@@ -386,12 +386,58 @@ class NiFiAPIClient:
             }
         }
         
+        # Add properties to the component if provided
+        if properties:
+            # Ensure property values are properly formatted as strings
+            formatted_properties = {}
+            for key, value in properties.items():
+                if isinstance(value, (dict, list)):
+                    formatted_properties[key] = json.dumps(value)
+                else:
+                    formatted_properties[key] = str(value) if value is not None else ""
+            processor_data["component"]["properties"] = formatted_properties
+            
+        # Add scheduling configuration if provided
+        if scheduling:
+            config = {}
+            config["schedulingPeriod"] = scheduling.get("period", "0 sec")
+            config["schedulingStrategy"] = scheduling.get("strategy", "TIMER_DRIVEN")
+            config["concurrentlySchedulableTaskCount"] = scheduling.get("concurrent_tasks", 1)
+            processor_data["component"]["config"] = config
+            
         async with self.session.post(
             f"{self.nifi_url}/process-groups/{parent_group_id}/processors",
             json=processor_data
         ) as response:
-            response.raise_for_status()
-            return await response.json()
+            # Log detailed request and response information for debugging
+            log.debug(f"NiFi API Request - URL: {response.url}")
+            log.debug(f"NiFi API Request - Method: POST")
+            log.debug(f"NiFi API Request - Headers: {getattr(self.session, 'headers', {})}")
+            log.debug(f"NiFi API Request - Body: {processor_data}")
+            
+            try:
+                response.raise_for_status()
+                result = await response.json()
+                log.debug(f"NiFi API Response - Status: {response.status}")
+                log.debug(f"NiFi API Response - Body: {result}")
+                return result
+            except aiohttp.ClientResponseError as e:
+                # Try to get error details
+                try:
+                    error_text = await response.text()
+                    log.error(f"NiFi API Error (create processor): {response.status} - {error_text}")
+                    log.error(f"Request URL: {response.url}")
+                    log.error(f"Request data: {processor_data}")
+                except Exception as ex:
+                    log.error(f"Failed to read error response: {ex}")
+                
+                # Re-raise with more context
+                raise Exception(f"Failed to create processor '{name}' of type '{processor_type}': {response.status} - {e.message}") from e
+            except Exception as e:
+                log.error(f"Unexpected error creating processor '{name}' of type '{processor_type}': {str(e)}")
+                log.error(f"Request URL: {response.url}")
+                log.error(f"Request data: {processor_data}")
+                raise Exception(f"Unexpected error creating processor '{name}' of type '{processor_type}': {str(e)}") from e
 
     async def get_processor(self, processor_id: str) -> Dict[str, Any]:
         """Get processor details by ID."""

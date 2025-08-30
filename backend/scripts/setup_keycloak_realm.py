@@ -40,6 +40,7 @@ ATOMIC_ROLES = [
     {"name": "admin", "description": "Administrator role"},
     {"name": "workflow:read", "description": "Can read workflow templates and configurations"},
     {"name": "workflow:write", "description": "Can create and modify workflows"},
+    {"name": "workflow:execute", "description": "Can execute workflows"},
     {"name": "workflow:admin", "description": "Advanced workflow management"},
 ]
 
@@ -53,6 +54,7 @@ COMPOSITE_ROLES = {
             "schemas:update",
             "workflow:read",
             "workflow:write",
+            "workflow:execute",
             "admin"
         ]
     },

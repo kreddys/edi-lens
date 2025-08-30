@@ -948,6 +948,7 @@ class WorkflowStatusResponse(BaseModel):
     """Response schema for detailed workflow status."""
     workflow_id: str = Field(..., description="Workflow ID")
     status: WorkflowStatus = Field(..., description="Current workflow status")
+    is_deployed: bool = Field(..., description="Whether the workflow is deployed to NiFi")
     nifi_status: Optional[str] = Field(None, description="NiFi process group status")
     deployment_status: Optional[str] = Field(None, description="Deployment status")
     last_execution: Optional[datetime] = Field(None, description="Last execution timestamp")
