@@ -11,7 +11,8 @@ from pathlib import Path
 import os
 import openlit
 
-from src.api.endpoints import auth, schemas, edi, workflow_templates, workflows, workflow_execution
+
+from src.api.endpoints import auth, schemas, workflow_templates, workflows, workflow_execution
 from src.core.auth import get_current_user, User
 from src.core.config import setup_logging, settings
 from src.core.audit import before_flush, after_flush_postexec
@@ -97,7 +98,6 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 api_router.include_router(auth.router, tags=["Authentication"])
-api_router.include_router(edi.router, tags=["EDI Processing"])
 api_router.include_router(schemas.router, tags=["Schema Management"])
 api_router.include_router(workflow_templates.router, tags=["Workflow Templates"])
 api_router.include_router(workflows.router, tags=["Workflows"])
