@@ -15,7 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.nifi.clients.nifi_client import NiFiAPIClient
 from src.nifi.clients.registry_client import NiFiRegistryClient
 from src.services.nifi_workflow_service import NiFiWorkflowService, NiFiWorkflowDeploymentError
-from src.models.workflow_template import Workflow, WorkflowTemplate
+from src.models.workflow_template import Workflow
+from src.models.registry_models import RegistryTemplate
+from src.services.registry_service import RegistryService
 from src.core.config import settings
 
 
@@ -28,43 +30,46 @@ def workflow_service(db_session: AsyncSession) -> NiFiWorkflowService:
     return NiFiWorkflowService(db_session)
 
 
-async def create_test_template(db_session: AsyncSession) -> WorkflowTemplate:
-    """Helper function to create a test workflow template."""
-    template = WorkflowTemplate(
-        template_id=f"error-test-template-{uuid4()}",
+async def create_test_template(db_session: AsyncSession) -> RegistryTemplate:
+    """Helper function to create a test workflow template using Registry-first architecture."""
+    registry_service = RegistryService(db_session)
+    
+    flow_definition = {
+        "identifier": f"error-test-flow-{uuid4()}",
+        "name": f"Error Test Flow {uuid4()}",
+        "description": "Flow for error recovery testing",
+        "processors": [
+            {
+                "identifier": f"test-processor-{uuid4()}",
+                "name": "Test Processor",
+                "type": "org.apache.nifi.processors.standard.GenerateFlowFile",
+                "position": {"x": 100.0, "y": 100.0},
+                "properties": {"File Size": "1KB"},
+                "autoTerminatedRelationships": ["success"]
+            }
+        ],
+        "connections": [],
+        "processGroups": [],
+        "controllerServices": [],
+        "funnels": [],
+        "inputPorts": [],
+        "outputPorts": [],
+        "remoteProcessGroups": [],
+        "labels": [],
+        "variables": {}
+    }
+    
+    template = await registry_service.create_template(
         name=f"Error Test Template {uuid4()}",
-        category="BATCH",
+        description="Template for error recovery testing",
+        flow_definition=flow_definition,
         scope="TENANT",
-        tenant_id="tenant-error-test",
-        flow_definition={
-            "identifier": f"error-test-flow-{uuid4()}",
-            "name": f"Error Test Flow {uuid4()}",
-            "description": "Flow for error recovery testing",
-            "processors": [
-                {
-                    "identifier": f"test-processor-{uuid4()}",
-                    "name": "Test Processor",
-                    "type": "org.apache.nifi.processors.standard.GenerateFlowFile",
-                    "position": {"x": 100.0, "y": 100.0},
-                    "properties": {"File Size": "1KB"},
-                    "autoTerminatedRelationships": ["success"]
-                }
-            ],
-            "connections": [],
-            "processGroups": [],
-            "controllerServices": []
-        },
-        configuration_schema={
-            "type": "object", "properties": {"test_param": {"type": "string", "default": "test"}}
-        }
+        tenant_id="tenant-error-test"
     )
-    db_session.add(template)
-    await db_session.commit()
-    await db_session.refresh(template)
     return template
 
 
-async def create_test_workflow(workflow_service: NiFiWorkflowService, template: WorkflowTemplate) -> Workflow:
+async def create_test_workflow(workflow_service: NiFiWorkflowService, template: RegistryTemplate) -> Workflow:
     """Helper function to create a test workflow."""
     workflow_data = {
         "name": f"Error Test Workflow {uuid4()}",

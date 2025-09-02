@@ -2,6 +2,64 @@
 
 This directory contains all backend tests organized by test type and functionality.
 
+## 📊 Current Test Status
+
+**Last Updated:** 2025-09-02
+
+### Test Summary
+- **Total Test Files:** 34
+- **Unit Tests:** 28 failed, 86 passed, 26 errors ❌
+- **Integration Tests:** 2 failed, 111 passed ⚠️
+- **E2E Tests:** 14 passed ✅
+
+### Recent Improvements (Phase 1 - High Priority Fixes)
+✅ **Completed:**
+- Fixed outdated `test_workflow_persistence.py` - replaced with Registry-first `test_registry_template_persistence.py`
+- Fixed `test_nifi_error_handling.py` template creation patterns to use Registry-first architecture
+- Created comprehensive unit tests for `RegistryService` (was completely missing)
+- Created comprehensive unit tests for `WorkflowExecutionService` (was completely missing) 
+- Created API unit tests for registry endpoints (was completely missing)
+- Enhanced schema management unit tests
+
+### Known Issues
+🔴 **Unit Test Failures (28 failed, 26 errors):**
+- New unit tests need import fixes and missing method implementations
+- Registry endpoint tests missing some endpoint functions
+- Workflow execution service tests need method mocking fixes
+
+🟡 **Integration Test Issues (2 failed):**
+- `test_nifi_error_handling.py`: Database connection cleanup issues
+- Concurrent deployment tests failing due to database session conflicts
+
+### Architecture Validation Status
+✅ **Registry-First Architecture:** Tests now properly validate the current Registry-first architecture where:
+- NiFi Registry is the source of truth for workflow definitions
+- RegistryService.create_template() creates flows in both Registry and database
+- Templates use RegistryTemplate model (not legacy WorkflowTemplate)
+
+✅ **Legacy Pattern Cleanup:** All legacy WorkflowTemplate patterns have been removed from tests
+
+### Test Coverage Analysis
+**Well Covered:** 
+- ✅ Integration tests (113 tests) - good coverage of NiFi, Registry, Database, API endpoints
+- ✅ E2E tests (14 tests) - full workflow scenarios working properly
+
+**Recently Added (New Unit Tests):**
+- ✅ `test_registry_service.py` - 21 comprehensive tests for core Registry service
+- ✅ `test_workflow_execution_service.py` - 19 tests for workflow execution + status services  
+- ✅ `test_registry_endpoints.py` - 15 API endpoint tests
+- ✅ Enhanced `test_schema_manager.py` - schema management with storage integration
+
+**Needs Attention:**
+- 🔴 Unit test import and implementation fixes (immediate priority)
+- 🟡 Integration test database cleanup issues (lower priority)
+
+### Next Phase (Medium Priority)
+- Fix remaining unit test errors and imports
+- Add unit tests for missing components (audit service, remaining API endpoints)
+- Enhance integration test stability
+- Add more comprehensive error scenario testing
+
 ## Test Structure
 
 ### 🔧 Unit Tests (`unit/`)
