@@ -121,22 +121,16 @@ async def seed_builtin_templates_for_e2e():
         return
         
     try:
-        from src.nifi.services.built_in_templates_service import BuiltInTemplatesService
+        from src.services.built_in_template_service import BuiltInTemplateService
         from src.core.config import settings
         
         # Create database session
         async with TestAsyncSessionLocal() as session:
             # Initialize service with proper settings
-            from pathlib import Path
-            templates_dir = Path(__file__).parent.parent / "data/templates/builtin"
-            
-            service = BuiltInTemplatesService(
-                registry_url=settings.NIFI_REGISTRY_URL,
-                templates_dir=str(templates_dir)
-            )
+            service = BuiltInTemplateService()
             
             # Seed all built-in templates
-            result = await service.seed_built_in_templates(session)
+            result = await service.seed_templates(session)
             await session.commit()
             
             seeded_count = len(result.get('seeded', []))

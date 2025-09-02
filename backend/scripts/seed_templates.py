@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.core.database import get_db
-from src.nifi.services.template_seeder_service import TemplateSeederService
+from src.services.template_service import TemplateService
 
 # Configure logging
 logging.basicConfig(
@@ -31,15 +31,10 @@ async def seed_built_in_templates(force: bool = False) -> int:
     try:
         logger.info("Seeding built-in templates...")
         
-        # Initialize template seeder service
-        seeder_service = TemplateSeederService(
-            registry_url=settings.NIFI_REGISTRY_URL,
-            registry_auth_token=settings.NIFI_REGISTRY_AUTH_TOKEN
-        )
-        
         # Get database session
         async for session in get_db():
-            results = await seeder_service.seed_built_in_templates(session)
+            template_service = TemplateService(session)
+            results = await template_service.seed_templates()
             
             # Log results
             logger.info(f"Seeded {len(results['seeded'])} templates:")
@@ -65,33 +60,13 @@ async def seed_built_in_templates(force: bool = False) -> int:
 
 
 async def seed_all_templates(force: bool = False) -> int:
-    """Seed all templates (built-in and custom)."""
+    """Seed all templates (currently only built-in templates are supported)."""
     try:
-        logger.info("Seeding all templates...")
+        logger.info("Seeding all templates (currently only built-in)...")
         
-        # Initialize template seeder service
-        seeder_service = TemplateSeederService(
-            registry_url=settings.NIFI_REGISTRY_URL,
-            registry_auth_token=settings.NIFI_REGISTRY_AUTH_TOKEN
-        )
+        # For now, just delegate to built-in template seeding
+        return await seed_built_in_templates(force)
         
-        # Get database session
-        async for session in get_db():
-            results = await seeder_service.seed_all_templates(session)
-            
-            # Log results
-            logger.info("Built-in template results:")
-            logger.info(f"  Seeded: {len(results['built_in']['seeded'])}")
-            logger.info(f"  Skipped: {len(results['built_in']['skipped'])}")
-            logger.info(f"  Errors: {len(results['built_in']['errors'])}")
-            
-            if results['built_in']['seeded']:
-                logger.info("Seeded built-in templates:")
-                for result in results['built_in']['seeded']:
-                    logger.info(f"  - {result['name']} ({result['template_id']})")
-            
-            return results['total_errors']
-            
     except Exception as e:
         logger.error(f"Failed to seed all templates: {str(e)}")
         return 1
@@ -99,89 +74,21 @@ async def seed_all_templates(force: bool = False) -> int:
 
 async def import_template_from_file(file_path: str) -> int:
     """Import template from JSON file."""
-    try:
-        logger.info(f"Importing template from {file_path}...")
-        
-        # Initialize template seeder service
-        seeder_service = TemplateSeederService(
-            registry_url=settings.NIFI_REGISTRY_URL,
-            registry_auth_token=settings.NIFI_REGISTRY_AUTH_TOKEN
-        )
-        
-        # Get database session
-        async for session in get_db():
-            result = await seeder_service.import_template_from_file(session, file_path)
-            logger.info(f"Import result: {result}")
-            return 0
-            
-    except NotImplementedError:
-        logger.error("Template import from file not yet implemented")
-        return 1
-    except Exception as e:
-        logger.error(f"Failed to import template from {file_path}: {str(e)}")
-        return 1
+    logger.error("Template import from file is not yet implemented in the NiFi Registry-first architecture")
+    return 1
 
 
 async def export_template_to_file(template_id: str, file_path: str) -> int:
     """Export template to JSON file."""
-    try:
-        logger.info(f"Exporting template {template_id} to {file_path}...")
-        
-        # Initialize template seeder service
-        seeder_service = TemplateSeederService(
-            registry_url=settings.NIFI_REGISTRY_URL,
-            registry_auth_token=settings.NIFI_REGISTRY_AUTH_TOKEN
-        )
-        
-        # Get database session
-        async for session in get_db():
-            result = await seeder_service.export_template_to_file(session, template_id, file_path)
-            logger.info(f"Export result: {result}")
-            return 0 if result else 1
-            
-    except NotImplementedError:
-        logger.error("Template export to file not yet implemented")
-        return 1
-    except Exception as e:
-        logger.error(f"Failed to export template {template_id} to {file_path}: {str(e)}")
-        return 1
+    logger.error("Template export to file is not yet implemented in the NiFi Registry-first architecture")
+    return 1
 
 
 async def register_templates_in_registry() -> int:
     """Register all templates in NiFi Registry."""
-    try:
-        logger.info("Registering templates in NiFi Registry...")
-        
-        # Initialize template seeder service
-        seeder_service = TemplateSeederService(
-            registry_url=settings.NIFI_REGISTRY_URL,
-            registry_auth_token=settings.NIFI_REGISTRY_AUTH_TOKEN
-        )
-        
-        # Get database session
-        async for session in get_db():
-            results = await seeder_service.register_all_templates_in_registry(session)
-            
-            # Log results
-            logger.info(f"Registered {len(results['registered'])} templates in NiFi Registry")
-            logger.info(f"Skipped {len(results['skipped'])} templates")
-            logger.info(f"Errors registering {len(results['errors'])} templates")
-            
-            if results['registered']:
-                logger.info("Successfully registered templates:")
-                for result in results['registered']:
-                    logger.info(f"  - {result['name']} ({result['template_id']})")
-            
-            if results['errors']:
-                logger.error("Errors during registration:")
-                for error in results['errors']:
-                    logger.error(f"  - {error['name']} ({error['template_id']}): {error['error']}")
-            
-            return len(results['errors'])
-            
-    except Exception as e:
-        logger.error(f"Failed to register templates in NiFi Registry: {str(e)}")
-        return 1
+    logger.info("In the NiFi Registry-first architecture, templates are automatically registered during seeding")
+    logger.info("Use the 'built-in' command to seed templates into both the database and NiFi Registry")
+    return 0
 
 
 def main():

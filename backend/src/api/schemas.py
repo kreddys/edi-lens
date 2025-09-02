@@ -1139,10 +1139,11 @@ class RegistryTemplateResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class WorkflowInstanceCreateRequest(BaseModel):
-    """Request schema for creating a workflow instance."""
-    name: str = Field(..., min_length=1, max_length=255, description="Workflow instance name")
-    description: Optional[str] = Field(None, max_length=1000, description="Workflow instance description")
+class WorkflowCreateRequest(BaseModel):
+    """Request schema for creating a workflow."""
+    name: str = Field(..., min_length=1, max_length=255, description="Workflow name")
+    description: Optional[str] = Field(None, max_length=1000, description="Workflow description")
+    template_id: PyUUID = Field(..., description="Template ID to create workflow from")
     configuration: Dict[str, Any] = Field(default_factory=dict, description="Instance configuration parameters")
     template_version: Optional[int] = Field(None, description="Specific template version to use (defaults to current)")
 
@@ -1163,11 +1164,11 @@ class WorkflowInstanceCreateRequest(BaseModel):
     )
 
 
-class WorkflowInstanceResponse(BaseModel):
-    """Response schema for workflow instance."""
-    workflow_id: PyUUID = Field(..., description="Workflow instance ID")
-    name: str = Field(..., description="Workflow instance name")
-    description: Optional[str] = Field(None, description="Workflow instance description")
+class WorkflowResponse(BaseModel):
+    """Response schema for workflow."""
+    workflow_id: PyUUID = Field(..., description="Workflow ID")
+    name: str = Field(..., description="Workflow name")
+    description: Optional[str] = Field(None, description="Workflow description")
     tenant_id: str = Field(..., description="Tenant ID")
     template_id: PyUUID = Field(..., description="Template ID")
     template_version: int = Field(..., description="Template version used")

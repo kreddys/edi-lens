@@ -11,7 +11,7 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from src.nifi.clients.registry_client import NiFiRegistryClient
-from src.models.workflow_template import WorkflowTemplate
+from src.models.registry_models import RegistryTemplate
 from src.core.config import settings
 from src.core.database import get_db
 
@@ -28,7 +28,7 @@ class TestNiFiTemplateManagementIntegration:
         try:
             # Create a test template with proper NiFi flow definition structure
             template_id = f"test-registry-template-{uuid4()}"
-            template = WorkflowTemplate(
+            template = RegistryTemplate(
                 template_id=template_id,
                 name=f"Test Registry Template {uuid4()}",
                 category="BATCH",

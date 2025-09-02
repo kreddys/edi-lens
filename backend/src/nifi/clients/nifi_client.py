@@ -127,7 +127,7 @@ class NiFiAPIClient:
             f"{self.nifi_url}/process-groups/{parent_group_id}/process-groups",
             json=process_group_data
         ) as response:
-            response.raise_for_status()
+            await response.raise_for_status()
             return await response.json()
 
     async def get_process_group(self, process_group_id: str) -> Dict[str, Any]:
@@ -135,7 +135,7 @@ class NiFiAPIClient:
         async with self.session.get(
             f"{self.nifi_url}/process-groups/{process_group_id}"
         ) as response:
-            response.raise_for_status()
+            await response.raise_for_status()
             return await response.json()
 
     async def update_process_group(
@@ -165,7 +165,7 @@ class NiFiAPIClient:
             f"{self.nifi_url}/process-groups/{process_group_id}",
             json=update_data
         ) as response:
-            response.raise_for_status()
+            await response.raise_for_status()
             return await response.json()
 
     async def delete_process_group(
@@ -178,7 +178,7 @@ class NiFiAPIClient:
             f"{self.nifi_url}/process-groups/{process_group_id}",
             params={"version": version}
         ) as response:
-            response.raise_for_status()
+            await response.raise_for_status()
             return response.status == 200
 
     async def start_process_group(self, process_group_id: str) -> Dict[str, Any]:

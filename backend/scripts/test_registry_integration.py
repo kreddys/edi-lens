@@ -119,7 +119,7 @@ class RegistryTester:
             registry_service = RegistryService(session)
             
             try:
-                workflow = await registry_service.create_workflow_instance(
+                workflow = await registry_service.create_workflow(
                     template_id=template.template_id,
                     name="Test Workflow Instance",
                     tenant_id="test-tenant",

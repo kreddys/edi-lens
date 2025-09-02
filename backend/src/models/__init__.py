@@ -8,8 +8,10 @@ from .audit_log import AuditLog
 from .validation_transaction import ValidationTransaction
 from .processing_log import ProcessingLog
 
-# Registry-first workflow models (NEW)
-from .registry_models import RegistryTemplate, WorkflowInstance, RegistryBucket
+# Registry models
+from .registry_models import RegistryTemplate, RegistryBucket
+# Workflow models  
+from .workflow_models import Workflow
 
 # Legacy workflow models (OLD - will be removed)
 # from .workflow_template import WorkflowTemplate, TemplateVersion, TemplateUsage, Workflow
