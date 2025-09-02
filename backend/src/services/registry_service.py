@@ -18,7 +18,7 @@ from src.core.config import settings
 from src.models.registry_models import RegistryTemplate, WorkflowInstance, RegistryBucket
 from src.nifi.clients.registry_client import NiFiRegistryClient
 from src.nifi.clients.nifi_client import NiFiAPIClient
-from src.nifi.services.registry_integration_service import RegistryIntegrationService
+import json
 
 log = logging.getLogger(__name__)
 
@@ -422,13 +422,11 @@ class RegistryService:
                 param_context = await self._create_parameter_context(workflow, nifi_client)
                 
                 # Deploy from Registry using version control
-                integration_service = RegistryIntegrationService()
-                
                 # Ensure Registry client is set up in NiFi
-                await integration_service.setup_registry_integration()
+                await self.setup_registry_integration()
                 
                 # Deploy from Registry
-                process_group = await integration_service.deploy_from_registry(
+                process_group = await self.deploy_from_registry(
                     nifi_client=nifi_client,
                     parent_group_id=root_pg_id,
                     bucket_id=str(workflow.template.bucket_id),
@@ -574,30 +572,395 @@ class RegistryService:
         
         return param_context
     
-    async def _deploy_from_registry(
+    # === Registry Integration Methods ===
+    
+    async def setup_registry_integration(self) -> Dict[str, Any]:
+        """
+        Set up NiFi Registry integration by registering the Registry client with NiFi.
+        
+        Returns:
+            Registry client information from NiFi
+        """
+        try:
+            async with NiFiAPIClient(
+                settings.NIFI_URL,
+                username=settings.NIFI_USERNAME,
+                password=settings.NIFI_PASSWORD
+            ) as nifi_client:
+                
+                # Check if registry client already exists
+                existing_clients = await self._list_registry_clients(nifi_client)
+                registry_client = None
+                
+                for client in existing_clients:
+                    component = client.get("component", {})
+                    # Check various possible fields where the URL might be stored
+                    if (component.get("uri") == settings.NIFI_REGISTRY_URL or
+                        component.get("properties", {}).get("url") == settings.NIFI_REGISTRY_URL or
+                        component.get("properties", {}).get("URL") == settings.NIFI_REGISTRY_URL or
+                        "EDI Lens Registry" in component.get("name", "")):
+                        registry_client = client
+                        break
+                
+                if registry_client:
+                    log.info(f"Registry client already exists: {registry_client['component']['name']}")
+                    return registry_client
+                
+                # Create new registry client
+                registry_client = await self._create_registry_client(nifi_client)
+                log.info(f"Created registry client: {registry_client['component']['name']}")
+                return registry_client
+                
+        except Exception as e:
+            log.error(f"Failed to setup registry integration: {str(e)}")
+            raise RegistryServiceError(f"Failed to setup registry integration: {str(e)}")
+    
+    async def deploy_from_registry(
         self,
-        workflow: WorkflowInstance,
         nifi_client: NiFiAPIClient,
         parent_group_id: str,
-        registry_client_id: Optional[str] = None
+        bucket_id: str,
+        flow_id: str,
+        flow_version: int,
+        process_group_name: str,
+        position: Dict[str, int] = None
     ) -> Dict[str, Any]:
-        """Deploy process group from Registry using version control."""
+        """
+        Deploy a process group from Registry using NiFi's version control.
         
-        # For now, we'll create a simple process group and then set up version control
-        # In a full implementation, this would use NiFi's version control APIs
+        Args:
+            nifi_client: NiFi API client
+            parent_group_id: Parent process group ID
+            bucket_id: Registry bucket ID
+            flow_id: Registry flow ID
+            flow_version: Flow version to deploy
+            process_group_name: Name for the process group
+            position: Position for the process group
+            
+        Returns:
+            Created process group information
+        """
+        try:
+            # 1. Get registry client ID
+            registry_clients = await self._list_registry_clients(nifi_client)
+            registry_client = None
+            
+            for client in registry_clients:
+                component = client.get("component", {})
+                name = component.get("name", "")
+                
+                # Check URI in various locations
+                uri = (component.get("uri") or 
+                      component.get("url") or
+                      component.get("properties", {}).get("url") or
+                      component.get("properties", {}).get("URL"))
+                        
+                # Match by URI or by name
+                if (uri == settings.NIFI_REGISTRY_URL or 
+                    "EDI Lens Registry" in name):
+                    registry_client = client
+                    log.info(f"Found matching registry client: {name} with URI: {uri}")
+                    break
+            
+            if not registry_client:
+                raise ValueError("Registry client not found. Run setup_registry_integration() first.")
+            
+            registry_client_id = registry_client["component"]["id"]
+            
+            # 2. Get the flow snapshot from Registry
+            async with NiFiRegistryClient(settings.NIFI_REGISTRY_URL) as registry_client:
+                flow_snapshot = await registry_client.get_flow_version(
+                    bucket_id=bucket_id,
+                    flow_id=flow_id,
+                    version=flow_version
+                )
+            
+            log.debug(f"Retrieved flow snapshot with {len(flow_snapshot.get('flowContents', {}).get('processors', []))} processors")
+            
+            # 3. Try direct import using the process-groups/import endpoint
+            import_data = {
+                "disconnectedNodeAcknowledged": False,
+                "groupName": process_group_name,
+                "positionDTO": position or {"x": 100, "y": 100},
+                "revisionDTO": {"version": 0},
+                "flowSnapshot": flow_snapshot
+            }
+            
+            log.debug(f"Attempting direct import from Registry")
+            
+            import_response = await nifi_client.session.post(
+                f"{nifi_client.nifi_url}/process-groups/{parent_group_id}/process-groups/import",
+                json=import_data
+            )
+            
+            log.debug(f"Import response status: {import_response.status}")
+            
+            if import_response.status == 200:
+                # Success! Process group imported with content
+                process_group = await import_response.json()
+                log.info(f"Successfully imported process group {process_group['component']['id']} with content from Registry")
+                
+                # Try to set up version control on the imported process group
+                await self._setup_version_control(
+                    nifi_client, process_group, registry_client_id, 
+                    bucket_id, flow_id, flow_version
+                )
+                
+                return process_group
+            else:
+                # Fallback: Create empty process group and populate manually
+                log.warning(f"Direct import failed ({import_response.status}), using fallback approach")
+                
+                # Create empty process group
+                pg_data = {
+                    "revision": {"version": 0},
+                    "component": {
+                        "name": process_group_name,
+                        "position": position or {"x": 100, "y": 100}
+                    }
+                }
+                
+                response = await nifi_client.session.post(
+                    f"{nifi_client.nifi_url}/process-groups/{parent_group_id}/process-groups",
+                    json=pg_data
+                )
+                response.raise_for_status()
+                process_group = await response.json()
+                
+                log.info(f"Created empty process group {process_group['component']['id']}")
+                
+                # Populate with Registry content
+                await self._populate_process_group_from_registry(
+                    nifi_client, process_group, flow_snapshot
+                )
+                
+                # Try to set up version control
+                await self._setup_version_control(
+                    nifi_client, process_group, registry_client_id, 
+                    bucket_id, flow_id, flow_version
+                )
+                
+                return process_group
+            
+        except Exception as e:
+            log.error(f"Failed to deploy from Registry: {str(e)}")
+            raise RegistryServiceError(f"Failed to deploy from Registry: {str(e)}")
+    
+    async def change_flow_version(
+        self,
+        nifi_client: NiFiAPIClient,
+        process_group_id: str,
+        new_version: int
+    ) -> Dict[str, Any]:
+        """
+        Change the version of a version-controlled process group.
         
-        # Create process group
-        process_group = await nifi_client.create_process_group(
-            parent_group_id=parent_group_id,
-            name=f"{workflow.name}-{workflow.workflow_id}",
-            position={"x": 100, "y": 100}
+        Args:
+            nifi_client: NiFi API client
+            process_group_id: Process group ID
+            new_version: New version to deploy
+            
+        Returns:
+            Updated process group information
+        """
+        try:
+            # Get current process group info
+            pg_info = await nifi_client.get_process_group(process_group_id)
+            version_control_info = pg_info["component"].get("versionControlInformation")
+            
+            if not version_control_info:
+                raise ValueError(f"Process group {process_group_id} is not version controlled")
+            
+            # Get the flow snapshot for the new version
+            async with NiFiRegistryClient(settings.NIFI_REGISTRY_URL) as registry_client:
+                flow_snapshot = await registry_client.get_flow_version(
+                    bucket_id=version_control_info["bucketId"],
+                    flow_id=version_control_info["flowId"],
+                    version=new_version
+                )
+            
+            # Update version using PUT endpoint
+            update_data = {
+                "processGroupRevision": pg_info["revision"],
+                "versionedFlowSnapshot": flow_snapshot,
+                "disconnectedNodeAcknowledged": False
+            }
+            
+            response = await nifi_client.session.put(
+                f"{nifi_client.nifi_url}/versions/process-groups/{process_group_id}",
+                json=update_data
+            )
+            response.raise_for_status()
+            result = await response.json()
+            
+            log.info(f"Changed process group {process_group_id} to version {new_version}")
+            return result
+            
+        except Exception as e:
+            log.error(f"Failed to change flow version: {str(e)}")
+            raise RegistryServiceError(f"Failed to change flow version: {str(e)}")
+    
+    async def _setup_version_control(
+        self,
+        nifi_client: NiFiAPIClient,
+        process_group: Dict[str, Any],
+        registry_client_id: str,
+        bucket_id: str,
+        flow_id: str,
+        flow_version: int
+    ) -> bool:
+        """Set up version control on a process group."""
+        try:
+            start_version_control_data = {
+                "processGroupRevision": process_group["revision"],
+                "versionControlInformation": {
+                    "registryId": registry_client_id,
+                    "bucketId": bucket_id,
+                    "flowId": flow_id,
+                    "version": flow_version,
+                    "storageLocation": bucket_id
+                },
+                "disconnectedNodeAcknowledged": False
+            }
+            
+            log.debug(f"Setting up version control on process group {process_group['component']['id']}")
+            
+            vc_response = await nifi_client.session.post(
+                f"{nifi_client.nifi_url}/versions/process-groups/{process_group['component']['id']}",
+                json=start_version_control_data
+            )
+            
+            log.debug(f"Version control response status: {vc_response.status}")
+            
+            if vc_response.status == 200:
+                log.info(f"Successfully set up version control for process group {process_group['component']['id']}")
+                return True
+            else:
+                vc_response_text = await vc_response.text()
+                log.warning(f"Version control setup returned {vc_response.status}: {vc_response_text}")
+                return False
+                
+        except Exception as e:
+            log.warning(f"Failed to set up version control: {str(e)}")
+            return False
+    
+    async def _populate_process_group_from_registry(
+        self,
+        nifi_client: NiFiAPIClient,
+        process_group: Dict[str, Any],
+        flow_snapshot: Dict[str, Any]
+    ) -> None:
+        """Manually populate a process group with content from a Registry flow snapshot."""
+        try:
+            flow_contents = flow_snapshot.get("flowContents", {})
+            pg_id = process_group["component"]["id"]
+            
+            log.info(f"Manually populating process group {pg_id} with Registry content")
+            
+            # Create processors from the flow
+            processors = flow_contents.get("processors", [])
+            processor_id_map = {}  # Map Registry IDs to NiFi IDs
+            
+            for processor in processors:
+                processor_data = {
+                    "revision": {"version": 0},
+                    "component": {
+                        "name": processor.get("name", "Unknown Processor"),
+                        "type": processor.get("type", "org.apache.nifi.processors.standard.LogMessage"),
+                        "position": processor.get("position", {"x": 100, "y": 100}),
+                        "config": {
+                            "properties": processor.get("properties", {}),
+                            "schedulingStrategy": processor.get("schedulingStrategy", "TIMER_DRIVEN"),
+                            "schedulingPeriod": processor.get("schedulingPeriod", "1 sec"),
+                            "concurrentlySchedulableTaskCount": processor.get("concurrentlySchedulableTaskCount", 1),
+                            "bulletinLevel": processor.get("bulletinLevel", "WARN")
+                        }
+                    }
+                }
+                
+                try:
+                    response = await nifi_client.session.post(
+                        f"{nifi_client.nifi_url}/process-groups/{pg_id}/processors",
+                        json=processor_data
+                    )
+                    if response.status == 201:
+                        created_processor = await response.json()
+                        processor_id_map[processor.get("identifier")] = created_processor["component"]["id"]
+                        log.debug(f"Created processor: {created_processor['component']['name']}")
+                    else:
+                        log.warning(f"Failed to create processor {processor.get('name')}: {response.status}")
+                except Exception as proc_error:
+                    log.warning(f"Error creating processor {processor.get('name')}: {str(proc_error)}")
+            
+            # Create connections from the flow
+            connections = flow_contents.get("connections", [])
+            for connection in connections:
+                try:
+                    source_id = processor_id_map.get(connection.get("source", {}).get("id"))
+                    dest_id = processor_id_map.get(connection.get("destination", {}).get("id"))
+                    
+                    if source_id and dest_id:
+                        connection_data = {
+                            "revision": {"version": 0},
+                            "component": {
+                                "name": connection.get("name", ""),
+                                "source": {
+                                    "id": source_id,
+                                    "groupId": pg_id,
+                                    "type": "PROCESSOR"
+                                },
+                                "destination": {
+                                    "id": dest_id,
+                                    "groupId": pg_id,
+                                    "type": "PROCESSOR"
+                                },
+                                "selectedRelationships": connection.get("selectedRelationships", ["success"])
+                            }
+                        }
+                        
+                        response = await nifi_client.session.post(
+                            f"{nifi_client.nifi_url}/process-groups/{pg_id}/connections",
+                            json=connection_data
+                        )
+                        if response.status == 201:
+                            log.debug(f"Created connection from {source_id} to {dest_id}")
+                        else:
+                            log.warning(f"Failed to create connection: {response.status}")
+                    else:
+                        log.warning(f"Could not map connection source/destination IDs")
+                        
+                except Exception as conn_error:
+                    log.warning(f"Error creating connection: {str(conn_error)}")
+            
+            log.info(f"Populated process group with {len(processors)} processors and {len(connections)} connections")
+            
+        except Exception as e:
+            log.warning(f"Failed to manually populate process group: {str(e)}")
+    
+    async def _list_registry_clients(self, nifi_client: NiFiAPIClient) -> list:
+        """List all registry clients in NiFi."""
+        response = await nifi_client.session.get(f"{nifi_client.nifi_url}/controller/registry-clients")
+        response.raise_for_status()
+        data = await response.json()
+        return data.get("registries", [])
+    
+    async def _create_registry_client(self, nifi_client: NiFiAPIClient) -> Dict[str, Any]:
+        """Create a new registry client in NiFi."""
+        registry_data = {
+            "revision": {"version": 0},
+            "component": {
+                "name": "EDI Lens Registry",
+                "type": "org.apache.nifi.registry.flow.NifiRegistryFlowRegistryClient",
+                "properties": {
+                    "url": settings.NIFI_REGISTRY_URL
+                },
+                "description": "EDI Lens NiFi Registry for workflow templates"
+            }
+        }
+        
+        response = await nifi_client.session.post(
+            f"{nifi_client.nifi_url}/controller/registry-clients",
+            json=registry_data
         )
-        
-        # TODO: Implement proper Registry-based deployment using NiFi's version control APIs
-        # This would involve:
-        # 1. Setting up version control on the process group
-        # 2. Importing the flow from Registry
-        # 3. Configuring parameter contexts
-        
-        log.info(f"Created process group {process_group['component']['id']} for workflow {workflow.workflow_id}")
-        return process_group
+        response.raise_for_status()
+        return await response.json()

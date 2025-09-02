@@ -13,7 +13,8 @@ from sqlalchemy import select
 
 from src.main import app
 from src.core.auth import get_current_user, User, RealmAccess
-from src.models.workflow_template import Workflow, WorkflowTemplate
+from src.models.workflow_template import Workflow
+from src.models.registry_models import RegistryTemplate
 from src.core.database import get_db
 from src.core.config import settings
 from contextlib import asynccontextmanager
@@ -114,20 +115,28 @@ class TestNiFiWorkflowAPIIntegration:
         workflow = None
         
         try:
-            # Create a test template
-            template_id = f"test-api-template-{uuid4()}"
-            template = WorkflowTemplate(
-                template_id=template_id,
+            # Create a test template using RegistryService to ensure it exists in both DB and NiFi Registry
+            from src.services.registry_service import RegistryService
+            registry_service = RegistryService(db_session)
+            
+            # Create template with flow definition so it exists in NiFi Registry
+            template = await registry_service.create_template(
                 name=f"Test API Template {uuid4()}",
-                category="BATCH",
-                scope="TENANT",
-                tenant_id="tenant-a",
+                description="Test template for API integration testing",
                 flow_definition={
                     "identifier": "test-flow",
                     "name": "Test Flow",
                     "description": "Test flow definition for API integration testing",
                     "processGroups": [],
-                    "processors": [],
+                    "processors": [
+                        {
+                            "identifier": str(uuid4()),
+                            "name": "Test Log Processor",
+                            "type": "org.apache.nifi.processors.standard.LogMessage",
+                            "position": {"x": 100, "y": 100},
+                            "properties": {"Log Level": "INFO", "Log Message": "Test message"}
+                        }
+                    ],
                     "controllerServices": [],
                     "funnels": [],
                     "inputPorts": [],
@@ -139,19 +148,9 @@ class TestNiFiWorkflowAPIIntegration:
                     "processGroupIdentifier": "test-flow",
                     "version": 1
                 },
-                configuration_schema={
-                    "type": "object",
-                    "properties": {
-                        "test_param": {
-                            "type": "string",
-                            "default": "test_value"
-                        }
-                    }
-                }
+                scope="TENANT",
+                tenant_id="tenant-a"
             )
-            db_session.add(template)
-            await db_session.commit()
-            await db_session.refresh(template)
             
             # Create a test workflow
             workflow_id = uuid4()
@@ -159,7 +158,7 @@ class TestNiFiWorkflowAPIIntegration:
                 workflow_id=workflow_id,
                 tenant_id="tenant-a",
                 name=f"Test API Workflow {uuid4()}",
-                template_id=template_id,
+                template_id=str(template.template_id),
                 configuration={
                     "test_param": "api_test_value",
                     "processing_options": {
@@ -355,20 +354,28 @@ class TestNiFiWorkflowAPIIntegration:
         workflow = None
         
         try:
-            # Create a test template
-            template_id = f"test-api-template-{uuid4()}"
-            template = WorkflowTemplate(
-                template_id=template_id,
-                name=f"Test API Template {uuid4()}",
-                category="BATCH",
-                scope="TENANT",
-                tenant_id="tenant-a",
+            # Create a test template using RegistryService to ensure it exists in both DB and NiFi Registry
+            from src.services.registry_service import RegistryService
+            registry_service = RegistryService(db_session)
+            
+            # Create template with flow definition so it exists in NiFi Registry
+            template = await registry_service.create_template(
+                name=f"Test Execution Template {uuid4()}",
+                description="Test template for workflow execution testing",
                 flow_definition={
-                    "identifier": "test-flow",
-                    "name": "Test Flow",
-                    "description": "Test flow definition for API integration testing",
+                    "identifier": "test-execution-flow",
+                    "name": "Test Execution Flow",
+                    "description": "Test flow for workflow execution",
                     "processGroups": [],
-                    "processors": [],
+                    "processors": [
+                        {
+                            "identifier": str(uuid4()),
+                            "name": "Log Processor",
+                            "type": "org.apache.nifi.processors.standard.LogMessage",
+                            "position": {"x": 200, "y": 200},
+                            "properties": {"Log Level": "INFO", "Log Message": "Processing EDI content"}
+                        }
+                    ],
                     "controllerServices": [],
                     "funnels": [],
                     "inputPorts": [],
@@ -377,22 +384,12 @@ class TestNiFiWorkflowAPIIntegration:
                     "labels": [],
                     "variables": {},
                     "connections": [],
-                    "processGroupIdentifier": "test-flow",
+                    "processGroupIdentifier": "test-execution-flow",
                     "version": 1
                 },
-                configuration_schema={
-                    "type": "object",
-                    "properties": {
-                        "test_param": {
-                            "type": "string",
-                            "default": "test_value"
-                        }
-                    }
-                }
+                scope="TENANT",
+                tenant_id="tenant-a"
             )
-            db_session.add(template)
-            await db_session.commit()
-            await db_session.refresh(template)
             
             # Create a test workflow
             workflow_id = uuid4()
@@ -400,7 +397,7 @@ class TestNiFiWorkflowAPIIntegration:
                 workflow_id=workflow_id,
                 tenant_id="tenant-a",
                 name=f"Test API Workflow {uuid4()}",
-                template_id=template_id,
+                template_id=str(template.template_id),
                 configuration={
                     "test_param": "api_test_value",
                     "processing_options": {

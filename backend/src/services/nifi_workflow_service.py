@@ -15,10 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from src.core.config import settings
-from src.models.workflow_template import Workflow, WorkflowTemplate, TemplateVersion
+from src.models.workflow_template import Workflow
+from src.models.registry_models import RegistryTemplate
 from src.nifi.clients.nifi_client import NiFiAPIClient
 from src.nifi.clients.registry_client import NiFiRegistryClient
 from src.api.schemas import WorkflowStatus
+from src.services.registry_service import RegistryService
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +35,7 @@ class NiFiWorkflowService:
     
     def __init__(self, session: AsyncSession):
         self.session = session
+        self.registry_service = RegistryService(session)
     
     async def create_workflow(self, workflow_data: dict, created_by: str) -> Workflow:
         """
@@ -72,14 +75,29 @@ class NiFiWorkflowService:
             # Get the template
             template = await self._get_template(workflow.template_id)
             
-            # Deploy to NiFi Registry if needed
-            registry_flow_id, registry_bucket_id = await self._ensure_template_in_registry(template)
-            
-            # Create parameter context
-            param_context = await self._create_parameter_context(workflow)
-            
-            # Deploy process group
-            process_group = await self._create_process_group(workflow, template, param_context)
+            # Use Registry service to deploy from Registry
+            async with NiFiAPIClient(
+                settings.NIFI_URL,
+                username=settings.NIFI_USERNAME,
+                password=settings.NIFI_PASSWORD
+            ) as nifi_client:
+                # Get root process group
+                root_pg = await nifi_client.get_process_group("root")
+                root_pg_id = root_pg["component"]["id"]
+                
+                # Deploy from Registry using the consolidated service
+                process_group = await self.registry_service.deploy_from_registry(
+                    nifi_client=nifi_client,
+                    parent_group_id=root_pg_id,
+                    bucket_id=str(template.bucket_id),
+                    flow_id=str(template.template_id),
+                    flow_version=template.current_version,
+                    process_group_name=f"{workflow.name}-{workflow.workflow_id}",
+                    position={"x": 100, "y": 100}
+                )
+                
+                # Create parameter context for workflow configuration
+                param_context = await self._create_parameter_context(workflow)
             
             # Update workflow with deployment information
             workflow.update_nifi_deployment(
@@ -280,9 +298,9 @@ class NiFiWorkflowService:
                 }
             }
     
-    async def _get_template(self, template_id: str) -> WorkflowTemplate:
-        """Get template from database."""
-        query = select(WorkflowTemplate).where(WorkflowTemplate.template_id == template_id)
+    async def _get_template(self, template_id: str) -> RegistryTemplate:
+        """Get template from Registry-first database."""
+        query = select(RegistryTemplate).where(RegistryTemplate.template_id == template_id)
         result = await self.session.execute(query)
         template = result.scalar_one_or_none()
         
@@ -291,7 +309,7 @@ class NiFiWorkflowService:
         
         return template
     
-    async def _ensure_template_in_registry(self, template: WorkflowTemplate) -> tuple[str, str]:
+    async def _ensure_template_in_registry(self, template: RegistryTemplate) -> tuple[str, str]:
         """
         Ensure template exists in NiFi Registry.
         
@@ -395,7 +413,7 @@ class NiFiWorkflowService:
     async def _create_process_group(
         self, 
         workflow: Workflow, 
-        template: WorkflowTemplate,
+        template: RegistryTemplate,
         param_context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
@@ -435,7 +453,7 @@ class NiFiWorkflowService:
         self,
         nifi_client,
         process_group_id: str,
-        template: WorkflowTemplate,
+        template: RegistryTemplate,
         workflow: Workflow,
         param_context: Dict[str, Any]
     ):

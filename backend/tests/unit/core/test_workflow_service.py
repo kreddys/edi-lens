@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from uuid import UUID, uuid4
 
 from src.services.nifi_workflow_service import NiFiWorkflowService, NiFiWorkflowDeploymentError
-from src.models.workflow_template import Workflow, WorkflowTemplate
+from src.models.workflow_template import Workflow
+from src.models.registry_models import RegistryTemplate
 
 
 pytestmark = pytest.mark.unit
@@ -29,11 +30,13 @@ class TestNiFiWorkflowService:
     @pytest.fixture
     def sample_workflow(self):
         """Create a sample workflow for testing."""
+        # Use the same UUID as the template for consistency
+        template_uuid = "12345678-1234-5678-9012-123456789012"
         return Workflow(
             workflow_id=uuid4(),
             tenant_id="tenant-123",
             name="Test Workflow",
-            template_id="template-456",
+            template_id=template_uuid,
             configuration={"test": "config"},
             status="ACTIVE"
         )
@@ -41,14 +44,16 @@ class TestNiFiWorkflowService:
     @pytest.fixture
     def sample_template(self):
         """Create a sample template for testing."""
-        return WorkflowTemplate(
-            template_id="template-456",
+        # Use a fixed UUID for consistent testing
+        template_uuid = UUID("12345678-1234-5678-9012-123456789012")
+        return RegistryTemplate(
+            template_id=template_uuid,
+            bucket_id=uuid4(),
             name="Test Template",
-            category="BATCH",
+            description="Test template for testing",
+            current_version=1,
             scope="TENANT",
-            tenant_id="tenant-123",
-            flow_definition={"test": "flow"},
-            configuration_schema={"test": "schema"}
+            tenant_id="tenant-123"
         )
 
     @pytest.mark.asyncio
@@ -59,21 +64,16 @@ class TestNiFiWorkflowService:
         execute_mock.scalar_one_or_none.return_value = sample_template
         mock_session.execute = AsyncMock(return_value=execute_mock)
         
-        # Mock NiFi clients
-        mock_registry_client = AsyncMock()
-        mock_registry_client.list_buckets = AsyncMock(return_value=[])
-        mock_registry_client.create_bucket = AsyncMock(return_value={"identifier": "bucket-123"})
-        mock_registry_client.list_flows = AsyncMock(return_value=[])
-        mock_registry_client.create_flow = AsyncMock(return_value={"identifier": "flow-456"})
-        mock_registry_client.get_flow_version.side_effect = Exception("Not found")
-        mock_registry_client.create_flow_version = AsyncMock()
+        # Mock registry service
+        mock_registry_service = AsyncMock()
+        mock_registry_service.deploy_from_registry = AsyncMock(return_value={"component": {"id": "pg-456"}})
         
+        # Mock NiFi client
         mock_nifi_client = AsyncMock()
         mock_nifi_client.get_process_group = AsyncMock(return_value={"component": {"id": "root-789"}})
         mock_nifi_client.create_parameter_context = AsyncMock(return_value={"component": {"id": "param-123"}})
-        mock_nifi_client.create_process_group = AsyncMock(return_value={"component": {"id": "pg-456"}})
         
-        # Create proper async context manager mocks for the clients
+        # Create proper async context manager mock for the client
         class AsyncContextManagerMock:
             def __init__(self, return_value):
                 self.return_value = return_value
@@ -84,27 +84,23 @@ class TestNiFiWorkflowService:
             async def __aexit__(self, exc_type, exc_val, exc_tb):
                 pass
         
-        mock_registry_context = AsyncContextManagerMock(mock_registry_client)
         mock_nifi_context = AsyncContextManagerMock(mock_nifi_client)
         
-        with patch('src.services.nifi_workflow_service.NiFiRegistryClient') as mock_registry, \
-             patch('src.services.nifi_workflow_service.NiFiAPIClient') as mock_nifi:
+        with patch('src.services.nifi_workflow_service.NiFiAPIClient') as mock_nifi, \
+             patch.object(NiFiWorkflowService, '_create_parameter_context', new=AsyncMock(return_value={"component": {"id": "param-123"}})):
             
-            mock_registry.return_value = mock_registry_context
             mock_nifi.return_value = mock_nifi_context
             
-            # Create service and deploy workflow
+            # Create service and inject mock registry service
             service = NiFiWorkflowService(mock_session)
+            service.registry_service = mock_registry_service
+            
             result = await service.deploy_workflow(sample_workflow)
             
             # Verify results
             assert result.nifi_process_group_id == "pg-456"
             assert result.nifi_parameter_context_id == "param-123"
             assert result.status == "ACTIVE"
-            
-            # Verify template was updated with registry info
-            assert sample_template.nifi_registry_flow_id == "flow-456"
-            assert sample_template.nifi_registry_bucket_id == "bucket-123"
 
     @pytest.mark.asyncio
     async def test_deploy_workflow_template_not_found(self, mock_session, sample_workflow):
@@ -117,7 +113,7 @@ class TestNiFiWorkflowService:
         # Create service and attempt deployment
         service = NiFiWorkflowService(mock_session)
         
-        with pytest.raises(NiFiWorkflowDeploymentError, match="Template template-456 not found"):
+        with pytest.raises(NiFiWorkflowDeploymentError, match="Failed to deploy workflow: Template 12345678-1234-5678-9012-123456789012 not found"):
             await service.deploy_workflow(sample_workflow)
 
     @pytest.mark.asyncio

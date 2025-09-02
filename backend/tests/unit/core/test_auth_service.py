@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwt
 
 from src.core.auth import get_current_user, AuthContext, ServiceContext, User, RealmAccess
-from tests.utils.jwt_forge import forge_jwt, TEST_PUBLIC_KEY # Updated import path
+from tests.unit.utils.jwt_utils import forge_jwt, TEST_PUBLIC_KEY
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.unit]
 

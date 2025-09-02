@@ -3,7 +3,7 @@ Authentication helpers for testing.
 """
 
 from typing import List, Optional
-from .jwt_forge import forge_jwt
+from .jwt_utils import forge_jwt
 
 
 def create_test_jwt(
