@@ -83,7 +83,7 @@ class NiFiService:
             username=settings.NIFI_USERNAME,
             password=settings.NIFI_PASSWORD
         ) as nifi_client:
-            await nifi_client.start_process_group(workflow.nifi_process_group_id)
+            await nifi_client.start_process_group(str(workflow.nifi_process_group_id))
 
     async def stop_workflow(self, workflow: Workflow):
         """Stop a workflow in NiFi."""
@@ -94,7 +94,7 @@ class NiFiService:
             username=settings.NIFI_USERNAME,
             password=settings.NIFI_PASSWORD
         ) as nifi_client:
-            await nifi_client.stop_process_group(workflow.nifi_process_group_id)
+            await nifi_client.stop_process_group(str(workflow.nifi_process_group_id))
 
     async def undeploy_workflow(self, workflow: Workflow):
         """Undeploy a workflow from NiFi."""
@@ -105,30 +105,46 @@ class NiFiService:
             username=settings.NIFI_USERNAME,
             password=settings.NIFI_PASSWORD
         ) as nifi_client:
-            await nifi_client.delete_process_group(workflow.nifi_process_group_id, version=0) # Assuming version 0 for deletion
+            # Refresh process group info to get current revision version
+            try:
+                pg_info = await nifi_client.get_process_group(str(workflow.nifi_process_group_id))
+                current_version = pg_info.get("revision", {}).get("version", 0)
+            except Exception as e:
+                log.warning(f"Failed to get current process group info, using version 0: {e}")
+                current_version = 0
+            
+            await nifi_client.delete_process_group(str(workflow.nifi_process_group_id), version=current_version)
             if workflow.nifi_parameter_context_id:
-                await nifi_client.delete_parameter_context(workflow.nifi_parameter_context_id, version=0)
+                # Refresh parameter context info to get current revision version
+                try:
+                    param_context_info = await nifi_client.get_parameter_context(str(workflow.nifi_parameter_context_id))
+                    param_context_version = param_context_info.get("revision", {}).get("version", 0)
+                except Exception as e:
+                    log.warning(f"Failed to get current parameter context info, using version 0: {e}")
+                    param_context_version = 0
+                await nifi_client.delete_parameter_context(str(workflow.nifi_parameter_context_id), version=param_context_version)
 
     async def create_parameter_context(
         self,
         workflow: Workflow,
         nifi_client: NiFiAPIClient
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """Create parameter context for workflow configuration."""
-        if not workflow.configuration:
-            return None
-
         parameters = []
-        for key, value in workflow.configuration.items():
-            parameters.append({
-                "name": key,
-                "value": str(value) if value is not None else "",
-                "sensitive": False,
-                "description": f"Configuration parameter {key}"
-            })
+        
+        # Only add parameters if configuration is not empty
+        if workflow.configuration and len(workflow.configuration) > 0:
+            for key, value in workflow.configuration.items():
+                parameters.append({
+                    "name": key,
+                    "value": str(value) if value is not None else "",
+                    "sensitive": False,
+                    "description": f"Configuration parameter {key}"
+                })
 
+        # Always create a parameter context (even if empty) to avoid None issues
         param_context = await nifi_client.create_parameter_context(
-            name=f"workflow-{workflow.workflow_id}",
+            name=f"workflow-{str(workflow.workflow_id)}",
             description=f"Parameters for workflow {workflow.name}",
             parameters=parameters
         )
@@ -169,6 +185,9 @@ class NiFiService:
     ) -> Dict[str, Any]:
         """Deploy a process group from Registry using NiFi's version control."""
         try:
+            log.debug(f"Deploying from registry: bucket_id={bucket_id}, flow_id={flow_id}, flow_version={flow_version}")
+            
+            # Get registry client for NiFi
             registry_clients = await self._list_registry_clients(nifi_client)
             registry_client = None
             for client in registry_clients:
@@ -178,6 +197,7 @@ class NiFiService:
                        component.get("url") or
                        component.get("properties", {}).get("url") or
                        component.get("properties", {}).get("URL"))
+                
                 if (uri == settings.NIFI_REGISTRY_URL or
                     "EDI Lens Registry" in name):
                     registry_client = client
@@ -190,6 +210,7 @@ class NiFiService:
             registry_client_id = registry_client["component"]["id"]
 
             async with NiFiRegistryClient(settings.NIFI_REGISTRY_URL) as registry_client_api:
+                log.debug(f"Getting flow version from registry")
                 flow_snapshot = await registry_client_api.get_flow_version(
                     bucket_id=bucket_id,
                     flow_id=flow_id,

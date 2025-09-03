@@ -60,6 +60,7 @@ class Workflow(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     deployed_at = Column(DateTime(timezone=True), nullable=True)
+    undeployed_at = Column(DateTime(timezone=True), nullable=True)
     last_started_at = Column(DateTime(timezone=True), nullable=True)
     last_stopped_at = Column(DateTime(timezone=True), nullable=True)
     

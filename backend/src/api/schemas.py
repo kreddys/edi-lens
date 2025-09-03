@@ -311,6 +311,7 @@ class TemplateStatus(str, Enum):
 
 class WorkflowStatus(str, Enum):
     """Workflow status enumeration."""
+    CREATED = "CREATED"
     ACTIVE = "ACTIVE"
     PAUSED = "PAUSED"
     ERROR = "ERROR"
@@ -539,31 +540,11 @@ class WorkflowUpdate(BaseModel):
     status: Optional[WorkflowStatus] = Field(None, description="Workflow status")
 
 
-class WorkflowResponse(BaseModel):
-    """Schema for workflow response."""
-    workflow_id: PyUUID = Field(..., description="Workflow ID")
-    tenant_id: str = Field(..., description="Tenant ID")
-    name: str = Field(..., description="Workflow name")
-    description: Optional[str] = Field(None, description="Workflow description")
-    tags: Optional[List[str]] = Field(None, description="Workflow tags")
-    template_id: str = Field(..., description="Template ID")
-    configuration: Dict[str, Any] = Field(..., description="Workflow configuration")
-    status: WorkflowStatus = Field(..., description="Workflow status")
-    nifi_process_group_id: Optional[str] = Field(None, description="NiFi process group ID")
-    nifi_parameter_context_id: Optional[str] = Field(None, description="NiFi parameter context ID")
-    deployment_method: Optional[DeploymentMethod] = Field(None, description="Deployment method")
-    flow_version: Optional[int] = Field(None, description="Flow version")
-    created_by: Optional[str] = Field(None, description="Creator user ID")
-    created_at: datetime = Field(..., description="Creation timestamp")
-    updated_at: datetime = Field(..., description="Last update timestamp")
-    is_deployed: bool = Field(..., description="Whether the workflow is deployed to NiFi")
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class WorkflowListResponse(BaseModel):
     """Schema for workflow list response."""
-    workflows: List[WorkflowResponse] = Field(..., description="List of workflows")
+    workflows: List["WorkflowResponse"] = Field(..., description="List of workflows")
     total: int = Field(..., description="Total number of workflows")
     page: int = Field(..., description="Current page number")
     page_size: int = Field(..., description="Page size")
@@ -962,6 +943,12 @@ class WorkflowStatusResponse(BaseModel):
         default_factory=dict,
         description="Health check results"
     )
+    # Add missing fields expected by tests
+    template_id: Optional[str] = Field(None, description="Template ID")
+    name: Optional[str] = Field(None, description="Workflow name")
+    created_at: Optional[str] = Field(None, description="Creation timestamp")
+    deployed_at: Optional[str] = Field(None, description="Deployment timestamp")
+    updated_at: Optional[str] = Field(None, description="Last update timestamp")
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -1178,10 +1165,12 @@ class WorkflowResponse(BaseModel):
     nifi_registry_client_id: Optional[str] = Field(None, description="NiFi registry client ID")
     version_control_info: Optional[Dict[str, Any]] = Field(None, description="NiFi version control metadata")
     status: str = Field(..., description="Workflow status")
+    is_deployed: bool = Field(..., description="Whether workflow is deployed to NiFi")
     created_by: Optional[str] = Field(None, description="User who created the workflow")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
     deployed_at: Optional[datetime] = Field(None, description="Deployment timestamp")
+    undeployed_at: Optional[datetime] = Field(None, description="Undeployment timestamp")
     last_started_at: Optional[datetime] = Field(None, description="Last start timestamp")
     last_stopped_at: Optional[datetime] = Field(None, description="Last stop timestamp")
     

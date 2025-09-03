@@ -127,16 +127,51 @@ class NiFiAPIClient:
             f"{self.nifi_url}/process-groups/{parent_group_id}/process-groups",
             json=process_group_data
         ) as response:
-            await response.raise_for_status()
+            response.raise_for_status()
             return await response.json()
 
     async def get_process_group(self, process_group_id: str) -> Dict[str, Any]:
         """Get process group details by ID."""
-        async with self.session.get(
-            f"{self.nifi_url}/process-groups/{process_group_id}"
-        ) as response:
-            await response.raise_for_status()
-            return await response.json()
+        url = f"{self.nifi_url}/process-groups/{process_group_id}"
+        log.debug(f"Getting process group from URL: {url}")
+        try:
+            log.debug(f"About to make HTTP request to NiFi")
+            async with self.session.get(url) as response:
+                log.debug(f"Response status: {response.status}")
+                log.debug(f"Response headers: {dict(response.headers)}")
+                
+                try:
+                    response.raise_for_status()  # This is NOT async!
+                    log.debug("Response status check passed")
+                except Exception as e:
+                    log.error(f"Response status check failed: {e}")
+                    raise
+                
+                try:
+                    text = await response.text()
+                    log.debug(f"Response text length: {len(text) if text else 0}")
+                    log.debug(f"Response text: {text[:500]}...")  # First 500 chars
+                except Exception as e:
+                    log.error(f"Failed to get response text: {e}")
+                    return {}
+                
+                if not text:
+                    log.warning("Response text is empty")
+                    return {}
+                    
+                try:
+                    import json
+                    result = json.loads(text)
+                    log.debug(f"Response parsed successfully, keys: {list(result.keys()) if isinstance(result, dict) else 'not a dict'}")
+                    return result
+                except Exception as e:
+                    log.error(f"Failed to parse response as JSON: {e}")
+                    log.error(f"Response text was: {text}")
+                    return {}
+        except Exception as e:
+            log.error(f"Unexpected error in get_process_group: {e}")
+            log.error(f"Exception type: {type(e)}")
+            raise
 
     async def update_process_group(
         self,
@@ -165,7 +200,7 @@ class NiFiAPIClient:
             f"{self.nifi_url}/process-groups/{process_group_id}",
             json=update_data
         ) as response:
-            await response.raise_for_status()
+            response.raise_for_status()
             return await response.json()
 
     async def delete_process_group(
@@ -178,7 +213,7 @@ class NiFiAPIClient:
             f"{self.nifi_url}/process-groups/{process_group_id}",
             params={"version": version}
         ) as response:
-            await response.raise_for_status()
+            response.raise_for_status()
             return response.status == 200
 
     async def start_process_group(self, process_group_id: str) -> Dict[str, Any]:

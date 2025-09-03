@@ -219,11 +219,12 @@ class NiFiRegistryClient:
         version: Optional[Union[int, str]] = None
     ) -> Dict[str, Any]:
         """Get a specific version of a flow."""
+        log.debug(f"Getting flow version: bucket_id={bucket_id}, flow_id={flow_id}, version={version}")
         url = f"{self.registry_url}/nifi-registry-api/buckets/{bucket_id}/flows/{flow_id}"
         if version:
             url += f"/versions/{version}"
         
-        log.debug(f"Getting flow version {version or 'latest'} for flow {flow_id}")
+        log.debug(f"Getting flow version {version or 'latest'} for flow {flow_id} from URL: {url}")
         async with self.session.get(url) as response:
             response.raise_for_status()
             result = await response.json()
