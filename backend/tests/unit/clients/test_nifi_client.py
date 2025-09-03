@@ -106,8 +106,12 @@ class TestNiFiAPIClient:
                 "name": "NiFi Flow"
             }
         }
+        # Configure the mock response properly
+        mock_response.status = 200
         mock_response.json = AsyncMock(return_value=expected_pg)
-        mock_response.raise_for_status = AsyncMock()
+        mock_response.raise_for_status = MagicMock()  # Not async
+        mock_response.text = AsyncMock(return_value='{"component":{"id":"root","name":"NiFi Flow"}}')
+        mock_response.headers = {}
         
         # Create a proper async context manager mock
         class AsyncContextManagerMock:
