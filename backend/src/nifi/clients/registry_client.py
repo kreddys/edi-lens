@@ -99,7 +99,29 @@ class NiFiRegistryClient:
             f"{self.registry_url}/nifi-registry-api/buckets/{bucket_id}/flows",
             json=flow_data
         ) as response:
-            response.raise_for_status()
+            if response.status >= 400:
+                response_text = await response.text()
+                log.error(f"NiFi Registry create_flow Error: {response.status} - {response_text}")
+                log.error(f"Request URL: {response.url}")
+                log.error(f"Request payload: {json.dumps(flow_data, indent=2)}")
+                
+                error_msg = f"{response.status}, message='{response.reason}', url='{response.url}'"
+                if response_text:
+                    try:
+                        error_json = json.loads(response_text)
+                        if 'message' in error_json:
+                            error_msg += f", details='{error_json['message']}'"
+                    except json.JSONDecodeError:
+                        error_msg += f", response='{response_text}'"
+                
+                raise aiohttp.ClientResponseError(
+                    request_info=response.request_info,
+                    history=response.history,
+                    status=response.status,
+                    message=error_msg,
+                    headers=response.headers
+                )
+            
             return await response.json()
 
     async def create_flow_version(
@@ -165,7 +187,27 @@ class NiFiRegistryClient:
             
             if response.status >= 400:
                 log.error(f"NiFi Registry API Error: {response.status} - {response_text}")
-                response.raise_for_status()
+                log.error(f"Request URL: {response.url}")
+                log.error(f"Request payload: {json.dumps(version_payload, indent=2)}")
+                
+                # Create a detailed error message
+                error_msg = f"{response.status}, message='{response.reason}', url='{response.url}'"
+                if response_text:
+                    try:
+                        error_json = json.loads(response_text)
+                        if 'message' in error_json:
+                            error_msg += f", details='{error_json['message']}'"
+                    except json.JSONDecodeError:
+                        error_msg += f", response='{response_text}'"
+                
+                # Raise a more informative exception
+                raise aiohttp.ClientResponseError(
+                    request_info=response.request_info,
+                    history=response.history,
+                    status=response.status,
+                    message=error_msg,
+                    headers=response.headers
+                )
             
             # Parse the response
             try:

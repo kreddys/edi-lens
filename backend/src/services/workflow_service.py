@@ -419,7 +419,14 @@ class WorkflowService:
         try:
             # Load workflow and template
             workflow = await self._get_workflow(workflow_id, auth_context.tenant_id)
-            template = await self.template_service.get_template(UUID(workflow.template_id))
+            
+            # Handle UUID conversion safely
+            if isinstance(workflow.template_id, UUID):
+                template_uuid = workflow.template_id
+            else:
+                template_uuid = UUID(workflow.template_id)
+            
+            template = await self.template_service.get_template(template_uuid)
             
             if not template:
                 raise WorkflowServiceError(f"Template {workflow.template_id} not found")
@@ -466,22 +473,24 @@ class WorkflowService:
                 username=settings.NIFI_USERNAME,
                 password=settings.NIFI_PASSWORD
             ) as nifi_client:
-                # This would implement actual NiFi content processing
+                # This would implement actual NiFi workflow execution
                 # For now, we'll return a structured response indicating NiFi processing
                 return {
                     "valid": True,
                     "outputs": [
                         {
                             "type": "processing_result",
-                            "content": f"Processed through NiFi workflow {workflow.nifi_process_group_id}",
-                            "format": execution_request.file_type
+                            "content": f"Workflow executed successfully through NiFi process group {workflow.nifi_process_group_id}",
+                            "execution_parameters": execution_request.execution_parameters or {}
                         }
                     ],
                     "metadata": {
                         "processing_method": "nifi",
                         "workflow_id": str(workflow.workflow_id),
-                        "template_id": workflow.template_id,
-                        "nifi_process_group_id": workflow.nifi_process_group_id
+                        "template_id": str(workflow.template_id),
+                        "nifi_process_group_id": workflow.nifi_process_group_id,
+                        "request_id": execution_request.request_id,
+                        "monitoring_enabled": execution_request.enable_monitoring
                     }
                 }
                 

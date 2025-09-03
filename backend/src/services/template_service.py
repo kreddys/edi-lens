@@ -106,7 +106,19 @@ class TemplateService:
         except Exception as e:
             await self.session.rollback()
             log.error(f"Failed to create template {name}: {str(e)}")
-            raise TemplateServiceError(f"Failed to create template: {str(e)}")
+            log.error(f"Exception type: {type(e).__name__}")
+            log.error(f"Exception details: {repr(e)}")
+            
+            # Preserve detailed error information from NiFi Registry
+            error_msg = str(e)
+            if hasattr(e, 'response'):
+                try:
+                    response_text = e.response.text if hasattr(e.response, 'text') else str(e.response)
+                    error_msg = f"{error_msg} - Response: {response_text}"
+                except:
+                    pass
+            
+            raise TemplateServiceError(f"Failed to create template: {error_msg}")
 
     async def update_template(
         self,

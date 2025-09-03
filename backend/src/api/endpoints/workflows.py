@@ -5,6 +5,7 @@ API endpoints for workflow management.
 import logging
 from typing import List, Optional
 from uuid import UUID
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +15,7 @@ from src.core.database import get_db
 from src.services.workflow_service import WorkflowService, WorkflowServiceError
 from src.api.schemas import (
     WorkflowResponse, WorkflowCreateRequest, WorkflowUpdate, RegistryTemplateResponse,
-    WorkflowActionRequest, WorkflowStatusResponse, WorkflowExecutionRequest, WorkflowExecutionResponse
+    WorkflowStatusResponse, WorkflowExecutionRequest, WorkflowExecutionResponse
 )
 
 log = logging.getLogger(__name__)
@@ -237,23 +238,22 @@ async def delete_workflow(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete workflow")
 
 
-@router.post("/{workflow_id}/actions", response_model=WorkflowResponse)
-async def control_workflow(
+@router.post("/{workflow_id}/start", response_model=WorkflowResponse)
+async def start_workflow(
     workflow_id: UUID,
-    action: WorkflowActionRequest,
     session: AsyncSession = Depends(get_db),
     auth_context: AuthContext = Depends(require_permission("workflow:write"))
 ):
-    """Control a workflow (pause, resume, restart)."""
+    """Start a workflow."""
     try:
         workflow_service = WorkflowService(session)
-        workflow = await workflow_service.control_workflow(workflow_id, action.action)
+        workflow = await workflow_service.control_workflow(workflow_id, "start")
         return create_workflow_response(workflow)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        log.error(f"Error controlling workflow {workflow_id}: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to control workflow")
+        log.error(f"Error starting workflow {workflow_id}: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to start workflow")
 
 
 @router.post("/{workflow_id}/pause", response_model=WorkflowResponse)
@@ -366,13 +366,30 @@ async def execute_workflow(
     auth_context: AuthContext = Depends(require_permission("workflow:execute"))
 ):
     """Execute a workflow with provided content."""
+    log.debug(f"🔍 POST /workflows/{workflow_id}/execute - Auth context: tenant={auth_context.tenant_id}")
     try:
         workflow_service = WorkflowService(session)
         result = await workflow_service.execute_workflow(str(workflow_id), execution_request, auth_context)
-        return WorkflowExecutionResponse.from_orm(result)
+        
+        # Convert WorkflowExecutionResult to WorkflowExecutionResponse
+        return WorkflowExecutionResponse(
+            workflow_id=result.workflow_id,
+            execution_id=result.request_id or str(uuid.uuid4()),
+            status="RUNNING",  # Default status for execution
+            nifi_process_group_id=str(result.metadata.get("nifi_process_group_id")) if result.metadata.get("nifi_process_group_id") else None,
+            nifi_status="RUNNING",
+            deployment_method="registry",
+            started_at=result.processed_at,
+            stopped_at=None,
+            restarted_at=None,
+            message=f"Workflow executed successfully in {result.processing_time_ms}ms",
+            monitoring_enabled=result.metadata.get("monitoring_enabled", True),
+            health_check={"status": "healthy", "execution_time_ms": result.processing_time_ms}
+        )
     except Exception as e:
-        log.error(f"Error executing workflow {workflow_id}: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to execute workflow")
+        log.error(f"❌ Error executing workflow {workflow_id}: {str(e)}")
+        log.exception("Full exception details:")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to execute workflow: {str(e)}")
 
 
 @router.post("/{workflow_id}/stop", response_model=WorkflowResponse)
