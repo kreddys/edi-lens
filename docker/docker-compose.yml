@@ -95,6 +95,7 @@ services:
       - ../backend:/home/appuser/app:delegated # <-- CHANGE: Go up one level
       - /home/appuser/app/.venv
       - sftp_tenant_data:/sftp/tenants
+      - e2e_test_data:/e2e_test_files  # Shared volume for e2e file processing tests
     networks: [ edi_lens_network ]
     env_file: [ ../.env.dev ] # <-- CHANGE: Go up one level
     environment:
@@ -246,6 +247,9 @@ services:
       # SFTP access
       - sftp_tenant_data:/sftp/tenants:ro
       
+      # E2E test file processing
+      - e2e_test_data:/e2e_test_files
+      
     networks:
       - edi_lens_network
     depends_on:
@@ -384,6 +388,7 @@ volumes:
   minio_data: {}
   sftpgo_data: {}
   sftp_tenant_data: {}
+  e2e_test_data: {}  # Shared volume for e2e test file processing
   nifi_database_repository:
   nifi_flowfile_repository:
   nifi_content_repository:

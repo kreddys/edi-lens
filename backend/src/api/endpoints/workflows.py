@@ -133,27 +133,27 @@ async def get_workflow(
     auth_context: AuthContext = Depends(require_permission("workflow:read"))
 ):
     """Get workflow by ID."""
-    log.debug(f"🔍 GET /workflows/{workflow_id} - Auth context: tenant={auth_context.tenant_id}, user={auth_context.user_id}")
+    log.debug(f"GET /workflows/{workflow_id} - Auth context: tenant={auth_context.tenant_id}, user={auth_context.user_id}")
     try:
         workflow_service = WorkflowService(session)
         workflow = await workflow_service.get_workflow(workflow_id)
-        log.debug(f"🔍 Workflow query result: {workflow}")
+        log.debug(f"Workflow query result: {workflow}")
         
         if not workflow:
-            log.debug(f"❌ Workflow {workflow_id} not found in database")
+            log.debug(f"Workflow {workflow_id} not found in database")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found")
         
         if workflow.tenant_id != auth_context.tenant_id:
-            log.debug(f"❌ Tenant mismatch: workflow.tenant_id={workflow.tenant_id}, auth.tenant_id={auth_context.tenant_id}")
+            log.debug(f"Tenant mismatch: workflow.tenant_id={workflow.tenant_id}, auth.tenant_id={auth_context.tenant_id}")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found")
         
-        log.debug(f"✅ Workflow {workflow_id} found and authorized")
+        log.debug(f"Workflow {workflow_id} found and authorized")
         return create_workflow_response(workflow, include_template=True)
     except HTTPException:
         # Re-raise HTTP exceptions (like 404)
         raise
     except Exception as e:
-        log.error(f"❌ Error getting workflow {workflow_id}: {str(e)}")
+        log.error(f"Error getting workflow {workflow_id}: {str(e)}")
         log.exception("Full exception details:")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get workflow")
 
@@ -165,31 +165,31 @@ async def deploy_workflow(
     auth_context: AuthContext = Depends(require_permission("workflow:write"))
 ):
     """Deploy a workflow to NiFi."""
-    log.debug(f"🔍 POST /workflows/{workflow_id}/deploy - Auth context: tenant={auth_context.tenant_id}")
+    log.debug(f"POST /workflows/{workflow_id}/deploy - Auth context: tenant={auth_context.tenant_id}")
     try:
         workflow_service = WorkflowService(session)
         
         # First check if workflow exists and belongs to tenant
         workflow = await workflow_service.get_workflow(workflow_id)
         if not workflow:
-            log.debug(f"❌ Workflow {workflow_id} not found for deployment")
+            log.debug(f"Workflow {workflow_id} not found for deployment")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found")
         
         if workflow.tenant_id != auth_context.tenant_id:
-            log.debug(f"❌ Deploy denied: workflow.tenant_id={workflow.tenant_id}, auth.tenant_id={auth_context.tenant_id}")
+            log.debug(f"Deploy denied: workflow.tenant_id={workflow.tenant_id}, auth.tenant_id={auth_context.tenant_id}")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found")
         
-        log.debug(f"✅ Workflow {workflow_id} authorized for deployment")
+        log.debug(f"Workflow {workflow_id} authorized for deployment")
         workflow = await workflow_service.deploy_workflow(workflow_id)
         return create_workflow_response(workflow)
     except HTTPException:
         # Re-raise HTTP exceptions (like 404)
         raise
     except WorkflowServiceError as e:
-        log.error(f"❌ WorkflowServiceError deploying {workflow_id}: {str(e)}")
+        log.error(f"WorkflowServiceError deploying {workflow_id}: {str(e)}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        log.error(f"❌ Error deploying workflow {workflow_id}: {str(e)}")
+        log.error(f"Error deploying workflow {workflow_id}: {str(e)}")
         log.exception("Full exception details:")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to deploy workflow")
 
@@ -310,6 +310,29 @@ async def restart_workflow(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to restart workflow")
 
 
+@router.post("/{workflow_id}/restart-processors")
+async def restart_processors(
+    workflow_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    auth_context: AuthContext = Depends(require_permission("workflow:write"))
+):
+    """Restart all processors in a workflow to force parameter re-evaluation."""
+    try:
+        workflow_service = WorkflowService(session)
+        result = await workflow_service.restart_processors(workflow_id)
+        return {
+            "message": "Processors restart attempted",
+            "restarted_count": result.get("restarted_count", 0),
+            "failed_restarts": result.get("failed_restarts", []),
+            "total_processors": result.get("total_processors", 0)
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        log.error(f"Error restarting processors for workflow {workflow_id}: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to restart processors")
+
+
 @router.post("/{workflow_id}/undeploy", response_model=WorkflowResponse)
 async def undeploy_workflow(
     workflow_id: UUID,
@@ -335,25 +358,25 @@ async def get_workflow_status(
     auth_context: AuthContext = Depends(require_permission("workflow:read"))
 ):
     """Get detailed status of a workflow."""
-    log.debug(f"🔍 GET /workflows/{workflow_id}/status - Auth context: tenant={auth_context.tenant_id}")
+    log.debug(f"GET /workflows/{workflow_id}/status - Auth context: tenant={auth_context.tenant_id}")
     try:
         workflow_service = WorkflowService(session)
         status_info = await workflow_service.get_workflow_status(str(workflow_id), auth_context)
-        log.debug(f"🔍 Status info returned: {status_info}")
-        log.debug(f"🔍 Status info keys: {list(status_info.keys())}")
-        log.debug(f"🔍 created_at value: {status_info.get('created_at')}")
+        log.debug(f"Status info returned: {status_info}")
+        log.debug(f"Status info keys: {list(status_info.keys())}")
+        log.debug(f"created_at value: {status_info.get('created_at')}")
         
         try:
             response = WorkflowStatusResponse(**status_info)
-            log.debug(f"🔍 WorkflowStatusResponse created successfully")
-            log.debug(f"🔍 Response dict: {response.model_dump()}")
+            log.debug("WorkflowStatusResponse created successfully")
+            log.debug(f"Response dict: {response.model_dump()}")
             return response
         except Exception as pydantic_error:
-            log.error(f"❌ Pydantic validation error: {pydantic_error}")
-            log.error(f"❌ Status info that failed validation: {status_info}")
+            log.error(f"Pydantic validation error: {pydantic_error}")
+            log.error(f"Status info that failed validation: {status_info}")
             raise
     except Exception as e:
-        log.error(f"❌ Error getting workflow status {workflow_id}: {str(e)}")
+        log.error(f"Error getting workflow status {workflow_id}: {str(e)}")
         log.exception("Full exception details:")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get workflow status")
 
@@ -366,7 +389,7 @@ async def execute_workflow(
     auth_context: AuthContext = Depends(require_permission("workflow:execute"))
 ):
     """Execute a workflow with provided content."""
-    log.debug(f"🔍 POST /workflows/{workflow_id}/execute - Auth context: tenant={auth_context.tenant_id}")
+    log.debug(f"POST /workflows/{workflow_id}/execute - Auth context: tenant={auth_context.tenant_id}")
     try:
         workflow_service = WorkflowService(session)
         result = await workflow_service.execute_workflow(str(workflow_id), execution_request, auth_context)
@@ -387,7 +410,7 @@ async def execute_workflow(
             health_check={"status": "healthy", "execution_time_ms": result.processing_time_ms}
         )
     except Exception as e:
-        log.error(f"❌ Error executing workflow {workflow_id}: {str(e)}")
+        log.error(f"Error executing workflow {workflow_id}: {str(e)}")
         log.exception("Full exception details:")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to execute workflow: {str(e)}")
 

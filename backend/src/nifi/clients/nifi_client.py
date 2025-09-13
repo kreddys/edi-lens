@@ -11,6 +11,8 @@ import logging
 from typing import Optional, List, Dict, Any, Union
 from urllib.parse import urljoin
 
+from src.exceptions.workflow_exceptions import NiFiConnectionError, NiFiAPIError
+
 log = logging.getLogger(__name__)
 
 
@@ -57,8 +59,13 @@ class NiFiAPIClient:
         if not self.auth_token and self.username and self.password:
             try:
                 self.auth_token = await self._get_auth_token()
+                log.info(f"Successfully authenticated with NiFi at {self.nifi_url}")
             except Exception as e:
-                log.warning(f"Failed to get auth token: {e}")
+                log.error(f"Failed to authenticate with NiFi at {self.nifi_url}: {e}")
+                raise NiFiConnectionError(
+                    f"Authentication failed with username {self.username}",
+                    url=self.nifi_url
+                ) from e
         
         # Update session headers with auth token
         headers = {'Content-Type': 'application/json'}
@@ -86,20 +93,82 @@ class NiFiAPIClient:
         auth_data = f"username={self.username}&password={self.password}"
         token_url = f"{self.nifi_url}/access/token"
         
-        async with self.session.post(
-            token_url,
-            data=auth_data,
-            headers={'Content-Type': 'application/x-www-form-urlencoded'}
-        ) as response:
-            if response.status == 201:
-                return await response.text()
-            else:
-                error_text = await response.text()
-                raise Exception(f"Failed to authenticate with NiFi: {response.status} - {error_text}")
+        log.debug(f"Requesting auth token from {token_url}")
+        
+        try:
+            async with self.session.post(
+                token_url,
+                data=auth_data,
+                headers={'Content-Type': 'application/x-www-form-urlencoded'}
+            ) as response:
+                if response.status == 201:
+                    token = await response.text()
+                    log.debug("Successfully obtained auth token")
+                    return token
+                else:
+                    error_text = await response.text()
+                    log.error(f"Auth token request failed: {response.status} - {error_text}")
+                    raise NiFiConnectionError(
+                        f"Authentication rejected by NiFi server: {response.status}",
+                        url=token_url,
+                        status_code=response.status
+                    )
+        except aiohttp.ClientError as e:
+            log.error(f"Network error during authentication: {e}")
+            raise NiFiConnectionError(
+                f"Network error connecting to NiFi: {str(e)}",
+                url=token_url
+            ) from e
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.session:
             await self.session.close()
+
+    async def _make_api_call(
+        self, 
+        method: str, 
+        endpoint: str, 
+        json_data: dict = None, 
+        params: dict = None,
+        expected_status: int = 200
+    ) -> dict:
+        """Make an API call with proper error handling and logging."""
+        url = f"{self.nifi_url}/{endpoint.lstrip('/')}"
+        
+        log.debug(f"{method.upper()} {url}")
+        if json_data:
+            log.debug(f"Request payload: {json_data}")
+        
+        try:
+            async with self.session.request(
+                method, url, json=json_data, params=params
+            ) as response:
+                response_text = await response.text()
+                
+                log.debug(f"Response status: {response.status}")
+                log.debug(f"Response body: {response_text[:500]}...")
+                
+                if response.status != expected_status:
+                    log.error(f"API call failed: {method} {endpoint} returned {response.status}")
+                    raise NiFiAPIError(
+                        f"{method.upper()} {endpoint} failed",
+                        endpoint=endpoint,
+                        status_code=response.status,
+                        response_body=response_text
+                    )
+                
+                # Parse JSON response if possible
+                try:
+                    return json.loads(response_text) if response_text else {}
+                except json.JSONDecodeError:
+                    return {"raw_response": response_text}
+                    
+        except aiohttp.ClientError as e:
+            log.error(f"Network error during API call {method} {endpoint}: {e}")
+            raise NiFiConnectionError(
+                f"Network error: {str(e)}",
+                url=url
+            ) from e
 
     # --- Process Groups ---
 
@@ -178,11 +247,16 @@ class NiFiAPIClient:
         process_group_id: str,
         name: Optional[str] = None,
         position: Optional[Dict[str, int]] = None,
+        parameter_context_id: Optional[str] = None,
         version: int = 0
     ) -> Dict[str, Any]:
         """Update process group properties."""
         # First get current state
         current = await self.get_process_group(process_group_id)
+        
+        # Use current revision if version not specified
+        if version == 0:
+            version = current.get("revision", {}).get("version", 0)
         
         update_data = {
             "revision": {"version": version},
@@ -195,6 +269,10 @@ class NiFiAPIClient:
             update_data["component"]["name"] = name
         if position:
             update_data["component"]["position"] = position
+        if parameter_context_id:
+            update_data["component"]["parameterContext"] = {
+                "id": parameter_context_id
+            }
             
         async with self.session.put(
             f"{self.nifi_url}/process-groups/{process_group_id}",
@@ -273,13 +351,23 @@ class NiFiAPIClient:
         parameters: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """Create a new parameter context."""
+        log.debug("Creating parameter context with NiFi API")
+        log.debug(f"Parameter context name: {name}")
+        log.debug(f"Parameter context description: {description}")
+        log.debug(f"Parameters count: {len(parameters) if parameters else 0}")
+        
         # Transform parameters to NiFi format - each parameter must be wrapped in a "parameter" object
         formatted_parameters = []
         if parameters:
+            log.debug(f"Formatting {len(parameters)} parameters for NiFi API")
             for param in parameters:
-                formatted_parameters.append({
+                formatted_param = {
                     "parameter": param
-                })
+                }
+                formatted_parameters.append(formatted_param)
+                log.debug(f"Formatted parameter: {param['name']} = '{param['value']}'")
+        else:
+            log.debug("No parameters to format")
         
         param_context_data = {
             "revision": {"version": 0},
@@ -292,6 +380,7 @@ class NiFiAPIClient:
         
         # Debug logging
         log.debug(f"Sending parameter context data to NiFi: {param_context_data}")
+        log.debug(f"Number of parameters in payload: {len(formatted_parameters)}")
         
         async with self.session.post(
             f"{self.nifi_url}/parameter-contexts",
@@ -308,7 +397,12 @@ class NiFiAPIClient:
                     log.error(f"Exception while handling NiFi API error: {str(e)}")
                     raise
             else:
-                return await response.json()
+                result = await response.json()
+                log.info("Parameter context created successfully in NiFi")
+                log.debug(f"Parameter context ID: {result.get('id')}")
+                log.debug(f"Parameter context name: {result.get('component', {}).get('name')}")
+                log.debug(f"Parameter context parameters: {len(result.get('component', {}).get('parameters', []))}")
+                return result
 
     async def get_parameter_context(self, context_id: str) -> Dict[str, Any]:
         """Get parameter context by ID."""
@@ -600,6 +694,147 @@ class NiFiAPIClient:
                     pass
             response.raise_for_status()
             return response.status == 200
+
+    async def get_processors_in_group(self, process_group_id: str) -> List[Dict[str, Any]]:
+        """Get all processors in a process group."""
+        async with self.session.get(
+            f"{self.nifi_url}/process-groups/{process_group_id}/processors"
+        ) as response:
+            response.raise_for_status()
+            data = await response.json()
+            return data.get("processors", [])
+
+    async def restart_processor(self, processor_id: str, version: int = 0) -> Dict[str, Any]:
+        """Restart a processor to force parameter re-evaluation."""
+        try:
+            # First get current state
+            log.debug(f"Getting current state for processor {processor_id}")
+            async with self.session.get(
+                f"{self.nifi_url}/processors/{processor_id}"
+            ) as response:
+                response.raise_for_status()
+                current_state = await response.json()
+                
+            # Use current revision if version not specified
+            if version == 0:
+                version = current_state.get("revision", {}).get("version", 0)
+            
+            current_status = current_state.get("component", {}).get("state", "STOPPED")
+            validation_status = current_state.get("component", {}).get("validationStatus", "VALID")
+            
+            log.debug(f"Processor {processor_id}: state={current_status}, validationStatus={validation_status}, version={version}")
+            
+            # If processor is INVALID, we can't restart it until it becomes valid
+            if validation_status == "INVALID":
+                log.warning(f"Processor {processor_id} is INVALID, cannot restart until validation issues are resolved")
+                return {"status": "skipped", "reason": "Processor is invalid"}
+            
+            # Stop processor if it's running
+            if current_status == "RUNNING":
+                log.debug(f"Stopping processor {processor_id} (currently RUNNING)")
+                stop_data = {
+                    "revision": {"version": version},
+                    "state": "STOPPED"
+                }
+                
+                async with self.session.put(
+                    f"{self.nifi_url}/processors/{processor_id}/run-status",
+                    json=stop_data
+                ) as response:
+                    response.raise_for_status()
+                    stopped_state = await response.json()
+                    version = stopped_state.get("revision", {}).get("version", version + 1)
+                    log.debug(f"Processor {processor_id} stopped, new version: {version}")
+            
+            # Start processor to trigger parameter re-evaluation
+            log.debug(f"Starting processor {processor_id}")
+            start_data = {
+                "revision": {"version": version},
+                "state": "RUNNING"
+            }
+            
+            async with self.session.put(
+                f"{self.nifi_url}/processors/{processor_id}/run-status",
+                json=start_data
+            ) as response:
+                if response.status >= 400:
+                    error_text = await response.text()
+                    log.error(f"Failed to start processor {processor_id}: {response.status} - {error_text}")
+                response.raise_for_status()
+                result = await response.json()
+                log.debug(f"Processor {processor_id} restarted successfully")
+                return result
+                
+        except Exception as e:
+            log.error(f"Failed to restart processor {processor_id}: {e}")
+            raise
+
+    async def get_processor_types(self) -> List[Dict[str, Any]]:
+        """Get all available processor types from NiFi."""
+        return await self._make_api_call("GET", "flow/processor-types")
+
+    async def get_processor_type_details(self, type_name: str) -> Optional[Dict[str, Any]]:
+        """Get detailed information about a specific processor type including property descriptors."""
+        try:
+            # Get basic processor type info
+            processor_types = await self.get_processor_types()
+            processor_type = None
+            for pt in processor_types.get("processorTypes", []):
+                if pt.get("type") == type_name:
+                    processor_type = pt
+                    break
+            
+            if not processor_type:
+                return None
+            
+            # Get property descriptors by creating a temporary processor
+            root_pg = await self.get_process_group("root")
+            root_id = root_pg["component"]["id"]
+            
+            # Create temporary processor
+            temp_processor = await self.create_processor(
+                parent_group_id=root_id,
+                processor_type=type_name,
+                name="TEMP_VALIDATION_PROCESSOR",
+                position={"x": 0, "y": 0}
+            )
+            
+            temp_id = temp_processor["id"]
+            
+            try:
+                # Get processor details with property descriptors
+                processor_details = await self.get_processor(temp_id)
+                config = processor_details.get("component", {}).get("config", {})
+                descriptors = config.get("descriptors", {})
+                
+                # Convert descriptors to the format our validator expects
+                supported_property_descriptors = []
+                for prop_name, descriptor in descriptors.items():
+                    supported_property_descriptors.append({
+                        "name": prop_name,
+                        "displayName": descriptor.get("displayName", prop_name),
+                        "required": descriptor.get("required", False),
+                        "defaultValue": descriptor.get("defaultValue"),
+                        "allowableValues": descriptor.get("allowableValues", [])
+                    })
+                
+                # Add property descriptors to processor type info
+                processor_type["supportedPropertyDescriptors"] = supported_property_descriptors
+                
+            finally:
+                # Clean up - delete temporary processor
+                try:
+                    current_processor = await self.get_processor(temp_id)
+                    current_version = current_processor.get("revision", {}).get("version", 0)
+                    await self.session.delete(f"{self.nifi_url}/processors/{temp_id}?version={current_version}")
+                except Exception as e:
+                    log.warning(f"Failed to clean up temporary processor {temp_id}: {e}")
+            
+            return processor_type
+            
+        except Exception as e:
+            log.error(f"Failed to get processor type details for {type_name}: {e}")
+            return None
 
     async def health_check(self) -> bool:
         """Check if NiFi is healthy."""

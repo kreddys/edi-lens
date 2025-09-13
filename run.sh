@@ -475,18 +475,116 @@ case "$ACTION" in
                 check_docker
                 # Ensure infrastructure is ready before running tests
                 ensure_infra
+                
+                # Create log directory with timestamp
+                LOG_TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
+                TEST_LOG_DIR="tmp/${TEST_TYPE}-test-logs-${LOG_TIMESTAMP}"
+                mkdir -p "$TEST_LOG_DIR"
+                
                 info "Ensuring dev stack is running for '$TEST_TYPE' tests..."
-                # Start NiFi Registry for Registry-first architecture integration tests
-                info "Starting NiFi Registry for Registry-first integration tests..."
-                $DC_EXEC up -d --wait backend nifi-registry
+                info "Test logs will be saved to: $TEST_LOG_DIR"
+                
                 if [[ "$TEST_TYPE" == "e2e" ]]; then
+                    # E2E tests need full NiFi for actual file processing
+                    info "Starting full NiFi services for E2E tests (including file processing)..."
+                    $DC_EXEC up -d --wait backend nifi-registry nifi 2>&1 | tee "$TEST_LOG_DIR/docker-startup.log"
+                    
                     info "Configuring Keycloak for E2E tests..."
                     sleep 5
-                    $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.setup_keycloak_realm
+                    $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.setup_keycloak_realm 2>&1 | tee "$TEST_LOG_DIR/keycloak-setup.log"
+                    
                     info "Configuring SFTPGo events for E2E tests..."
-                    $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.setup_sftpgo_events
+                    $DC_EXEC exec "$BACKEND_SERVICE" python -m scripts.setup_sftpgo_events 2>&1 | tee "$TEST_LOG_DIR/sftpgo-setup.log"
+                    
+                    # Capture service logs before test execution
+                    info "Capturing pre-test service logs..."
+                    docker logs backend --tail 100 > "$TEST_LOG_DIR/pre-test-backend.log" 2>&1
+                    docker logs nifi --tail 100 > "$TEST_LOG_DIR/pre-test-nifi.log" 2>&1
+                    docker logs nifi-registry --tail 100 > "$TEST_LOG_DIR/pre-test-registry.log" 2>&1
+                    
+                else
+                    # Integration tests only need NiFi Registry
+                    info "Starting NiFi Registry for Registry-first integration tests..."
+                    $DC_EXEC up -d --wait backend nifi-registry 2>&1 | tee "$TEST_LOG_DIR/docker-startup.log"
+                    
+                    # Capture service logs before test execution
+                    info "Capturing pre-test service logs..."
+                    docker logs backend --tail 100 > "$TEST_LOG_DIR/pre-test-backend.log" 2>&1
+                    docker logs nifi-registry --tail 100 > "$TEST_LOG_DIR/pre-test-registry.log" 2>&1
                 fi
-                $DC_EXEC exec "$BACKEND_SERVICE" pytest -m "$TEST_TYPE" "$@"
+                
+                # Run tests with output capture
+                info "Running $TEST_TYPE tests with log capture..."
+                TEST_EXIT_CODE=0
+                $DC_EXEC exec "$BACKEND_SERVICE" pytest -m "$TEST_TYPE" "$@" 2>&1 | tee "$TEST_LOG_DIR/pytest-output.log" || TEST_EXIT_CODE=$?
+                
+                # Capture post-test service logs
+                info "Capturing post-test service logs..."
+                docker logs backend --tail 200 > "$TEST_LOG_DIR/post-test-backend.log" 2>&1
+                
+                if [[ "$TEST_TYPE" == "e2e" ]]; then
+                    docker logs nifi --tail 200 > "$TEST_LOG_DIR/post-test-nifi.log" 2>&1
+                    docker logs nifi-registry --tail 200 > "$TEST_LOG_DIR/post-test-registry.log" 2>&1
+                    
+                    # Capture NiFi-specific debugging info
+                    info "Capturing NiFi debugging information..."
+                    
+                    # Try to get NiFi process groups via API (if accessible)
+                    docker exec backend curl -k -s "https://nifi:8443/nifi-api/process-groups/root" \
+                        -H "Authorization: Bearer $(docker exec backend python -c "
+import asyncio
+from tests.e2e.e2e_utils import get_user_token
+async def get_token():
+    try:
+        token = await get_user_token('superuser@edilens.com')
+        print(token)
+    except Exception as e:
+        print(f'ERROR: {e}')
+asyncio.run(get_token())
+" 2>/dev/null || echo 'NO_TOKEN')" 2>/dev/null > "$TEST_LOG_DIR/nifi-process-groups.json" || echo "Could not capture NiFi process groups" > "$TEST_LOG_DIR/nifi-process-groups.json"
+                        
+                else
+                    docker logs nifi-registry --tail 200 > "$TEST_LOG_DIR/post-test-registry.log" 2>&1
+                fi
+                
+                # Create summary file
+                cat > "$TEST_LOG_DIR/test-summary.txt" << EOF
+Test Run Summary
+================
+Test Type: $TEST_TYPE
+Timestamp: $LOG_TIMESTAMP
+Exit Code: $TEST_EXIT_CODE
+Arguments: $@
+
+Log Files:
+- pytest-output.log: Test execution output
+- pre-test-backend.log: Backend logs before test
+- post-test-backend.log: Backend logs after test
+$(if [[ "$TEST_TYPE" == "e2e" ]]; then
+echo "- pre-test-nifi.log: NiFi logs before test"
+echo "- post-test-nifi.log: NiFi logs after test"
+echo "- nifi-process-groups.json: NiFi process groups state"
+fi)
+- pre-test-registry.log: Registry logs before test  
+- post-test-registry.log: Registry logs after test
+- docker-startup.log: Docker service startup logs
+- keycloak-setup.log: Keycloak configuration logs
+$(if [[ "$TEST_TYPE" == "e2e" ]]; then
+echo "- sftpgo-setup.log: SFTPGo configuration logs"
+fi)
+
+Status: $(if [ $TEST_EXIT_CODE -eq 0 ]; then echo "SUCCESS"; else echo "FAILED"; fi)
+EOF
+
+                if [ $TEST_EXIT_CODE -ne 0 ]; then
+                    error_msg="$TEST_TYPE tests failed with exit code $TEST_EXIT_CODE"
+                    echo -e "\033[31m[ERROR] $error_msg\033[0m" >&2
+                    echo -e "\033[34m[INFO] Detailed logs available in: $TEST_LOG_DIR\033[0m"
+                    echo -e "\033[34m[INFO] Check test-summary.txt for log file descriptions\033[0m"
+                    exit $TEST_EXIT_CODE
+                else
+                    success "Test logs saved to: $TEST_LOG_DIR" 
+                fi
                 ;;
             *) error "Unknown test type: '$TEST_TYPE'. Must be 'unit', 'unit:all', 'unit:edi', 'ui', 'integration', or 'e2e'." ;;
         esac

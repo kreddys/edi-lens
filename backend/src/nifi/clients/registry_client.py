@@ -186,9 +186,44 @@ class NiFiRegistryClient:
             response_text = await response.text()
             
             if response.status >= 400:
-                log.error(f"NiFi Registry API Error: {response.status} - {response_text}")
+                # Enhanced error logging for Registry template upload
+                log.error(f"=== NIFI REGISTRY TEMPLATE UPLOAD FAILURE ===")
+                log.error(f"HTTP Status: {response.status} - {response.reason}")
                 log.error(f"Request URL: {response.url}")
-                log.error(f"Request payload: {json.dumps(version_payload, indent=2)}")
+                log.error(f"Response Headers: {dict(response.headers)}")
+                log.error(f"Response Body: {response_text}")
+                
+                # Analyze template structure for common issues
+                flow_contents = version_payload.get("flowContents", {})
+                processors = flow_contents.get("processors", [])
+                connections = flow_contents.get("connections", [])
+                
+                log.error(f"Template Analysis:")
+                log.error(f"  - Total Processors: {len(processors)}")
+                log.error(f"  - Total Connections: {len(connections)}")
+                log.error(f"  - Template Size: {len(json.dumps(version_payload))} bytes")
+                
+                # Check each processor for potential Registry issues
+                for i, processor in enumerate(processors):
+                    proc_name = processor.get('name', 'Unknown')
+                    proc_type = processor.get('type', 'Unknown')
+                    bundle = processor.get('bundle', {})
+                    
+                    log.error(f"  Processor {i+1}: {proc_name}")
+                    log.error(f"    - Type: {proc_type}")
+                    log.error(f"    - Bundle: {bundle.get('group', 'N/A')}/{bundle.get('artifact', 'N/A')}/{bundle.get('version', 'N/A')}")
+                    log.error(f"    - Required fields: id={bool(processor.get('identifier'))}, name={bool(proc_name)}, type={bool(proc_type)}")
+                
+                # Look for specific Registry error patterns
+                if response_text:
+                    if "validation" in response_text.lower():
+                        log.error("REGISTRY VALIDATION ERROR detected")
+                    if "bundle" in response_text.lower():
+                        log.error("REGISTRY BUNDLE ERROR detected")
+                    if "property" in response_text.lower():
+                        log.error("REGISTRY PROPERTY ERROR detected")
+                
+                log.error(f"=== END REGISTRY UPLOAD DEBUG ===")
                 
                 # Create a detailed error message
                 error_msg = f"{response.status}, message='{response.reason}', url='{response.url}'"

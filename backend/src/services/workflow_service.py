@@ -5,6 +5,7 @@ This service handles all workflow operations including CRUD, deployment to NiFi,
 lifecycle management, execution, and status monitoring.
 """
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timedelta
@@ -21,6 +22,11 @@ from src.models.registry_models import RegistryTemplate
 from src.services.template_service import TemplateService, TemplateServiceError
 from src.services.nifi_service import NiFiService, NiFiServiceError
 from src.nifi.clients.nifi_client import NiFiAPIClient
+from src.validation.nifi_template_validator import NiFiTemplateValidator
+from src.exceptions.workflow_exceptions import (
+    ProcessorValidationError,
+    ParameterSubstitutionError
+)
 from src.api.schemas import (
     WorkflowExecutionRequest, WorkflowExecutionResponse,
     ValidationFinding, FindingLocation
@@ -236,6 +242,73 @@ class WorkflowService:
             log.debug(f"Template registry flow ID: {template.template_id}")
             log.debug(f"Template current version: {template.current_version}")
 
+            # Get template flow definition from Registry for validation
+            log.debug("Getting template flow definition for validation")
+            try:
+                template_flow_definition = await self.template_service.get_template_flow_definition(
+                    template.template_id, str(template.current_version)
+                )
+                
+                if not template_flow_definition:
+                    raise WorkflowServiceError(f"Could not retrieve flow definition for template {template.template_id}")
+                
+                log.debug(f"Retrieved template flow definition with {len(template_flow_definition.get('processors', []))} processors")
+                
+                # Validate parameter substitution before deployment
+                log.debug("Validating parameter substitution")
+                template_definition = self.template_service.get_template_by_id(str(template.template_id))
+                if template_definition:
+                    validation_result = self.template_service.validate_parameter_substitution(
+                        template_definition, workflow.configuration or {}
+                    )
+                    
+                    if not validation_result["valid"]:
+                        error_msg = f"Parameter validation failed: {validation_result['error']}"
+                        log.error(error_msg)
+                        log.error(f"Required parameters: {validation_result['required_parameters']}")
+                        log.error(f"Provided parameters: {validation_result['provided_parameters']}")
+                        raise WorkflowServiceError(error_msg)
+                    
+                    log.debug(f"Parameter validation passed. Required: {validation_result['required_parameters']}, Provided: {validation_result['provided_parameters']}")
+                else:
+                    log.warning(f"Could not load template definition for validation: {template.template_id}")
+                    
+            except Exception as e:
+                log.error(f"Parameter validation error: {e}")
+                raise WorkflowServiceError(f"Parameter validation failed: {str(e)}")
+
+            # Perform dynamic validation against live NiFi before deployment
+            log.debug("Performing dynamic validation against live NiFi")
+            try:
+                async with NiFiAPIClient(
+                    settings.NIFI_URL,
+                    username=settings.NIFI_USERNAME,
+                    password=settings.NIFI_PASSWORD
+                ) as validation_client:
+                    validator = NiFiTemplateValidator()
+                    template_for_validation = {
+                        'flowContents': template_flow_definition
+                    }
+                    
+                    is_dynamic_valid, dynamic_errors = await validator.validate_against_live_nifi(
+                        template_for_validation, validation_client
+                    )
+                    
+                    if not is_dynamic_valid:
+                        error_msg = f"Pre-deployment validation failed: {'; '.join(dynamic_errors)}"
+                        log.error(error_msg)
+                        raise WorkflowServiceError(error_msg)
+                    
+                    log.info(f"Workflow {workflow_id} passed dynamic validation against live NiFi")
+                    
+            except Exception as e:
+                if "Pre-deployment validation failed" in str(e):
+                    raise  # Re-raise validation errors
+                else:
+                    # Log NiFi connection issues but don't fail deployment
+                    log.warning(f"Could not perform dynamic validation: {str(e)}")
+                    log.warning("Proceeding with deployment without dynamic validation")
+
             # Safely convert UUIDs to strings
             def safe_uuid_str(uuid_obj):
                 if hasattr(uuid_obj, 'hex'):
@@ -315,9 +388,148 @@ class WorkflowService:
                     flow_id=flow_id_str,
                     flow_version=template.current_version,
                     process_group_name=f"{workflow.name}-{workflow_id_str}",
-                    position={"x": 100, "y": 100}
+                    position={"x": 100, "y": 100},
+                    parameter_context_id=param_context["id"]
                 )
                 log.debug(f"Process group deployed: {process_group}")
+
+                # Associate parameter context with the deployed process group
+                log.info(f"Associating parameter context {param_context['id']} with process group {process_group['id']}")
+                log.debug(f"Process group before association: {process_group.get('component', {}).get('name')}")
+                
+                await nifi_client.update_process_group(
+                    process_group_id=process_group["id"],
+                    parameter_context_id=param_context["id"],
+                    version=0  # Let the client get the current revision
+                )
+                log.info("Parameter context successfully associated with process group")
+                
+                # Verify the association by getting the updated process group
+                try:
+                    updated_pg = await nifi_client.get_process_group(process_group["id"])
+                    associated_context_id = updated_pg.get('component', {}).get('parameterContext', {}).get('id')
+                    log.debug(f"Verification: Process group now has parameter context ID: {associated_context_id}")
+                    if associated_context_id == param_context['id']:
+                        log.info("Parameter context association verified successfully")
+                        
+                        # Get the associated parameter context details to verify parameters
+                        try:
+                            context_details = await nifi_client.get_parameter_context(param_context['id'])
+                            context_params = context_details.get('component', {}).get('parameters', [])
+                            log.debug(f"Associated parameter context has {len(context_params)} parameters:")
+                            for param in context_params:
+                                param_info = param.get('parameter', {})
+                                log.debug(f"Parameter: {param_info.get('name')} = '{param_info.get('value')}'")
+                        except Exception as e:
+                            log.error(f"Failed to get parameter context details: {e}")
+                    else:
+                        log.error(f"Parameter context association failed! Expected: {param_context['id']}, Got: {associated_context_id}")
+                except Exception as e:
+                    log.error(f"Failed to verify parameter context association: {e}")
+
+                # Force processor validation refresh after parameter context association
+                log.debug("Forcing processor validation refresh after parameter context association")
+                try:
+                    # Wait a moment for parameter context association to propagate
+                    await asyncio.sleep(2)
+                    
+                    # Get all processors and force them to refresh their validation
+                    processors_response = await nifi_client.get_processors_in_group(process_group["id"])
+                    log.debug(f"Found {len(processors_response)} processors to refresh")
+                    
+                    for processor in processors_response:
+                        processor_id = processor.get("id")
+                        processor_name = processor.get("component", {}).get("name", "Unknown")
+                        log.debug(f"Refreshing processor validation: {processor_name} ({processor_id})")
+                        
+                        # Get current processor state
+                        current_processor = await nifi_client.get_processor(processor_id)
+                        current_revision = current_processor.get("revision", {}).get("version", 0)
+                        current_properties = current_processor.get("component", {}).get("config", {}).get("properties", {})
+                        
+                        # Update processor to force validation refresh (trigger property re-evaluation)
+                        await nifi_client.update_processor(
+                            processor_id=processor_id,
+                            properties=current_properties,  # Re-set the same properties to force re-evaluation
+                            version=current_revision
+                        )
+                        log.debug(f"Successfully refreshed processor validation: {processor_name}")
+                    
+                    # Wait for validation to complete
+                    await asyncio.sleep(3)
+                    log.debug("All processors validation refreshed successfully")
+                except Exception as e:
+                    log.error(f"Error refreshing processor validation: {e}")
+                    # Don't fail deployment for this, just log the error
+
+                # Check processor properties to see if parameter resolution is working
+                try:
+                    processors_list = await nifi_client.get_processors_in_group(process_group["id"])
+                    log.debug(f"Checking {len(processors_list)} processors for parameter resolution:")
+                    
+                    invalid_processors = []
+                    parameter_issues = {}
+                    
+                    for proc in processors_list:
+                        proc_id = proc.get("id")
+                        proc_name = proc.get("component", {}).get("name", "Unknown")
+                        proc_type = proc.get("component", {}).get("type", "Unknown")
+                        proc_state = proc.get("component", {}).get("state", "Unknown")
+                        proc_validation = proc.get("component", {}).get("validationStatus", "Unknown")
+                        proc_props = proc.get("component", {}).get("config", {}).get("properties", {})
+                        validation_errors = proc.get("component", {}).get("validationErrors", [])
+                        
+                        log.debug(f"Processor: {proc_name} ({proc_type})")
+                        log.debug(f"State: {proc_state}, Validation: {proc_validation}")
+                        
+                        # Check for INVALID validation status
+                        if proc_validation == "INVALID":
+                            invalid_processors.append({
+                                "id": proc_id,
+                                "name": proc_name,
+                                "type": proc_type,
+                                "errors": validation_errors
+                            })
+                            log.error(f"Processor {proc_name} is INVALID: {validation_errors}")
+                        
+                        # Check for unresolved parameter references
+                        for prop_name, prop_value in proc_props.items():
+                            if prop_value and ("${" in str(prop_value) or "#{" in str(prop_value)):
+                                log.debug(f"Property {prop_name}: '{prop_value}'")
+                                if "${" in str(prop_value):
+                                    # This suggests parameter syntax issue (should be #{} not ${})
+                                    parameter_issues[f"{proc_name}.{prop_name}"] = prop_value
+                                    
+                    # FAIL HARD if processors are invalid
+                    if invalid_processors:
+                        error_details = {}
+                        for proc in invalid_processors:
+                            error_details[proc["name"]] = proc["errors"]
+                        
+                        log.error(f"Deployment failed: {len(invalid_processors)} processors are INVALID")
+                        raise ProcessorValidationError(
+                            f"Cannot deploy workflow with {len(invalid_processors)} INVALID processors",
+                            validation_errors=error_details
+                        )
+                    
+                    # FAIL HARD if parameter substitution issues detected
+                    if parameter_issues:
+                        log.error(f"Parameter substitution issues detected: {parameter_issues}")
+                        raise ParameterSubstitutionError(
+                            f"Parameter substitution failed for {len(parameter_issues)} properties. "
+                            f"Use #{{param}} syntax instead of ${{param}} for Parameter Context references.",
+                            invalid_processors=list(parameter_issues.keys())
+                        )
+                        
+                except ProcessorValidationError:
+                    # Re-raise validation errors
+                    raise
+                except ParameterSubstitutionError:
+                    # Re-raise parameter errors  
+                    raise
+                except Exception as e:
+                    log.error(f"Failed to check processor properties: {e}")
+                    raise ProcessorValidationError(f"Unable to validate processors: {str(e)}")
 
                 # Update workflow with NiFi IDs
                 workflow.nifi_process_group_id = process_group["id"]
@@ -334,7 +546,15 @@ class WorkflowService:
         except Exception as e:
             await self.session.rollback()
             log.error(f"Failed to deploy workflow {workflow_id}: {str(e)}")
-            raise WorkflowServiceError(f"Failed to deploy workflow: {str(e)}")
+            
+            # Preserve specific error types with their detailed messages
+            from src.exceptions.workflow_exceptions import RegistryImportError, ProcessorValidationError, ParameterSubstitutionError
+            if isinstance(e, (RegistryImportError, ProcessorValidationError, ParameterSubstitutionError)):
+                # Re-raise with original detailed message
+                raise WorkflowServiceError(str(e))
+            else:
+                # Generic wrapper for other exceptions
+                raise WorkflowServiceError(f"Failed to deploy workflow: {str(e)}")
 
     async def undeploy_workflow(self, workflow_id: UUID) -> Workflow:
         """Undeploy a workflow from NiFi."""
@@ -550,12 +770,12 @@ class WorkflowService:
 
     async def _get_workflow(self, workflow_id: str, tenant_id: str) -> Workflow:
         """Get workflow with tenant validation."""
-        log.debug(f"🔍 _get_workflow: workflow_id={workflow_id}, tenant_id={tenant_id}")
+        log.debug(f"Getting workflow: workflow_id={workflow_id}, tenant_id={tenant_id}")
         try:
             workflow_uuid = UUID(workflow_id)
-            log.debug(f"🔍 Converted to UUID: {workflow_uuid}")
+            log.debug(f"Converted to UUID: {workflow_uuid}")
         except ValueError as e:
-            log.debug(f"❌ Invalid UUID format: {workflow_id}, error: {e}")
+            log.debug(f"Invalid UUID format: {workflow_id}, error: {e}")
             raise WorkflowServiceError(f"Invalid workflow ID format: {workflow_id}")
         
         query = select(Workflow).where(
@@ -565,12 +785,12 @@ class WorkflowService:
         result = await self.session.execute(query)
         workflow = result.scalar_one_or_none()
         
-        log.debug(f"🔍 Database query result: {workflow}")
+        log.debug(f"Database query result: {workflow}")
         if workflow:
-            log.debug(f"🔍 Found workflow: id={workflow.workflow_id}, tenant={workflow.tenant_id}, name={workflow.name}")
+            log.debug(f"Found workflow: id={workflow.workflow_id}, tenant={workflow.tenant_id}, name={workflow.name}")
 
         if not workflow:
-            log.debug(f"❌ Workflow {workflow_id} not found or access denied for tenant {tenant_id}")
+            log.debug(f"Workflow {workflow_id} not found or access denied for tenant {tenant_id}")
             raise WorkflowServiceError(f"Workflow {workflow_id} not found or access denied")
 
         return workflow
@@ -594,3 +814,68 @@ class WorkflowService:
         # Validate tenant access
         if workflow.tenant_id != auth_context.tenant_id:
             raise WorkflowServiceError("Access denied to workflow")
+
+    async def restart_processors(self, workflow_id: UUID) -> Dict[str, Any]:
+        """Restart all processors in a workflow to force parameter re-evaluation."""
+        try:
+            workflow = await self.get_workflow(workflow_id)
+            if not workflow:
+                raise WorkflowServiceError(f"Workflow {workflow_id} not found")
+            
+            if not workflow.is_deployed or not workflow.nifi_process_group_id:
+                raise WorkflowServiceError("Workflow must be deployed to restart processors")
+            
+            process_group_id = workflow.nifi_process_group_id
+            
+            # Connect to NiFi and restart processors
+            async with NiFiAPIClient(
+                settings.NIFI_URL,
+                username=settings.NIFI_USERNAME,
+                password=settings.NIFI_PASSWORD
+            ) as nifi_client:
+                # Get all processors in the process group
+                processors_response = await nifi_client.get_processors_in_group(process_group_id)
+                
+                if not processors_response:
+                    log.warning(f"No processors found in process group {process_group_id}")
+                    return {
+                        "restarted_count": 0,
+                        "failed_restarts": [],
+                        "total_processors": 0
+                    }
+                
+                restarted_count = 0
+                failed_restarts = []
+                total_processors = len(processors_response)
+                
+                log.info(f"Found {total_processors} processors to restart in workflow {workflow_id}")
+                
+                # Restart each processor
+                for processor in processors_response:
+                    processor_id = processor.get("id")
+                    processor_name = processor.get("component", {}).get("name", "Unknown")
+                    
+                    try:
+                        await nifi_client.restart_processor(processor_id)
+                        restarted_count += 1
+                        log.debug(f"Successfully restarted processor {processor_name} ({processor_id})")
+                    except Exception as e:
+                        error_msg = f"Failed to restart processor {processor_name} ({processor_id}): {str(e)}"
+                        log.warning(error_msg)
+                        failed_restarts.append({
+                            "processor_id": processor_id,
+                            "processor_name": processor_name,
+                            "error": str(e)
+                        })
+                
+                log.info(f"Processor restart complete: {restarted_count}/{total_processors} successful")
+                
+                return {
+                    "restarted_count": restarted_count,
+                    "failed_restarts": failed_restarts,
+                    "total_processors": total_processors
+                }
+                
+        except Exception as e:
+            log.error(f"Failed to restart processors for workflow {workflow_id}: {str(e)}")
+            raise WorkflowServiceError(f"Failed to restart processors: {str(e)}")

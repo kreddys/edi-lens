@@ -7,10 +7,11 @@ references and metadata. Handles all template operations including built-in temp
 """
 
 import logging
+import re
 import uuid
 import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Set
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -19,6 +20,8 @@ from sqlalchemy.orm import selectinload
 from src.core.config import settings
 from src.models.registry_models import RegistryTemplate, RegistryBucket
 from src.nifi.clients.registry_client import NiFiRegistryClient
+from src.nifi.clients.nifi_client import NiFiAPIClient
+from src.validation.nifi_template_validator import NiFiTemplateValidator
 
 log = logging.getLogger(__name__)
 
@@ -53,10 +56,49 @@ class TemplateService:
         category: str = "GENERAL",
         version: str = "1.0.0",
         configuration_schema: Optional[Dict[str, Any]] = None,
-        created_by: Optional[str] = None
+        created_by: Optional[str] = None,
+        enable_dynamic_validation: bool = True
     ) -> RegistryTemplate:
         """Create a new template in both database and NiFi Registry."""
         try:
+            # Perform static validation first
+            validator = NiFiTemplateValidator()
+            # Use standard NiFi Registry format: flowContents at root level
+            template_for_validation = {
+                'flowContents': flow_definition
+            }
+            
+            is_valid, static_errors = validator.validate_template(template_for_validation)
+            if not is_valid:
+                raise TemplateServiceError(f"Static validation failed: {'; '.join(static_errors)}")
+            
+            # Perform dynamic validation against live NiFi if enabled
+            if enable_dynamic_validation:
+                try:
+                    async with NiFiAPIClient(
+                        settings.NIFI_URL,
+                        username=settings.NIFI_USERNAME,
+                        password=settings.NIFI_PASSWORD
+                    ) as nifi_client:
+                        is_dynamic_valid, dynamic_errors = await validator.validate_against_live_nifi(
+                            template_for_validation, nifi_client
+                        )
+                        
+                        if not is_dynamic_valid:
+                            raise TemplateServiceError(f"Dynamic NiFi validation failed: {'; '.join(dynamic_errors)}")
+                        
+                        log.info(f"Template '{name}' passed both static and dynamic validation")
+                        
+                except Exception as e:
+                    if "Dynamic NiFi validation failed" in str(e):
+                        raise  # Re-raise validation errors
+                    else:
+                        # Log NiFi connection issues but don't fail template creation
+                        log.warning(f"Could not perform dynamic validation due to NiFi connectivity: {str(e)}")
+                        log.warning("Proceeding with template creation without dynamic validation")
+            else:
+                log.info(f"Dynamic validation disabled for template '{name}'")
+            
             # Create bucket if needed
             bucket = await self._ensure_bucket_exists(scope, tenant_id)
             
@@ -74,6 +116,22 @@ class TemplateService:
                 
                 registry_flow_id = registry_flow["identifier"]
                 
+                # Debug: Log the flow definition being uploaded to Registry
+                log.debug("Uploading flow definition to Registry")
+                log.debug(f"Flow definition keys: {list(flow_definition.keys()) if isinstance(flow_definition, dict) else 'Not a dict'}")
+                
+                if isinstance(flow_definition, dict) and 'processors' in flow_definition:
+                    processors = flow_definition['processors']
+                    log.debug(f"Found {len(processors)} processors in flow definition")
+                    for i, proc in enumerate(processors):
+                        if isinstance(proc, dict):
+                            proc_name = proc.get('name', f'Processor {i}')
+                            proc_props = proc.get('properties', {})
+                            log.debug(f"Processor: {proc_name}")
+                            for prop_name, prop_value in proc_props.items():
+                                if prop_value and ("${" in str(prop_value) or "directory" in prop_name.lower() or "filter" in prop_name.lower()):
+                                    log.debug(f"Property {prop_name}: '{prop_value}'")
+
                 # Upload flow definition as first version
                 await registry_client.create_flow_version(
                     bucket_id=str(bucket.bucket_id),
@@ -276,6 +334,53 @@ class TemplateService:
             return []
 
         return list(self.templates_dir.glob("*.yml")) + list(self.templates_dir.glob("*.yaml"))
+
+    def extract_template_parameters(self, template_definition: Dict[str, Any]) -> Set[str]:
+        """Extract all parameter names from template definition using #{parameter} syntax."""
+        parameters = set()
+        pattern = re.compile(r'#\{([^}]+)\}')
+        
+        def extract_from_dict(obj, path=""):
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    extract_from_dict(value, f"{path}.{key}" if path else key)
+            elif isinstance(obj, list):
+                for i, item in enumerate(obj):
+                    extract_from_dict(item, f"{path}[{i}]")
+            elif isinstance(obj, str):
+                matches = pattern.findall(obj)
+                parameters.update(matches)
+        
+        # Look in flow_definition for parameters
+        if 'flow_definition' in template_definition:
+            extract_from_dict(template_definition['flow_definition'])
+        
+        return parameters
+    
+    def validate_parameter_substitution(
+        self, 
+        template_definition: Dict[str, Any], 
+        workflow_configuration: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Validate that all template parameters can be substituted with workflow configuration."""
+        required_params = self.extract_template_parameters(template_definition)
+        provided_params = set(workflow_configuration.keys()) if workflow_configuration else set()
+        
+        missing_params = required_params - provided_params
+        unused_params = provided_params - required_params
+        
+        validation_result = {
+            "valid": len(missing_params) == 0,
+            "required_parameters": sorted(required_params),
+            "provided_parameters": sorted(provided_params),
+            "missing_parameters": sorted(missing_params),
+            "unused_parameters": sorted(unused_params),
+        }
+        
+        if missing_params:
+            validation_result["error"] = f"Missing required parameters: {', '.join(sorted(missing_params))}"
+        
+        return validation_result
 
     def get_all_templates(self) -> List[Dict[str, Any]]:
         """Get all template definitions from YAML files."""
