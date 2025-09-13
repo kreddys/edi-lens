@@ -57,10 +57,10 @@ if [ -z "$1" ] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]]; then
     echo "  dev:test unit:edi               Run nifi-edi-processors unit tests only."
     echo "  dev:test integration [args...]  Run backend integration tests against the dev stack."
     echo "  dev:test e2e [args...]          Run backend end-to-end tests against the dev stack."
-    echo "  dev:test ui [args...]           Run UI tests (Jest + React Testing Library). Logs saved to tmp/ui-test-logs-*/"
-    echo "  dev:test ui:workflows           Run workflow component tests specifically. Logs saved to tmp/ui-workflow-test-logs-*/"
-    echo "  dev:test ui:integration         Run UI-backend integration tests. Logs saved to tmp/ui-integration-test-logs-*/"
-    echo "  dev:test ui:legacy              Run legacy UI component tests. Logs saved to tmp/ui-legacy-test-logs-*/"
+    echo "  dev:test ui [args...]           Run UI tests (Jest + React Testing Library). Logs saved to logs/ui-test-logs-*/"
+    echo "  dev:test ui:workflows           Run workflow component tests specifically. Logs saved to logs/ui-workflow-test-logs-*/"
+    echo "  dev:test ui:integration         Run UI-backend integration tests. Logs saved to logs/ui-integration-test-logs-*/"
+    echo "  dev:test ui:legacy              Run legacy UI component tests. Logs saved to logs/ui-legacy-test-logs-*/"
     exit 0
 fi
 
@@ -367,7 +367,7 @@ case "$ACTION" in
                 info "Ensuring dev stack is running for UI tests..."
                 
                 # Create temp directory for detailed logs within project
-                UI_LOG_DIR="$PROJECT_ROOT/tmp/ui-test-logs-$(date +%Y%m%d-%H%M%S)"
+                UI_LOG_DIR="$PROJECT_ROOT/logs/ui-test-logs-$(date +%Y%m%d-%H%M%S)"
                 mkdir -p "$UI_LOG_DIR"
                 info "Detailed logs will be saved to: $UI_LOG_DIR"
                 
@@ -406,7 +406,7 @@ case "$ACTION" in
                 info "Ensuring dev stack is running for workflow tests..."
                 
                 # Create temp directory for detailed logs within project
-                UI_LOG_DIR="$PROJECT_ROOT/tmp/ui-workflow-test-logs-$(date +%Y%m%d-%H%M%S)"
+                UI_LOG_DIR="$PROJECT_ROOT/logs/ui-workflow-test-logs-$(date +%Y%m%d-%H%M%S)"
                 mkdir -p "$UI_LOG_DIR"
                 info "Detailed logs will be saved to: $UI_LOG_DIR"
                 
@@ -430,7 +430,7 @@ case "$ACTION" in
                 info "Ensuring full dev stack is running for integration tests..."
                 
                 # Create temp directory for detailed logs within project
-                UI_LOG_DIR="$PROJECT_ROOT/tmp/ui-integration-test-logs-$(date +%Y%m%d-%H%M%S)"
+                UI_LOG_DIR="$PROJECT_ROOT/logs/ui-integration-test-logs-$(date +%Y%m%d-%H%M%S)"
                 mkdir -p "$UI_LOG_DIR"
                 info "Detailed logs will be saved to: $UI_LOG_DIR"
                 
@@ -454,7 +454,7 @@ case "$ACTION" in
                 info "Ensuring dev stack is running for legacy tests..."
                 
                 # Create temp directory for detailed logs within project
-                UI_LOG_DIR="$PROJECT_ROOT/tmp/ui-legacy-test-logs-$(date +%Y%m%d-%H%M%S)"
+                UI_LOG_DIR="$PROJECT_ROOT/logs/ui-legacy-test-logs-$(date +%Y%m%d-%H%M%S)"
                 mkdir -p "$UI_LOG_DIR"
                 info "Detailed logs will be saved to: $UI_LOG_DIR"
                 
@@ -478,7 +478,7 @@ case "$ACTION" in
                 
                 # Create log directory with timestamp
                 LOG_TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
-                TEST_LOG_DIR="tmp/${TEST_TYPE}-test-logs-${LOG_TIMESTAMP}"
+                TEST_LOG_DIR="logs/${TEST_TYPE}-test-logs-${LOG_TIMESTAMP}"
                 mkdir -p "$TEST_LOG_DIR"
                 
                 info "Ensuring dev stack is running for '$TEST_TYPE' tests..."
