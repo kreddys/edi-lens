@@ -75,3 +75,5 @@ docker/sftpgo/config
 # Data directories (excluding templates)
 data/
 !backend/data/.vscode/
+
+nifi-rest-api-spec.txt
