@@ -285,6 +285,24 @@ services:
     networks:
       - edi_lens_network
 
+  e2e-test-volume-init:
+    image: alpine:3.19
+    container_name: e2e-test-volume-init
+    profiles:
+      - setup
+    volumes:
+      - e2e_test_data:/e2e_test_files
+    command: >
+      sh -c "
+      echo 'Fixing e2e test volume permissions...';
+      mkdir -p /e2e_test_files &&
+      chown -R 1000:1000 /e2e_test_files &&
+      chmod -R 0777 /e2e_test_files &&
+      echo 'e2e test volume permissions set.';
+      "
+    networks:
+      - edi_lens_network
+
   nifi-registry:
     image: apache/nifi-registry:2.5.0
     container_name: nifi-registry

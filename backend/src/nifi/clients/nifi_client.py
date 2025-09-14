@@ -273,13 +273,22 @@ class NiFiAPIClient:
             update_data["component"]["parameterContext"] = {
                 "id": parameter_context_id
             }
-            
+        
+        log.debug(f"Updating process group {process_group_id} with data: {update_data}")
         async with self.session.put(
             f"{self.nifi_url}/process-groups/{process_group_id}",
             json=update_data
         ) as response:
+            if response.status >= 400:
+                try:
+                    error_text = await response.text()
+                    log.error(f"NiFi API Error (update PG): {response.status} - {error_text}")
+                except Exception:
+                    pass
             response.raise_for_status()
-            return await response.json()
+            result = await response.json()
+            log.debug(f"Update PG result paramContext: {result.get('component', {}).get('parameterContext')}")
+            return result
 
     async def delete_process_group(
         self,
@@ -504,46 +513,65 @@ class NiFiAPIClient:
         scheduling: Optional[Dict[str, Any]] = None,
         auto_terminated_relationships: Optional[List[str]] = None
     ) -> Dict[str, Any]:
-        """Create a processor in the specified process group."""
+        """Create a processor in the specified process group.
+        Builds a ProcessorEntity with ProcessorDTO.component.config.properties per NiFi API.
+        """
+        # Normalize and format properties (must live under component.config.properties)
+        formatted_properties: Dict[str, str] = {}
+        if properties:
+            for key, value in properties.items():
+                if isinstance(value, (dict, list)):
+                    formatted_properties[key] = json.dumps(value)
+                else:
+                    formatted_properties[key] = "" if value is None else str(value)
+        
+        # Normalize scheduling keys (accept both our internal and NiFi-style keys)
+        scheduling_period = None
+        scheduling_strategy = None
+        concurrent_tasks = None
+        execution_node = None
+        bulletin_level = None
+        if scheduling:
+            scheduling_period = scheduling.get("period") or scheduling.get("schedulingPeriod") or "0 sec"
+            scheduling_strategy = scheduling.get("strategy") or scheduling.get("schedulingStrategy") or "TIMER_DRIVEN"
+            concurrent_tasks = scheduling.get("concurrent_tasks") or scheduling.get("concurrentlySchedulableTaskCount") or 1
+            execution_node = scheduling.get("executionNode")
+            bulletin_level = scheduling.get("bulletinLevel")
+        
+        # Build ProcessorEntity payload
+        component_config: Dict[str, Any] = {
+            "properties": formatted_properties,
+            "schedulingPeriod": scheduling_period or "0 sec",
+            "schedulingStrategy": scheduling_strategy or "TIMER_DRIVEN",
+            "concurrentlySchedulableTaskCount": concurrent_tasks or 1,
+        }
+        if execution_node is not None:
+            component_config["executionNode"] = execution_node
+        if bulletin_level is not None:
+            component_config["bulletinLevel"] = bulletin_level
+        if auto_terminated_relationships:
+            component_config["autoTerminatedRelationships"] = list(auto_terminated_relationships)
+        
         processor_data = {
             "revision": {"version": 0},
             "component": {
                 "name": name,
                 "type": processor_type,
                 "parentGroupId": parent_group_id,
-                "position": position
+                "position": position,
+                "config": component_config,
             }
         }
         
-        # Add properties to the component if provided
-        if properties:
-            # Ensure property values are properly formatted as strings
-            formatted_properties = {}
-            for key, value in properties.items():
-                if isinstance(value, (dict, list)):
-                    formatted_properties[key] = json.dumps(value)
-                else:
-                    formatted_properties[key] = str(value) if value is not None else ""
-            processor_data["component"]["properties"] = formatted_properties
-            
-        # Add scheduling configuration if provided
-        if scheduling:
-            config = {}
-            config["schedulingPeriod"] = scheduling.get("period", "0 sec")
-            config["schedulingStrategy"] = scheduling.get("strategy", "TIMER_DRIVEN")
-            config["concurrentlySchedulableTaskCount"] = scheduling.get("concurrent_tasks", 1)
-            processor_data["component"]["config"] = config
-            
         async with self.session.post(
             f"{self.nifi_url}/process-groups/{parent_group_id}/processors",
             json=processor_data
         ) as response:
             # Log detailed request and response information for debugging
             log.debug(f"NiFi API Request - URL: {response.url}")
-            log.debug(f"NiFi API Request - Method: POST")
+            log.debug("NiFi API Request - Method: POST")
             log.debug(f"NiFi API Request - Headers: {getattr(self.session, 'headers', {})}")
             log.debug(f"NiFi API Request - Body: {processor_data}")
-            
             try:
                 response.raise_for_status()
                 result = await response.json()
@@ -559,14 +587,17 @@ class NiFiAPIClient:
                     log.error(f"Request data: {processor_data}")
                 except Exception as ex:
                     log.error(f"Failed to read error response: {ex}")
-                
                 # Re-raise with more context
-                raise Exception(f"Failed to create processor '{name}' of type '{processor_type}': {response.status} - {e.message}") from e
+                raise Exception(
+                    f"Failed to create processor '{name}' of type '{processor_type}': {response.status} - {e.message}"
+                ) from e
             except Exception as e:
                 log.error(f"Unexpected error creating processor '{name}' of type '{processor_type}': {str(e)}")
                 log.error(f"Request URL: {response.url}")
                 log.error(f"Request data: {processor_data}")
-                raise Exception(f"Unexpected error creating processor '{name}' of type '{processor_type}': {str(e)}") from e
+                raise Exception(
+                    f"Unexpected error creating processor '{name}' of type '{processor_type}': {str(e)}"
+                ) from e
 
     async def get_processor(self, processor_id: str) -> Dict[str, Any]:
         """Get processor details by ID."""

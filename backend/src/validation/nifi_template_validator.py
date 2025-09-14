@@ -539,10 +539,11 @@ class NiFiTemplateValidator:
         # Validate provided properties exist and have valid values
         for prop_name, prop_value in processor_properties.items():
             if prop_name not in supported_properties:
-                # Provide helpful error message with supported properties
-                supported_prop_names = list(supported_properties.keys())
-                errors.append(f"Processor '{processor_name}' has unsupported property: '{prop_name}'. "
-                            f"Supported properties for {processor_type}: {', '.join(sorted(supported_prop_names))}")
+                # Many NiFi processors (e.g., UpdateAttribute) support dynamic properties that are not listed
+                # Skip strict validation for unknown properties and rely on the live creation/update test below
+                log.debug(
+                    f"Skipping strict property validation for dynamic property '{prop_name}' on processor '{processor_name}'"
+                )
                 continue
             
             prop_descriptor = supported_properties[prop_name]

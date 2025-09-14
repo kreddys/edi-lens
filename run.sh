@@ -120,6 +120,7 @@ ensure_infra() {
     # We explicitly run the service by name. If it has a profile, 'run' will still execute it.
     $DC_EXEC run --rm create-minio-bucket
     $DC_EXEC run --rm nifi-registry-init
+    $DC_EXEC run --rm e2e-test-volume-init
     info "Infrastructure tasks are up to date."
 }
 # --- END OF UPDATE ---

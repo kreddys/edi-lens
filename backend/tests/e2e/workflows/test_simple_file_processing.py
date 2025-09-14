@@ -125,7 +125,9 @@ Line 3: End of test file"""
                             "version": "2.5.0"
                         },
                         "position": {"x": 300, "y": 100},
-                        "properties": {},
+                        "properties": {
+                            "filename": "processed_${filename}"
+                        },
                         "autoTerminatedRelationships": [],
                         "scheduledState": "ENABLED",
                         "schedulingPeriod": "0 sec",

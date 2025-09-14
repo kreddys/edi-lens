@@ -322,40 +322,64 @@ class HybridDeploymentEngine:
             # Step 1.5: Associate parameter context BEFORE creating processors
             if parameter_context_id:
                 log.debug(f"Associating parameter context {parameter_context_id} with process group {process_group_id}")
-                await self._associate_parameter_context(nifi_client, process_group_id, parameter_context_id)
-                log.debug("Parameter context associated successfully")
+                try:
+                    # Extra debug: fetch current PG details before
+                    try:
+                        before_pg = await nifi_client.get_process_group(process_group_id)
+                        log.debug(f"Before association - PG paramContext: {before_pg.get('component', {}).get('parameterContext')}")
+                    except Exception as e:
+                        log.debug(f"Could not fetch PG before association: {e}")
+
+                    await self._associate_parameter_context(nifi_client, process_group_id, parameter_context_id)
+
+                    # Extra debug: fetch current PG details after
+                    try:
+                        after_pg = await nifi_client.get_process_group(process_group_id)
+                        pc_info = after_pg.get('component', {}).get('parameterContext')
+                        log.debug(f"After association - PG paramContext: {pc_info}")
+                    except Exception as e:
+                        log.debug(f"Could not fetch PG after association: {e}")
+
+                    log.debug("Parameter context associated successfully")
+                except Exception as e:
+                    log.error(f"Failed associating parameter context: {e}")
+                    raise
 
             # Step 2: Create processors
             log.debug(f"Creating {len(processors)} processors")
+            # Track processors that were created but initially INVALID (often resolved after connections)
+            pending_revalidation: List[Dict[str, Any]] = []
+
             for processor in processors:
                 try:
                     created_processor = await self._create_processor(
                         nifi_client, process_group_id, processor
                     )
 
-                    # Check if the created processor is valid
+                    # Always add to created list; validation may resolve after wiring
+                    created_components.processors.append(created_processor)
+
+                    # Check initial validation
                     validation_status = created_processor.get("component", {}).get("validationStatus", "UNKNOWN")
                     validation_errors = created_processor.get("component", {}).get("validationErrors", [])
 
                     if validation_status == "INVALID":
-                        # Processor was created but is invalid - treat as failure
-                        failure = ComponentFailure(
-                            component_type="processor",
-                            component_name=processor.get("name", "Unknown"),
-                            error_type="validation",
-                            error_message=f"Processor created but validation failed: {validation_errors}",
-                            detailed_error={
-                                "processor_type": processor.get("type", "Unknown"),
-                                "validation_status": validation_status,
-                                "validation_errors": validation_errors,
-                                "properties_sent": processor.get("properties", {}),
-                                "properties_returned": created_processor.get("component", {}).get("config", {}).get("properties", {})
-                            }
+                        # Log and plan to re-validate after connections are created
+                        returned_cfg = created_processor.get("component", {}).get("config", {})
+                        returned_props = returned_cfg.get("properties", {})
+                        returned_desc = returned_cfg.get("descriptors", {})
+                        log.warning(
+                            f"Processor initially INVALID (expected before wiring): name={processor.get('name','Unknown')}, "
+                            f"type={processor.get('type','Unknown')}, errors={validation_errors}"
                         )
-                        failures.append(failure)
-                        log.error(f"Created processor {processor.get('name', 'Unknown')} but it has INVALID validation status: {validation_errors}")
+                        pending_revalidation.append({
+                            "definition": processor,
+                            "entity": created_processor,
+                            "initial_errors": validation_errors,
+                            "returned_props": returned_props,
+                            "descriptors": returned_desc,
+                        })
                     else:
-                        created_components.processors.append(created_processor)
                         log.debug(f"Created processor: {processor.get('name', 'Unknown')} (status: {validation_status})")
 
                 except Exception as e:
@@ -399,6 +423,40 @@ class HybridDeploymentEngine:
                     )
                     failures.append(failure)
                     log.error(f"Failed to create connection {connection.get('name', 'Unknown')}: {str(e)}")
+
+            # Step 3.5: Re-validate processors after connections are created
+            if pending_revalidation:
+                log.debug(f"Re-validating {len(pending_revalidation)} processors after wiring")
+                # Allow NiFi to re-evaluate
+                await asyncio.sleep(1)
+                for item in pending_revalidation:
+                    proc_id = item["entity"].get("id")
+                    try:
+                        current = await nifi_client.get_processor(proc_id)
+                        vstat = current.get("component", {}).get("validationStatus", "UNKNOWN")
+                        verrs = current.get("component", {}).get("validationErrors", [])
+                        if vstat == "INVALID":
+                            log.error(
+                                f"Processor remains INVALID after wiring: name={item['definition'].get('name')}, "
+                                f"errors={verrs}"
+                            )
+                            failures.append(ComponentFailure(
+                                component_type="processor",
+                                component_name=item['definition'].get('name', 'Unknown'),
+                                error_type="validation",
+                                error_message=f"Processor remains invalid after connections: {verrs}",
+                                detailed_error={
+                                    "processor_type": item['definition'].get('type', 'Unknown'),
+                                    "validation_status": vstat,
+                                    "validation_errors": verrs,
+                                    "properties_sent": item['definition'].get('properties', {}),
+                                    "properties_returned": current.get('component', {}).get('config', {}).get('properties', {}),
+                                }
+                            ))
+                        else:
+                            log.debug(f"Processor now VALID after wiring: {item['definition'].get('name')}")
+                    except Exception as ex:
+                        log.error(f"Failed to re-validate processor {proc_id}: {ex}")
 
             # Calculate summary
             summary = DeploymentSummary(
