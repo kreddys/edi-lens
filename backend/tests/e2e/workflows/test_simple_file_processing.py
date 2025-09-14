@@ -451,12 +451,12 @@ Line 3: End of test file"""
                             
                             print("✅ File content validation passed - all original content preserved")
                             
-                            # Provenance verification: ensure NiFi recorded processing of this file (soft assertion)
+                            # Provenance verification: ensure NiFi recorded processing of this file
                             print("🔍 Verifying NiFi provenance for the processed file...")
                             prov_params = {
                                 "filename": filename,
                                 "max_results": 50,
-                                "wait_seconds": 10,
+                                "wait_seconds": 15,  # Give more time for provenance
                             }
                             try:
                                 prov_resp = await client.get(
@@ -472,14 +472,25 @@ Line 3: End of test file"""
                                     if prov_data.get("found", False) and prov_data.get("matches", 0) > 0:
                                         print(f"✅ Provenance verification passed: {prov_data.get('matches')} matching events found")
                                     else:
-                                        print(f"⚠️ Provenance found no matching events (this may be normal for short-lived flows)")
+                                        print(f"⚠️ Provenance found no matching events (file may have been processed too quickly)")
+                                        # This is acceptable - directory validation already confirmed processing worked
+                                elif prov_resp.status_code == 400:
+                                    prov_error = prov_resp.json().get("detail", "Unknown error")
+                                    if "409" in prov_error or "Conflict" in prov_error:
+                                        print(f"⚠️ Provenance query conflict (NiFi busy): {prov_error}")
+                                        print("   Note: This is acceptable - directory validation already confirmed processing worked")
+                                    else:
+                                        print(f"⚠️ Provenance query failed: {prov_error}")
+                                        print("   Note: This is acceptable - directory validation already confirmed processing worked")
                                 else:
-                                    print(f"⚠️ Provenance check failed with {prov_resp.status_code} - this is acceptable for now")
-                                    print(f"   Note: Provenance may not be enabled/configured in this NiFi instance")
+                                    print(f"⚠️ Provenance check returned {prov_resp.status_code}")
+                                    print("   Note: This is acceptable - directory validation already confirmed processing worked")
                             except Exception as e:
-                                print(f"⚠️ Provenance check exception: {e} - this is acceptable for now")
-                                print(f"   Note: Directory-based validation already confirmed successful processing")
+                                print(f"⚠️ Provenance check exception: {e}")
+                                print("   Note: This is acceptable - directory validation already confirmed processing worked")
                             
+                            print("📊 Primary validation: Directory-based file processing ✅")
+                            print("📊 Secondary validation: Provenance (best effort)")
                             print("✅ File processing validation completed successfully")
                         else:
                             print("❌ No output files found - NiFi workflow may not be processing files")
@@ -615,10 +626,20 @@ Line 3: End of test file"""
                     f"http://{settings.BACKEND_HOST}:8000/api/v1/workflows/{workflow_id}/stop",
                     headers=headers
                 )
-                if stop_response.status_code == 200:
-                    print("✅ Workflow processors stopped successfully")
-                else:
-                    print(f"⚠️ Stop returned {stop_response.status_code} (may be expected)")
+                assert stop_response.status_code == 200, f"Stop workflow failed: {stop_response.status_code} - {stop_response.text}"
+                stop_data = stop_response.json()
+                print(f"✅ Workflow processors stopped successfully: {stop_data.get('stopped_processors', 0)}/{stop_data.get('total_processors', 0)} processors stopped")
+                assert stop_data.get("status") == "STOPPED", f"Workflow status should be STOPPED, got: {stop_data.get('status')}"
+                
+                # Verify workflow status shows as stopped
+                print("🔍 Verifying workflow status shows as stopped...")
+                status_response = await client.get(
+                    f"http://{settings.BACKEND_HOST}:8000/api/v1/workflows/{workflow_id}/status",
+                    headers=headers
+                )
+                assert status_response.status_code == 200, f"Status check failed: {status_response.status_code}"
+                status_data = status_response.json()
+                print(f"   - Workflow status after stop: {status_data.get('status')}")
                 
                 # Undeploy workflow
                 print("📤 Undeploying workflow from NiFi...")
@@ -626,18 +647,31 @@ Line 3: End of test file"""
                     f"http://{settings.BACKEND_HOST}:8000/api/v1/workflows/{workflow_id}/deployment",
                     headers=headers
                 )
+                assert undeploy_response.status_code == 200, f"Undeploy workflow failed: {undeploy_response.status_code} - {undeploy_response.text}"
+                undeploy_data = undeploy_response.json()
+                print(f"✅ Workflow undeployed successfully: {undeploy_data.get('message', 'Success')}")
                 
-                if undeploy_response.status_code in [200, 404, 500]:
-                    if undeploy_response.status_code == 200:
-                        print("✅ Workflow undeployed successfully")
-                    else:
-                        print(f"⚠️ Undeploy returned {undeploy_response.status_code} (may be expected)")
-                else:
-                    print(f"⚠️ Undeploy failed: {undeploy_response.status_code}")
+                # Verify workflow is no longer deployed
+                print("🔍 Verifying workflow is no longer deployed...")
+                final_status_response = await client.get(
+                    f"http://{settings.BACKEND_HOST}:8000/api/v1/workflows/{workflow_id}/status",
+                    headers=headers
+                )
+                assert final_status_response.status_code == 200, f"Final status check failed: {final_status_response.status_code}"
+                final_status_data = final_status_response.json()
+                print(f"   - Final workflow status: {final_status_data.get('status')}")
+                print(f"   - Is deployed: {final_status_data.get('is_deployed')}")
+                assert final_status_data.get("is_deployed") is False, "Workflow should not be deployed after undeploy"
                 
                 # Give NiFi processors time to fully stop before cleaning directories
                 print("⏳ Waiting for NiFi processors to fully stop...")
                 await asyncio.sleep(5)
+                
+                # Verify NiFi process group is cleaned up (if process_group_id was set to None)
+                if final_status_data.get('process_group_id') is None:
+                    print("✅ NiFi process group cleaned up successfully")
+                else:
+                    print(f"ℹ️ NiFi process group still referenced: {final_status_data.get('process_group_id')} (may be preserved for audit)")
         
             print("🎉 Complete E2E Test Completed Successfully!")
             print("=" * 60)

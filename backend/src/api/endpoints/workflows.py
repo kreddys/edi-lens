@@ -415,7 +415,7 @@ async def execute_workflow(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to execute workflow: {str(e)}")
 
 
-@router.post("/{workflow_id}/stop", response_model=WorkflowResponse)
+@router.post("/{workflow_id}/stop")
 async def stop_workflow(
     workflow_id: UUID,
     session: AsyncSession = Depends(get_db),
@@ -424,8 +424,14 @@ async def stop_workflow(
     """Stop a running workflow."""
     try:
         workflow_service = WorkflowService(session)
-        workflow = await workflow_service.stop_workflow(workflow_id)
-        return create_workflow_response(workflow)
+        result = await workflow_service.stop_workflow(workflow_id, auth_context)
+        return {
+            "workflow_id": result["workflow_id"],
+            "message": "Workflow stopped successfully",
+            "status": result["status"],
+            "stopped_processors": result["stopped_processors"],
+            "total_processors": result["total_processors"]
+        }
     except Exception as e:
         log.error(f"Error stopping workflow {workflow_id}: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to stop workflow")

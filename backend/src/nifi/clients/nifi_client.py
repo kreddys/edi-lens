@@ -760,7 +760,15 @@ class NiFiAPIClient:
                 }
             }
         }
-        # Primary: DTO-only (no wrapper), startDate only (no endDate)
+        # Try different request formats that work with different NiFi versions
+        
+        # Format 1: Simple DTO with minimal constraints
+        request_simple: Dict[str, Any] = {
+            "maxResults": max_results,
+            "searchTerms": terms_payload,
+        }
+        
+        # Format 2: DTO with startDate only
         request_dto: Dict[str, Any] = {
             "maxResults": max_results,
             "summarize": summarize,
@@ -769,13 +777,15 @@ class NiFiAPIClient:
             "startDate": start_date,
         }
 
-        # Fallback: ProvenanceEntity wrapper (still startDate only)
-        request_fallback: Dict[str, Any] = request
-        # Remove endDate from fallback to minimize constraints
-        try:
-            del request_fallback["provenance"]["request"]["endDate"]
-        except Exception:
-            pass
+        # Format 3: ProvenanceEntity wrapper (minimal)
+        request_fallback: Dict[str, Any] = {
+            "provenance": {
+                "request": {
+                    "maxResults": max_results,
+                    "searchTerms": terms_payload,
+                }
+            }
+        }
 
         async def _post_and_extract(req_body: Dict[str, Any]) -> str:
             log.debug(f"Submitting provenance query: {req_body}")
@@ -793,23 +803,40 @@ class NiFiAPIClient:
                 prov = data.get("provenance", {}) if isinstance(data, dict) else {}
                 req = prov.get("request") or data.get("request") or {}
                 query_id = (
-                    (req or {}).get("id")
-                    or prov.get("requestId")
-                    or data.get("id")
+                    prov.get("id")  # ProvenanceEntity: provenance.id
+                    or (req or {}).get("id")  # DTO: request.id  
+                    or prov.get("requestId")  # Alternative: provenance.requestId
+                    or data.get("id")  # Direct: id
                 )
                 if not query_id:
                     log.error(f"Provenance response missing id. Body: {data}")
                     raise NiFiAPIError("Provenance query did not return an id", endpoint="/provenance")
                 return query_id
 
-        # Try DTO-only first, then fallback to ProvenanceEntity wrapper
-        try:
-            return await _post_and_extract(request_dto)
-        except aiohttp.ClientResponseError as e:
-            if e.status == 400:
-                log.warning("DTO-only provenance request returned 400. Retrying with ProvenanceEntity wrapper...")
-                return await _post_and_extract(request_fallback)
-            raise
+        # Try multiple request formats until one works
+        formats_to_try = [
+            ("Simple DTO", request_simple),
+            ("DTO with dates", request_dto),
+            ("ProvenanceEntity wrapper", request_fallback),
+        ]
+        
+        last_error = None
+        for format_name, request_body in formats_to_try:
+            try:
+                log.debug(f"Trying provenance format: {format_name}")
+                return await _post_and_extract(request_body)
+            except aiohttp.ClientResponseError as e:
+                log.warning(f"Provenance format '{format_name}' failed with {e.status}: {e.message}")
+                last_error = e
+                if e.status not in (400, 500):  # Only retry for client/server errors
+                    break
+                continue
+        
+        # If all formats failed, raise the last error
+        if last_error:
+            raise last_error
+        else:
+            raise NiFiAPIError("All provenance request formats failed", endpoint="/provenance")
 
     async def get_provenance_query(self, query_id: str) -> Dict[str, Any]:
         """Poll provenance query status/results."""
@@ -839,17 +866,43 @@ class NiFiAPIClient:
         """
         import asyncio
         query_id = await self.submit_provenance_query({"filename": filename}, max_results=max_results)
+        log.debug(f"Provenance query submitted with ID: {query_id}")
+        
         try:
-            for _ in range(max(1, wait_seconds * 2)):
-                data = await self.get_provenance_query(query_id)
-                prov = data.get("provenance", {})
-                finished = prov.get("finished") or prov.get("percentCompleted") == 100
-                if finished:
-                    return data
-                await asyncio.sleep(0.5)
-            return data  # return last polled state even if not finished
+            data = None
+            for attempt in range(max(1, wait_seconds * 2)):
+                try:
+                    data = await self.get_provenance_query(query_id)
+                    log.debug(f"Provenance query attempt {attempt + 1}: {data}")
+                    prov = data.get("provenance", {})
+                    finished = prov.get("finished") or prov.get("percentCompleted") == 100
+                    if finished:
+                        log.debug(f"Provenance query {query_id} completed")
+                        return data
+                    await asyncio.sleep(0.5)
+                except aiohttp.ClientResponseError as e:
+                    if e.status == 404:
+                        log.warning(f"Provenance query {query_id} not found (404) on attempt {attempt + 1}")
+                        # Query might have completed and been auto-cleaned up by NiFi
+                        if attempt > 5:  # Give it a few attempts before giving up
+                            break
+                    else:
+                        log.error(f"Error polling provenance query {query_id}: {e}")
+                        raise
+                except Exception as e:
+                    log.error(f"Unexpected error polling provenance query {query_id}: {e}")
+                    raise
+            
+            # If we get here, either the query never finished or was cleaned up
+            if data:
+                log.warning(f"Provenance query {query_id} did not complete in {wait_seconds}s, returning last state")
+                return data
+            else:
+                log.warning(f"Provenance query {query_id} was not found, returning empty result")
+                return {"provenance": {"finished": True, "results": {"provenanceEvents": []}}}
+                
         finally:
-            # Best-effort cleanup
+            # Best-effort cleanup (may already be cleaned up by NiFi)
             try:
                 await self.delete_provenance_query(query_id)
             except Exception:
@@ -878,6 +931,84 @@ class NiFiAPIClient:
             response.raise_for_status()
             data = await response.json()
             return data.get("processors", [])
+
+    async def stop_processor(self, processor_id: str, version: int = 0) -> Dict[str, Any]:
+        """Stop a processor."""
+        try:
+            # First get current state
+            current_state = await self.get_processor(processor_id)
+            
+            # Use current revision if version not specified
+            if version == 0:
+                version = current_state.get("revision", {}).get("version", 0)
+            
+            current_status = current_state.get("component", {}).get("state", "STOPPED")
+            
+            # Only stop if currently running
+            if current_status == "RUNNING":
+                log.debug(f"Stopping processor {processor_id} (currently RUNNING)")
+                stop_data = {
+                    "revision": {"version": version},
+                    "state": "STOPPED"
+                }
+                
+                async with self.session.put(
+                    f"{self.nifi_url}/processors/{processor_id}/run-status",
+                    json=stop_data
+                ) as response:
+                    response.raise_for_status()
+                    result = await response.json()
+                    log.debug(f"Processor {processor_id} stopped successfully")
+                    return result
+            else:
+                log.debug(f"Processor {processor_id} already stopped")
+                return current_state
+                
+        except Exception as e:
+            log.error(f"Failed to stop processor {processor_id}: {e}")
+            raise
+
+    async def start_processor(self, processor_id: str, version: int = 0) -> Dict[str, Any]:
+        """Start a processor."""
+        try:
+            # First get current state
+            current_state = await self.get_processor(processor_id)
+            
+            # Use current revision if version not specified
+            if version == 0:
+                version = current_state.get("revision", {}).get("version", 0)
+            
+            current_status = current_state.get("component", {}).get("state", "STOPPED")
+            validation_status = current_state.get("component", {}).get("validationStatus", "VALID")
+            
+            # If processor is INVALID, we can't start it
+            if validation_status == "INVALID":
+                log.warning(f"Processor {processor_id} is INVALID, cannot start until validation issues are resolved")
+                return {"status": "skipped", "reason": "Processor is invalid"}
+            
+            # Only start if currently stopped
+            if current_status == "STOPPED":
+                log.debug(f"Starting processor {processor_id} (currently STOPPED)")
+                start_data = {
+                    "revision": {"version": version},
+                    "state": "RUNNING"
+                }
+                
+                async with self.session.put(
+                    f"{self.nifi_url}/processors/{processor_id}/run-status",
+                    json=start_data
+                ) as response:
+                    response.raise_for_status()
+                    result = await response.json()
+                    log.debug(f"Processor {processor_id} started successfully")
+                    return result
+            else:
+                log.debug(f"Processor {processor_id} already running")
+                return current_state
+                
+        except Exception as e:
+            log.error(f"Failed to start processor {processor_id}: {e}")
+            raise
 
     async def restart_processor(self, processor_id: str, version: int = 0) -> Dict[str, Any]:
         """Restart a processor to force parameter re-evaluation."""

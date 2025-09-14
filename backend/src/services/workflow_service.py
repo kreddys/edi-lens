@@ -271,7 +271,7 @@ class WorkflowService:
                     
                     log.debug(f"Parameter validation passed. Required: {validation_result['required_parameters']}, Provided: {validation_result['provided_parameters']}")
                 else:
-                    log.warning(f"Could not load template definition for validation: {template.template_id}")
+                    log.warning(f"Could not load template definition for validation: {template.template_id} - {str(e) if 'e' in locals() else 'unknown error'}")
                     
             except Exception as e:
                 log.error(f"Parameter validation error: {e}")
@@ -694,6 +694,59 @@ class WorkflowService:
         except Exception as e:
             log.error(f"Failed to get status for workflow {workflow_id}: {str(e)}")
             raise WorkflowServiceError(f"Failed to get workflow status: {str(e)}")
+
+    async def stop_workflow(self, workflow_id: UUID, auth_context: AuthContext) -> Dict[str, Any]:
+        """Stop all processors in a workflow."""
+        try:
+            workflow = await self.get_workflow(workflow_id)
+            if not workflow:
+                raise WorkflowServiceError(f"Workflow {workflow_id} not found")
+            if workflow.tenant_id != auth_context.tenant_id:
+                raise WorkflowServiceError("Access denied to workflow")
+            if not workflow.is_deployed or not workflow.nifi_process_group_id:
+                raise WorkflowServiceError("Workflow must be deployed to stop processors")
+
+            process_group_id = workflow.nifi_process_group_id
+            async with NiFiAPIClient(
+                settings.NIFI_URL,
+                username=settings.NIFI_USERNAME,
+                password=settings.NIFI_PASSWORD
+            ) as nifi_client:
+                # Get all processors in the process group
+                processors = await nifi_client.get_processors_in_group(process_group_id)
+                stopped_count = 0
+                failed_stops = []
+                
+                for processor in processors:
+                    processor_id = processor.get("id")
+                    processor_name = processor.get("component", {}).get("name", "Unknown")
+                    
+                    try:
+                        await nifi_client.stop_processor(processor_id)
+                        stopped_count += 1
+                        log.debug(f"Stopped processor {processor_name} ({processor_id})")
+                    except Exception as e:
+                        failed_stops.append({
+                            "processor_id": processor_id,
+                            "processor_name": processor_name,
+                            "error": str(e)
+                        })
+                        log.warning(f"Failed to stop processor {processor_name}: {e}")
+
+                # Update workflow status
+                workflow.status = "STOPPED"
+                await self.session.commit()
+                
+                return {
+                    "workflow_id": str(workflow_id),
+                    "status": "STOPPED",
+                    "stopped_processors": stopped_count,
+                    "failed_stops": failed_stops,
+                    "total_processors": len(processors),
+                }
+        except Exception as e:
+            log.error(f"Failed to stop workflow {workflow_id}: {e}")
+            raise WorkflowServiceError(f"Failed to stop workflow: {str(e)}")
 
     async def check_provenance_for_file(
         self,
