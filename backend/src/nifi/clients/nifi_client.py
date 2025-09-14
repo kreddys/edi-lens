@@ -711,6 +711,150 @@ class NiFiAPIClient:
             response.raise_for_status()
             return await response.json()
 
+    # --- Provenance ---
+    async def submit_provenance_query(
+        self,
+        search_terms: Dict[str, Any],
+        max_results: int = 100,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        summarize: bool = False,
+        incremental: bool = False,
+    ) -> str:
+        """Submit a provenance query and return the query ID.
+        search_terms: e.g., {"filename": "processed_test_input.txt"}
+        Dates should be ISO-8601 strings if provided.
+        """
+        # Normalize search term keys to NiFi-expected field names. For standard fields use lowercase keys like 'filename'.
+        normalized_terms: Dict[str, Any] = {}
+        for k, v in (search_terms or {}).items():
+            key_lower = k.lower() if isinstance(k, str) else k
+            if key_lower in ("filename",):
+                norm_key = "filename"
+            else:
+                norm_key = key_lower if isinstance(key_lower, str) else k
+            normalized_terms[norm_key] = v
+
+        # NiFi expects searchTerms values as objects with a 'value' field
+        terms_payload: Dict[str, Any] = {k: {"value": v} for k, v in normalized_terms.items()}
+
+        # Add default time window if not provided (last 5 minutes)
+        if not start_date:
+            from datetime import datetime, timedelta, timezone
+            dt = datetime.now(timezone.utc) - timedelta(minutes=5)
+            # Use ISO-8601 format; NiFi accepts this for date/time
+            start_date = dt.isoformat()
+        if not end_date:
+            from datetime import datetime, timezone
+            end_date = datetime.now(timezone.utc).isoformat()
+
+        request: Dict[str, Any] = {
+            "provenance": {
+                "request": {
+                    "maxResults": max_results,
+                    "summarize": summarize,
+                    "incrementalResults": incremental,
+                    "searchTerms": terms_payload,
+                    "startDate": start_date,
+                    "endDate": end_date,
+                }
+            }
+        }
+        # Primary: DTO-only (no wrapper), startDate only (no endDate)
+        request_dto: Dict[str, Any] = {
+            "maxResults": max_results,
+            "summarize": summarize,
+            "incrementalResults": incremental,
+            "searchTerms": terms_payload,
+            "startDate": start_date,
+        }
+
+        # Fallback: ProvenanceEntity wrapper (still startDate only)
+        request_fallback: Dict[str, Any] = request
+        # Remove endDate from fallback to minimize constraints
+        try:
+            del request_fallback["provenance"]["request"]["endDate"]
+        except Exception:
+            pass
+
+        async def _post_and_extract(req_body: Dict[str, Any]) -> str:
+            log.debug(f"Submitting provenance query: {req_body}")
+            async with self.session.post(f"{self.nifi_url}/provenance", json=req_body) as response:
+                text = await response.text()
+                if response.status >= 400:
+                    log.error(f"Provenance request failed: {response.status} - {text}")
+                    response.raise_for_status()
+                try:
+                    data = json.loads(text) if text else {}
+                except json.JSONDecodeError:
+                    log.error(f"Provenance response not JSON: {text}")
+                    raise NiFiAPIError("Provenance response not JSON", endpoint="/provenance")
+                # Extract ID from multiple possible shapes
+                prov = data.get("provenance", {}) if isinstance(data, dict) else {}
+                req = prov.get("request") or data.get("request") or {}
+                query_id = (
+                    (req or {}).get("id")
+                    or prov.get("requestId")
+                    or data.get("id")
+                )
+                if not query_id:
+                    log.error(f"Provenance response missing id. Body: {data}")
+                    raise NiFiAPIError("Provenance query did not return an id", endpoint="/provenance")
+                return query_id
+
+        # Try DTO-only first, then fallback to ProvenanceEntity wrapper
+        try:
+            return await _post_and_extract(request_dto)
+        except aiohttp.ClientResponseError as e:
+            if e.status == 400:
+                log.warning("DTO-only provenance request returned 400. Retrying with ProvenanceEntity wrapper...")
+                return await _post_and_extract(request_fallback)
+            raise
+
+    async def get_provenance_query(self, query_id: str) -> Dict[str, Any]:
+        """Poll provenance query status/results."""
+        async with self.session.get(f"{self.nifi_url}/provenance/queries/{query_id}") as response:
+            response.raise_for_status()
+            return await response.json()
+
+    async def delete_provenance_query(self, query_id: str) -> None:
+        """Delete provenance query to cleanup server state."""
+        async with self.session.delete(f"{self.nifi_url}/provenance/queries/{query_id}") as response:
+            # Many NiFi versions return 200/202 even if already cleaned
+            if response.status >= 400:
+                try:
+                    txt = await response.text()
+                    log.warning(f"Delete provenance query {query_id} returned {response.status}: {txt}")
+                except Exception:
+                    pass
+
+    async def query_provenance_by_filename(
+        self,
+        filename: str,
+        max_results: int = 100,
+        wait_seconds: int = 10,
+    ) -> Dict[str, Any]:
+        """Convenience: query provenance by filename and wait briefly for completion.
+        Returns the final provenance entity with results if available.
+        """
+        import asyncio
+        query_id = await self.submit_provenance_query({"filename": filename}, max_results=max_results)
+        try:
+            for _ in range(max(1, wait_seconds * 2)):
+                data = await self.get_provenance_query(query_id)
+                prov = data.get("provenance", {})
+                finished = prov.get("finished") or prov.get("percentCompleted") == 100
+                if finished:
+                    return data
+                await asyncio.sleep(0.5)
+            return data  # return last polled state even if not finished
+        finally:
+            # Best-effort cleanup
+            try:
+                await self.delete_provenance_query(query_id)
+            except Exception:
+                pass
+
     async def delete_parameter_context(self, context_id: str, version: int = 0) -> bool:
         """Delete a parameter context."""
         async with self.session.delete(

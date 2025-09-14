@@ -9,7 +9,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Set
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -653,6 +653,7 @@ class WorkflowService:
         workflow_id: str,
         auth_context: AuthContext
     ) -> Dict[str, Any]:
+
         """Get comprehensive workflow status."""
         try:
             workflow = await self._get_workflow(workflow_id, auth_context.tenant_id)
@@ -693,6 +694,71 @@ class WorkflowService:
         except Exception as e:
             log.error(f"Failed to get status for workflow {workflow_id}: {str(e)}")
             raise WorkflowServiceError(f"Failed to get workflow status: {str(e)}")
+
+    async def check_provenance_for_file(
+        self,
+        workflow_id: UUID,
+        filename: str,
+        auth_context: AuthContext,
+        max_results: int = 100,
+        wait_seconds: int = 10,
+    ) -> Dict[str, Any]:
+        """Query NiFi provenance for a specific filename and correlate with this workflow's processors."""
+        try:
+            workflow = await self.get_workflow(workflow_id)
+            if not workflow:
+                raise WorkflowServiceError(f"Workflow {workflow_id} not found")
+            if workflow.tenant_id != auth_context.tenant_id:
+                raise WorkflowServiceError("Access denied to workflow")
+            if not workflow.is_deployed or not workflow.nifi_process_group_id:
+                raise WorkflowServiceError("Workflow must be deployed")
+
+            pg_id = workflow.nifi_process_group_id
+            async with NiFiAPIClient(
+                settings.NIFI_URL,
+                username=settings.NIFI_USERNAME,
+                password=settings.NIFI_PASSWORD
+            ) as nifi_client:
+                # Get processors in the workflow's process group to correlate events
+                processors = await nifi_client.get_processors_in_group(pg_id)
+                processor_ids: Set[str] = set()
+                name_by_id: Dict[str, str] = {}
+                for p in processors:
+                    pid = p.get("id")
+                    if pid:
+                        processor_ids.add(pid)
+                        name_by_id[pid] = p.get("component", {}).get("name", "")
+
+                prov = await nifi_client.query_provenance_by_filename(filename, max_results=max_results, wait_seconds=wait_seconds)
+                prov_entity = prov.get("provenance", {})
+                results = prov_entity.get("results", {})
+                events = results.get("provenanceEvents", []) or []
+
+                matched_events = []
+                for ev in events:
+                    cid = ev.get("componentId")
+                    if not processor_ids or (cid in processor_ids):
+                        matched_events.append({
+                            "timestamp": ev.get("timestamp") or ev.get("eventTime") or ev.get("millis"),
+                            "eventType": ev.get("eventType"),
+                            "componentId": cid,
+                            "componentName": name_by_id.get(cid) or ev.get("componentName"),
+                            "flowFileUuid": ev.get("flowFileUuid"),
+                            "details": ev.get("details"),
+                        })
+
+                return {
+                    "workflow_id": str(workflow.workflow_id),
+                    "filename": filename,
+                    "found": len(matched_events) > 0,
+                    "matches": len(matched_events),
+                    "total_events": len(events),
+                    "process_group_id": pg_id,
+                    "events": matched_events,
+                }
+        except Exception as e:
+            log.error(f"Provenance check failed for workflow {workflow_id}: {e}")
+            raise WorkflowServiceError(f"Provenance check failed: {str(e)}")
 
     # === Private Helper Methods ===
 
@@ -744,6 +810,7 @@ class WorkflowService:
             raise WorkflowServiceError("Access denied to workflow")
 
     async def restart_processors(self, workflow_id: UUID) -> Dict[str, Any]:
+
         """Restart all processors in a workflow to force parameter re-evaluation."""
         try:
             workflow = await self.get_workflow(workflow_id)

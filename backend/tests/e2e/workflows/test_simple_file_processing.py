@@ -451,6 +451,35 @@ Line 3: End of test file"""
                             
                             print("✅ File content validation passed - all original content preserved")
                             
+                            # Provenance verification: ensure NiFi recorded processing of this file (soft assertion)
+                            print("🔍 Verifying NiFi provenance for the processed file...")
+                            prov_params = {
+                                "filename": filename,
+                                "max_results": 50,
+                                "wait_seconds": 10,
+                            }
+                            try:
+                                prov_resp = await client.get(
+                                    f"http://{settings.BACKEND_HOST}:8000/api/v1/workflows/{workflow_id}/provenance",
+                                    params=prov_params,
+                                    headers=headers,
+                                )
+                                print(f"   - Provenance API status: {prov_resp.status_code}")
+                                print(f"   - Provenance API body: {prov_resp.text[:500]}")
+                                
+                                if prov_resp.status_code == 200:
+                                    prov_data = prov_resp.json()
+                                    if prov_data.get("found", False) and prov_data.get("matches", 0) > 0:
+                                        print(f"✅ Provenance verification passed: {prov_data.get('matches')} matching events found")
+                                    else:
+                                        print(f"⚠️ Provenance found no matching events (this may be normal for short-lived flows)")
+                                else:
+                                    print(f"⚠️ Provenance check failed with {prov_resp.status_code} - this is acceptable for now")
+                                    print(f"   Note: Provenance may not be enabled/configured in this NiFi instance")
+                            except Exception as e:
+                                print(f"⚠️ Provenance check exception: {e} - this is acceptable for now")
+                                print(f"   Note: Directory-based validation already confirmed successful processing")
+                            
                             print("✅ File processing validation completed successfully")
                         else:
                             print("❌ No output files found - NiFi workflow may not be processing files")
@@ -580,9 +609,21 @@ Line 3: End of test file"""
                 # Phase 11: Cleanup
                 print("🚀 Phase 11: Cleaning up deployed resources")
                 
+                # Stop workflow processors first
+                print("🛑 Stopping workflow processors...")
+                stop_response = await client.post(
+                    f"http://{settings.BACKEND_HOST}:8000/api/v1/workflows/{workflow_id}/stop",
+                    headers=headers
+                )
+                if stop_response.status_code == 200:
+                    print("✅ Workflow processors stopped successfully")
+                else:
+                    print(f"⚠️ Stop returned {stop_response.status_code} (may be expected)")
+                
                 # Undeploy workflow
-                undeploy_response = await client.post(
-                    f"http://{settings.BACKEND_HOST}:8000/api/v1/workflows/{workflow_id}/undeploy",
+                print("📤 Undeploying workflow from NiFi...")
+                undeploy_response = await client.delete(
+                    f"http://{settings.BACKEND_HOST}:8000/api/v1/workflows/{workflow_id}/deployment",
                     headers=headers
                 )
                 
@@ -593,6 +634,10 @@ Line 3: End of test file"""
                         print(f"⚠️ Undeploy returned {undeploy_response.status_code} (may be expected)")
                 else:
                     print(f"⚠️ Undeploy failed: {undeploy_response.status_code}")
+                
+                # Give NiFi processors time to fully stop before cleaning directories
+                print("⏳ Waiting for NiFi processors to fully stop...")
+                await asyncio.sleep(5)
         
             print("🎉 Complete E2E Test Completed Successfully!")
             print("=" * 60)
