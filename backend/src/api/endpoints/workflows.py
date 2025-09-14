@@ -455,23 +455,3 @@ async def undeploy_workflow(
     except Exception as e:
         log.error(f"Error undeploying workflow {workflow_id}: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to undeploy workflow")
-
-@router.get("/{workflow_id}/provenance")
-async def check_provenance(
-    workflow_id: UUID,
-    filename: str,
-    max_results: int = 100,
-    wait_seconds: int = 10,
-    session: AsyncSession = Depends(get_db),
-    auth_context: AuthContext = Depends(require_permission("workflow:read"))
-):
-    """Check NiFi provenance for a specific filename within this workflow's context."""
-    try:
-        svc = WorkflowService(session)
-        result = await svc.check_provenance_for_file(workflow_id, filename, auth_context, max_results=max_results, wait_seconds=wait_seconds)
-        return result
-    except WorkflowServiceError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
-        log.error(f"Error checking provenance for workflow {workflow_id}: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to check provenance")

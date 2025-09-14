@@ -451,46 +451,7 @@ Line 3: End of test file"""
                             
                             print("✅ File content validation passed - all original content preserved")
                             
-                            # Provenance verification: ensure NiFi recorded processing of this file
-                            print("🔍 Verifying NiFi provenance for the processed file...")
-                            prov_params = {
-                                "filename": filename,
-                                "max_results": 50,
-                                "wait_seconds": 15,  # Give more time for provenance
-                            }
-                            try:
-                                prov_resp = await client.get(
-                                    f"http://{settings.BACKEND_HOST}:8000/api/v1/workflows/{workflow_id}/provenance",
-                                    params=prov_params,
-                                    headers=headers,
-                                )
-                                print(f"   - Provenance API status: {prov_resp.status_code}")
-                                print(f"   - Provenance API body: {prov_resp.text[:500]}")
-                                
-                                if prov_resp.status_code == 200:
-                                    prov_data = prov_resp.json()
-                                    if prov_data.get("found", False) and prov_data.get("matches", 0) > 0:
-                                        print(f"✅ Provenance verification passed: {prov_data.get('matches')} matching events found")
-                                    else:
-                                        print(f"⚠️ Provenance found no matching events (file may have been processed too quickly)")
-                                        # This is acceptable - directory validation already confirmed processing worked
-                                elif prov_resp.status_code == 400:
-                                    prov_error = prov_resp.json().get("detail", "Unknown error")
-                                    if "409" in prov_error or "Conflict" in prov_error:
-                                        print(f"⚠️ Provenance query conflict (NiFi busy): {prov_error}")
-                                        print("   Note: This is acceptable - directory validation already confirmed processing worked")
-                                    else:
-                                        print(f"⚠️ Provenance query failed: {prov_error}")
-                                        print("   Note: This is acceptable - directory validation already confirmed processing worked")
-                                else:
-                                    print(f"⚠️ Provenance check returned {prov_resp.status_code}")
-                                    print("   Note: This is acceptable - directory validation already confirmed processing worked")
-                            except Exception as e:
-                                print(f"⚠️ Provenance check exception: {e}")
-                                print("   Note: This is acceptable - directory validation already confirmed processing worked")
-                            
                             print("📊 Primary validation: Directory-based file processing ✅")
-                            print("📊 Secondary validation: Provenance (best effort)")
                             print("✅ File processing validation completed successfully")
                         else:
                             print("❌ No output files found - NiFi workflow may not be processing files")
