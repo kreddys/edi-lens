@@ -1,280 +1,356 @@
-# EDI Lens E2E Workflow Lifecycle Documentation
-
-This document provides a comprehensive overview of the EDI Lens end-to-end workflow lifecycle, detailing each phase of the process from template creation through workflow execution and cleanup.
+# E2E Workflow Lifecycle Testing
 
 ## Overview
 
-The EDI Lens system implements a sophisticated workflow management architecture that separates concerns between template definition, workflow configuration, and runtime execution. The system integrates three main components:
+The E2E workflow lifecycle tests provide comprehensive validation of the complete EDI Lens workflow system, from template creation through NiFi deployment, real file processing, and proper cleanup. This documentation describes the current implementation, test phases, API calls, assertions, and infrastructure setup.
 
-1. **EDI Lens Backend** - Manages workflow metadata, configuration, and orchestration
-2. **NiFi Registry** - Provides version-controlled template storage
-3. **Apache NiFi** - Handles actual data processing execution
+**Test Location**: `backend/tests/e2e/workflows/test_simple_file_processing.py`
 
-## E2E Test Phases
+## Infrastructure Setup
 
-### Phase 1: Template Creation 🏗️
-**API Endpoint**: `POST /api/v1/templates/`
+### Required Services
+- **NiFi**: Apache NiFi instance with Registry integration
+- **NiFi Registry**: Template version control and storage
+- **Backend**: EDI Lens API server
+- **PostgreSQL**: Database for workflow metadata
+- **Keycloak**: Authentication and authorization
+- **MinIO**: Object storage for configurations
 
-**What happens**:
-1. **Static Validation** - `NiFiTemplateValidator` validates the flow definition structure
-2. **Dynamic Validation** - Validates processor types and properties against live NiFi instance
-3. **Bucket Creation** - Ensures appropriate bucket exists in NiFi Registry (GLOBAL or TENANT scope)
-4. **Registry Flow Creation** - Creates flow in NiFi Registry using `registry_client.create_flow()`
-5. **Flow Version Upload** - Uploads flow definition as version 1 using `create_flow_version()`
-6. **Database Record** - Creates template metadata record in EDI Lens database
+### Volume Permissions
+- **e2e-test-volume-init**: Docker init service that sets proper permissions (1000:1000, 0777) on `/e2e_test_files` to prevent NiFi permission errors
+- **Shared volume**: `e2e_test_data:/e2e_test_files` mounted in both backend and NiFi containers
 
-**Storage Locations**:
-- **NiFi Registry**: Flow definition, version control, bucket structure
-- **EDI Lens Database**: Template metadata, registry references, access control
+## Test Phases and API Calls
 
-**Key Components**:
-- `TemplateService.create_template()`
-- `NiFiTemplateValidator`
-- `NiFiRegistryClient`
+### Phase 1: Authentication & Template Creation
+**APIs Called:**
+- `POST /realms/edi-lens/protocol/openid-connect/token` (Keycloak)
+- `POST /api/v1/templates/` (Backend)
 
-### Phase 2: Workflow Instance Creation 🔧
-**API Endpoint**: `POST /api/v1/workflows/`
+**Actions:**
+- Authenticates as superuser with Keycloak
+- Creates a registry template with 3-processor workflow:
+  - GetFile (reads from `#{input_directory}`)
+  - UpdateAttribute (adds `filename: processed_${filename}`)
+  - PutFile (writes to `#{output_directory}`)
 
-**What happens**:
-1. **Template Validation** - Verifies referenced template exists and is accessible
-2. **Workflow Record Creation** - Creates workflow database record with:
-   - Template reference (`template_id`)
-   - Configuration parameters (input/output directories, patterns)
-   - Workflow metadata (name, description, tenant)
-   - Initial status: `CREATED`
+**Assertions:**
+- Template creation returns 201 Created
+- Template ID is returned and valid
 
-**Storage Locations**:
-- **EDI Lens Database**: Workflow configuration, parameter values, status
+### Phase 2: Workflow Instance Creation
+**APIs Called:**
+- `POST /api/v1/workflows/` (Backend)
 
-**Key Components**:
-- `WorkflowService.create_workflow()`
-- Workflow model with configuration schema
+**Actions:**
+- Creates workflow instance from template
+- Sets configuration parameters:
+  - `input_directory`: `/e2e_test_files/edi_lens_e2e_{test_run_id}/input`
+  - `output_directory`: `/e2e_test_files/edi_lens_e2e_{test_run_id}/output`
+  - `error_directory`: `/e2e_test_files/edi_lens_e2e_{test_run_id}/error`
 
-### Phase 3: Test Setup Validation ✅
-**Purpose**: Validates test environment setup
+**Assertions:**
+- Workflow creation returns 201 Created
+- Workflow ID is returned
+- Configuration parameters are properly stored
 
-**What happens**:
-1. **Directory Validation** - Ensures test input/output directories exist
-2. **Test File Creation** - Creates sample input file for processing
-3. **Environment Check** - Validates test configuration
+### Phase 3: Test Setup Validation
+**Actions:**
+- Creates test directories on shared volume
+- Sets proper permissions (0777 for directories, 0666 for files)
+- Validates directory structure
 
-### Phase 4: Database State Verification 🔍
-**API Endpoints**:
-- `GET /api/v1/templates/{template_id}`
-- `GET /api/v1/workflows/{workflow_id}`
+**Assertions:**
+- All test directories exist and are accessible
+- Permissions are set correctly
 
-**What happens**:
-1. **Template Retrieval** - Validates template was stored correctly
-2. **Workflow Retrieval** - Validates workflow instance was created correctly
-3. **Data Integrity Check** - Ensures all relationships and data are consistent
+### Phase 4: Database State Verification
+**APIs Called:**
+- `GET /api/v1/templates/{template_id}` (Backend)
+- `GET /api/v1/workflows/{workflow_id}` (Backend)
 
-### Phase 5: NiFi Deployment 🚀
-**API Endpoint**: `POST /api/v1/workflows/{workflow_id}/deploy`
+**Actions:**
+- Verifies template exists in database
+- Verifies workflow exists with correct template reference
+- Validates tenant isolation
 
-**What happens** (Hybrid Deployment Engine):
-1. **Registry Integration** - Downloads flow definition from NiFi Registry
-2. **Parameter Processing** - Applies parameter substitution with validation
-3. **Individual Component Deployment**:
-   - Creates NiFi ProcessGroup
-   - Creates processors individually (GetFile, UpdateAttribute, PutFile)
-   - Creates connections between processors
-   - Sets up parameter context
-4. **Version Control Assignment** - Associates components with Registry flow
-5. **Database Update** - Updates workflow record with NiFi component IDs
+**Assertions:**
+- Template and workflow are properly persisted
+- Relationships are correctly established
+- Multi-tenant security is enforced
 
-**Storage Locations**:
-- **Live NiFi Canvas**: ProcessGroup, processors, connections, parameter context
-- **EDI Lens Database**: Updated with NiFi component IDs, deployment status
+### Phase 5: NiFi Deployment
+**APIs Called:**
+- `POST /api/v1/workflows/{workflow_id}/deploy` (Backend)
+- `GET /api/v1/workflows/{workflow_id}/status` (Backend)
 
-**Key Components**:
-- `HybridDeploymentEngine` (our new implementation)
-- `WorkflowService.deploy_workflow()`
-- NiFi API integration
+**Backend Internal Actions:**
+- Creates NiFi parameter context with workflow parameters
+- Associates parameter context with process group
+- Creates processors with proper configuration (component.config.properties)
+- Creates connections between processors
+- Re-validates processors after wiring
 
-### Phase 5.5: Processor Restart 🔄
-**API Endpoint**: `POST /api/v1/workflows/{workflow_id}/restart-processors`
+**Assertions:**
+- Deployment returns 200 OK
+- Process group ID is assigned
+- Workflow status becomes ACTIVE
+- `is_deployed` flag is true
 
-**What happens**:
-1. **Parameter Context Association** - Ensures processors recognize parameter context
-2. **Processor Restart** - Restarts processors to re-evaluate parameters
-3. **Validation Refresh** - Allows NiFi to refresh processor validation status
+### Phase 5.5: Processor Restart & Validation
+**APIs Called:**
+- `POST /api/v1/workflows/{workflow_id}/restart-processors` (Backend)
 
-### Phase 6: Workflow Start ▶️
-**API Endpoint**: `POST /api/v1/workflows/{workflow_id}/start`
+**Actions:**
+- Restarts all processors to force parameter re-evaluation
+- Waits for validation status to refresh
 
-**What happens**:
-1. **Processor State Change** - Changes NiFi processors from STOPPED to RUNNING
-2. **Status Verification** - Confirms processors started successfully
-3. **Workflow Activation** - Makes workflow ready to process files
+**Assertions:**
+- Processor restart returns 200 OK
+- All 3 processors are restarted successfully
 
-### Phase 7: Workflow Execution 🏃‍♂️
-**API Endpoint**: `POST /api/v1/workflows/{workflow_id}/execute`
+### Phase 6: Workflow Startup
+**APIs Called:**
+- `POST /api/v1/workflows/{workflow_id}/start` (Backend)
 
-**What happens**:
-1. **Execution Request** - Initiates file processing with monitoring
-2. **Parameter Override** - Applies execution-specific parameters if provided
-3. **Monitoring Setup** - Configures execution monitoring and tracking
-4. **File Processing** - NiFi workflow processes files in configured directories
+**Actions:**
+- Starts all processors in the workflow
+- Sets workflow status to RUNNING
 
-**Key Data Flow**:
+**Assertions:**
+- Start operation returns 200 OK
+- Workflow status becomes ACTIVE/RUNNING
+
+### Phase 7: Workflow Execution
+**APIs Called:**
+- `POST /api/v1/workflows/{workflow_id}/execute` (Backend)
+
+**Actions:**
+- Creates test input file: `/e2e_test_files/.../input/test_input.txt`
+- File content: "This is test content for EDI Lens E2E testing.\nLine 2 of test data.\nFinal line."
+- Triggers workflow execution with execution_id: `e2e-test-{test_run_id}`
+
+**Assertions:**
+- Execution returns 200 OK
+- Execution ID is returned
+- Health check shows healthy status
+- Processing time is reported
+
+### Phase 8: File Processing Validation (Primary)
+**Validation Method**: Directory-based (black-box)
+
+**Actions:**
+- Polls output directory for processed files (max 10 seconds)
+- Validates file naming pattern: `processed_*.txt`
+- Verifies file content integrity
+- Confirms input file consumption
+
+**Assertions:**
+- Output file appears within 10 seconds
+- Output filename starts with "processed_"
+- Output file size matches input (111 bytes)
+- File content is preserved exactly
+- Input file is consumed (deleted by GetFile with Keep Source File=false)
+
+### Phase 8.5: Provenance Verification (Secondary)
+**APIs Called:**
+- `GET /api/v1/workflows/{workflow_id}/provenance?filename={processed_filename}&max_results=50&wait_seconds=15` (Backend)
+
+**Backend Internal Actions:**
+- Submits NiFi provenance query with multiple format fallbacks:
+  1. Simple DTO format
+  2. DTO with date constraints  
+  3. ProvenanceEntity wrapper format
+- Polls query results with 404/409 conflict handling
+- Correlates events with workflow's process group processors
+
+**Assertions (Best Effort)**:
+- If successful: Provenance events found for the processed file
+- If 409 Conflict: Logs warning about NiFi being busy (acceptable)
+- If 500/404: Logs warning about provenance configuration (acceptable)
+- **Primary validation (directory-based) takes precedence**
+
+### Phase 9: NiFi Integration Validation (Optional)
+**Actions:**
+- Direct NiFi API calls to verify deployment state
+- Validates processor configurations
+- Checks parameter context association
+
+**Assertions:**
+- Process group exists in NiFi
+- Parameter context is properly associated
+- Processors are in expected state
+
+### Phase 10: Performance & Health Metrics
+**Validation:**
+- Workflow execution time (typically 250-300ms)
+- File processing latency (typically 2 seconds)
+- Resource utilization monitoring
+- Health check responses
+
+### Phase 11: Stop & Cleanup Verification
+**APIs Called:**
+- `POST /api/v1/workflows/{workflow_id}/stop` (Backend)
+- `GET /api/v1/workflows/{workflow_id}/status` (Backend)
+- `DELETE /api/v1/workflows/{workflow_id}/deployment` (Backend)
+- `GET /api/v1/workflows/{workflow_id}/status` (Backend) (Final verification)
+
+**Actions:**
+1. **Stop Processors**: Stops all workflow processors
+2. **Verify Stop**: Confirms processors are stopped and workflow status is STOPPED
+3. **Undeploy**: Removes workflow from NiFi (deletes process group and parameter context)
+4. **Verify Undeploy**: Confirms `is_deployed` is false and NiFi resources are cleaned
+5. **Wait**: 5-second delay for complete NiFi cleanup
+6. **Directory Cleanup**: Removes test directories from shared volume
+
+**Assertions:**
+- Stop returns 200 OK with processor count details
+- Workflow status becomes STOPPED
+- Undeploy returns 200 OK
+- `is_deployed` becomes false
+- Process group ID is cleared or preserved for audit
+- No lingering NiFi resources
+- Directory cleanup succeeds
+
+## Error Handling & Resilience
+
+### NiFi API Resilience
+- **Provenance conflicts**: Handles 409 "too many queries" gracefully
+- **Processor validation**: Expects INVALID state before wiring, re-validates after connections
+- **Parameter context timing**: Waits for association before creating processors
+- **Cleanup sequencing**: Proper stop → undeploy → wait → cleanup ordering
+
+### Permission Management
+- **Volume init service**: Ensures deterministic permissions before NiFi starts
+- **Race condition prevention**: e2e-test-volume-init runs before services start
+- **Multi-container access**: Both backend and NiFi can read/write shared volumes
+
+### Backend Error Recovery
+- **Template validation**: Graceful handling of missing or invalid templates
+- **Workflow lifecycle**: Comprehensive state management and error reporting
+- **Multi-tenant security**: Strict tenant isolation throughout test
+
+## Key Technical Details
+
+### Processor Configuration
+```json
+{
+  "component": {
+    "config": {
+      "properties": {
+        "Input Directory": "#{input_directory}",
+        "Directory": "#{output_directory}",
+        "filename": "processed_${filename}"
+      },
+      "schedulingPeriod": "0 sec",
+      "schedulingStrategy": "TIMER_DRIVEN",
+      "concurrentlySchedulableTaskCount": 1
+    }
+  }
+}
 ```
-Input Directory → GetFile Processor → UpdateAttribute Processor → PutFile Processor → Output Directory
+
+### Parameter Context
+```json
+{
+  "input_directory": "/e2e_test_files/edi_lens_e2e_{test_run_id}/input",
+  "output_directory": "/e2e_test_files/edi_lens_e2e_{test_run_id}/output",
+  "error_directory": "/e2e_test_files/edi_lens_e2e_{test_run_id}/error"
+}
 ```
 
-### Phase 8: File Processing Validation 📁
-**Purpose**: Validates actual file processing functionality
+### Validation Hierarchy
+1. **Primary (Required)**: Directory-based file processing validation
+2. **Secondary (Best Effort)**: NiFi provenance verification
+3. **Tertiary (Optional)**: Direct NiFi API state validation
+4. **Health Metrics**: Performance and resource monitoring
 
-**What happens**:
-1. **Output Polling** - Polls output directory for processed files
-2. **File Validation** - Validates output files match expected pattern
-3. **Content Verification** - Ensures file content is processed correctly
-4. **Processing Metrics** - Checks processing time and success rates
+## Infrastructure Requirements
 
-### Phase 9: Status Validation 📊
-**API Endpoint**: `GET /api/v1/workflows/{workflow_id}/status`
+### Docker Services
+- **NiFi**: Latest with Registry client configured
+- **NiFi Registry**: PostgreSQL-backed with proper permissions
+- **Backend**: EDI Lens API with NiFi client authentication
+- **Database**: PostgreSQL with test database setup
+- **Keycloak**: Configured realm with test users
+- **MinIO**: Object storage for configurations
 
-**What happens**:
-1. **Comprehensive Status Check**:
-   - Workflow deployment status
-   - NiFi process group status
-   - Processor states
-   - Execution metrics
-2. **Data Integrity Validation**:
-   - Template relationship integrity
-   - NiFi component ID consistency
-   - Timestamp accuracy
-3. **Responsiveness Test** - Ensures system remains responsive after processing
+### Network Configuration
+- All services on `edi_lens_network`
+- Backend can reach NiFi at `https://nifi:8443`
+- NiFi can reach Registry at `http://nifi-registry:18080`
 
-### Phase 10: NiFi Direct Validation 🔧
-**Purpose**: Direct validation of NiFi component states
+### Authentication
+- **NiFi**: Username/password authentication
+- **Backend**: JWT tokens from Keycloak
+- **Multi-tenant**: Tenant isolation via JWT claims
 
-**What happens**:
-1. **NiFi API Integration** - Direct queries to NiFi API (when available)
-2. **Component State Verification** - Validates processor and connection states
-3. **Parameter Context Validation** - Ensures parameter substitution worked correctly
+## Troubleshooting Guide
 
-### Phase 11: Cleanup 🧹
-**Purpose**: Clean up test resources
+### Common Issues
 
-**What happens**:
-1. **File Cleanup** - Removes test input/output files and directories
-2. **Resource Cleanup** - Optionally removes deployed NiFi components
-3. **Database Cleanup** - Removes test workflow and template records
+**File Permission Errors:**
+- Symptoms: "Directory does not have sufficient permissions"
+- Solution: Ensure e2e-test-volume-init service runs and sets 1000:1000 ownership
 
-## Architecture Components
+**Provenance Conflicts:**
+- Symptoms: 409 "too many queries" 
+- Solution: NiFi auto-cleans old queries; test handles this gracefully
 
-### EDI Lens Backend Services
+**Processor Validation:**
+- Symptoms: Processors remain INVALID after deployment
+- Solution: Check parameter context association and property mapping
 
-#### TemplateService
-- **Responsibilities**: Template lifecycle management, NiFi Registry integration
-- **Key Methods**:
-  - `create_template()` - Creates templates in Registry and database
-  - `get_template()` - Retrieves template metadata
-  - `validate_template()` - Static and dynamic validation
+**Deployment Timeouts:**
+- Symptoms: Workflow deploy takes too long
+- Solution: Check NiFi health and Registry connectivity
 
-#### WorkflowService
-- **Responsibilities**: Workflow lifecycle management, NiFi deployment orchestration
-- **Key Methods**:
-  - `create_workflow()` - Creates workflow instances
-  - `deploy_workflow()` - Orchestrates NiFi deployment
-  - `start_workflow()` - Starts NiFi processors
-  - `execute_workflow()` - Initiates file processing
+**Cleanup Issues:**
+- Symptoms: Resources not cleaned up between tests
+- Solution: Verify stop/undeploy sequence and wait times
 
-#### HybridDeploymentEngine
-- **Responsibilities**: Individual component deployment with detailed error reporting
-- **Key Features**:
-  - Registry integration for version control
-  - Parameter substitution and validation
-  - Individual component creation (processors, connections)
-  - Comprehensive error reporting and rollback
+### Debug Information
 
-### Integration Points
-
-#### NiFi Registry Integration
-- **Purpose**: Version-controlled template storage
-- **Components**: `NiFiRegistryClient`
-- **Operations**: Flow creation, version management, template retrieval
-
-#### NiFi API Integration
-- **Purpose**: Runtime component management
-- **Components**: `NiFiAPIClient`
-- **Operations**: Component creation, state management, monitoring
-
-#### Database Integration
-- **Purpose**: Metadata and state management
-- **Models**: `RegistryTemplate`, `Workflow`
-- **Operations**: CRUD operations, relationship management
-
-## Data Flow Architecture
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│                 │    │                  │    │                 │
-│  EDI Lens DB    │◄──►│  NiFi Registry   │◄──►│  Live NiFi      │
-│                 │    │                  │    │                 │
-│  • Templates    │    │  • Flow Defs     │    │  • ProcessGroups│
-│  • Workflows    │    │  • Versions      │    │  • Processors   │
-│  • Metadata     │    │  • Buckets       │    │  • Connections  │
-│                 │    │                  │    │                 │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-        │                        │                        │
-        └────────────────────────┼────────────────────────┘
-                                 │
-                    ┌─────────────▼──────────────┐
-                    │                            │
-                    │    Hybrid Deployment       │
-                    │        Engine              │
-                    │                            │
-                    │  • Registry Integration    │
-                    │  • Parameter Processing    │
-                    │  • Component Creation      │
-                    │  • Error Reporting         │
-                    │                            │
-                    └────────────────────────────┘
+**Enable Debug Logging:**
+```python
+# In test setup
+logging.getLogger().setLevel(logging.DEBUG)
 ```
 
-## Error Handling and Monitoring
+**Check Service Health:**
+```bash
+# Via run.sh
+bash ./run.sh dev:test e2e --verbose
 
-### Hybrid Deployment Error Reporting
-The new hybrid deployment approach provides granular error reporting:
+# Manual health checks
+curl http://backend:8000/api/v1/health
+curl https://nifi:8443/nifi-api/system-diagnostics
+```
 
-- **Component-level failures** - Specific processor/connection creation errors
-- **Parameter validation** - Detailed parameter substitution validation
-- **Rollback capabilities** - Automatic cleanup on deployment failure
-- **Progress tracking** - Real-time deployment progress reporting
+**Inspect NiFi State:**
+```bash
+# View process groups
+curl -k https://nifi:8443/nifi-api/flow/process-groups/root
 
-### Validation Layers
-1. **Static Validation** - Template structure and syntax validation
-2. **Dynamic Validation** - Live NiFi compatibility validation
-3. **Runtime Validation** - Deployment-time component validation
-4. **Execution Validation** - File processing and workflow execution validation
+# View parameter contexts  
+curl -k https://nifi:8443/nifi-api/parameter-contexts
+```
 
-### Monitoring Integration
-- **Execution Tracking** - Request IDs and execution monitoring
-- **Status Reporting** - Real-time workflow status updates
-- **Metrics Collection** - Performance and success rate tracking
-- **Error Aggregation** - Centralized error reporting and analysis
+## Success Metrics
 
-## Testing Strategy
+### Test Performance
+- **Total test time**: ~18-20 seconds
+- **File processing latency**: 2-3 seconds
+- **Workflow deployment**: 2-3 seconds
+- **Cleanup time**: 5-7 seconds
 
-The E2E test validates the complete workflow lifecycle:
+### Coverage Validation
+- ✅ Complete workflow lifecycle (create → deploy → execute → cleanup)
+- ✅ Real file processing with NiFi
+- ✅ Parameter context and template integration
+- ✅ Multi-tenant security enforcement
+- ✅ Error handling and resilience
+- ✅ Resource cleanup and leak prevention
+- ✅ Performance and health monitoring
 
-1. **Template Management** - Creation, validation, and storage
-2. **Workflow Configuration** - Instance creation and parameter management
-3. **NiFi Integration** - Deployment, component creation, and state management
-4. **File Processing** - End-to-end data processing validation
-5. **Status Reporting** - Comprehensive status and metrics validation
-6. **Error Handling** - Error reporting and recovery validation
-
-This comprehensive approach ensures that all components work together correctly and that the system can handle both success and failure scenarios gracefully.
-
-## Benefits of This Architecture
-
-1. **Separation of Concerns** - Clear boundaries between template definition, workflow configuration, and execution
-2. **Version Control** - Proper versioning through NiFi Registry integration
-3. **Scalability** - Templates can be reused across multiple tenants and configurations
-4. **Observability** - Comprehensive monitoring and error reporting
-5. **Reliability** - Rollback capabilities and detailed error diagnostics
-6. **Flexibility** - Parameter-driven configuration without hard-coded values
-
-This architecture enables EDI Lens to provide a robust, scalable, and maintainable workflow management platform that leverages the strengths of both NiFi Registry for version control and Apache NiFi for data processing execution.
+The E2E tests provide comprehensive validation that the EDI Lens system works correctly in a production-like environment with real NiFi integration, file processing, and proper resource management.
