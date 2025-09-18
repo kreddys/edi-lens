@@ -77,3 +77,4 @@ data/
 !backend/data/.vscode/
 
 nifi-rest-api-spec.txt
+local-services/
