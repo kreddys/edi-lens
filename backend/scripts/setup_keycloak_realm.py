@@ -2,6 +2,7 @@
 import os
 import sys
 import time
+from urllib.parse import urlparse
 from keycloak import KeycloakAdmin, KeycloakOpenIDConnection
 from keycloak.exceptions import KeycloakGetError, KeycloakPostError
 import logging
@@ -21,6 +22,16 @@ NIFI_OIDC_CLIENT_SECRET = os.getenv("NIFI_OIDC_CLIENT_SECRET", "nifi-secret-chan
 KEYCLOAK_SFTPGO_CLIENT_ID = os.getenv("KEYCLOAK_SFTPGO_CLIENT_ID", "sftpgo")
 KEYCLOAK_SFTPGO_CLIENT_SECRET = os.getenv("KEYCLOAK_SFTPGO_CLIENT_SECRET", "default-sftpgo-secret")
 REMOTE_HOST = os.getenv("REMOTE_HOST", "localhost")
+NIFI_BASE_URL = os.getenv("NIFI_URL", f"http://{REMOTE_HOST}:8080")
+
+parsed_nifi = urlparse(NIFI_BASE_URL)
+nifi_host = parsed_nifi.hostname or REMOTE_HOST
+if parsed_nifi.port:
+    nifi_base = f"{parsed_nifi.scheme}://{nifi_host}:{parsed_nifi.port}"
+else:
+    nifi_base = f"{parsed_nifi.scheme}://{nifi_host}"
+nifi_oidc_redirect = f"{nifi_base}/nifi-api/access/oidc/callback"
+nifi_web_origin = nifi_base
 
 # --- Updated Roles for NiFi Workflow Architecture ---
 # Removed obsolete trading partner roles as per new architecture
@@ -110,8 +121,8 @@ CLIENTS = [
         "clientAuthenticatorType": "client-secret",
         "standardFlowEnabled": True,
         "directAccessGrantsEnabled": False,
-        "redirectUris": [f"http://{REMOTE_HOST}:8080/nifi-api/access/oidc/callback"],
-        "webOrigins": [f"http://{REMOTE_HOST}:8080"],
+        "redirectUris": [nifi_oidc_redirect],
+        "webOrigins": [nifi_web_origin],
         "serviceAccountsEnabled": False,
         "attributes": {
             "access.token.lifespan": "3600",  # 1 hour

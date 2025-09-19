@@ -34,6 +34,9 @@ Options:
                         frontend,caddy,nifi,nifi-registry,monitoring)
   --env-only            Shorthand for --components env
   --validate            Run validation checks for the selected components after setup (or on an existing setup)
+  --install             Explicitly trigger the installation flow (default)
+  --uninstall           Remove all artifacts produced by this script
+  --reinstall           Remove all artifacts and then perform a fresh installation
   -h, --help            Show this help message
 USAGE
 }
@@ -56,6 +59,7 @@ LOCAL_STACK_DIR="$DEFAULT_LOCAL_STACK_DIR"
 ENV_SOURCE_FILE="$DEFAULT_ENV_SOURCE_FILE"
 RUN_VALIDATION=0
 COMPONENT_SELECTION=()
+ACTION="install"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -80,6 +84,15 @@ while [[ $# -gt 0 ]]; do
         --validate)
             RUN_VALIDATION=1
             ;;
+        --install)
+            ACTION="install"
+            ;;
+        --uninstall)
+            ACTION="uninstall"
+            ;;
+        --reinstall)
+            ACTION="reinstall"
+            ;;
         -h|--help)
             usage
             exit 0
@@ -95,8 +108,6 @@ LOCAL_STACK_DIR=${LOCAL_STACK_DIR%/}
 DOWNLOAD_CACHE="$LOCAL_STACK_DIR/downloads"
 LOG_DIR="$LOCAL_STACK_DIR/logs"
 LOCAL_ENV_FILE="$LOCAL_STACK_DIR/.env.local"
-
-mkdir -p "$LOCAL_STACK_DIR" "$DOWNLOAD_CACHE" "$LOG_DIR"
 
 ALL_COMPONENTS=(env postgres minio keycloak sftpgo backend frontend caddy nifi nifi-registry monitoring)
 
@@ -134,16 +145,209 @@ require_cmd() {
     fi
 }
 
+POSTGRES_BIN_DIR=""
+
+ensure_postgres_binaries_in_path() {
+    local initdb_path
+    initdb_path=$(command -v initdb 2>/dev/null || true)
+    if [ -n "$initdb_path" ]; then
+        POSTGRES_BIN_DIR=$(dirname "$initdb_path")
+        return
+    fi
+
+    if command -v pg_config >/dev/null 2>&1; then
+        local bindir
+        bindir=$(pg_config --bindir 2>/dev/null || true)
+        if [ -n "$bindir" ] && [ -d "$bindir" ]; then
+            POSTGRES_BIN_DIR="$bindir"
+            if [[ ":$PATH:" != *":$bindir:"* ]]; then
+                PATH="$bindir:$PATH"
+                export PATH
+            fi
+        fi
+    fi
+}
+
+run_as_user() {
+    local target_user="$1"
+    shift
+    local current_user
+    current_user=$(id -un 2>/dev/null || whoami 2>/dev/null || printf 'unknown')
+
+    if [ "$target_user" = "$current_user" ] || [ -z "$target_user" ]; then
+        "$@"
+        return
+    fi
+
+    if command -v sudo >/dev/null 2>&1; then
+        sudo -E -u "$target_user" -- "$@"
+    else
+        su -s /bin/bash "$target_user" -c "$(printf '%q ' "$@")"
+    fi
+}
+
+sql_escape_literal() {
+    local input="${1-}"
+    printf '%s' "${input//\'/''}"
+}
+
+generate_random_alnum() {
+    local length="$1"
+    local result=""
+
+    if command -v python3 >/dev/null 2>&1; then
+        result=$(python3 - "$length" <<'PY'
+import secrets
+import string
+import sys
+
+length = int(sys.argv[1])
+alphabet = string.ascii_letters + string.digits
+print(''.join(secrets.choice(alphabet) for _ in range(length)), end='')
+PY
+        ) || result=""
+    fi
+
+    if [ "${#result}" -ne "$length" ]; then
+        require_cmd tr
+        require_cmd head
+        while [ "${#result}" -lt "$length" ]; do
+            local needed=$((length - ${#result}))
+            local chunk
+            chunk=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom 2>/dev/null | head -c "$needed" || true)
+            result+="$chunk"
+        done
+        result=${result:0:$length}
+    fi
+
+    printf '%s' "$result"
+}
+
 curl_download() {
     require_cmd curl
     local url="$1"
     local dest="$2"
-    if [ ! -f "$dest" ]; then
-        info "Downloading $(basename "$dest")..."
-        curl -L "$url" -o "$dest"
-    else
+    if [ -f "$dest" ]; then
         info "Using cached $(basename "$dest")"
+        return
     fi
+
+    info "Downloading $(basename "$dest")..."
+    local tmp
+    tmp="${dest}.partial"
+    rm -f "$tmp"
+    if ! curl -fL --retry 3 --retry-delay 2 "$url" -o "$tmp"; then
+        rm -f "$tmp"
+        warn "Download failed for $url"
+        return 1
+    fi
+    mv "$tmp" "$dest"
+}
+
+resolve_latest_release_tag() {
+    local repo="$1"
+    local prefix="$2"
+    local fallback="$3"
+    require_cmd python3
+    python3 - "$repo" "$prefix" "$fallback" <<'PY'
+import json
+import sys
+import urllib.request
+
+repo, prefix, fallback = sys.argv[1:4]
+url = f"https://api.github.com/repos/{repo}/tags?per_page=100"
+
+try:
+    with urllib.request.urlopen(url, timeout=10) as resp:
+        tags = json.load(resp)
+    for entry in tags:
+        name = entry.get("name", "")
+        if prefix:
+            if name.startswith(prefix):
+                print(name)
+                break
+        else:
+            print(name)
+            break
+    else:
+        if fallback:
+            print(fallback)
+except Exception:
+    if fallback:
+        print(fallback)
+PY
+}
+
+build_minio_from_source() {
+    local dest="$1"
+    local version="${2:-}"
+    require_cmd git
+    require_cmd go
+
+    local tag="$version"
+    if [ -z "$tag" ] || [ "$tag" = "latest" ]; then
+        tag=$(resolve_latest_release_tag "minio/minio" "RELEASE." "RELEASE.2025-04-22T22-12-26Z")
+    fi
+    if [ -z "$tag" ] || [ "$tag" = "null" ]; then
+        tag="RELEASE.2025-04-22T22-12-26Z"
+    fi
+
+    info "Building MinIO from source (tag $tag)"
+    local tmp
+    tmp=$(mktemp -d "$DOWNLOAD_CACHE/minio-src.XXXXXX")
+    mkdir -p "$tmp"
+    if ! git clone --depth 1 --branch "$tag" https://github.com/minio/minio.git "$tmp/minio" >/dev/null 2>&1; then
+        rm -rf "$tmp"
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$dest")"
+    local build_target="$dest.build"
+    if ! (cd "$tmp/minio" && GO111MODULE=on CGO_ENABLED=0 go build -o "$build_target" .); then
+        rm -rf "$tmp"
+        rm -f "$build_target"
+        return 1
+    fi
+
+    mv "$build_target" "$dest"
+    rm -rf "$tmp"
+    return 0
+}
+
+build_mc_from_source() {
+    local dest="$1"
+    local version="${2:-}"
+    require_cmd git
+    require_cmd go
+
+    local tag="$version"
+    if [ -z "$tag" ] || [ "$tag" = "latest" ]; then
+        tag=$(resolve_latest_release_tag "minio/mc" "RELEASE." "RELEASE.2025-04-16T18-13-26Z")
+    fi
+    if [ -z "$tag" ] || [ "$tag" = "null" ]; then
+        tag="RELEASE.2025-04-16T18-13-26Z"
+    fi
+
+    info "Building MinIO Client from source (tag $tag)"
+    local tmp
+    tmp=$(mktemp -d "$DOWNLOAD_CACHE/mc-src.XXXXXX")
+    mkdir -p "$tmp"
+    if ! git clone --depth 1 --branch "$tag" https://github.com/minio/mc.git "$tmp/mc" >/dev/null 2>&1; then
+        rm -rf "$tmp"
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$dest")"
+    local build_target="$dest.build"
+    if ! (cd "$tmp/mc" && GO111MODULE=on CGO_ENABLED=0 go build -o "$build_target" .); then
+        rm -rf "$tmp"
+        rm -f "$build_target"
+        return 1
+    fi
+
+    mv "$build_target" "$dest"
+    rm -rf "$tmp"
+    return 0
 }
 
 extract_tarball() {
@@ -151,7 +355,7 @@ extract_tarball() {
     local archive="$1"
     local target_dir="$2"
     local strip_components="${3:-1}"
-    if [ ! -d "$target_dir" ]; then
+    if [ ! -d "$target_dir" ] || [ -z "$(ls -A "$target_dir" 2>/dev/null)" ]; then
         info "Extracting $(basename "$archive")..."
         mkdir -p "$target_dir"
         tar -xf "$archive" -C "$target_dir" --strip-components="$strip_components"
@@ -165,10 +369,32 @@ write_start_script() {
     local body="$*"
     cat <<'SCRIPT_HEADER' > "$path"
 #!/usr/bin/env bash
+# AUTO-GENERATED BY scripts/setup_local_services.sh
 set -euo pipefail
 SCRIPT_HEADER
-    printf '%s\n' "$body" >> "$path"
+    if [ $# -gt 0 ]; then
+        printf '%s\n' "$body" >> "$path"
+    else
+        cat >> "$path"
+    fi
     chmod +x "$path"
+}
+
+is_generated_file() {
+    local file="$1"
+    [[ -f "$file" ]] && grep -q "AUTO-GENERATED BY scripts/setup_local_services.sh" "$file"
+}
+
+remove_generated_file() {
+    local file="$1"
+    if is_generated_file "$file"; then
+        info "Removing generated helper $file"
+        rm -f "$file"
+    fi
+}
+
+ensure_workspace_directories() {
+    mkdir -p "$LOCAL_STACK_DIR" "$DOWNLOAD_CACHE" "$LOG_DIR"
 }
 
 # --- Validation helpers -----------------------------------------------------
@@ -307,9 +533,61 @@ generate_local_env_file() {
     info "Generating host-oriented environment file at $LOCAL_ENV_FILE"
 
     local postgres_host_local="127.0.0.1"
-    local keycloak_internal_host="127.0.0.1"
+    local backend_host_local="127.0.0.1"
+    local backend_schema_dir="$PROJECT_ROOT/backend/data/edi_schemas"
+    local keycloak_internal_host="localhost"
     local keycloak_internal_port="8180"
     local sftpgo_internal_port="8280"
+
+    local default_nifi_key="12345678901234567890123456789012"
+    local existing_nifi_key=""
+    if [ -f "$LOCAL_ENV_FILE" ]; then
+        existing_nifi_key=$(grep -E '^NIFI_SENSITIVE_PROPS_KEY=' "$LOCAL_ENV_FILE" | tail -n1 | cut -d'=' -f2- || true)
+    fi
+    local nifi_sensitive_key="${existing_nifi_key:-${NIFI_SENSITIVE_PROPS_KEY:-$default_nifi_key}}"
+    if [ "${#nifi_sensitive_key}" -ne 32 ]; then
+        warn "NIFI_SENSITIVE_PROPS_KEY must be 32 characters; generating a random local value."
+        nifi_sensitive_key=$(generate_random_alnum 32)
+        if [ "${#nifi_sensitive_key}" -ne 32 ]; then
+            error "Failed to generate a 32-character NIFI_SENSITIVE_PROPS_KEY"
+        fi
+    fi
+
+    local nifi_admin_user="${NIFI_ADMIN_USER:-admin}"
+    local existing_nifi_password=""
+    if [ -f "$LOCAL_ENV_FILE" ]; then
+        existing_nifi_password=$(grep -E '^NIFI_ADMIN_PASSWORD=' "$LOCAL_ENV_FILE" | tail -n1 | cut -d'=' -f2- || true)
+        if [ -z "$existing_nifi_password" ]; then
+            existing_nifi_password=$(grep -E '^NIFI_PASSWORD=' "$LOCAL_ENV_FILE" | tail -n1 | cut -d'=' -f2- || true)
+        fi
+    fi
+
+    local nifi_password_source
+    local nifi_password_label="NiFi password"
+    if [ -n "${NIFI_PASSWORD:-}" ]; then
+        nifi_password_source="$NIFI_PASSWORD"
+        nifi_password_label="NIFI_PASSWORD"
+    elif [ -n "${NIFI_ADMIN_PASSWORD:-}" ]; then
+        nifi_password_source="$NIFI_ADMIN_PASSWORD"
+        nifi_password_label="NIFI_ADMIN_PASSWORD"
+    elif [ -n "$existing_nifi_password" ]; then
+        nifi_password_source="$existing_nifi_password"
+        nifi_password_label="existing NIFI password"
+    else
+        nifi_password_source="admin12345678"
+    fi
+
+    if [ "${#nifi_password_source}" -lt 12 ]; then
+        warn "$nifi_password_label must be at least 12 characters; generating a random local value."
+        nifi_password_source=$(generate_random_alnum 16)
+        if [ "${#nifi_password_source}" -lt 12 ]; then
+            error "Failed to generate a NiFi password of at least 12 characters"
+        fi
+    fi
+
+    local nifi_admin_password="$nifi_password_source"
+    local nifi_password="$nifi_password_source"
+    local nifi_username="${NIFI_USERNAME:-$nifi_admin_user}"
 
     cat > "$LOCAL_ENV_FILE" <<EOF
 # -----------------------------------------------------------------------------
@@ -352,6 +630,8 @@ SFTPGO_ADMIN_USER=${SFTPGO_ADMIN_USER:-admin}
 SFTPGO_ADMIN_PASSWORD=${SFTPGO_ADMIN_PASSWORD:-admin123}
 SFTPGO_API_URL=http://127.0.0.1:$sftpgo_internal_port/api/v2
 BACKEND_WEBHOOK_URL=http://127.0.0.1:8000/api/v1/sftp/hooks/upload
+BACKEND_HOST=$backend_host_local
+EDI_SCHEMA_DIRECTORY=$backend_schema_dir
 
 STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY:-minioadmin}
 STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-minioadmin}
@@ -364,16 +644,16 @@ VITE_KEYCLOAK_URL=http://localhost:8081
 VITE_KEYCLOAK_REALM=${KEYCLOAK_REALM:-edi-lens}
 VITE_KEYCLOAK_CLIENT_ID=${KEYCLOAK_UI_CLIENT_ID:-edi-lens-ui}
 
-NIFI_URL=http://localhost:8080
+NIFI_URL=https://localhost:8443
 NIFI_REGISTRY_URL=http://localhost:18080
-NIFI_ADMIN_USER=${NIFI_ADMIN_USER:-admin}
-NIFI_ADMIN_PASSWORD=${NIFI_ADMIN_PASSWORD:-admin123}
-NIFI_SENSITIVE_PROPS_KEY=${NIFI_SENSITIVE_PROPS_KEY:-12345678901234567890123456789012}
+NIFI_ADMIN_USER=$nifi_admin_user
+NIFI_ADMIN_PASSWORD=$nifi_admin_password
+NIFI_SENSITIVE_PROPS_KEY=$nifi_sensitive_key
 NIFI_JVM_HEAP_INIT=${NIFI_JVM_HEAP_INIT:-1g}
 NIFI_JVM_HEAP_MAX=${NIFI_JVM_HEAP_MAX:-2g}
-NIFI_WEB_PROXY_HOST=localhost:8080
-NIFI_USERNAME=${NIFI_USERNAME:-${NIFI_ADMIN_USER:-admin}}
-NIFI_PASSWORD=${NIFI_PASSWORD:-${NIFI_ADMIN_PASSWORD:-admin123}}
+NIFI_WEB_PROXY_HOST=localhost:8443
+NIFI_USERNAME=$nifi_username
+NIFI_PASSWORD=$nifi_password
 
 # Monitoring endpoints via Caddy
 GRAFANA_PUBLIC_URL=http://localhost:3030
@@ -382,9 +662,58 @@ LOKI_PUBLIC_URL=http://localhost:3100
 EOF
 }
 
+stop_postgres_cluster() {
+    local pg_dir="$LOCAL_STACK_DIR/postgres"
+    local data_dir="$pg_dir/data"
+    if [ ! -d "$data_dir" ]; then
+        return
+    fi
+
+    ensure_postgres_binaries_in_path
+    local pg_ctl_bin="$POSTGRES_BIN_DIR/pg_ctl"
+    if [ ! -x "$pg_ctl_bin" ]; then
+        pg_ctl_bin=$(command -v pg_ctl 2>/dev/null || true)
+    fi
+    if [ -z "$pg_ctl_bin" ]; then
+        warn "pg_ctl not found; skipping PostgreSQL shutdown"
+        return
+    fi
+
+    local runtime_user="${POSTGRES_RUNTIME_USER:-}"
+    if [ -z "$runtime_user" ]; then
+        runtime_user=$(stat -c '%U' "$data_dir" 2>/dev/null || id -un 2>/dev/null || whoami 2>/dev/null || printf 'unknown')
+    fi
+
+    if run_as_user "$runtime_user" "$pg_ctl_bin" status -D "$data_dir" >/dev/null 2>&1; then
+        info "Stopping PostgreSQL cluster before removal"
+        if ! run_as_user "$runtime_user" "$pg_ctl_bin" -D "$data_dir" stop -m fast >/dev/null 2>&1; then
+            warn "Failed to stop PostgreSQL cleanly; you may need to stop it manually"
+        fi
+    fi
+}
+
+uninstall_local_services() {
+    info "Uninstalling local services from $LOCAL_STACK_DIR"
+
+    stop_postgres_cluster
+
+    if [ -d "$LOCAL_STACK_DIR" ]; then
+        if [[ -z "$LOCAL_STACK_DIR" || "$LOCAL_STACK_DIR" = "/" ]]; then
+            error "Refusing to remove unsafe workspace path: $LOCAL_STACK_DIR"
+        fi
+        rm -rf "$LOCAL_STACK_DIR"
+    fi
+
+    remove_generated_file "$PROJECT_ROOT/backend/start-local.sh"
+    remove_generated_file "$PROJECT_ROOT/frontend/start-local.sh"
+
+    success "Local services artifacts removed."
+}
+
 # --- PostgreSQL ---------------------------------------------------------------
 setup_postgres() {
     info "Configuring local PostgreSQL cluster"
+    ensure_postgres_binaries_in_path
     require_cmd initdb
     require_cmd pg_ctl
     require_cmd psql
@@ -393,8 +722,40 @@ setup_postgres() {
     local data_dir="$pg_dir/data"
     local log_file="$LOG_DIR/postgres.log"
     local port="${POSTGRES_PORT:-5432}"
+    local current_user
+    current_user=$(id -un 2>/dev/null || whoami 2>/dev/null || printf 'unknown')
+    local pg_runtime_user="${POSTGRES_RUNTIME_USER:-$current_user}"
+    local initdb_bin="$POSTGRES_BIN_DIR/initdb"
+    local pg_ctl_bin="$POSTGRES_BIN_DIR/pg_ctl"
+
+    if [ "$pg_runtime_user" = "root" ]; then
+        if id postgres >/dev/null 2>&1; then
+            info "Running as root; delegating PostgreSQL processes to 'postgres' user"
+            pg_runtime_user="postgres"
+        else
+            error "PostgreSQL cannot be initialized as root. Set POSTGRES_RUNTIME_USER to a non-root user."
+        fi
+    fi
+
+    local pg_runtime_group
+    pg_runtime_group=$(id -gn "$pg_runtime_user" 2>/dev/null || printf '%s' "$pg_runtime_user")
+
+    if [ ! -x "$initdb_bin" ]; then
+        initdb_bin=$(command -v initdb 2>/dev/null || true)
+    fi
+    if [ ! -x "$pg_ctl_bin" ]; then
+        pg_ctl_bin=$(command -v pg_ctl 2>/dev/null || true)
+    fi
+
+    if [ ! -x "$initdb_bin" ] || [ ! -x "$pg_ctl_bin" ]; then
+        error "PostgreSQL binaries not found in PATH. Ensure the client tools are installed."
+    fi
 
     mkdir -p "$pg_dir"
+
+    if [ "$current_user" != "$pg_runtime_user" ]; then
+        chown -R "$pg_runtime_user:$pg_runtime_group" "$pg_dir"
+    fi
 
     if [ ! -d "$data_dir/base" ]; then
         info "Initializing PostgreSQL data directory"
@@ -402,7 +763,10 @@ setup_postgres() {
         pwfile=$(mktemp)
         chmod 600 "$pwfile"
         printf '%s' "${POSTGRES_PASSWORD:-password}" > "$pwfile"
-        initdb -D "$data_dir" -U "${POSTGRES_USER:-edi_user}" -A scram-sha-256 --pwfile "$pwfile"
+        if [ "$current_user" != "$pg_runtime_user" ]; then
+            chown "$pg_runtime_user:$pg_runtime_group" "$pwfile"
+        fi
+        run_as_user "$pg_runtime_user" "$initdb_bin" -D "$data_dir" -U "${POSTGRES_USER:-edi_user}" -A scram-sha-256 --pwfile "$pwfile"
         rm -f "$pwfile"
 
         # Harden pg_hba.conf for password auth on loopback
@@ -417,115 +781,88 @@ port = $port
 EOF
     fi
 
-    if ! pg_ctl status -D "$data_dir" >/dev/null 2>&1; then
+    if ! run_as_user "$pg_runtime_user" "$pg_ctl_bin" status -D "$data_dir" >/dev/null 2>&1; then
         info "Starting PostgreSQL"
-        pg_ctl -D "$data_dir" -l "$log_file" start
+        touch "$log_file"
+        if [ "$current_user" != "$pg_runtime_user" ]; then
+            chown "$pg_runtime_user:$pg_runtime_group" "$log_file"
+        fi
+        run_as_user "$pg_runtime_user" "$pg_ctl_bin" -D "$data_dir" -l "$log_file" start
         sleep 3
     else
         info "PostgreSQL already running"
     fi
 
-    local psql_conn=(psql "postgresql://${POSTGRES_USER:-edi_user}:${POSTGRES_PASSWORD:-password}@127.0.0.1:$port/postgres")
+    local base_conn="postgresql://${POSTGRES_USER:-edi_user}:${POSTGRES_PASSWORD:-password}@127.0.0.1:$port"
+    local psql_super=(psql -v ON_ERROR_STOP=1 "$base_conn/postgres")
 
     info "Ensuring core extensions and databases exist"
 
-    if [ "${POSTGRES_DB:-edi_lens}" != "postgres" ]; then
-        "${psql_conn[@]}" <<SQL
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB:-edi_lens}') THEN
-        EXECUTE 'CREATE DATABASE "${POSTGRES_DB:-edi_lens}" OWNER "${POSTGRES_USER:-edi_user}"';
-    END IF;
-END$$;
-SQL
+    local target_db="${POSTGRES_DB:-edi_lens}"
+    local target_db_exists=0
+    if [ "$target_db" = "postgres" ]; then
+        target_db_exists=1
+    else
+        local target_db_check
+        target_db_check=$("${psql_super[@]}" -tAc "SELECT 1 FROM pg_database WHERE datname='${target_db}'" | tr -d '[:space:]' || true)
+        if [ "$target_db_check" = "1" ]; then
+            target_db_exists=1
+        else
+            "${psql_super[@]}" -c "CREATE DATABASE \"${target_db}\" OWNER \"${POSTGRES_USER:-edi_user}\""
+            target_db_exists=1
+        fi
     fi
 
-    "${psql_conn[@]}" <<'SQL'
-DO $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'vector') THEN
-        EXECUTE 'CREATE EXTENSION IF NOT EXISTS vector';
-    ELSE
-        RAISE NOTICE 'pgvector extension not available – skipping';
-    END IF;
-    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'age') THEN
-        EXECUTE 'CREATE EXTENSION IF NOT EXISTS age';
-    ELSE
-        RAISE NOTICE 'Apache AGE extension not available – skipping';
-    END IF;
-END$$;
-SQL
+    if [ $target_db_exists -eq 1 ]; then
+        local psql_app=(psql -v ON_ERROR_STOP=1 "$base_conn/${target_db}")
+        local extension_available
+        extension_available=$("${psql_super[@]}" -tAc "SELECT 1 FROM pg_available_extensions WHERE name='vector'" | tr -d '[:space:]' || true)
+        if [ "$extension_available" = "1" ]; then
+            "${psql_app[@]}" -c "CREATE EXTENSION IF NOT EXISTS vector"
+        else
+            warn "pgvector extension not available – skipping"
+        fi
 
-    local db_exists
-    db_exists="$("${psql_conn[@]}" -tAc "SELECT 1 FROM pg_database WHERE datname='${POSTGRES_DB:-edi_lens}'" | tr -d '[:space:]')" || db_exists=""
-    if [ "$db_exists" = "1" ]; then
-        "${psql_conn[@]}" <<SQL
-ALTER DATABASE "${POSTGRES_DB:-edi_lens}" SET search_path = ag_catalog, "\$user", public;
-SQL
+        extension_available=$("${psql_super[@]}" -tAc "SELECT 1 FROM pg_available_extensions WHERE name='age'" | tr -d '[:space:]' || true)
+        if [ "$extension_available" = "1" ]; then
+            "${psql_app[@]}" -c "CREATE EXTENSION IF NOT EXISTS age"
+        else
+            warn "Apache AGE extension not available – skipping"
+        fi
+
+        if [ "$target_db" != "postgres" ]; then
+            "${psql_super[@]}" -c "ALTER DATABASE \"${target_db}\" SET search_path = ag_catalog, \"\$user\", public"
+        fi
     fi
 
-    "${psql_conn[@]}" <<SQL
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_KC_DB:-keycloak}') THEN
-        EXECUTE 'CREATE DATABASE "${POSTGRES_KC_DB:-keycloak}"';
-    END IF;
-END$$;
-SQL
-    "${psql_conn[@]}" <<SQL
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${POSTGRES_KC_USER:-keycloak_user}') THEN
-        EXECUTE 'CREATE USER "${POSTGRES_KC_USER:-keycloak_user}" WITH PASSWORD ''${POSTGRES_KC_PASSWORD:-password}''';
-    END IF;
-END$$;
-SQL
-    psql "postgresql://${POSTGRES_USER:-edi_user}:${POSTGRES_PASSWORD:-password}@127.0.0.1:$port/${POSTGRES_KC_DB:-keycloak}" <<SQL
-GRANT ALL PRIVILEGES ON DATABASE "${POSTGRES_KC_DB:-keycloak}" TO "${POSTGRES_KC_USER:-keycloak_user}";
-GRANT USAGE, CREATE ON SCHEMA public TO "${POSTGRES_KC_USER:-keycloak_user}";
-SQL
+    ensure_db_and_role() {
+        local db_name="$1"
+        local role_name="$2"
+        local role_password="$3"
+        local db_check
+        db_check=$("${psql_super[@]}" -tAc "SELECT 1 FROM pg_database WHERE datname='${db_name}'" | tr -d '[:space:]' || true)
+        if [ "$db_check" != "1" ]; then
+            "${psql_super[@]}" -c "CREATE DATABASE \"${db_name}\""
+        fi
 
-    "${psql_conn[@]}" <<SQL
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_SFTPGO_DB:-sftpgo}') THEN
-        EXECUTE 'CREATE DATABASE "${POSTGRES_SFTPGO_DB:-sftpgo}"';
-    END IF;
-END$$;
-SQL
-    "${psql_conn[@]}" <<SQL
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${POSTGRES_SFTPGO_USER:-sftpgo_user}') THEN
-        EXECUTE 'CREATE USER "${POSTGRES_SFTPGO_USER:-sftpgo_user}" WITH PASSWORD ''${POSTGRES_SFTPGO_PASSWORD:-password}''';
-    END IF;
-END$$;
-SQL
-    psql "postgresql://${POSTGRES_USER:-edi_user}:${POSTGRES_PASSWORD:-password}@127.0.0.1:$port/${POSTGRES_SFTPGO_DB:-sftpgo}" <<SQL
-GRANT ALL PRIVILEGES ON DATABASE "${POSTGRES_SFTPGO_DB:-sftpgo}" TO "${POSTGRES_SFTPGO_USER:-sftpgo_user}";
-GRANT USAGE, CREATE ON SCHEMA public TO "${POSTGRES_SFTPGO_USER:-sftpgo_user}";
-SQL
+        local role_check
+        role_check=$("${psql_super[@]}" -tAc "SELECT 1 FROM pg_roles WHERE rolname='${role_name}'" | tr -d '[:space:]' || true)
+        if [ "$role_check" != "1" ]; then
+            local escaped
+            escaped=$(sql_escape_literal "$role_password")
+            "${psql_super[@]}" -c "CREATE USER \"${role_name}\" WITH PASSWORD '${escaped}'"
+        fi
 
-    "${psql_conn[@]}" <<SQL
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_NIFI_REGISTRY_DB:-nifi_registry}') THEN
-        EXECUTE 'CREATE DATABASE "${POSTGRES_NIFI_REGISTRY_DB:-nifi_registry}"';
-    END IF;
-END$$;
-SQL
-    "${psql_conn[@]}" <<SQL
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${POSTGRES_NIFI_REGISTRY_USER:-nifi_registry}') THEN
-        EXECUTE 'CREATE USER "${POSTGRES_NIFI_REGISTRY_USER:-nifi_registry}" WITH PASSWORD ''${POSTGRES_NIFI_REGISTRY_PASSWORD:-password}''';
-    END IF;
-END$$;
-SQL
-    psql "postgresql://${POSTGRES_USER:-edi_user}:${POSTGRES_PASSWORD:-password}@127.0.0.1:$port/${POSTGRES_NIFI_REGISTRY_DB:-nifi_registry}" <<SQL
-GRANT ALL PRIVILEGES ON DATABASE "${POSTGRES_NIFI_REGISTRY_DB:-nifi_registry}" TO "${POSTGRES_NIFI_REGISTRY_USER:-nifi_registry}";
-GRANT USAGE, CREATE ON SCHEMA public TO "${POSTGRES_NIFI_REGISTRY_USER:-nifi_registry}";
-SQL
+        local psql_db=(psql -v ON_ERROR_STOP=1 "$base_conn/${db_name}")
+        "${psql_db[@]}" -c "GRANT ALL PRIVILEGES ON DATABASE \"${db_name}\" TO \"${role_name}\""
+        "${psql_db[@]}" -c "GRANT USAGE, CREATE ON SCHEMA public TO \"${role_name}\""
+    }
+
+    ensure_db_and_role "${POSTGRES_KC_DB:-keycloak}" "${POSTGRES_KC_USER:-keycloak_user}" "${POSTGRES_KC_PASSWORD:-password}"
+    ensure_db_and_role "${POSTGRES_SFTPGO_DB:-sftpgo}" "${POSTGRES_SFTPGO_USER:-sftpgo_user}" "${POSTGRES_SFTPGO_PASSWORD:-password}"
+    ensure_db_and_role "${POSTGRES_NIFI_REGISTRY_DB:-nifi_registry}" "${POSTGRES_NIFI_REGISTRY_USER:-nifi_registry}" "${POSTGRES_NIFI_REGISTRY_PASSWORD:-password}"
+
+    unset -f ensure_db_and_role
 
     success "PostgreSQL configured at 127.0.0.1:$port"
 }
@@ -538,35 +875,71 @@ setup_minio() {
     local mc_bin="$bin_dir/mc"
     mkdir -p "$minio_dir/data" "$bin_dir"
 
-    curl_download "https://dl.min.io/server/minio/release/linux-amd64/minio" "$minio_bin"
-    chmod +x "$minio_bin"
+    local minio_url
+    local minio_cache
+    if [ -n "${MINIO_VERSION:-}" ] && [ "${MINIO_VERSION}" != "latest" ]; then
+        minio_url="https://github.com/minio/minio/releases/download/${MINIO_VERSION}/minio"
+        minio_cache="$DOWNLOAD_CACHE/minio-${MINIO_VERSION}"
+    else
+        minio_url="https://github.com/minio/minio/releases/latest/download/minio"
+        minio_cache="$DOWNLOAD_CACHE/minio-latest"
+    fi
+    if ! curl_download "$minio_url" "$minio_cache"; then
+        warn "Failed to download MinIO binary directly; attempting to build from source"
+        if ! build_minio_from_source "$minio_cache" "${MINIO_VERSION:-}"; then
+            error "Unable to obtain MinIO binary"
+        fi
+    fi
+    local minio_tmp="$minio_bin.new"
+    cp "$minio_cache" "$minio_tmp"
+    chmod +x "$minio_tmp"
+    mv -f "$minio_tmp" "$minio_bin"
 
-    curl_download "https://dl.min.io/client/mc/release/linux-amd64/mc" "$mc_bin"
-    chmod +x "$mc_bin"
+    local mc_url
+    local mc_cache
+    if [ -n "${MINIO_CLIENT_VERSION:-}" ] && [ "${MINIO_CLIENT_VERSION}" != "latest" ]; then
+        mc_url="https://github.com/minio/mc/releases/download/${MINIO_CLIENT_VERSION}/mc"
+        mc_cache="$DOWNLOAD_CACHE/mc-${MINIO_CLIENT_VERSION}"
+    else
+        mc_url="https://github.com/minio/mc/releases/latest/download/mc"
+        mc_cache="$DOWNLOAD_CACHE/mc-latest"
+    fi
+    if ! curl_download "$mc_url" "$mc_cache"; then
+        warn "Failed to download MinIO Client; attempting to build from source"
+        if ! build_mc_from_source "$mc_cache" "${MINIO_CLIENT_VERSION:-}"; then
+            error "Unable to obtain MinIO Client binary"
+        fi
+    fi
+    local mc_tmp="$mc_bin.new"
+    cp "$mc_cache" "$mc_tmp"
+    chmod +x "$mc_tmp"
+    mv -f "$mc_tmp" "$mc_bin"
 
-    write_start_script "$minio_dir/start.sh" "MINIO_ROOT=$minio_dir
+    write_start_script "$minio_dir/start.sh" <<SCRIPT
+MINIO_ROOT="$minio_dir"
 BIN_DIR="$bin_dir"
 DATA_DIR="$minio_dir/data"
 set -a
 source "$LOCAL_ENV_FILE"
 set +a
-export MINIO_ROOT_USER="$STORAGE_ACCESS_KEY"
-export MINIO_ROOT_PASSWORD="$STORAGE_SECRET_KEY"
-exec "$minio_bin" server "$DATA_DIR" --console-address ":9001" --address ":9000"
-"
+export MINIO_ROOT_USER="\$STORAGE_ACCESS_KEY"
+export MINIO_ROOT_PASSWORD="\$STORAGE_SECRET_KEY"
+exec "$minio_bin" server "\$DATA_DIR" --console-address ":9001" --address ":9000"
+SCRIPT
 
-    write_start_script "$minio_dir/create_bucket.sh" "BIN_DIR="$bin_dir"
+    write_start_script "$minio_dir/create_bucket.sh" <<SCRIPT
+BIN_DIR="$bin_dir"
 set -a
 source "$LOCAL_ENV_FILE"
 set +a
-MINIO_ENDPOINT=${STORAGE_ENDPOINT_URL:-http://127.0.0.1:9000}
-BUCKET=${STORAGE_BUCKET:-edi-lens}
-ACCESS=${STORAGE_ACCESS_KEY:-minioadmin}
-SECRET=${STORAGE_SECRET_KEY:-minioadmin}
-"$mc_bin" alias set local-minio "$MINIO_ENDPOINT" "$ACCESS" "$SECRET"
-"$mc_bin" mb --ignore-existing local-minio/"$BUCKET"
-"$mc_bin" anonymous set public local-minio/"$BUCKET" || true
-"
+MINIO_ENDPOINT=\${STORAGE_ENDPOINT_URL:-http://127.0.0.1:9000}
+BUCKET=\${STORAGE_BUCKET:-edi-lens}
+ACCESS=\${STORAGE_ACCESS_KEY:-minioadmin}
+SECRET=\${STORAGE_SECRET_KEY:-minioadmin}
+"$mc_bin" alias set local-minio "\$MINIO_ENDPOINT" "\$ACCESS" "\$SECRET"
+"$mc_bin" mb --ignore-existing local-minio/"\$BUCKET"
+"$mc_bin" anonymous set public local-minio/"\$BUCKET" || true
+SCRIPT
 
     success "MinIO setup complete (start via $minio_dir/start.sh)"
 }
@@ -576,81 +949,99 @@ setup_keycloak() {
     local version="${KEYCLOAK_VERSION:-25.0.2}"
     local archive="$DOWNLOAD_CACHE/keycloak-$version.tar.gz"
     local install_dir="$LOCAL_STACK_DIR/keycloak"
-    local kc_home="$install_dir/keycloak-$version"
+    local kc_home="$install_dir"
 
     mkdir -p "$install_dir"
-    curl_download "https://github.com/keycloak/keycloak/releases/download/$version/keycloak-$version.tar.gz" "$archive"
+    if ! curl_download "https://github.com/keycloak/keycloak/releases/download/$version/keycloak-$version.tar.gz" "$archive"; then
+        error "Failed to download Keycloak $version archive"
+    fi
     extract_tarball "$archive" "$install_dir" 1
 
-    write_start_script "$install_dir/start.sh" "ROOT=\$(cd "$(dirname "$0")" && pwd)
+    write_start_script "$install_dir/start.sh" <<SCRIPT
+ROOT=\$(cd "\$(dirname "$0")" && pwd)
 KC_HOME="$kc_home"
 set -a
 source "$LOCAL_ENV_FILE"
 set +a
 export KEYCLOAK_ADMIN
 export KEYCLOAK_ADMIN_PASSWORD
-exec "$KC_HOME/bin/kc.sh" start-dev \
+exec "\$KC_HOME/bin/kc.sh" start-dev \
   --http-port=8180 \
-  --hostname="$REMOTE_HOST" \
+  --hostname="\$REMOTE_HOST" \
   --db=postgres \
   --db-url-host=127.0.0.1 \
-  --db-url-port=${POSTGRES_PORT:-5432} \
-  --db-username="$POSTGRES_KC_USER" \
-  --db-password="$POSTGRES_KC_PASSWORD" \
-  --db-url-database="$POSTGRES_KC_DB" \
+  --db-url-port=\${POSTGRES_PORT:-5432} \
+  --db-username="\$POSTGRES_KC_USER" \
+  --db-password="\$POSTGRES_KC_PASSWORD" \
+  --db-url-database="\$POSTGRES_KC_DB" \
+  --http-management-port=\${KEYCLOAK_MANAGEMENT_PORT:-9002} \
   --proxy=edge \
   --hostname-strict=false
-"
+SCRIPT
 
     success "Keycloak available via start script at $install_dir/start.sh"
 }
 
 setup_sftpgo() {
     info "Installing SFTPGo"
-    local version="2.6.0"
-    local archive="$DOWNLOAD_CACHE/sftpgo_${version}_linux_amd64.tar.xz"
+    local version="${SFTPGO_VERSION:-2.6.6}"
+    local archive="$DOWNLOAD_CACHE/sftpgo_v${version}_linux_x86_64.tar.xz"
     local install_dir="$LOCAL_STACK_DIR/sftpgo"
-    local bin_dir="$install_dir/sftpgo"
+    local bin_dir="$install_dir"
 
     mkdir -p "$install_dir"
-    curl_download "https://github.com/drakkan/sftpgo/releases/download/v${version}/sftpgo_${version}_linux_amd64.tar.xz" "$archive"
-    if [ ! -d "$bin_dir" ]; then
+    local download_url="https://github.com/drakkan/sftpgo/releases/download/v${version}/sftpgo_v${version}_linux_x86_64.tar.xz"
+    if ! curl_download "$download_url" "$archive"; then
+        error "Failed to download SFTPGo $version archive"
+    fi
+    if [ ! -x "$bin_dir/sftpgo" ]; then
         info "Extracting SFTPGo archive"
         tar -xf "$archive" -C "$install_dir"
     fi
 
     mkdir -p "$install_dir/data" "$install_dir/state"
 
-    write_start_script "$install_dir/start.sh" "BASE=\$(cd "$(dirname "$0")" && pwd)
+    if [ ! -f "$install_dir/state/sftpgo.json" ]; then
+        cp "$install_dir/sftpgo.json" "$install_dir/state/sftpgo.json"
+    fi
+    if [ ! -d "$install_dir/state/templates" ]; then
+        cp -R "$install_dir/templates" "$install_dir/state/"
+    fi
+    if [ ! -d "$install_dir/state/static" ]; then
+        cp -R "$install_dir/static" "$install_dir/state/"
+    fi
+
+    write_start_script "$install_dir/start.sh" <<SCRIPT
+BASE=\$(cd "\$(dirname "\$0")" && pwd)
 BIN="$bin_dir/sftpgo"
 set -a
 source "$LOCAL_ENV_FILE"
 set +a
-export SFTPGO_HOME_DIR="$BASE/data"
-export SFTPGO_CONFIG_DIR="$BASE/state"
-export SFTPGO_DEFAULT_ADMIN_USERNAME="$SFTPGO_ADMIN_USER"
-export SFTPGO_DEFAULT_ADMIN_PASSWORD="$SFTPGO_ADMIN_PASSWORD"
+export SFTPGO_HOME_DIR="\$BASE/data"
+export SFTPGO_CONFIG_DIR="\$BASE/state"
+export SFTPGO_DEFAULT_ADMIN_USERNAME="\$SFTPGO_ADMIN_USER"
+export SFTPGO_DEFAULT_ADMIN_PASSWORD="\$SFTPGO_ADMIN_PASSWORD"
 export SFTPGO_LOG__LEVEL=info
 export SFTPGO_DATA_PROVIDER__DRIVER=postgresql
-export SFTPGO_DATA_PROVIDER__NAME="$POSTGRES_SFTPGO_DB"
+export SFTPGO_DATA_PROVIDER__NAME="\$POSTGRES_SFTPGO_DB"
 export SFTPGO_DATA_PROVIDER__HOST=127.0.0.1
-export SFTPGO_DATA_PROVIDER__PORT=${POSTGRES_PORT:-5432}
-export SFTPGO_DATA_PROVIDER__USERNAME="$POSTGRES_SFTPGO_USER"
-export SFTPGO_DATA_PROVIDER__PASSWORD="$POSTGRES_SFTPGO_PASSWORD"
+export SFTPGO_DATA_PROVIDER__PORT=\${POSTGRES_PORT:-5432}
+export SFTPGO_DATA_PROVIDER__USERNAME="\$POSTGRES_SFTPGO_USER"
+export SFTPGO_DATA_PROVIDER__PASSWORD="\$POSTGRES_SFTPGO_PASSWORD"
 export SFTPGO_DATA_PROVIDER__SSLMODE=0
 export SFTPGO_HTTPD__BINDINGS__0__ADDRESS=0.0.0.0
 export SFTPGO_HTTPD__BINDINGS__0__PORT=8280
-export SFTPGO_HTTPD__BINDINGS__0__OIDC__CLIENT_ID="$KEYCLOAK_SFTPGO_CLIENT_ID"
-export SFTPGO_HTTPD__BINDINGS__0__OIDC__CLIENT_SECRET="$KEYCLOAK_SFTPGO_CLIENT_SECRET"
-export SFTPGO_HTTPD__BINDINGS__0__OIDC__CONFIG_URL="$KEYCLOAK_URL/realms/$KEYCLOAK_REALM"
+export SFTPGO_HTTPD__BINDINGS__0__OIDC__CLIENT_ID="\$KEYCLOAK_SFTPGO_CLIENT_ID"
+export SFTPGO_HTTPD__BINDINGS__0__OIDC__CLIENT_SECRET="\$KEYCLOAK_SFTPGO_CLIENT_SECRET"
+export SFTPGO_HTTPD__BINDINGS__0__OIDC__CONFIG_URL="\$KEYCLOAK_URL/realms/\$KEYCLOAK_REALM"
 export SFTPGO_HTTPD__BINDINGS__0__OIDC__REDIRECT_BASE_URL=http://localhost:8082
 export SFTPGO_HTTPD__BINDINGS__0__OIDC__INSECURE_SKIP_SIGNATURE_CHECK=false
 export SFTPGO_HTTPD__BINDINGS__0__OIDC__SCOPES=openid,profile,email,groups
 export SFTPGO_HTTPD__BINDINGS__0__OIDC__USERNAME_FIELD=preferred_username
 export SFTPGO_HTTPD__BINDINGS__0__OIDC__ROLE_FIELD=groups
 export SFTPGO_HTTPD__BINDINGS__0__OIDC__AUTO_CREATE_USER=true
-exec "$BIN" serve
-"
+exec "\$BIN" serve
+SCRIPT
 
     success "SFTPGo configured with start script at $install_dir/start.sh"
 }
@@ -670,15 +1061,16 @@ setup_backend() {
     deactivate
 
     local start_path="$backend_dir/start-local.sh"
-    write_start_script "$start_path" "PROJECT_ROOT=\$(cd "$(dirname "$0")/.." && pwd)
+    write_start_script "$start_path" <<SCRIPT
+PROJECT_ROOT=\$(cd "\$(dirname "\$0")/.." && pwd)
 VENV="$venv_dir"
 set -a
 source "$LOCAL_ENV_FILE"
 set +a
-source "$VENV/bin/activate"
-cd "$PROJECT_ROOT/backend"
+source "\$VENV/bin/activate"
+cd "\$PROJECT_ROOT/backend"
 exec poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir alembic
-"
+SCRIPT
 
     success "Backend virtualenv ready (start via backend/start-local.sh)"
 }
@@ -687,16 +1079,17 @@ setup_frontend() {
     info "Installing frontend dependencies"
     require_cmd npm
 
-    (cd "$PROJECT_ROOT/frontend" && npm install)
+    (cd "\$PROJECT_ROOT/frontend" && npm install)
 
     local start_path="$PROJECT_ROOT/frontend/start-local.sh"
-    write_start_script "$start_path" "PROJECT_ROOT=\$(cd "$(dirname "$0")/.." && pwd)
+    write_start_script "$start_path" <<SCRIPT
+PROJECT_ROOT=\$(cd "\$(dirname "\$0")/.." && pwd)
 set -a
 source "$LOCAL_ENV_FILE"
 set +a
 cd "$PROJECT_ROOT/frontend"
 exec npm run dev -- --host 0.0.0.0 --port 3000
-"
+SCRIPT
 
     success "Frontend ready (start via frontend/start-local.sh)"
 }
@@ -709,7 +1102,9 @@ setup_caddy() {
     local caddyfile="$caddy_dir/Caddyfile"
 
     mkdir -p "$bin_dir" "$caddy_dir"
-    curl_download "https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_linux_amd64.tar.gz" "$DOWNLOAD_CACHE/caddy_2.8.4_linux_amd64.tar.gz"
+    if ! curl_download "https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_linux_amd64.tar.gz" "$DOWNLOAD_CACHE/caddy_2.8.4_linux_amd64.tar.gz"; then
+        error "Failed to download Caddy binary"
+    fi
     if [ ! -f "$caddy_bin" ]; then
         info "Extracting Caddy binary"
         tar -xf "$DOWNLOAD_CACHE/caddy_2.8.4_linux_amd64.tar.gz" -C "$bin_dir" caddy
@@ -801,10 +1196,11 @@ setup_caddy() {
 }
 CADDY
 
-    write_start_script "$caddy_dir/start.sh" "BIN_DIR="$bin_dir"
+    write_start_script "$caddy_dir/start.sh" <<SCRIPT
+BIN_DIR="$bin_dir"
 CADDYFILE="$caddyfile"
 exec "$caddy_bin" run --config "$caddyfile"
-"
+SCRIPT
 
     success "Caddy configuration ready (start via $caddy_dir/start.sh)"
 }
@@ -812,13 +1208,25 @@ exec "$caddy_bin" run --config "$caddyfile"
 setup_nifi() {
     info "Installing Apache NiFi"
     local version="2.5.0"
-    local archive="$DOWNLOAD_CACHE/nifi-$version-bin.tar.gz"
+    local archive="$DOWNLOAD_CACHE/nifi-$version-bin.zip"
     local install_dir="$LOCAL_STACK_DIR/nifi"
     local nifi_home="$install_dir/nifi-$version"
 
     mkdir -p "$install_dir"
-    curl_download "https://downloads.apache.org/nifi/$version/nifi-$version-bin.tar.gz" "$archive"
-    extract_tarball "$archive" "$install_dir" 1
+    if ! curl_download "https://downloads.apache.org/nifi/$version/nifi-$version-bin.zip" "$archive"; then
+        error "Failed to download NiFi $version archive"
+    fi
+    require_cmd unzip
+    if [ -d "$nifi_home" ] && [ ! -f "$nifi_home/conf/nifi.properties" ]; then
+        warn "Existing NiFi directory is missing configuration; re-extracting archive"
+        rm -rf "$nifi_home"
+    fi
+    if [ ! -d "$nifi_home" ]; then
+        info "Extracting NiFi archive"
+        unzip -q "$archive" -d "$install_dir"
+    else
+        info "NiFi archive already extracted"
+    fi
 
     require_cmd rsync
 
@@ -828,9 +1236,38 @@ setup_nifi() {
         cp "$file" "$py_ext_dir/"
     done
     rsync -a "$PROJECT_ROOT/nifi-edi-processors/schemas" "$py_ext_dir"/
+    mkdir -p "$nifi_home/conf"
     cp "$PROJECT_ROOT/docker/nifi-processors/login-identity-providers.xml" "$nifi_home/conf/login-identity-providers.xml"
 
-    write_start_script "$install_dir/start.sh" "NIFI_HOME="$nifi_home"
+    local nifi_props="$nifi_home/conf/nifi.properties"
+    python3 - "$nifi_props" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+def set_prop(content: str, key: str, value: str) -> str:
+    pattern = re.compile(rf"^{re.escape(key)}=.*$", re.MULTILINE)
+    replacement = f"{key}={value}"
+    if pattern.search(content):
+        return pattern.sub(replacement, content)
+    return content + f"\n{replacement}\n"
+
+text = set_prop(text, "nifi.web.http.host", "")
+text = set_prop(text, "nifi.web.http.port", "")
+text = set_prop(text, "nifi.web.https.host", "0.0.0.0")
+text = set_prop(text, "nifi.web.https.port", "8443")
+text = set_prop(text, "nifi.web.proxy.host", "localhost:8443")
+text = set_prop(text, "nifi.remote.input.secure", "false")
+text = set_prop(text, "nifi.remote.input.http.enabled", "false")
+
+path.write_text(text)
+PY
+
+    write_start_script "$install_dir/start.sh" <<SCRIPT
+NIFI_HOME="$nifi_home"
 set -a
 source "$LOCAL_ENV_FILE"
 set +a
@@ -840,47 +1277,63 @@ if [ \${#NIFI_SENSITIVE_PROPS_KEY} -ne 32 ]; then
 fi
 export NIFI_WEB_HTTPS_HOST=0.0.0.0
 export NIFI_WEB_HTTPS_PORT=8443
-export NIFI_WEB_PROXY_HOST="$NIFI_WEB_PROXY_HOST"
+export NIFI_WEB_HTTP_HOST=
+export NIFI_WEB_HTTP_PORT=
+export NIFI_WEB_PROXY_HOST="\$NIFI_WEB_PROXY_HOST"
 export NIFI_WEB_PROXY_CONTEXT_PATH=
 export NIFI_SECURITY_USER_LOGIN_IDENTITY_PROVIDER=single-user-provider
 export NIFI_SECURITY_USER_AUTHORIZER=single-user-authorizer
-export NIFI_JVM_HEAP_INIT="$NIFI_JVM_HEAP_INIT"
-export NIFI_JVM_HEAP_MAX="$NIFI_JVM_HEAP_MAX"
+export NIFI_JVM_HEAP_INIT="\$NIFI_JVM_HEAP_INIT"
+export NIFI_JVM_HEAP_MAX="\$NIFI_JVM_HEAP_MAX"
 export NIFI_SENSITIVE_PROPS_KEY
 export NIFI_USERNAME
 export NIFI_PASSWORD
-export PYTHONPATH="$nifi_home/python_extensions:$nifi_home/python_extensions/edi-processors:$PYTHONPATH"
-"$nifi_home/bin/nifi.sh" set-single-user-credentials "$NIFI_USERNAME" "$NIFI_PASSWORD"
-exec "$nifi_home/bin/nifi.sh" run
-"
+PYTHONPATH_BASE="\$NIFI_HOME/python_extensions:\$NIFI_HOME/python_extensions/edi-processors"
+if [ -n "\${PYTHONPATH:-}" ]; then
+    export PYTHONPATH="\$PYTHONPATH_BASE:\${PYTHONPATH}"
+else
+    export PYTHONPATH="\$PYTHONPATH_BASE"
+fi
+"\$NIFI_HOME/bin/nifi.sh" set-single-user-credentials "\$NIFI_USERNAME" "\$NIFI_PASSWORD"
+exec "\$NIFI_HOME/bin/nifi.sh" run
+SCRIPT
 
     success "NiFi ready (start via $install_dir/start.sh)"
 }
 
 setup_nifi_registry() {
     info "Installing Apache NiFi Registry"
-    local version="2.5.0"
-    local archive="$DOWNLOAD_CACHE/nifi-registry-$version-bin.tar.gz"
+    local version="2.0.0"
+    local archive="$DOWNLOAD_CACHE/nifi-registry-$version-bin.zip"
     local install_dir="$LOCAL_STACK_DIR/nifi-registry"
     local registry_home="$install_dir/nifi-registry-$version"
 
     mkdir -p "$install_dir"
-    curl_download "https://downloads.apache.org/nifi/nifi-registry/$version/nifi-registry-$version-bin.tar.gz" "$archive"
-    extract_tarball "$archive" "$install_dir" 1
+    if ! curl_download "https://downloads.apache.org/nifi/$version/nifi-registry-$version-bin.zip" "$archive"; then
+        error "Failed to download NiFi Registry $version archive"
+    fi
+    require_cmd unzip
+    if [ ! -d "$registry_home" ]; then
+        info "Extracting NiFi Registry archive"
+        unzip -q "$archive" -d "$install_dir"
+    else
+        info "NiFi Registry archive already extracted"
+    fi
 
     cp "$PROJECT_ROOT/docker/nifi-registry/postgresql-42.7.4.jar" "$registry_home/lib/"
 
-    write_start_script "$install_dir/start.sh" "REGISTRY_HOME="$registry_home"
+    write_start_script "$install_dir/start.sh" <<SCRIPT
+REGISTRY_HOME="$registry_home"
 set -a
 source "$LOCAL_ENV_FILE"
 set +a
-export NIFI_REGISTRY_DB_URL="jdbc:postgresql://127.0.0.1:${POSTGRES_PORT:-5432}/$POSTGRES_NIFI_REGISTRY_DB"
-export NIFI_REGISTRY_DB_USER="$POSTGRES_NIFI_REGISTRY_USER"
-export NIFI_REGISTRY_DB_PASS="$POSTGRES_NIFI_REGISTRY_PASSWORD"
+export NIFI_REGISTRY_DB_URL="jdbc:postgresql://127.0.0.1:\${POSTGRES_PORT:-5432}/\$POSTGRES_NIFI_REGISTRY_DB"
+export NIFI_REGISTRY_DB_USER="\$POSTGRES_NIFI_REGISTRY_USER"
+export NIFI_REGISTRY_DB_PASS="\$POSTGRES_NIFI_REGISTRY_PASSWORD"
 export NIFI_REGISTRY_WEB_HTTP_HOST=0.0.0.0
 export NIFI_REGISTRY_WEB_HTTP_PORT=18081
-exec "$registry_home/bin/nifi-registry.sh" run
-"
+exec "\$REGISTRY_HOME/bin/nifi-registry.sh" run
+SCRIPT
 
     success "NiFi Registry ready (start via $install_dir/start.sh)"
 }
@@ -921,6 +1374,30 @@ application-native commands.
 SUMMARY
 }
 
+case "$ACTION" in
+    uninstall)
+        if [ -f "$ENV_SOURCE_FILE" ]; then
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_SOURCE_FILE"
+            set +a
+        fi
+        uninstall_local_services
+        exit 0
+        ;;
+    reinstall)
+        if [ -f "$ENV_SOURCE_FILE" ]; then
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_SOURCE_FILE"
+            set +a
+        fi
+        uninstall_local_services
+        ACTION="install"
+        ;;
+esac
+
+ensure_workspace_directories
 ensure_env_file
 load_env
 

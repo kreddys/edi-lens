@@ -66,10 +66,10 @@ class NiFiTemplateValidator:
         self.parameter_pattern = re.compile(r'#\{([^}]+)\}')
         self.legacy_parameter_pattern = re.compile(r'\$\{([^}]+)\}')
         self.required_processor_fields = {
-            'identifier', 'name', 'type', 'componentType'
+            'identifier', 'name', 'type'
         }
         self.required_connection_fields = {
-            'identifier', 'componentType', 'source', 'destination'
+            'identifier', 'source', 'destination'
         }
 
     def validate_template(
