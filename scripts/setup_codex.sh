@@ -371,6 +371,13 @@ install_minimal_system_dependencies() {
         postgresql-client-16 \
         postgresql-server-dev-16 \
         build-essential \
+    git \
+    cmake \
+    pkg-config \
+    libreadline-dev \
+    zlib1g-dev \
+    libssl-dev \
+    libclang-dev \
         curl \
         unzip \
         xz-utils \
@@ -425,6 +432,15 @@ install_postgres_extensions() {
 
     mkdir -p "$BUILD_DIR"
 
+    # Ensure PostgreSQL bin directory and PG_CONFIG are available for builds
+    if [ -x "/usr/lib/postgresql/16/bin/pg_config" ]; then
+        export PG_CONFIG="/usr/lib/postgresql/16/bin/pg_config"
+        export PATH="/usr/lib/postgresql/16/bin:$PATH"
+        info "Using PG_CONFIG=$PG_CONFIG"
+    else
+        warn "pg_config not found at /usr/lib/postgresql/16/bin/pg_config — builds may fail"
+    fi
+
     local vector_available
     vector_available=$(sudo -u postgres psql -d postgres -tAc "SELECT 1 FROM pg_available_extensions WHERE name='vector';" 2>/dev/null | tr -d '[:space:]')
     if [ "$vector_available" != "1" ]; then
@@ -436,7 +452,10 @@ install_postgres_extensions() {
             rm -rf "$vector_dir"
             git clone --depth 1 --branch "$PGVECTOR_VERSION" https://github.com/pgvector/pgvector.git "$vector_dir"
         fi
-        (cd "$vector_dir" && make clean && make && make install)
+        (cd "$vector_dir" && make clean > "$LOGS_DIR/pgvector-build.log" 2>&1 && make >> "$LOGS_DIR/pgvector-build.log" 2>&1 && make install >> "$LOGS_DIR/pgvector-build.log" 2>&1) || {
+            warn "pgvector build failed; see $LOGS_DIR/pgvector-build.log. Retrying once."
+            (cd "$vector_dir" && make clean >> "$LOGS_DIR/pgvector-build-retry.log" 2>&1 && make >> "$LOGS_DIR/pgvector-build-retry.log" 2>&1 && make install >> "$LOGS_DIR/pgvector-build-retry.log" 2>&1) || error "pgvector build failed twice. Check $LOGS_DIR/pgvector-build*.log"
+        }
     else
         info "pgvector extension already available"
     fi
@@ -452,7 +471,10 @@ install_postgres_extensions() {
             rm -rf "$age_dir"
             git clone --depth 1 --branch "$AGE_BRANCH" https://github.com/apache/age.git "$age_dir"
         fi
-        (cd "$age_dir" && make clean && make && make install)
+        (cd "$age_dir" && make clean > "$LOGS_DIR/age-build.log" 2>&1 && make >> "$LOGS_DIR/age-build.log" 2>&1 && make install >> "$LOGS_DIR/age-build.log" 2>&1) || {
+            warn "Apache AGE build failed; see $LOGS_DIR/age-build.log. Retrying once."
+            (cd "$age_dir" && make clean >> "$LOGS_DIR/age-build-retry.log" 2>&1 && make >> "$LOGS_DIR/age-build-retry.log" 2>&1 && make install >> "$LOGS_DIR/age-build-retry.log" 2>&1) || error "Apache AGE build failed twice. Check $LOGS_DIR/age-build*.log"
+        }
     else
         info "Apache AGE extension already available"
     fi
@@ -1509,6 +1531,12 @@ main() {
                 echo "Without options, runs the complete setup process including all tests"
                 exit 0
                 ;;
+            --force-setup)
+                # Force a full setup run even if a cache marker exists
+                FORCE_SETUP=true
+                info "⚡ Forcing full setup run"
+                shift
+                ;;
             *)
                 warn "Unknown option: $1"
                 echo "Use --help to see available options"
@@ -1520,6 +1548,16 @@ main() {
     info "🚀 Starting EDI-Lens Codex complete setup and testing"
     echo "This will install, configure, start, and test all services for EDI-Lens"
     echo ""
+
+    # If a cached Codex marker exists, assume this is a resumed cached container
+    # and exit early so maintenance flows (not full setup) run instead.
+    FORCE_SETUP=${FORCE_SETUP:-false}
+    if [ -f "/opt/codex-services/.codex_cache_marker" ] && [ "$FORCE_SETUP" != true ]; then
+        info "Detected cache marker at /opt/codex-services/.codex_cache_marker"
+        info "This appears to be a resumed cached container — skipping full setup."
+        info "If you want to force a full setup, run: ./scripts/setup_codex.sh --force-setup"
+        exit 0
+    fi
 
     # Phase 1: Installation and Configuration
     info "📦 Phase 1: Installing and configuring services..."
@@ -1632,4 +1670,16 @@ main() {
 # --- Script Execution --------------------------------------------------------
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
+fi
+
+# --- Cache marker for Codex maintenance detection ---------------------------
+# If setup completed successfully, write a small marker file that the
+# maintenance script can use to detect cached resume (avoid reinstalling).
+if [ "$?" -eq 0 ]; then
+    MARKER_DIR="/opt/codex-services"
+    if [ ! -d "$MARKER_DIR" ]; then
+        mkdir -p "$MARKER_DIR" 2>/dev/null || true
+    fi
+    echo "CODEX_SETUP_COMPLETED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$MARKER_DIR/.codex_cache_marker" 2>/dev/null || true
+    echo "[INFO] Wrote cache marker to $MARKER_DIR/.codex_cache_marker"
 fi
