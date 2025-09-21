@@ -43,6 +43,7 @@ llm_export.txt
 !/.env.dev.example
 !/.env.stg.example
 !/.env.prod.example
+!/.env.example
 
 # Python
 __pycache__/

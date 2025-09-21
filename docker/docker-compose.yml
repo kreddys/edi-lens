@@ -6,12 +6,13 @@ services:
   db:
     image: postgres:16-alpine
     container_name: edi-lens-db
+    env_file:
+      - ../.env
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: edi_lens
-      # NiFi Registry database
-      POSTGRES_MULTIPLE_DATABASES: nifi_registry
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES}
     ports:
       - "5432:5432"
     volumes:
@@ -28,16 +29,17 @@ services:
   nifi-registry:
     image: apache/nifi-registry:2.5.0
     container_name: edi-lens-registry
+    env_file:
+      - ../.env
     environment:
-      NIFI_REGISTRY_WEB_HTTP_HOST: 0.0.0.0
-      NIFI_REGISTRY_WEB_HTTP_PORT: 18080
-      # Use database for persistence
-      NIFI_REGISTRY_DB_URL: jdbc:postgresql://db:5432/nifi_registry
-      NIFI_REGISTRY_DB_USER: postgres
-      NIFI_REGISTRY_DB_PASS: postgres
-      NIFI_REGISTRY_DB_CLASS: org.postgresql.Driver
-      NIFI_REGISTRY_DB_DRIVER_CLASS: org.postgresql.Driver
-      NIFI_REGISTRY_DB_DRIVER_DIRECTORY: /opt/nifi-registry/nifi-registry-current/lib
+      NIFI_REGISTRY_WEB_HTTP_HOST: ${NIFI_REGISTRY_WEB_HTTP_HOST}
+      NIFI_REGISTRY_WEB_HTTP_PORT: ${NIFI_REGISTRY_WEB_HTTP_PORT}
+      NIFI_REGISTRY_DB_URL: ${NIFI_REGISTRY_DB_URL}
+      NIFI_REGISTRY_DB_USER: ${NIFI_REGISTRY_DB_USER}
+      NIFI_REGISTRY_DB_PASS: ${NIFI_REGISTRY_DB_PASS}
+      NIFI_REGISTRY_DB_CLASS: ${NIFI_REGISTRY_DB_CLASS}
+      NIFI_REGISTRY_DB_DRIVER_CLASS: ${NIFI_REGISTRY_DB_DRIVER_CLASS}
+      NIFI_REGISTRY_DB_DRIVER_DIRECTORY: ${NIFI_REGISTRY_DB_DRIVER_DIRECTORY}
     ports:
       - "18080:18080"
     volumes:
@@ -60,21 +62,23 @@ services:
   nifi:
     image: apache/nifi:2.5.0
     container_name: edi-lens-nifi
+    env_file:
+      - ../.env
     environment:
       # Accept HTTPS mode (NiFi 2.5.0 Docker prefers HTTPS)
-      NIFI_WEB_HTTPS_PORT: 8443
-      NIFI_WEB_HTTPS_HOST: 0.0.0.0
+      NIFI_WEB_HTTPS_PORT: ${NIFI_WEB_HTTPS_PORT}
+      NIFI_WEB_HTTPS_HOST: ${NIFI_WEB_HTTPS_HOST}
 
       # Single user authentication (minimum 12 chars password)
-      SINGLE_USER_CREDENTIALS_USERNAME: admin
-      SINGLE_USER_CREDENTIALS_PASSWORD: adminadmin123
+      SINGLE_USER_CREDENTIALS_USERNAME: ${NIFI_USERNAME}
+      SINGLE_USER_CREDENTIALS_PASSWORD: ${NIFI_PASSWORD}
 
       # Required for property encryption
-      NIFI_SENSITIVE_PROPS_KEY: 'simple-key-for-development'
+      NIFI_SENSITIVE_PROPS_KEY: ${NIFI_SENSITIVE_PROPS_KEY}
 
       # JVM settings for development
-      NIFI_JVM_HEAP_INIT: 1g
-      NIFI_JVM_HEAP_MAX: 2g
+      NIFI_JVM_HEAP_INIT: ${NIFI_JVM_HEAP_INIT}
+      NIFI_JVM_HEAP_MAX: ${NIFI_JVM_HEAP_MAX}
 
     ports:
       - "8443:8443"
@@ -102,21 +106,17 @@ services:
       context: ..
       dockerfile: docker/backend/Dockerfile
     container_name: edi-lens-backend
+    env_file:
+      - ../.env
     environment:
-      # Database
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/edi_lens
-
-      # NiFi configuration - HTTPS URLs with single user auth
-      NIFI_URL: https://nifi:8443
-      NIFI_USERNAME: admin
-      NIFI_PASSWORD: adminadmin123
-
-      # NiFi Registry configuration
-      NIFI_REGISTRY_URL: http://nifi-registry:18080
-      NIFI_REGISTRY_AUTH_TOKEN: ''
-
-      # Development mode
-      DEBUG: "true"
+      DATABASE_URL: ${BACKEND_DATABASE_URL}
+      NIFI_URL: ${BACKEND_NIFI_URL}
+      NIFI_USERNAME: ${NIFI_USERNAME}
+      NIFI_PASSWORD: ${NIFI_PASSWORD}
+      NIFI_REGISTRY_URL: ${BACKEND_NIFI_REGISTRY_URL}
+      NIFI_REGISTRY_AUTH_TOKEN: ${NIFI_REGISTRY_AUTH_TOKEN}
+      DEBUG: ${DEBUG}
+      VERIFY_SSL: ${VERIFY_SSL}
 
     ports:
       - "8000:8000"
