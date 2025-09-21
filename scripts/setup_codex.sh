@@ -14,7 +14,11 @@ SERVICES_DIR="$PROJECT_ROOT/codex-services"
 DOWNLOADS_DIR="$SERVICES_DIR/downloads"
 LOGS_DIR="$SERVICES_DIR/logs"
 BIN_DIR="$SERVICES_DIR/bin"
+BUILD_DIR="$SERVICES_DIR/build"
 ENV_FILE="$PROJECT_ROOT/.env.codex"
+
+PGVECTOR_VERSION="v0.7.4"
+AGE_BRANCH="release/PG16/1.5.0"
 
 # --- Colors and Output Functions ---------------------------------------------
 RED='\033[0;31m'
@@ -44,9 +48,33 @@ curl_download() {
         return
     fi
     info "Downloading $(basename "$dest")..."
-    if ! curl -fL --retry 3 --retry-delay 2 "$url" -o "$dest"; then
+    if ! curl -fL --retry 3 --retry-delay 2 -H "User-Agent: Mozilla/5.0" "$url" -o "$dest"; then
         rm -f "$dest"
         error "Failed to download $url"
+    fi
+}
+
+update_property() {
+    local file="$1"
+    local key="$2"
+    local value="$3"
+
+    if grep -q "^$key=" "$file"; then
+        sed -i "s#^$key=.*#$key=$value#" "$file"
+    else
+        echo "$key=$value" >> "$file"
+    fi
+}
+
+ensure_env_value() {
+    local key="$1"
+    local default_value="$2"
+
+    if ! grep -q "^$key=" "$ENV_FILE" 2>/dev/null; then
+        if [ -s "$ENV_FILE" ] && [ "$(tail -c1 "$ENV_FILE" 2>/dev/null)" != $'\n' ]; then
+            echo >> "$ENV_FILE"
+        fi
+        echo "$key=$default_value" >> "$ENV_FILE"
     fi
 }
 
@@ -76,7 +104,7 @@ setup_environment() {
     info "Setting up Codex environment"
 
     # Create directories
-    mkdir -p "$SERVICES_DIR" "$DOWNLOADS_DIR" "$LOGS_DIR" "$BIN_DIR"
+    mkdir -p "$SERVICES_DIR" "$DOWNLOADS_DIR" "$LOGS_DIR" "$BIN_DIR" "$BUILD_DIR"
 
     # Load Codex environment (some images set strict shell options in profile)
     if [ -f /etc/profile ]; then
@@ -87,10 +115,29 @@ setup_environment() {
 
     # Verify tools
     info "Verifying environment..."
-    echo "Python: $(python3 --version)"
-    echo "Node.js: $(node --version)"
-    echo "npm: $(npm --version)"
-    echo "Go: $(go version)"
+    if command -v python3 >/dev/null 2>&1; then
+        echo "Python: $(python3 --version)"
+    else
+        warn "python3 not found"
+    fi
+
+    if command -v node >/dev/null 2>&1; then
+        echo "Node.js: $(node --version)"
+    else
+        warn "Node.js not installed"
+    fi
+
+    if command -v npm >/dev/null 2>&1; then
+        echo "npm: $(npm --version)"
+    else
+        warn "npm not installed"
+    fi
+
+    if command -v go >/dev/null 2>&1; then
+        echo "Go: $(go version)"
+    else
+        warn "Go not installed"
+    fi
 
     # Create environment file if it doesn't exist
     create_env_file
@@ -104,6 +151,17 @@ setup_environment() {
 create_env_file() {
     if [ -f "$ENV_FILE" ]; then
         info "Using existing $ENV_FILE"
+        ensure_env_value "KEYCLOAK_SFTPGO_CLIENT_ID" "sftpgo"
+        ensure_env_value "KEYCLOAK_SFTPGO_CLIENT_SECRET" "sftpgo_codex_client_secret"
+        ensure_env_value "SFTPGO_API_URL" "http://localhost:8280/api/v2"
+        ensure_env_value "BACKEND_WEBHOOK_URL" "http://localhost:8000/api/v1/sftp/hooks/upload"
+        if grep -q "^NIFI_SENSITIVE_PROPS_KEY=codex_nifi_key_2024_32_chars_long" "$ENV_FILE"; then
+            sed -i "s#^NIFI_SENSITIVE_PROPS_KEY=.*#NIFI_SENSITIVE_PROPS_KEY=codex_nifi_secret_key_2024_pass!#" "$ENV_FILE"
+        fi
+        ensure_env_value "NIFI_SENSITIVE_PROPS_KEY" "codex_nifi_secret_key_2024_pass!"
+        ensure_env_value "NIFI_WEB_PROXY_HOST" "localhost:8443"
+        ensure_env_value "NIFI_JVM_HEAP_INIT" "1g"
+        ensure_env_value "NIFI_JVM_HEAP_MAX" "2g"
         return
     fi
 
@@ -145,13 +203,20 @@ KEYCLOAK_REALM=edi-lens
 KEYCLOAK_BACKEND_CLIENT_ID=edi-lens-backend
 KEYCLOAK_BACKEND_CLIENT_SECRET=this-is-a-default-secret-change-it
 KEYCLOAK_UI_CLIENT_ID=edi-lens-ui
+KEYCLOAK_SFTPGO_CLIENT_ID=sftpgo
+KEYCLOAK_SFTPGO_CLIENT_SECRET=sftpgo_codex_client_secret
 
 SFTPGO_ADMIN_USER=admin
 SFTPGO_ADMIN_PASSWORD=sftpgo_admin_2024
+SFTPGO_API_URL=http://localhost:8280/api/v2
+BACKEND_WEBHOOK_URL=http://localhost:8000/api/v1/sftp/hooks/upload
 
 NIFI_ADMIN_USER=admin
 NIFI_ADMIN_PASSWORD=nifi_admin_codex_2024
-NIFI_SENSITIVE_PROPS_KEY=codex_nifi_key_2024_32_chars_long
+NIFI_SENSITIVE_PROPS_KEY=codex_nifi_secret_key_2024_pass!
+NIFI_WEB_PROXY_HOST=localhost:8443
+NIFI_JVM_HEAP_INIT=1g
+NIFI_JVM_HEAP_MAX=2g
 
 # --- Storage ---
 STORAGE_ACCESS_KEY=codex_minio_access
@@ -190,8 +255,9 @@ install_system_dependencies() {
 
     # Check if PostgreSQL is already installed
     if command -v psql >/dev/null 2>&1 && dpkg -l | grep -q postgresql-16; then
-        info "PostgreSQL already installed, skipping system dependencies"
-        return 0
+        info "PostgreSQL already installed, ensuring supporting packages are present"
+    else
+        info "PostgreSQL not detected, installing packages"
     fi
 
     # Update package list
@@ -208,16 +274,84 @@ install_system_dependencies() {
         postgresql-16 \
         postgresql-client-16 \
         postgresql-contrib-16 \
+        postgresql-server-dev-16 \
+        build-essential \
+        git \
+        ca-certificates \
         supervisor \
         sudo \
         curl \
         unzip \
+        xz-utils \
+        python3-pip \
+        python3-venv \
         openjdk-21-jdk \
         procps \
         net-tools \
-        lsof
+        lsof \
+        flex \
+        bison \
+        libreadline-dev \
+        zlib1g-dev \
+        libssl-dev \
+        libclang-dev \
+        pkg-config \
+        cmake
 
     success "System dependencies installed"
+}
+
+# --- PostgreSQL Extension Installation --------------------------------------
+install_postgres_extensions() {
+    info "Ensuring pgvector and Apache AGE extensions are available"
+
+    mkdir -p "$BUILD_DIR"
+
+    local vector_available
+    vector_available=$(sudo -u postgres psql -d postgres -tAc "SELECT 1 FROM pg_available_extensions WHERE name='vector';" 2>/dev/null | tr -d '[:space:]')
+    if [ "$vector_available" != "1" ]; then
+        info "Building pgvector ($PGVECTOR_VERSION) from source"
+        local vector_dir="$BUILD_DIR/pgvector"
+        if [ -d "$vector_dir/.git" ]; then
+            (cd "$vector_dir" && git fetch --tags && git checkout "$PGVECTOR_VERSION")
+        else
+            rm -rf "$vector_dir"
+            git clone --depth 1 --branch "$PGVECTOR_VERSION" https://github.com/pgvector/pgvector.git "$vector_dir"
+        fi
+        (cd "$vector_dir" && make clean && make && make install)
+    else
+        info "pgvector extension already available"
+    fi
+
+    local age_available
+    age_available=$(sudo -u postgres psql -d postgres -tAc "SELECT 1 FROM pg_available_extensions WHERE name='age';" 2>/dev/null | tr -d '[:space:]')
+    if [ "$age_available" != "1" ]; then
+        info "Building Apache AGE ($AGE_BRANCH) from source"
+        local age_dir="$BUILD_DIR/age"
+        if [ -d "$age_dir/.git" ]; then
+            (cd "$age_dir" && git fetch --tags && git checkout "$AGE_BRANCH")
+        else
+            rm -rf "$age_dir"
+            git clone --depth 1 --branch "$AGE_BRANCH" https://github.com/apache/age.git "$age_dir"
+        fi
+        (cd "$age_dir" && make clean && make && make install)
+    else
+        info "Apache AGE extension already available"
+    fi
+
+    success "PostgreSQL extensions installed"
+}
+
+configure_postgres_extensions() {
+    info "Configuring pgvector and Apache AGE extensions in $POSTGRES_DB"
+
+    sudo -u postgres psql -d "$POSTGRES_DB" <<EOSQL
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS age;
+ALTER DATABASE "$POSTGRES_DB" SET search_path = ag_catalog, '\$user', public;
+EOSQL
+
+    success "Database extensions configured"
 }
 
 # --- PostgreSQL Setup --------------------------------------------------------
@@ -270,6 +404,9 @@ setup_postgresql() {
     # NiFi Registry database
     sudo -u postgres psql -c "CREATE USER $POSTGRES_NIFI_REGISTRY_USER WITH PASSWORD '$POSTGRES_NIFI_REGISTRY_PASSWORD';" 2>/dev/null || true
     sudo -u postgres psql -c "CREATE DATABASE $POSTGRES_NIFI_REGISTRY_DB OWNER $POSTGRES_NIFI_REGISTRY_USER;" 2>/dev/null || true
+
+    install_postgres_extensions
+    configure_postgres_extensions
 
     success "PostgreSQL configured"
 }
@@ -383,9 +520,62 @@ setup_sftpgo() {
         return 0
     fi
 
-    # Skip SFTPGo installation for now - optional service
-    warn "SFTPGo installation skipped - focusing on core services (PostgreSQL, MinIO, Keycloak, Backend, Frontend)"
-    info "SFTPGo can be installed manually later if needed"
+    local install_dir="$SERVICES_DIR/sftpgo"
+    local data_dir="$SERVICES_DIR/sftpgo-data"
+    local archive_arch="linux_x86_64"
+    local uname_arch
+    uname_arch=$(uname -m)
+    if [[ "$uname_arch" == "aarch64" || "$uname_arch" == "arm64" ]]; then
+        archive_arch="linux_arm64"
+    fi
+
+    local archive="$DOWNLOADS_DIR/sftpgo_v${SFTPGO_VERSION}_${archive_arch}.tar.xz"
+    local sftpgo_bin="$install_dir/sftpgo"
+
+    mkdir -p "$install_dir" "$data_dir"
+
+    if [ ! -f "$sftpgo_bin" ]; then
+        info "Downloading SFTPGo ${SFTPGO_VERSION} (${archive_arch})"
+        curl_download "https://github.com/drakkan/sftpgo/releases/download/v${SFTPGO_VERSION}/sftpgo_v${SFTPGO_VERSION}_${archive_arch}.tar.xz" "$archive"
+        rm -rf "$install_dir"/*
+        tar -xJf "$archive" -C "$install_dir"
+        chmod +x "$sftpgo_bin"
+    fi
+
+    info "Starting SFTPGo"
+    local sftpgo_log="$LOGS_DIR/sftpgo.log"
+    nohup \
+        SFTPGO_DATA_DIR="$data_dir" \
+        SFTPGO_CONFIG_DIR="$install_dir/etc/sftpgo" \
+        SFTPGO_DEFAULT_ADMIN_USERNAME="$SFTPGO_ADMIN_USER" \
+        SFTPGO_DEFAULT_ADMIN_PASSWORD="$SFTPGO_ADMIN_PASSWORD" \
+        SFTPGO_LOG__FILE_ENABLED=true \
+        SFTPGO_LOG__FILE_PATH="$sftpgo_log" \
+        SFTPGO_DATA_PROVIDER__DRIVER="postgresql" \
+        SFTPGO_DATA_PROVIDER__NAME="$POSTGRES_SFTPGO_DB" \
+        SFTPGO_DATA_PROVIDER__HOST="$POSTGRES_HOST" \
+        SFTPGO_DATA_PROVIDER__PORT="$POSTGRES_PORT" \
+        SFTPGO_DATA_PROVIDER__USERNAME="$POSTGRES_SFTPGO_USER" \
+        SFTPGO_DATA_PROVIDER__PASSWORD="$POSTGRES_SFTPGO_PASSWORD" \
+        SFTPGO_DATA_PROVIDER__SSLMODE="0" \
+        SFTPGO_DATA_PROVIDER__CREATE_DEFAULT_ADMIN="true" \
+        SFTPGO_HTTPD__BINDINGS__0__ADDRESS="0.0.0.0" \
+        SFTPGO_HTTPD__BINDINGS__0__PORT="8280" \
+        SFTPGO_HTTPD__BINDINGS__0__OIDC__CLIENT_ID="$KEYCLOAK_SFTPGO_CLIENT_ID" \
+        SFTPGO_HTTPD__BINDINGS__0__OIDC__CLIENT_SECRET="$KEYCLOAK_SFTPGO_CLIENT_SECRET" \
+        SFTPGO_HTTPD__BINDINGS__0__OIDC__CONFIG_URL="${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}" \
+        SFTPGO_HTTPD__BINDINGS__0__OIDC__REDIRECT_BASE_URL="http://localhost:8280" \
+        SFTPGO_HTTPD__BINDINGS__0__OIDC__SCOPES="openid,profile,email,groups" \
+        SFTPGO_HTTPD__BINDINGS__0__OIDC__USERNAME_FIELD="preferred_username" \
+        SFTPGO_HTTPD__BINDINGS__0__OIDC__ROLE_FIELD="groups" \
+        SFTPGO_HTTPD__BINDINGS__0__OIDC__AUTO_CREATE_USER="true" \
+        SFTPGO_SFTPD__BINDINGS__0__PORT="2022" \
+        "$sftpgo_bin" serve --config-dir "$install_dir/etc/sftpgo" > "$LOGS_DIR/sftpgo-service.log" 2>&1 &
+
+    sleep 5
+    wait_for_service "http://localhost:8280/healthz" "SFTPGo" 60
+
+    success "SFTPGo configured and running"
 }
 
 # --- NiFi Registry Setup -----------------------------------------------------
@@ -434,6 +624,11 @@ setup_nifi_registry() {
 setup_nifi() {
     info "Setting up Apache NiFi"
 
+    if curl -kfs "https://localhost:8443/nifi/" >/dev/null 2>&1; then
+        info "NiFi already running and healthy, skipping setup"
+        return 0
+    fi
+
     local install_dir="$SERVICES_DIR/nifi"
     local archive="$DOWNLOADS_DIR/nifi-$NIFI_VERSION-bin.zip"
 
@@ -449,34 +644,111 @@ setup_nifi() {
     fi
 
     local nifi_home="$install_dir/nifi-$NIFI_VERSION"
-
-    # Copy EDI processors
+    local conf_dir="$nifi_home/conf"
     local py_ext_dir="$nifi_home/python_extensions/edi-processors"
-    mkdir -p "$py_ext_dir"
+    local vendor_dir="$py_ext_dir/vendor"
+
+    mkdir -p "$py_ext_dir" "$vendor_dir"
+
     if [ -d "$PROJECT_ROOT/nifi-edi-processors" ]; then
-        cp -r "$PROJECT_ROOT/nifi-edi-processors/"* "$py_ext_dir/"
+        info "Syncing EDI NiFi processors"
+        find "$py_ext_dir" -mindepth 1 -maxdepth 1 -type f -delete
+        find "$py_ext_dir" -mindepth 1 -maxdepth 1 -type d ! -path "$vendor_dir" -exec rm -rf {} +
+        cp -f "$PROJECT_ROOT/nifi-edi-processors"/*.py "$py_ext_dir/" 2>/dev/null || true
+        if [ -d "$PROJECT_ROOT/nifi-edi-processors/schemas" ]; then
+            rm -rf "$py_ext_dir/schemas"
+            cp -r "$PROJECT_ROOT/nifi-edi-processors/schemas" "$py_ext_dir/"
+        fi
+        touch "$py_ext_dir/__init__.py"
     fi
 
-    # Start NiFi
-    info "Starting NiFi"
-    cd "$nifi_home"
-    NIFI_WEB_HTTPS_HOST=0.0.0.0 \
-    NIFI_WEB_HTTPS_PORT=8443 \
-    NIFI_WEB_PROXY_HOST=localhost:8443 \
-    NIFI_SECURITY_USER_LOGIN_IDENTITY_PROVIDER=single-user-provider \
-    NIFI_SECURITY_USER_AUTHORIZER=single-user-authorizer \
-    NIFI_SENSITIVE_PROPS_KEY="$NIFI_SENSITIVE_PROPS_KEY" \
-    NIFI_USERNAME="$NIFI_ADMIN_USER" \
-    NIFI_PASSWORD="$NIFI_ADMIN_PASSWORD" \
-    PYTHONPATH="$py_ext_dir:${PYTHONPATH:-}" \
-    nohup ./bin/nifi.sh run > "$LOGS_DIR/nifi.log" 2>&1 &
+    if [ ! -d "$vendor_dir" ] || [ -z "$(ls -A "$vendor_dir" 2>/dev/null)" ]; then
+        info "Installing Python dependencies for NiFi processors"
+        python3 -m pip install --no-cache-dir --target "$vendor_dir" pydantic>=2.0.0 typing-extensions>=4.0.0
+    fi
 
-    # Set single user credentials
+    chmod -R 755 "$py_ext_dir"
+
+    if [ -f "$PROJECT_ROOT/docker/nifi-processors/login-identity-providers.xml" ]; then
+        cp "$PROJECT_ROOT/docker/nifi-processors/login-identity-providers.xml" "$conf_dir/login-identity-providers.xml"
+    fi
+
+    local properties_file="$conf_dir/nifi.properties"
+    local keystore="$conf_dir/nifi-keystore.p12"
+    local truststore="$conf_dir/nifi-truststore.p12"
+    local storepass="codexnifi_storepass"
+
+    update_property "$properties_file" "nifi.web.https.host" "0.0.0.0"
+    update_property "$properties_file" "nifi.web.https.port" "8443"
+    update_property "$properties_file" "nifi.web.proxy.host" "${NIFI_WEB_PROXY_HOST:-localhost:8080}"
+    update_property "$properties_file" "nifi.web.http.host" ""
+    update_property "$properties_file" "nifi.web.http.port" ""
+    update_property "$properties_file" "nifi.security.user.login.identity.provider" "single-user-provider"
+    update_property "$properties_file" "nifi.security.user.authorizer" "single-user-authorizer"
+    update_property "$properties_file" "nifi.security.allow.anonymous.authentication" "false"
+    update_property "$properties_file" "nifi.sensitive.props.key" "$NIFI_SENSITIVE_PROPS_KEY"
+    update_property "$properties_file" "nifi.python.path" "$py_ext_dir:$vendor_dir"
+    update_property "$properties_file" "nifi.python.command" "/usr/bin/python3"
+    update_property "$properties_file" "nifi.registry.url" "http://localhost:18080"
+
+    if [ ! -f "$keystore" ] || [ ! -f "$truststore" ]; then
+        info "Generating NiFi TLS keystore and truststore"
+        local cert_file="$conf_dir/nifi-cert.cer"
+        keytool -genkeypair -alias nifi -keyalg RSA -keysize 4096 -storetype PKCS12 \
+            -keystore "$keystore" -storepass "$storepass" -keypass "$storepass" \
+            -dname "CN=localhost, OU=EDI Lens, O=Codex, L=San Francisco, S=CA, C=US" -validity 3650 >/dev/null 2>&1
+        keytool -exportcert -alias nifi -keystore "$keystore" -storepass "$storepass" -file "$cert_file" >/dev/null 2>&1
+        keytool -importcert -alias nifi -file "$cert_file" -keystore "$truststore" -storetype PKCS12 -storepass "$storepass" -noprompt >/dev/null 2>&1
+        rm -f "$cert_file"
+        chmod 600 "$keystore" "$truststore"
+    fi
+
+    update_property "$properties_file" "nifi.security.keystore" "$keystore"
+    update_property "$properties_file" "nifi.security.keystoreType" "PKCS12"
+    update_property "$properties_file" "nifi.security.keystorePasswd" "$storepass"
+    update_property "$properties_file" "nifi.security.keyPasswd" "$storepass"
+    update_property "$properties_file" "nifi.security.truststore" "$truststore"
+    update_property "$properties_file" "nifi.security.truststoreType" "PKCS12"
+    update_property "$properties_file" "nifi.security.truststorePasswd" "$storepass"
+
+    if ! id -u nifi >/dev/null 2>&1; then
+        useradd --system --no-create-home --home-dir "$nifi_home" --shell /usr/sbin/nologin nifi
+    fi
+
+    chown -R nifi:nifi "$nifi_home"
+
+    local java_cmd
+    java_cmd=$(command -v javac || command -v java)
+    local java_home
+    java_home=$(dirname "$(dirname "$(readlink -f "$java_cmd")")")
+
+    local start_script="$nifi_home/start_nifi.sh"
+    cat > "$start_script" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+export JAVA_HOME="$java_home"
+export NIFI_HOME="$nifi_home"
+export NIFI_WEB_HTTPS_HOST=0.0.0.0
+export NIFI_WEB_HTTPS_PORT=8443
+export NIFI_WEB_PROXY_HOST="${NIFI_WEB_PROXY_HOST:-localhost:8080}"
+export NIFI_SECURITY_USER_LOGIN_IDENTITY_PROVIDER=single-user-provider
+export NIFI_SECURITY_USER_AUTHORIZER=single-user-authorizer
+export NIFI_SENSITIVE_PROPS_KEY="$NIFI_SENSITIVE_PROPS_KEY"
+export NIFI_JVM_HEAP_INIT="${NIFI_JVM_HEAP_INIT:-1g}"
+export NIFI_JVM_HEAP_MAX="${NIFI_JVM_HEAP_MAX:-2g}"
+export PYTHONPATH="$py_ext_dir:$vendor_dir"
+"$nifi_home/bin/nifi.sh" set-single-user-credentials "$NIFI_ADMIN_USER" "$NIFI_ADMIN_PASSWORD"
+"$nifi_home/bin/nifi.sh" start
+EOF
+
+    chmod +x "$start_script"
+    chown nifi:nifi "$start_script"
+
+    info "Starting NiFi with single-user authentication"
+    su -s /bin/bash nifi -c "$start_script" >> "$LOGS_DIR/nifi.log" 2>&1
+
     sleep 10
-    ./bin/nifi.sh set-single-user-credentials "$NIFI_ADMIN_USER" "$NIFI_ADMIN_PASSWORD"
-
-    # Wait for NiFi to be ready
-    wait_for_service "https://localhost:8443/nifi/" "NiFi" 120
+    wait_for_service "https://localhost:8443/nifi/" "NiFi" 180
 
     success "NiFi configured and running"
 }
@@ -591,7 +863,16 @@ start_all_services() {
     cd "$PROJECT_ROOT/backend"
     source venv/bin/activate
     source "$ENV_FILE"
-    python3 scripts/setup_keycloak_realm.py || warn "Keycloak realm setup encountered issues"
+    poetry run python -m scripts.setup_keycloak_realm || warn "Keycloak realm setup encountered issues"
+
+    info "Configuring SFTPGo event webhooks..."
+    wait_for_service "http://localhost:8280/healthz" "SFTPGo" 60 || true
+    poetry run python -m scripts.setup_sftpgo_events || warn "SFTPGo event setup encountered issues"
+
+    info "Seeding built-in workflow templates..."
+    poetry run python -m scripts.seed_templates built-in || warn "Template seeding encountered issues"
+
+    deactivate || true
 
     # Start frontend if not already running
     if ! curl -fs "http://localhost:3000" >/dev/null 2>&1; then
@@ -602,6 +883,8 @@ start_all_services() {
         info "Frontend already running"
     fi
 
+    cd "$PROJECT_ROOT"
+
     success "Application services started"
 }
 
@@ -609,20 +892,20 @@ verify_all_services() {
     info "Verifying all services are healthy"
 
     local services_to_check=(
-        "PostgreSQL::postgres"
-        "MinIO:http://localhost:9000:minio"
-        "Keycloak:http://localhost:8180:kc.home.dir"
-        "SFTPGo:http://localhost:8280/healthz:sftpgo"
-        "NiFi Registry:http://localhost:18080/nifi-registry/:nifi.registry"
-        "NiFi:https://localhost:8443/nifi:org.apache.nifi.NiFi:-k"
-        "Backend:http://localhost:8000/api/v1/health:uvicorn"
-        "Frontend:http://localhost:3000:npm"
+        "PostgreSQL||postgres|"
+        "MinIO|http://localhost:9000/minio/health/live|minio|"
+        "Keycloak|http://localhost:8180|kc.home.dir|"
+        "NiFi Registry|http://localhost:18080/nifi-registry/|nifi.registry|"
+        "NiFi|https://localhost:8443/nifi|org.apache.nifi.NiFi|-k"
+        "SFTPGo|http://localhost:8280/healthz|sftpgo|"
+        "Backend|http://localhost:8000/api/v1/health|uvicorn|"
+        "Frontend|http://localhost:3000|npm|"
     )
 
     local failed_services=()
 
     for service_info in "${services_to_check[@]}"; do
-        IFS=':' read -r name url process extra <<< "$service_info"
+        IFS='|' read -r name url process extra <<< "$service_info"
 
         printf "%-15s " "$name:"
 
@@ -732,97 +1015,12 @@ run_api_health_tests() {
         error "MinIO health check failed"
     fi
 
-    success "API health and connectivity tests passed"
-}
-
-# --- Service Management Scripts Creation -------------------------------------
-create_service_manager() {
-    info "Creating service management scripts"
-
-    # Create simplified status check script
-    cat > "$PROJECT_ROOT/scripts/check_services.sh" <<'EOF'
-#!/bin/bash
-# Check status of all EDI-Lens services
-
-echo "=== EDI-Lens Service Status ==="
-echo ""
-
-check_service() {
-    local name="$1"
-    local url="$2"
-    local process="$3"
-    local extra="$4"
-
-    printf "%-15s " "$name:"
-
-    if [ -n "$process" ] && pgrep -f "$process" >/dev/null; then
-        if [ -n "$url" ]; then
-            local curl_opts=""
-            if [ "$extra" = "-k" ]; then
-                curl_opts="-k"
-            fi
-            if curl -fs $curl_opts "$url" >/dev/null 2>&1; then
-                echo "✅ HEALTHY"
-            else
-                echo "🟡 STARTING"
-            fi
-        else
-            echo "✅ RUNNING"
-        fi
-    else
-        echo "❌ STOPPED"
+    info "Testing SFTPGo connectivity..."
+    if ! curl -sf "http://localhost:8280/healthz" >/dev/null 2>&1; then
+        error "SFTPGo health check failed"
     fi
-}
 
-check_service "PostgreSQL" "" "postgres"
-check_service "MinIO" "http://localhost:9000" "minio"
-check_service "Keycloak" "http://localhost:8180" "kc.home.dir"
-check_service "SFTPGo" "http://localhost:8280/healthz" "sftpgo"
-check_service "NiFi Registry" "http://localhost:18080/nifi-registry/" "nifi.registry"
-check_service "NiFi" "https://localhost:8443/nifi" "org.apache.nifi.NiFi" "-k"
-check_service "Backend" "http://localhost:8000/api/v1/health" "uvicorn"
-check_service "Frontend" "http://localhost:3000" "npm"
-
-echo ""
-echo "Service URLs:"
-echo "  Frontend:        http://localhost:3000"
-echo "  Backend API:     http://localhost:8000"
-echo "  API Docs:        http://localhost:8000/docs"
-echo "  Keycloak:        http://localhost:8180"
-echo "  SFTPGo:          http://localhost:8280"
-echo "  MinIO Console:   http://localhost:9001"
-echo "  NiFi:            https://localhost:8443"
-echo "  NiFi Registry:   http://localhost:18080"
-echo ""
-echo "Logs available in: codex-services/logs/"
-EOF
-
-    chmod +x "$PROJECT_ROOT/scripts/check_services.sh"
-
-    # Create restart script
-    cat > "$PROJECT_ROOT/scripts/restart_services.sh" <<'EOF'
-#!/bin/bash
-# Restart all EDI-Lens services
-
-echo "Stopping all services..."
-pkill -f "minio" || true
-pkill -f "kc.home.dir" || true
-pkill -f "sftpgo" || true
-pkill -f "nifi.registry" || true
-pkill -f "org.apache.nifi.NiFi" || true
-pkill -f "uvicorn" || true
-pkill -f "npm" || true
-
-sleep 5
-
-echo "Restarting services..."
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
-./scripts/setup_codex.sh
-EOF
-
-    chmod +x "$PROJECT_ROOT/scripts/restart_services.sh"
-
-    success "Service management scripts created"
+    success "API health and connectivity tests passed"
 }
 
 # --- Service Restart Function ------------------------------------------------
@@ -875,7 +1073,7 @@ main() {
     # Parse command line arguments
     case "${1:-}" in
         --check-services)
-            info "� Checking service status..."
+            info "🔍 Checking service status..."
             verify_all_services
             exit 0
             ;;
@@ -899,7 +1097,7 @@ main() {
             ;;
     esac
 
-    info "�🚀 Starting EDI-Lens Codex Complete Setup & Testing"
+    info "🚀 Starting EDI-Lens Codex complete setup and testing"
     echo "This will install, configure, start, and test all services for EDI-Lens"
     echo ""
 
@@ -915,7 +1113,6 @@ main() {
     setup_nifi
     setup_backend
     setup_frontend
-    create_service_manager
 
     echo ""
     info "⏳ Waiting for infrastructure services to stabilize..."
@@ -973,7 +1170,6 @@ main() {
     echo "🛠️  Management Commands:"
     echo "   Check Status:    ./scripts/setup_codex.sh --check-services"
     echo "   Restart All:     ./scripts/setup_codex.sh --restart-services"
-    echo "   Legacy Check:    ./scripts/check_services.sh"
     echo ""
     echo "📁 Important Files:"
     echo "   Configuration:   .env.codex"
