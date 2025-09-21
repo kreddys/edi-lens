@@ -93,6 +93,41 @@ wait_for_service() {
     return 1
 }
 
+# Wait for a docker container to report healthy via its healthcheck
+wait_for_container_healthy() {
+    local container="$1"
+    local max_wait_seconds=${2:-120}
+    local start_ts=$(date +%s)
+
+    log_info "Waiting for container '$container' to report healthy (timeout: ${max_wait_seconds}s)..."
+
+    while :; do
+        # Get health status (returns 'healthy', 'unhealthy', or 'starting')
+        status=$(docker inspect --format='{{.State.Health.Status}}' "$container" 2>/dev/null || echo "no-container")
+
+        if [[ "$status" == "healthy" ]]; then
+            log_success "Container '$container' is healthy!"
+            return 0
+        fi
+
+        # If container doesn't exist or exited, show short hint and break
+        if [[ "$status" == "no-container" ]]; then
+            log_error "Container '$container' not found or not running"
+            return 1
+        fi
+
+        now_ts=$(date +%s)
+        elapsed=$((now_ts - start_ts))
+        if [[ $elapsed -ge $max_wait_seconds ]]; then
+            log_error "Container '$container' did not become healthy within ${max_wait_seconds}s (status: $status)"
+            return 1
+        fi
+
+        echo -n "."
+        sleep 2
+    done
+}
+
 # Command implementations
 show_help() {
     cat << EOF
@@ -151,7 +186,12 @@ cmd_start() {
     log_info "Services starting in background..."
 
     # Wait for key services
-    wait_for_service "Database" "postgresql://postgres:postgres@localhost:5432/edi_lens" || true
+    # Use docker container health for the database because curl on a postgres:// URL won't work
+    if ! wait_for_container_healthy "edi-lens-db" 120; then
+        log_error "Database failed to start within timeout"
+        log_info "Showing recent database logs (last 200 lines):"
+        docker logs --tail 200 edi-lens-db || true
+    fi
     wait_for_service "Registry" "http://localhost:18080/nifi-registry-api/config" || true
     wait_for_service "NiFi" "https://localhost:8443/nifi/" || true
     wait_for_service "Backend" "http://localhost:8000/health" || true
@@ -295,6 +335,16 @@ cmd_test() {
 
     case "$test_type" in
         unit)
+            # Ensure virtualenv deps are installed. If poetry run pytest is not available, try to install.
+            if ! poetry run pytest --version >/dev/null 2>&1; then
+                log_warn "pytest not found in the virtualenv. Installing dependencies with poetry (no-root)..."
+                # Use --no-root so Poetry only installs dependencies and doesn't try to install the current project package
+                poetry install --no-interaction --no-root || {
+                    log_error "'poetry install' failed. Please check your environment or run 'poetry install' in $BACKEND_DIR"
+                    exit 1
+                }
+            fi
+
             poetry run pytest tests/unit/ -v "${@:2}"
             ;;
         integration)
