@@ -1,32 +1,37 @@
-"""Database configuration for minimal setup."""
+"""Database configuration helpers for the FastAPI backend."""
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from collections.abc import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
 
 from .config import settings
 
-Base = declarative_base()
 
-# Create async engine
+class Base(DeclarativeBase):
+    """Base class for ORM models."""
+
+
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
-    future=True
+    future=True,
 )
 
-# Create async session factory
-AsyncSessionLocal = sessionmaker(
+AsyncSessionLocal = async_sessionmaker(
     engine,
-    class_=AsyncSession,
-    expire_on_commit=False
+    expire_on_commit=False,
 )
 
 
-async def get_db_session() -> AsyncSession:
-    """Get database session."""
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Yield a scoped async database session."""
+
     async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+        yield session
+
+
+async def dispose_engine() -> None:
+    """Dispose the global database engine (useful for shutdown hooks)."""
+
+    await engine.dispose()

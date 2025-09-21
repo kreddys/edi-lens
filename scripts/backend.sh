@@ -12,13 +12,14 @@
 # - No complex environment abstractions
 # ==============================================================================
 
-set -e
+set -euo pipefail
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DOCKER_DIR="$PROJECT_ROOT/docker"
 BACKEND_DIR="$PROJECT_ROOT/backend"
+DOCKER_COMPOSE=""
 
 # Colors and logging
 readonly RED='\033[0;31m'
@@ -35,6 +36,44 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 log_debug() { echo -e "${PURPLE}[DEBUG]${NC} $1"; }
 log_step() { echo -e "${CYAN}[STEP]${NC} $1"; }
+
+# Cross-platform helpers
+show_port_usage() {
+    local pattern="$1"
+
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | awk -v target="$pattern" 'NR==1 || $9 ~ target'
+    elif command -v ss >/dev/null 2>&1; then
+        ss -tulpn 2>/dev/null | grep -E "$pattern" || true
+    elif command -v netstat >/dev/null 2>&1; then
+        netstat -tulpn 2>/dev/null | grep -E "$pattern" || true
+    else
+        log_warn "Port inspection tools (lsof/ss/netstat) not available"
+    fi
+}
+
+is_port_in_use() {
+    local port="$1"
+
+    if command -v lsof >/dev/null 2>&1; then
+        if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+            return 0
+        fi
+        return 1
+    elif command -v ss >/dev/null 2>&1; then
+        if ss -tulpn 2>/dev/null | grep -q ":$port "; then
+            return 0
+        fi
+        return 1
+    elif command -v netstat >/dev/null 2>&1; then
+        if netstat -an 2>/dev/null | grep -q ".$port "; then
+            return 0
+        fi
+        return 1
+    fi
+
+    return 1
+}
 
 # Utility functions
 check_docker() {
@@ -65,6 +104,15 @@ check_backend_dir() {
 check_poetry() {
     if ! command -v poetry >/dev/null 2>&1; then
         log_error "Poetry is not installed. Please install it first: https://python-poetry.org/docs/#installation"
+        exit 1
+    fi
+}
+
+run_pytest_watch() {
+    if poetry run ptw --help >/dev/null 2>&1; then
+        poetry run ptw tests/unit/ "$@"
+    else
+        log_error "pytest-watch is not installed. Install it with 'poetry add --group dev pytest-watch'."
         exit 1
     fi
 }
@@ -233,7 +281,7 @@ cmd_status() {
 
     log_step "Service status:"
     echo ""
-    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(NAMES|edi-lens-)"
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(NAMES|edi-lens-)" || true
     echo ""
 
     # Quick health check
@@ -279,17 +327,31 @@ cmd_clean() {
     check_docker_compose
 
     log_warn "This will remove all containers and volumes for the backend"
-    read -p "Are you sure? (y/N): " -n 1 -r
+    local response=""
+    if ! read -r -p "Are you sure? (y/N): " response; then
+        echo
+        log_warn "Input not received. Cleanup cancelled"
+        return 1
+    fi
     echo
 
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if [[ $response =~ ^[Yy]$ ]]; then
         log_step "Cleaning up backend containers and volumes..."
 
         cd "$DOCKER_DIR"
         $DOCKER_COMPOSE down -v --remove-orphans
 
         # Remove images
-        docker images | grep -E "(edi-lens|docker)" | awk '{print $3}' | xargs -r docker rmi -f || true
+        local image_ids
+        image_ids=$(docker image ls --format '{{.Repository}} {{.ID}}' | awk '$1 ~ /edi-lens/ {print $2}')
+        if [[ -n ${image_ids:-} ]]; then
+            log_info "Removing backend images..."
+            while IFS= read -r image_id; do
+                [[ -n $image_id ]] && docker image rm -f "$image_id" >/dev/null 2>&1 || true
+            done <<<"$image_ids"
+        else
+            log_info "No backend images to remove"
+        fi
 
         log_success "Cleanup complete"
     else
@@ -299,6 +361,11 @@ cmd_clean() {
 
 cmd_shell() {
     check_docker
+
+    if ! docker ps --format "{{.Names}}" | grep -q "^edi-lens-backend$"; then
+        log_error "Backend container is not running. Start services with './scripts/backend.sh start'."
+        exit 1
+    fi
 
     log_info "Opening shell in backend container..."
     docker exec -it edi-lens-backend bash
@@ -329,6 +396,10 @@ cmd_test() {
     check_poetry
 
     local test_type="${1:-all}"
+    local -a extra_args=()
+    if (( $# > 1 )); then
+        extra_args=("${@:2}")
+    fi
     cd "$BACKEND_DIR"
 
     log_step "Running $test_type tests..."
@@ -345,7 +416,7 @@ cmd_test() {
                 }
             fi
 
-            poetry run pytest tests/unit/ -v "${@:2}"
+            poetry run pytest tests/unit/ -v "${extra_args[@]}"
             ;;
         integration)
             log_info "Ensuring services are running for integration tests..."
@@ -353,7 +424,7 @@ cmd_test() {
                 log_warn "Backend not running. Starting services..."
                 cmd_start
             fi
-            poetry run pytest tests/integration/ -v "${@:2}"
+            poetry run pytest tests/integration/ -v "${extra_args[@]}"
             ;;
         e2e)
             log_info "Ensuring services are running for e2e tests..."
@@ -361,7 +432,7 @@ cmd_test() {
                 log_warn "Backend not running. Starting services..."
                 cmd_start
             fi
-            poetry run pytest tests/e2e/ -v "${@:2}"
+            poetry run pytest tests/e2e/ -v "${extra_args[@]}"
             ;;
         all)
             log_info "Running all tests..."
@@ -375,7 +446,7 @@ cmd_test() {
             fi
             ;;
         watch)
-            poetry run pytest tests/unit/ -v --watch
+            run_pytest_watch "${extra_args[@]}"
             ;;
         *)
             log_error "Unknown test type: $test_type"
@@ -477,11 +548,11 @@ cmd_debug() {
 
     echo ""
     echo "=== Running Containers ==="
-    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(NAMES|edi-lens-)"
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(NAMES|edi-lens-)" || true
 
     echo ""
     echo "=== Port Usage ==="
-    netstat -tulpn 2>/dev/null | grep -E ":(8000|8443|18080|5432)" || echo "netstat not available"
+    show_port_usage ":(8000|8443|18080|5432)"
 
     echo ""
     echo "=== Service Health ==="
@@ -508,7 +579,7 @@ cmd_doctor() {
     # Check ports
     local ports=(8000 8443 18080 5432)
     for port in "${ports[@]}"; do
-        if netstat -tuln 2>/dev/null | grep -q ":$port "; then
+        if is_port_in_use "$port"; then
             if docker ps --format "{{.Ports}}" | grep -q ":$port->"; then
                 log_success "Port $port is used by Docker (expected)"
             else

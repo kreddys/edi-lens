@@ -21,6 +21,7 @@ class TestNiFiClient:
         assert client.nifi_url == "http://localhost:8080"
         assert client.username is None
         assert client.password is None
+        assert client.verify_ssl is True
 
     @pytest.mark.asyncio
     async def test_nifi_client_with_auth(self):
@@ -64,6 +65,7 @@ class TestRegistryClient:
         client = RegistryClient("http://localhost:18080")
         assert client.registry_url == "http://localhost:18080"
         assert client.auth_token is None
+        assert client.verify_ssl is True
 
     @pytest.mark.asyncio
     async def test_registry_client_with_token(self):

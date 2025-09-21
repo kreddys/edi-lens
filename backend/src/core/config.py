@@ -1,29 +1,54 @@
-"""Configuration for minimal NiFi backend."""
+"""Application configuration powered by Pydantic settings."""
 
-import os
+from functools import lru_cache
 from typing import Optional
 
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-class Settings:
-    """Application settings."""
 
-    # Database
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/edi_lens"
+class Settings(BaseSettings):
+    """Centralised application settings with environment overrides."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
 
-    # NiFi Configuration (simple HTTP)
-    NIFI_URL: str = os.getenv("NIFI_URL", "http://localhost:8080")
-    NIFI_USERNAME: Optional[str] = os.getenv("NIFI_USERNAME") or None
-    NIFI_PASSWORD: Optional[str] = os.getenv("NIFI_PASSWORD") or None
+    # Database
+    DATABASE_URL: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/edi_lens",
+        description="Async SQLAlchemy connection string",
+    )
 
-    # NiFi Registry Configuration (simple HTTP)
-    NIFI_REGISTRY_URL: str = os.getenv("NIFI_REGISTRY_URL", "http://localhost:18080")
-    NIFI_REGISTRY_AUTH_TOKEN: Optional[str] = os.getenv("NIFI_REGISTRY_AUTH_TOKEN") or None
+    # Application metadata
+    APP_VERSION: str = Field(default="0.1.0")
 
-    # Development settings
-    DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
+    # NiFi Configuration
+    NIFI_URL: str = Field(default="http://localhost:8080")
+    NIFI_USERNAME: Optional[str] = Field(default=None)
+    NIFI_PASSWORD: Optional[str] = Field(default=None)
+
+    # NiFi Registry Configuration
+    NIFI_REGISTRY_URL: str = Field(default="http://localhost:18080")
+    NIFI_REGISTRY_AUTH_TOKEN: Optional[str] = Field(default=None)
+
+    # HTTP client behaviour
+    VERIFY_SSL: bool = Field(
+        default=True,
+        description="Control client-side TLS verification for NiFi services",
+    )
+
+    # Development flags
+    DEBUG: bool = Field(default=False)
 
 
-settings = Settings()
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Return cached application settings instance."""
+
+    return Settings()
+
+
+settings = get_settings()
