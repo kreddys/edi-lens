@@ -121,7 +121,7 @@ if $RUN_SETUP; then
   cexec "bash ./scripts/setup_codex.sh" | tee scripts/.logs/codex_setup_$(date +%Y%m%d_%H%M%S).log
 
   log "Checking service status"
-  cexec "bash ./scripts/check_services.sh" || true
+  cexec "bash ./scripts/setup_codex.sh --check-services" || true
 
   ok "Setup completed. Services should be available on your host:"
   cat <<URLS
@@ -132,7 +132,7 @@ if $RUN_SETUP; then
   - SFTPGo:          http://localhost:8280  (admin / sftpgo_admin_2024)
   - MinIO Console:   http://localhost:9001  (codex_minio_access / codex_minio_secret_2024)
   - NiFi:            https://localhost:8443 (admin / nifi_admin_codex_2024)
-  - NiFi Registry:   http://localhost:18081
+  - NiFi Registry:   http://localhost:18080
 
   Container name: ${CONTAINER}
   To inspect logs: docker exec -it ${CONTAINER} bash -lc 'ls -lah codex-services/logs && tail -n 200 codex-services/logs/backend.log'

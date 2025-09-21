@@ -69,12 +69,12 @@ This script performs **everything automatically**:
 
 ### Check Service Status
 ```bash
-./scripts/check_services.sh
+./scripts/setup_codex.sh --check-services
 ```
 
 ### Restart All Services
 ```bash
-./scripts/restart_services.sh
+./scripts/setup_codex.sh --restart-services
 ```
 
 ## Service URLs
@@ -87,7 +87,7 @@ This script performs **everything automatically**:
 | **SFTPGo** | http://localhost:8280 | admin / sftpgo_admin_2024 |
 | **MinIO Console** | http://localhost:9001 | codex_minio_access / codex_minio_secret_2024 |
 | **NiFi** | https://localhost:8443 | admin / nifi_admin_codex_2024 |
-| **NiFi Registry** | http://localhost:18081 | - |
+| **NiFi Registry** | http://localhost:18080 | - |
 
 ## Configuration
 
