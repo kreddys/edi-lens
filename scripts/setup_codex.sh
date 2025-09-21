@@ -10,12 +10,23 @@ set -euo pipefail
 
 # --- Configuration and Constants ----------------------------------------------
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVICES_DIR="$PROJECT_ROOT/codex-services"
+# Prefer a stable location that Codex caches between tasks. If the
+# container has a cached /opt/codex-services from a prior setup run,
+# use it. Otherwise fall back to a writable path under the repo so
+# local development still works.
+SERVICES_DIR="/opt/codex-services"
+if [ ! -w "$(dirname "$SERVICES_DIR")" ] || [ ! -d "$(dirname "$SERVICES_DIR")" ]; then
+    # If /opt isn't writable (local macOS dev), keep default repo-local
+    SERVICES_DIR="$PROJECT_ROOT/codex-services"
+fi
 DOWNLOADS_DIR="$SERVICES_DIR/downloads"
 LOGS_DIR="$SERVICES_DIR/logs"
 BIN_DIR="$SERVICES_DIR/bin"
 BUILD_DIR="$SERVICES_DIR/build"
-ENV_FILE="$PROJECT_ROOT/.env.codex"
+# Keep .env.codex in the repo for versioning; we will symlink it into
+# $SERVICES_DIR so the cached container can pick it up across resumes.
+ENV_FILE_REPO="$PROJECT_ROOT/.env.codex"
+ENV_FILE="$SERVICES_DIR/.env.codex"
 
 # Test execution flags
 SKIP_BACKEND_TESTS=false
@@ -107,8 +118,16 @@ wait_for_service() {
 setup_environment() {
     info "Setting up Codex environment"
 
-    # Create directories
+    # Create directories (prefer shared /opt when available)
     mkdir -p "$SERVICES_DIR" "$DOWNLOADS_DIR" "$LOGS_DIR" "$BIN_DIR" "$BUILD_DIR"
+
+    # If we have a repo .env.codex, ensure it's present in the repo and
+    # then create a symlink into $SERVICES_DIR so cached containers can
+    # consistently load the same env file path (/opt/codex-services/.env.codex)
+    if [ -f "$ENV_FILE_REPO" ]; then
+        ln -sf "$ENV_FILE_REPO" "$ENV_FILE"
+        info "Linked $ENV_FILE -> $ENV_FILE_REPO"
+    fi
 
     # Load Codex environment (some images set strict shell options in profile)
     if [ -f /etc/profile ]; then
@@ -143,15 +162,29 @@ setup_environment() {
         warn "Go not installed"
     fi
 
-    # Create environment file if it doesn't exist
+    # Create environment file in the repo if it doesn't exist, then
+    # ensure the $ENV_FILE (under $SERVICES_DIR) exists as a symlink to
+    # the repo file so cached containers can continue to source it.
     create_env_file
+
+    # If repo env exists but the services env doesn't, create symlink
+    if [ -f "$ENV_FILE_REPO" ] && [ ! -L "$ENV_FILE" ]; then
+        ln -sf "$ENV_FILE_REPO" "$ENV_FILE" || true
+    fi
 
     # Load environment variables
     set -a
-    source "$ENV_FILE"
+    if [ -f "$ENV_FILE" ]; then
+        source "$ENV_FILE"
+    elif [ -f "$ENV_FILE_REPO" ]; then
+        source "$ENV_FILE_REPO"
+    fi
     set +a
 
     # Ensure environment persists for Codex cloud agent sessions
+    # Ensure persistent shell sessions load the env from /opt when
+    # available. Use the canonical $ENV_FILE path so cached containers
+    # always source /opt/codex-services/.env.codex
     if ! grep -q "source $ENV_FILE" ~/.bashrc 2>/dev/null; then
         echo "# EDI-Lens environment for Codex cloud" >> ~/.bashrc
         echo "if [ -f \"$ENV_FILE\" ]; then" >> ~/.bashrc
@@ -159,18 +192,22 @@ setup_environment() {
         echo "    source \"$ENV_FILE\"" >> ~/.bashrc
         echo "    set +a" >> ~/.bashrc
         echo "fi" >> ~/.bashrc
+        info "Appended sourcing of $ENV_FILE to ~/.bashrc"
     fi
 }
 
 create_env_file() {
-    if [ -f "$ENV_FILE" ]; then
-        info "Using existing $ENV_FILE"
+    # Prefer writing the canonical, versioned env file into the repo so
+    # it is committed / reviewed. The services env file will be a symlink
+    # pointing to this repo file when /opt is used.
+    if [ -f "$ENV_FILE_REPO" ]; then
+        info "Using existing $ENV_FILE_REPO"
         ensure_env_value "KEYCLOAK_SFTPGO_CLIENT_ID" "sftpgo"
         ensure_env_value "KEYCLOAK_SFTPGO_CLIENT_SECRET" "sftpgo_codex_client_secret"
         ensure_env_value "SFTPGO_API_URL" "http://localhost:8280/api/v2"
         ensure_env_value "BACKEND_WEBHOOK_URL" "http://localhost:8000/api/v1/sftp/hooks/upload"
-        if grep -q "^NIFI_SENSITIVE_PROPS_KEY=codex_nifi_key_2024_32_chars_long" "$ENV_FILE"; then
-            sed -i "s#^NIFI_SENSITIVE_PROPS_KEY=.*#NIFI_SENSITIVE_PROPS_KEY=codex_nifi_secret_key_2024_pass!#" "$ENV_FILE"
+        if grep -q "^NIFI_SENSITIVE_PROPS_KEY=codex_nifi_key_2024_32_chars_long" "$ENV_FILE_REPO"; then
+            sed -i "s#^NIFI_SENSITIVE_PROPS_KEY=.*#NIFI_SENSITIVE_PROPS_KEY=codex_nifi_secret_key_2024_pass!#" "$ENV_FILE_REPO"
         fi
         ensure_env_value "NIFI_SENSITIVE_PROPS_KEY" "codex_nifi_secret_key_2024_pass!"
         ensure_env_value "NIFI_WEB_PROXY_HOST" "localhost:8443"
@@ -181,8 +218,8 @@ create_env_file() {
         return
     fi
 
-    info "Creating Codex environment file"
-    cat > "$ENV_FILE" <<EOF
+    info "Creating Codex environment file in repository: $ENV_FILE_REPO"
+    cat > "$ENV_FILE_REPO" <<EOF
 # ==============================================================================
 # EDI LENS - CODEX ENVIRONMENT CONFIGURATION
 # ==============================================================================
@@ -265,6 +302,9 @@ SFTPGO_VERSION=2.6.6
 NIFI_VERSION=2.5.0
 NIFI_REGISTRY_VERSION=2.0.0
 EOF
+
+    # Ensure permissions are reasonable
+    chmod 644 "$ENV_FILE_REPO" || true
 }
 
 # --- System Dependencies -----------------------------------------------------
@@ -453,13 +493,17 @@ setup_minio() {
         minio_arch="linux-arm64"
     fi
 
-    # Download MinIO binaries if needed
-    if [ ! -f "$minio_bin" ]; then
+    # Download MinIO binaries if needed (skip when already present under /opt)
+    if [ -f "$minio_bin" ]; then
+        info "MinIO binary already present at $minio_bin, skipping download"
+    else
         curl_download "https://dl.min.io/server/minio/release/${minio_arch}/minio" "$minio_bin"
         chmod +x "$minio_bin"
     fi
 
-    if [ ! -f "$mc_bin" ]; then
+    if [ -f "$mc_bin" ]; then
+        info "mc binary already present at $mc_bin, skipping download"
+    else
         curl_download "https://dl.min.io/client/mc/release/${minio_arch}/mc" "$mc_bin"
         chmod +x "$mc_bin"
     fi
@@ -495,11 +539,11 @@ setup_keycloak() {
 
     mkdir -p "$install_dir"
 
-    # Download Keycloak
-    curl_download "https://github.com/keycloak/keycloak/releases/download/$KEYCLOAK_VERSION/keycloak-$KEYCLOAK_VERSION.tar.gz" "$archive"
-
-    # Extract if needed
-    if [ ! -d "$install_dir/keycloak-$KEYCLOAK_VERSION" ]; then
+    # Download Keycloak (skip if archive already downloaded)
+    if [ -f "$install_dir/keycloak-$KEYCLOAK_VERSION" ] || [ -d "$install_dir/keycloak-$KEYCLOAK_VERSION" ]; then
+        info "Keycloak already extracted at $install_dir/keycloak-$KEYCLOAK_VERSION, skipping download/extract"
+    else
+        curl_download "https://github.com/keycloak/keycloak/releases/download/$KEYCLOAK_VERSION/keycloak-$KEYCLOAK_VERSION.tar.gz" "$archive"
         info "Extracting Keycloak"
         tar -xf "$archive" -C "$install_dir" --strip-components=1
     fi
@@ -694,11 +738,11 @@ setup_nifi_registry() {
 
     mkdir -p "$install_dir"
 
-    # Download NiFi Registry
-    curl_download "https://downloads.apache.org/nifi/$NIFI_REGISTRY_VERSION/nifi-registry-$NIFI_REGISTRY_VERSION-bin.zip" "$archive"
-
-    # Extract if needed
-    if [ ! -d "$install_dir/nifi-registry-$NIFI_REGISTRY_VERSION" ]; then
+    # Download NiFi Registry (skip if already extracted)
+    if [ -d "$install_dir/nifi-registry-$NIFI_REGISTRY_VERSION" ]; then
+        info "NiFi Registry already extracted at $install_dir/nifi-registry-$NIFI_REGISTRY_VERSION, skipping download/extract"
+    else
+        curl_download "https://downloads.apache.org/nifi/$NIFI_REGISTRY_VERSION/nifi-registry-$NIFI_REGISTRY_VERSION-bin.zip" "$archive"
         info "Extracting NiFi Registry"
         unzip -q "$archive" -d "$install_dir"
     fi
@@ -741,11 +785,11 @@ setup_nifi() {
 
     mkdir -p "$install_dir"
 
-    # Download NiFi
-    curl_download "https://downloads.apache.org/nifi/$NIFI_VERSION/nifi-$NIFI_VERSION-bin.zip" "$archive"
-
-    # Extract if needed
-    if [ ! -d "$install_dir/nifi-$NIFI_VERSION" ]; then
+    # Download NiFi (skip if already extracted)
+    if [ -d "$install_dir/nifi-$NIFI_VERSION" ]; then
+        info "NiFi already extracted at $install_dir/nifi-$NIFI_VERSION, skipping download/extract"
+    else
+        curl_download "https://downloads.apache.org/nifi/$NIFI_VERSION/nifi-$NIFI_VERSION-bin.zip" "$archive"
         info "Extracting NiFi"
         unzip -q "$archive" -d "$install_dir"
     fi

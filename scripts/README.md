@@ -80,3 +80,25 @@ It tests token generation and basic API endpoints to verify the authentication s
 2. **Use proper authentication** - Never bypass authentication in production
 3. **Test in development first** - Use these scripts to verify functionality before deploying
 4. **Keep credentials secure** - Never commit real credentials to version control
+
+## Codex Cloud caching and /opt/codex-services
+
+The `setup_codex.sh` script has been updated to prefer installing services under `/opt/codex-services` so Codex can cache the container with all installed services.
+
+- The canonical environment file is tracked in the repo at `.env.codex`. During setup the script symlinks `/opt/codex-services/.env.codex` -> `./.env.codex` so cached containers always source `/opt/codex-services/.env.codex`.
+- Use `scripts/maintain_codex.sh` as a lightweight maintenance script to run when Codex resumes a cached container. It will attempt to restart or reconfigure services if health checks fail.
+
+Usage examples:
+
+```bash
+# First run (cold):
+./scripts/setup_codex.sh
+
+# On cached resume, run maintenance (optional):
+./scripts/maintain_codex.sh
+```
+
+Notes:
+
+- If `/opt` is not writable (local macOS), `setup_codex.sh` will fall back to `./codex-services` in the repo for local development.
+- Changes to `scripts/setup_codex.sh`, `.env.codex`, or environment variables will invalidate Codex cache.
