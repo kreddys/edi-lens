@@ -299,8 +299,8 @@ VITE_KEYCLOAK_CLIENT_ID=edi-lens-ui
 # --- Service Versions ---
 KEYCLOAK_VERSION=25.0.2
 SFTPGO_VERSION=2.6.6
-NIFI_VERSION=2.5.0
-NIFI_REGISTRY_VERSION=2.0.0
+NIFI_VERSION=2.6.0
+NIFI_REGISTRY_VERSION=2.6.0
 EOF
 
     # Ensure permissions are reasonable
@@ -452,9 +452,9 @@ install_postgres_extensions() {
             rm -rf "$vector_dir"
             git clone --depth 1 --branch "$PGVECTOR_VERSION" https://github.com/pgvector/pgvector.git "$vector_dir"
         fi
-        (cd "$vector_dir" && make clean > "$LOGS_DIR/pgvector-build.log" 2>&1 && make >> "$LOGS_DIR/pgvector-build.log" 2>&1 && make install >> "$LOGS_DIR/pgvector-build.log" 2>&1) || {
+        (cd "$vector_dir" && PG_CONFIG="$PG_CONFIG" make clean > "$LOGS_DIR/pgvector-build.log" 2>&1 && PG_CONFIG="$PG_CONFIG" make >> "$LOGS_DIR/pgvector-build.log" 2>&1 && PG_CONFIG="$PG_CONFIG" make install >> "$LOGS_DIR/pgvector-build.log" 2>&1) || {
             warn "pgvector build failed; see $LOGS_DIR/pgvector-build.log. Retrying once."
-            (cd "$vector_dir" && make clean >> "$LOGS_DIR/pgvector-build-retry.log" 2>&1 && make >> "$LOGS_DIR/pgvector-build-retry.log" 2>&1 && make install >> "$LOGS_DIR/pgvector-build-retry.log" 2>&1) || error "pgvector build failed twice. Check $LOGS_DIR/pgvector-build*.log"
+            (cd "$vector_dir" && PG_CONFIG="$PG_CONFIG" make clean >> "$LOGS_DIR/pgvector-build-retry.log" 2>&1 && PG_CONFIG="$PG_CONFIG" make >> "$LOGS_DIR/pgvector-build-retry.log" 2>&1 && PG_CONFIG="$PG_CONFIG" make install >> "$LOGS_DIR/pgvector-build-retry.log" 2>&1) || error "pgvector build failed twice. Check $LOGS_DIR/pgvector-build*.log"
         }
     else
         info "pgvector extension already available"
@@ -471,10 +471,29 @@ install_postgres_extensions() {
             rm -rf "$age_dir"
             git clone --depth 1 --branch "$AGE_BRANCH" https://github.com/apache/age.git "$age_dir"
         fi
-        (cd "$age_dir" && make clean > "$LOGS_DIR/age-build.log" 2>&1 && make >> "$LOGS_DIR/age-build.log" 2>&1 && make install >> "$LOGS_DIR/age-build.log" 2>&1) || {
+        (cd "$age_dir" && PG_CONFIG="$PG_CONFIG" make clean > "$LOGS_DIR/age-build.log" 2>&1 && PG_CONFIG="$PG_CONFIG" make >> "$LOGS_DIR/age-build.log" 2>&1 && PG_CONFIG="$PG_CONFIG" make install >> "$LOGS_DIR/age-build.log" 2>&1) || {
             warn "Apache AGE build failed; see $LOGS_DIR/age-build.log. Retrying once."
-            (cd "$age_dir" && make clean >> "$LOGS_DIR/age-build-retry.log" 2>&1 && make >> "$LOGS_DIR/age-build-retry.log" 2>&1 && make install >> "$LOGS_DIR/age-build-retry.log" 2>&1) || error "Apache AGE build failed twice. Check $LOGS_DIR/age-build*.log"
+            (cd "$age_dir" && PG_CONFIG="$PG_CONFIG" make clean >> "$LOGS_DIR/age-build-retry.log" 2>&1 && PG_CONFIG="$PG_CONFIG" make >> "$LOGS_DIR/age-build-retry.log" 2>&1 && PG_CONFIG="$PG_CONFIG" make install >> "$LOGS_DIR/age-build-retry.log" 2>&1) || error "Apache AGE build failed twice. Check $LOGS_DIR/age-build*.log"
         }
+
+        # Verify installed extension files in PostgreSQL pkglibdir
+        PKGLIBDIR=""
+        if command -v "$PG_CONFIG" >/dev/null 2>&1; then
+            PKGLIBDIR="$($PG_CONFIG --pkglibdir 2>/dev/null || true)"
+        elif command -v pg_config >/dev/null 2>&1; then
+            PKGLIBDIR="$(pg_config --pkglibdir 2>/dev/null || true)"
+        fi
+        if [ -n "$PKGLIBDIR" ]; then
+            info "Listing $PKGLIBDIR for age/vector shared objects"
+            ls -lah "$PKGLIBDIR" | grep -Ei "age|vector" > "$LOGS_DIR/age-pkgs.lst" 2>/dev/null || true
+            info "AGE/pgvector installed files (trim):"
+            head -n 20 "$LOGS_DIR/age-pkgs.lst" || true
+            if ! grep -qi "age" "$LOGS_DIR/age-pkgs.lst" || ! grep -qi "vector" "$LOGS_DIR/age-pkgs.lst"; then
+                warn "Could not find expected AGE/pgvector shared objects in $PKGLIBDIR. Check build logs: $LOGS_DIR/age-build.log"
+            fi
+        else
+            warn "Could not determine PostgreSQL pkglibdir; cannot verify installed extension files"
+        fi
     else
         info "Apache AGE extension already available"
     fi
