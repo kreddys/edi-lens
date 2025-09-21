@@ -78,3 +78,4 @@ data/
 
 nifi-rest-api-spec.txt
 local-services/
+codex-services/
