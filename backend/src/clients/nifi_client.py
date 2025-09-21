@@ -51,7 +51,7 @@ class NiFiClient:
             self.session = None
 
     async def _create_session(self) -> aiohttp.ClientSession:
-        headers = {"Content-Type": "application/json"}
+        headers = {"Accept": "application/json"}
         auth = None
         if self.username and self.password:
             auth = aiohttp.BasicAuth(self.username, self.password)
@@ -93,10 +93,14 @@ class NiFiClient:
             raise NiFiClientError("Unexpected response format for system diagnostics")
         return result
 
-    async def get_root_process_group(self) -> Dict[str, Any]:
-        """Get root process group."""
+    async def get_root_process_group(self, *, ui_only: bool = True) -> Dict[str, Any]:
+        """Get root process group; request UI snapshot by default."""
 
-        result = await self._request("GET", "/nifi-api/process-groups/root")
+        path = "/nifi-api/process-groups/root"
+        if ui_only:
+            path += "?uiOnly=true"
+
+        result = await self._request("GET", path)
         if not isinstance(result, dict):
             raise NiFiClientError("Unexpected response format for root process group")
         return result
@@ -172,7 +176,7 @@ class NiFiClient:
         """Simple health check."""
 
         try:
-            await self.get_system_summary()
+            await self.get_root_process_group()
             return True
         except NiFiClientError as exc:
             log.error("NiFi health check failed: %s", exc)

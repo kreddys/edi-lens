@@ -37,3 +37,9 @@ asyncio_mode = "auto"
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+pythonpath = ["src"]
+markers = [
+    "unit: fast-running isolated tests",
+    "integration: tests that hit live NiFi/Registry instances",
+    "e2e: end-to-end tests",
+]

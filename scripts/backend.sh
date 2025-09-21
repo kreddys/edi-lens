@@ -130,6 +130,24 @@ run_pytest_watch() {
     fi
 }
 
+ensure_backend_container_running() {
+    if ! docker ps --format "{{.Names}}" | grep -q "^edi-lens-backend$"; then
+        log_warn "Backend container is not running. Starting services..."
+        cmd_start
+    fi
+}
+
+ensure_backend_test_env() {
+    ensure_backend_container_running
+    if ! docker exec edi-lens-backend poetry run pytest --version >/dev/null 2>&1; then
+        log_info "Installing test dependencies inside backend container..."
+        if ! docker exec edi-lens-backend poetry install --with dev --no-root >/dev/null 2>&1; then
+            log_error "Failed to install test dependencies inside backend container"
+            exit 1
+        fi
+    fi
+}
+
 wait_for_service() {
     local service_name="$1"
     local url="$2"
@@ -434,34 +452,36 @@ cmd_test() {
                 }
             fi
 
-            poetry run pytest tests/unit/ -v "${extra_args[@]:-}"
+            if (( ${#extra_args[@]} )); then
+                poetry run pytest -m unit tests/unit/ -v "${extra_args[@]}"
+            else
+                poetry run pytest -m unit tests/unit/ -v
+            fi
             ;;
         integration)
             log_info "Ensuring services are running for integration tests..."
-            if ! curl -s http://localhost:8000/health >/dev/null 2>&1; then
-                log_warn "Backend not running. Starting services..."
-                cmd_start
+            ensure_backend_test_env
+            if (( ${#extra_args[@]} )); then
+                docker exec edi-lens-backend poetry run pytest -m integration tests/integration/ -v "${extra_args[@]}"
+            else
+                docker exec edi-lens-backend poetry run pytest -m integration tests/integration/ -v
             fi
-            poetry run pytest tests/integration/ -v "${extra_args[@]:-}"
             ;;
         e2e)
             log_info "Ensuring services are running for e2e tests..."
-            if ! curl -s http://localhost:8000/health >/dev/null 2>&1; then
-                log_warn "Backend not running. Starting services..."
-                cmd_start
+            ensure_backend_test_env
+            if (( ${#extra_args[@]} )); then
+                docker exec edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v "${extra_args[@]}"
+            else
+                docker exec edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v
             fi
-            poetry run pytest tests/e2e/ -v "${extra_args[@]:-}"
             ;;
         all)
             log_info "Running all tests..."
-            poetry run pytest tests/unit/ -v
-            if curl -s http://localhost:8000/health >/dev/null 2>&1; then
-                poetry run pytest tests/integration/ -v
-                poetry run pytest tests/e2e/ -v
-            else
-                log_warn "Services not running. Skipping integration and e2e tests."
-                log_info "Run './scripts/backend.sh start' first to run all tests."
-            fi
+            poetry run pytest -m unit tests/unit/ -v
+            ensure_backend_test_env
+            docker exec edi-lens-backend poetry run pytest -m integration tests/integration/ -v
+            docker exec edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v
             ;;
         watch)
             run_pytest_watch "${extra_args[@]:-}"

@@ -35,8 +35,8 @@ class TestNiFiClient:
         """Test successful health check."""
         client = NiFiClient("http://localhost:8080")
 
-        with patch.object(client, 'get_system_summary', new_callable=AsyncMock) as mock_summary:
-            mock_summary.return_value = {"contentRepository": {"totalSpace": "1GB"}}
+        with patch.object(client, 'get_root_process_group', new_callable=AsyncMock) as mock_summary:
+            mock_summary.return_value = {"component": {"id": "root"}}
 
             async with client:
                 result = await client.health_check()
@@ -48,7 +48,7 @@ class TestNiFiClient:
         """Test health check failure."""
         client = NiFiClient("http://localhost:8080")
 
-        with patch.object(client, 'get_system_summary', new_callable=AsyncMock) as mock_summary:
+        with patch.object(client, 'get_root_process_group', new_callable=AsyncMock) as mock_summary:
             mock_summary.side_effect = Exception("Connection failed")
 
             async with client:

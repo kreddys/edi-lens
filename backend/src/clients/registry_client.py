@@ -45,7 +45,7 @@ class RegistryClient:
             self.session = None
 
     async def _create_session(self) -> aiohttp.ClientSession:
-        headers = {"Content-Type": "application/json"}
+        headers = {"Accept": "application/json"}
 
         if self.auth_token:
             headers["Authorization"] = f"Bearer {self.auth_token}"
