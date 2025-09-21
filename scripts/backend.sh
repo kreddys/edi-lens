@@ -20,6 +20,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DOCKER_DIR="$PROJECT_ROOT/docker"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 DOCKER_COMPOSE=""
+ENV_FILE="$PROJECT_ROOT/.env"
 
 # Colors and logging
 readonly RED='\033[0;31m'
@@ -49,6 +50,18 @@ show_port_usage() {
         netstat -tulpn 2>/dev/null | grep -E "$pattern" || true
     else
         log_warn "Port inspection tools (lsof/ss/netstat) not available"
+    fi
+}
+
+load_env_file() {
+    if [[ -f "$ENV_FILE" ]]; then
+        log_debug "Loading environment variables from $ENV_FILE"
+        set -a
+        # shellcheck disable=SC1090
+        source "$ENV_FILE"
+        set +a
+    else
+        log_warn "Environment file $ENV_FILE not found; docker compose variables may be unset"
     fi
 }
 
@@ -229,6 +242,7 @@ cmd_start() {
     log_step "Starting EDI Lens backend services..."
 
     cd "$DOCKER_DIR"
+    load_env_file
     $DOCKER_COMPOSE up -d
 
     log_info "Services starting in background..."
@@ -264,6 +278,7 @@ cmd_stop() {
     log_step "Stopping EDI Lens backend services..."
 
     cd "$DOCKER_DIR"
+    load_env_file
     $DOCKER_COMPOSE down
 
     log_success "All services stopped"
@@ -302,6 +317,7 @@ cmd_logs() {
 
     local service="${1:-}"
     cd "$DOCKER_DIR"
+    load_env_file
 
     if [[ -n "$service" ]]; then
         log_info "Showing logs for: $service"
@@ -318,6 +334,7 @@ cmd_build() {
     log_step "Building services..."
 
     cd "$DOCKER_DIR"
+    load_env_file
     $DOCKER_COMPOSE build --no-cache
 
     log_success "Build complete"
@@ -339,6 +356,7 @@ cmd_clean() {
         log_step "Cleaning up backend containers and volumes..."
 
         cd "$DOCKER_DIR"
+        load_env_file
         $DOCKER_COMPOSE down -v --remove-orphans
 
         # Remove images
