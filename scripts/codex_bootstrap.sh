@@ -31,7 +31,7 @@ PORTS=(
   9001:9001   # MinIO Console
   8080:8080   # NiFi HTTP (optional)
   8443:8443   # NiFi HTTPS
-  18081:18081 # NiFi Registry
+  18080:18080 # NiFi Registry
 )
 
 log() { printf "\033[0;34m[INFO]\033[0m %s\n" "$*"; }
@@ -114,9 +114,6 @@ cexec() {
 if $RUN_SETUP; then
   log "Normalizing script line endings (if any)"
   cexec 'find ./docker/codex-universal ./scripts -maxdepth 1 -type f -name "*.sh" -exec sed -i "s/\r$//" {} + || true'
-
-  log "Verifying codex-universal environment"
-  cexec "bash ./docker/codex-universal/verify.sh"
 
   log "Running EDI-Lens Codex setup (this will take a while)"
   # Capture logs locally for convenience

@@ -468,7 +468,7 @@ setup_nifi() {
     NIFI_SENSITIVE_PROPS_KEY="$NIFI_SENSITIVE_PROPS_KEY" \
     NIFI_USERNAME="$NIFI_ADMIN_USER" \
     NIFI_PASSWORD="$NIFI_ADMIN_PASSWORD" \
-    PYTHONPATH="$py_ext_dir:$PYTHONPATH" \
+    PYTHONPATH="$py_ext_dir:${PYTHONPATH:-}" \
     nohup ./bin/nifi.sh run > "$LOGS_DIR/nifi.log" 2>&1 &
 
     # Set single user credentials
@@ -476,7 +476,7 @@ setup_nifi() {
     ./bin/nifi.sh set-single-user-credentials "$NIFI_ADMIN_USER" "$NIFI_ADMIN_PASSWORD"
 
     # Wait for NiFi to be ready
-    wait_for_service "https://localhost:8443/nifi" "NiFi" 120
+    wait_for_service "https://localhost:8443/nifi/" "NiFi" 120
 
     success "NiFi configured and running"
 }
