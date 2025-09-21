@@ -87,11 +87,22 @@ ensure_env_value() {
     local key="$1"
     local default_value="$2"
 
-    if ! grep -q "^$key=" "$ENV_FILE" 2>/dev/null; then
-        if [ -s "$ENV_FILE" ] && [ "$(tail -c1 "$ENV_FILE" 2>/dev/null)" != $'\n' ]; then
-            echo >> "$ENV_FILE"
+    # Prefer the repo env file when present; fall back to the services env.
+    local target_env="$ENV_FILE_REPO"
+    if [ -z "$target_env" ] || [ ! -e "$target_env" ]; then
+        target_env="$ENV_FILE"
+    fi
+
+    # Ensure the target file exists so grep/sed operate safely
+    if [ ! -f "$target_env" ]; then
+        touch "$target_env" 2>/dev/null || true
+    fi
+
+    if ! grep -q "^$key=" "$target_env" 2>/dev/null; then
+        if [ -s "$target_env" ] && [ "$(tail -c1 "$target_env" 2>/dev/null)" != $'\n' ]; then
+            echo >> "$target_env"
         fi
-        echo "$key=$default_value" >> "$ENV_FILE"
+        echo "$key=$default_value" >> "$target_env"
     fi
 }
 
@@ -137,10 +148,13 @@ setup_environment() {
         mkdir -p "$SERVICES_DIR"
     fi
 
-    # Step 3: Create subfolders
+    # Step 3: Ensure the repo env file exists (create defaults if missing)
+    create_env_file
+
+    # Step 4: Create subfolders
     mkdir -p "$DOWNLOADS_DIR" "$LOGS_DIR" "$BIN_DIR" "$BUILD_DIR"
 
-    # Step 4: Check env file linkage
+    # Step 5: Check env file linkage
     if [ -f "$ENV_FILE" ]; then
         info "✅ Found persistent env file at $ENV_FILE"
     else
@@ -343,6 +357,66 @@ install_system_dependencies() {
         cmake
 
     success "System dependencies installed"
+}
+
+install_minimal_system_dependencies() {
+    info "Installing minimal system dependencies (this is faster than full install)"
+
+    # Update package list
+    apt-get update
+
+    # Install a minimal, targeted set of packages required by the setup
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        postgresql-16 \
+        postgresql-client-16 \
+        postgresql-server-dev-16 \
+        build-essential \
+        curl \
+        unzip \
+        xz-utils \
+        python3-pip \
+        python3-venv \
+        openjdk-21-jdk \
+        ca-certificates \
+        sudo
+
+    success "Minimal system dependencies installed"
+}
+
+# Preflight checks to validate system-level dependencies when skipping installation
+preflight_system_check() {
+    info "Running preflight system checks (because --skip-system-deps was passed)"
+    local missing=()
+
+    # Check for postgres binaries and user
+    if ! command -v psql >/dev/null 2>&1; then
+        missing+=("psql (PostgreSQL client)")
+    fi
+    # Check for postgres user existence (system user may be required for init/start)
+    if ! id -u postgres >/dev/null 2>&1; then
+        missing+=("postgres system user (needed to run/initialize server)")
+    fi
+
+    # Check for Java (NiFi/Keycloak)
+    if ! command -v java >/dev/null 2>&1; then
+        missing+=("java (OpenJDK, required for Keycloak/NiFi)")
+    fi
+
+    # Check for other helpful binaries
+    for c in curl tar unzip; do
+        if ! command -v $c >/dev/null 2>&1; then
+            missing+=("$c")
+        fi
+    done
+
+    if [ ${#missing[@]} -gt 0 ]; then
+        warn "Preflight check failed — the container lacks required system components when skipping system dependency installation"
+        warn "Missing: ${missing[*]}"
+        warn "Options: (1) rerun without --skip-system-deps so the setup installs packages, (2) use an image that already contains these packages, or (3) install them into the container manually."
+        exit 1
+    fi
+
+    info "Preflight checks passed"
 }
 
 # --- PostgreSQL Extension Installation --------------------------------------
@@ -1406,6 +1480,7 @@ main() {
                 info "🚫 Backend tests will be skipped"
                 shift
                 ;;
+            # system-deps flags removed; script will always install minimal deps
             --skip-frontend-tests)
                 SKIP_FRONTEND_TESTS=true
                 info "🚫 Frontend tests will be skipped"
@@ -1429,6 +1504,7 @@ main() {
                 echo "  --skip-frontend-tests Skip running frontend tests during setup"
                 echo "  --skip-all-tests      Skip running both backend and frontend tests"
                 echo "  --help, -h            Show this help message"
+                echo "\nNote: system dependencies are installed automatically using a minimal set of packages."
                 echo ""
                 echo "Without options, runs the complete setup process including all tests"
                 exit 0
@@ -1451,7 +1527,9 @@ main() {
     # Run each setup in a subshell so internal `exit` calls do not abort the
     # parent script. On failure, warn and continue to the next service.
     setup_environment || warn "setup_environment failed — continuing"
-    (install_system_dependencies) || warn "install_system_dependencies failed — continuing"
+
+    # Always ensure the minimal, required system dependencies are installed.
+    (install_minimal_system_dependencies) || warn "install_minimal_system_dependencies failed — continuing"
     (setup_postgresql) || warn "setup_postgresql failed — continuing"
     (setup_minio) || warn "setup_minio failed — continuing"
     (setup_keycloak) || warn "setup_keycloak failed — continuing"

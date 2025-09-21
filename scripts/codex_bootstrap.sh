@@ -118,10 +118,10 @@ if $RUN_SETUP; then
   log "Running EDI-Lens Codex setup (this will take a while)"
   # Capture logs locally for convenience
   mkdir -p scripts/.logs
-  cexec "bash ./scripts/setup_codex.sh --skip-system-deps --skip-frontend-tests" | tee scripts/.logs/codex_setup_$(date +%Y%m%d_%H%M%S).log
+  cexec "bash ./scripts/setup_codex.sh --skip-frontend-tests" | tee scripts/.logs/codex_setup_$(date +%Y%m%d_%H%M%S).log
 
   log "Checking service status"
-  cexec "bash ./scripts/setup_codex.sh --check-services --skip-system-deps --skip-frontend-tests" || true
+  cexec "bash ./scripts/setup_codex.sh --check-services --skip-frontend-tests" || true
 
   ok "Setup completed. Services should be available on your host:"
   cat <<URLS
