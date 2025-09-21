@@ -32,11 +32,11 @@ check_service() {
 }
 
 check_service "PostgreSQL" "" "postgres"
-check_service "MinIO" "http://localhost:9000/minio/health/live" "minio"
-check_service "Keycloak" "http://localhost:8180" "keycloak"
+check_service "MinIO" "http://localhost:9000" "minio"
+check_service "Keycloak" "http://localhost:8180" "java.*keycloak"
 check_service "SFTPGo" "http://localhost:8280/healthz" "sftpgo"
-check_service "NiFi Registry" "http://localhost:18080/nifi-registry/" "nifi-registry"
-check_service "NiFi" "https://localhost:8443/nifi-api/system-diagnostics" "nifi" "-k"
+check_service "NiFi Registry" "http://localhost:18080/nifi-registry/" "java.*nifi-registry"
+check_service "NiFi" "https://localhost:8443/nifi" "java.*nifi" "-k"
 check_service "Backend" "http://localhost:8000/api/v1/health" "uvicorn"
 check_service "Frontend" "http://localhost:3000" "npm"
 

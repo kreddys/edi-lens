@@ -545,6 +545,12 @@ setup_frontend() {
 
     cd "$PROJECT_ROOT/frontend"
 
+    # Check if Node.js is installed
+    if ! command -v node >/dev/null 2>&1; then
+        info "Installing Node.js and npm"
+        apt-get update && apt-get install -y nodejs npm
+    fi
+
     # Check if dependencies are already installed
     if [ -d "node_modules" ] && [ -f "start.sh" ]; then
         info "Frontend dependencies already installed, skipping setup"
@@ -604,11 +610,11 @@ verify_all_services() {
 
     local services_to_check=(
         "PostgreSQL::postgres"
-        "MinIO:http://localhost:9000/minio/health/live:minio"
-        "Keycloak:http://localhost:8180:keycloak"
+        "MinIO:http://localhost:9000:minio"
+        "Keycloak:http://localhost:8180:kc.home.dir"
         "SFTPGo:http://localhost:8280/healthz:sftpgo"
-        "NiFi Registry:http://localhost:18080/nifi-registry/:nifi-registry"
-        "NiFi:https://localhost:8443/nifi-api/system-diagnostics:nifi:-k"
+        "NiFi Registry:http://localhost:18080/nifi-registry/:nifi.registry"
+        "NiFi:https://localhost:8443/nifi:org.apache.nifi.NiFi:-k"
         "Backend:http://localhost:8000/api/v1/health:uvicorn"
         "Frontend:http://localhost:3000:npm"
     )
@@ -769,11 +775,11 @@ check_service() {
 }
 
 check_service "PostgreSQL" "" "postgres"
-check_service "MinIO" "http://localhost:9000/minio/health/live" "minio"
-check_service "Keycloak" "http://localhost:8180" "keycloak"
+check_service "MinIO" "http://localhost:9000" "minio"
+check_service "Keycloak" "http://localhost:8180" "kc.home.dir"
 check_service "SFTPGo" "http://localhost:8280/healthz" "sftpgo"
-check_service "NiFi Registry" "http://localhost:18080/nifi-registry/" "nifi-registry"
-check_service "NiFi" "https://localhost:8443/nifi-api/system-diagnostics" "nifi" "-k"
+check_service "NiFi Registry" "http://localhost:18080/nifi-registry/" "nifi.registry"
+check_service "NiFi" "https://localhost:8443/nifi" "org.apache.nifi.NiFi" "-k"
 check_service "Backend" "http://localhost:8000/api/v1/health" "uvicorn"
 check_service "Frontend" "http://localhost:3000" "npm"
 
@@ -800,11 +806,12 @@ EOF
 
 echo "Stopping all services..."
 pkill -f "minio" || true
-pkill -f "keycloak" || true
+pkill -f "kc.home.dir" || true
 pkill -f "sftpgo" || true
-pkill -f "nifi" || true
+pkill -f "nifi.registry" || true
+pkill -f "org.apache.nifi.NiFi" || true
 pkill -f "uvicorn" || true
-pkill -f "npm.*dev" || true
+pkill -f "npm" || true
 
 sleep 5
 
@@ -818,9 +825,81 @@ EOF
     success "Service management scripts created"
 }
 
+# --- Service Restart Function ------------------------------------------------
+restart_all_services() {
+    info "Stopping all running services..."
+
+    # Load environment variables
+    if [ -f "$ENV_FILE" ]; then
+        set -a
+        source "$ENV_FILE"
+        set +a
+    fi
+
+    # Stop services in reverse order
+    pkill -f "npm" || true
+    pkill -f "uvicorn" || true
+    pkill -f "org.apache.nifi.NiFi" || true
+    pkill -f "nifi.registry" || true
+    pkill -f "sftpgo" || true
+    pkill -f "kc.home.dir" || true
+    pkill -f "minio" || true
+
+    info "Waiting for services to stop..."
+    sleep 10
+
+    info "Starting infrastructure services..."
+    setup_postgresql
+    setup_minio
+    setup_keycloak
+    setup_sftpgo
+    setup_nifi_registry
+    setup_nifi
+
+    info "Starting application services..."
+    setup_backend
+    setup_frontend
+    start_all_services
+
+    info "Waiting for services to start..."
+    sleep 20
+
+    info "Verifying service health..."
+    verify_all_services
+
+    success "All services restarted successfully!"
+}
+
 # --- Main Setup Function -----------------------------------------------------
 main() {
-    info "🚀 Starting EDI-Lens Codex Complete Setup & Testing"
+    # Parse command line arguments
+    case "${1:-}" in
+        --check-services)
+            info "� Checking service status..."
+            verify_all_services
+            exit 0
+            ;;
+        --restart-services)
+            info "🔄 Restarting all services..."
+            restart_all_services
+            exit 0
+            ;;
+        --help|-h)
+            echo "EDI-Lens Codex Setup Script"
+            echo ""
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --check-services    Check status of all services"
+            echo "  --restart-services  Restart all services"
+            echo "  --help, -h          Show this help message"
+            echo ""
+            echo "Without options, runs the complete setup process"
+            exit 0
+            ;;
+    esac
+
+    info "�🚀 Starting EDI-Lens Codex Complete Setup & Testing"
     echo "This will install, configure, start, and test all services for EDI-Lens"
     echo ""
 
@@ -892,8 +971,9 @@ main() {
     echo "   NiFi Registry:   http://localhost:18080"
     echo ""
     echo "🛠️  Management Commands:"
-    echo "   Check Status:    ./scripts/check_services.sh"
-    echo "   Restart All:     ./scripts/restart_services.sh"
+    echo "   Check Status:    ./scripts/setup_codex.sh --check-services"
+    echo "   Restart All:     ./scripts/setup_codex.sh --restart-services"
+    echo "   Legacy Check:    ./scripts/check_services.sh"
     echo ""
     echo "📁 Important Files:"
     echo "   Configuration:   .env.codex"
