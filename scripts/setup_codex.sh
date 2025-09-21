@@ -118,84 +118,68 @@ wait_for_service() {
 
 # --- Environment Setup -------------------------------------------------------
 setup_environment() {
-    info "Setting up Codex environment"
+    info "🔍 Checking Codex persistence setup"
 
-    # Create directories (prefer shared /opt when available)
-    mkdir -p "$SERVICES_DIR" "$DOWNLOADS_DIR" "$LOGS_DIR" "$BIN_DIR" "$BUILD_DIR"
-
-    # If we have a repo .env.codex, ensure it's present in the repo and
-    # then create a symlink into $SERVICES_DIR so cached containers can
-    # consistently load the same env file path (/opt/codex-services/.env.codex)
-    if [ -f "$ENV_FILE_REPO" ]; then
-        ln -sf "$ENV_FILE_REPO" "$ENV_FILE"
-        info "Linked $ENV_FILE -> $ENV_FILE_REPO"
+    # Step 1: Inspect /opt before doing anything
+    if [ -d "/opt" ]; then
+        info "/opt exists. Listing contents:"
+        ls -lah /opt || true
+    else
+        warn "/opt does not exist — Codex container may not support persistence here"
     fi
 
-    # Load Codex environment (some images set strict shell options in profile)
+    # Step 2: Check if codex-services folder already exists
+    if [ -d "$SERVICES_DIR" ]; then
+        info "✅ Found existing $SERVICES_DIR — Codex persistence looks WORKING"
+        ls -lah "$SERVICES_DIR" || true
+    else
+        warn "⚠️ $SERVICES_DIR does not exist — creating it now"
+        mkdir -p "$SERVICES_DIR"
+    fi
+
+    # Step 3: Create subfolders
+    mkdir -p "$DOWNLOADS_DIR" "$LOGS_DIR" "$BIN_DIR" "$BUILD_DIR"
+
+    # Step 4: Check env file linkage
+    if [ -f "$ENV_FILE" ]; then
+        info "✅ Found persistent env file at $ENV_FILE"
+    else
+        warn "⚠️ No env file at $ENV_FILE yet — linking from repo if available"
+        if [ -f "$ENV_FILE_REPO" ]; then
+            ln -sf "$ENV_FILE_REPO" "$ENV_FILE"
+            info "Linked $ENV_FILE -> $ENV_FILE_REPO"
+        else
+            warn "⚠️ No .env.codex found in repo either — will generate defaults"
+        fi
+    fi
+
+    # Step 5: Load Codex environment (some images set strict shell options in profile)
     if [ -f /etc/profile ]; then
         set +u
         source /etc/profile || true
         set -u
     fi
 
-    # Verify tools
-    info "Verifying environment..."
-    if command -v python3 >/dev/null 2>&1; then
-        echo "Python: $(python3 --version)"
-    else
-        warn "python3 not found"
-    fi
-
-    if command -v node >/dev/null 2>&1; then
-        echo "Node.js: $(node --version)"
-    else
-        warn "Node.js not installed"
-    fi
-
-    if command -v npm >/dev/null 2>&1; then
-        echo "npm: $(npm --version)"
-    else
-        warn "npm not installed"
-    fi
-
-    if command -v go >/dev/null 2>&1; then
-        echo "Go: $(go version)"
-    else
-        warn "Go not installed"
-    fi
-
-    # Create environment file in the repo if it doesn't exist, then
-    # ensure the $ENV_FILE (under $SERVICES_DIR) exists as a symlink to
-    # the repo file so cached containers can continue to source it.
-    create_env_file
-
-    # If repo env exists but the services env doesn't, create symlink
-    if [ -f "$ENV_FILE_REPO" ] && [ ! -L "$ENV_FILE" ]; then
-        ln -sf "$ENV_FILE_REPO" "$ENV_FILE" || true
-    fi
-
-    # Load environment variables
+    # Step 6: Load env vars
     set -a
-    if [ -f "$ENV_FILE" ]; then
-        source "$ENV_FILE"
-    elif [ -f "$ENV_FILE_REPO" ]; then
-        source "$ENV_FILE_REPO"
-    fi
+    [ -f "$ENV_FILE" ] && source "$ENV_FILE"
     set +a
 
-    # Ensure environment persists for Codex cloud agent sessions
-    # Ensure persistent shell sessions load the env from /opt when
-    # available. Use the canonical $ENV_FILE path so cached containers
-    # always source /opt/codex-services/.env.codex
-    if ! grep -q "source $ENV_FILE" ~/.bashrc 2>/dev/null; then
-        echo "# EDI-Lens environment for Codex cloud" >> ~/.bashrc
-        echo "if [ -f \"$ENV_FILE\" ]; then" >> ~/.bashrc
-        echo "    set -a" >> ~/.bashrc
-        echo "    source \"$ENV_FILE\"" >> ~/.bashrc
-        echo "    set +a" >> ~/.bashrc
-        echo "fi" >> ~/.bashrc
-        info "Appended sourcing of $ENV_FILE to ~/.bashrc"
-    fi
+    # Step 7: Verify dev tools and print short report
+    info "Verifying local tools:"
+    for c in python3 node npm go curl tar unzip; do
+        if command -v $c >/dev/null 2>&1; then
+            echo "  $c: $(command -v $c)"
+        else
+            warn "  $c: not found"
+        fi
+    done
+
+    info "Environment setup complete (SERVICES_DIR=$SERVICES_DIR)"
+
+    # Final debug dump of persisted structure (shallow)
+    info "📁 Final persisted structure in $SERVICES_DIR:"
+    find "$SERVICES_DIR" -maxdepth 2 -type d -print | sort || true
 }
 
 create_env_file() {
