@@ -416,7 +416,7 @@ cmd_test() {
                 }
             fi
 
-            poetry run pytest tests/unit/ -v "${extra_args[@]}"
+            poetry run pytest tests/unit/ -v "${extra_args[@]:-}"
             ;;
         integration)
             log_info "Ensuring services are running for integration tests..."
@@ -424,7 +424,7 @@ cmd_test() {
                 log_warn "Backend not running. Starting services..."
                 cmd_start
             fi
-            poetry run pytest tests/integration/ -v "${extra_args[@]}"
+            poetry run pytest tests/integration/ -v "${extra_args[@]:-}"
             ;;
         e2e)
             log_info "Ensuring services are running for e2e tests..."
@@ -432,7 +432,7 @@ cmd_test() {
                 log_warn "Backend not running. Starting services..."
                 cmd_start
             fi
-            poetry run pytest tests/e2e/ -v "${extra_args[@]}"
+            poetry run pytest tests/e2e/ -v "${extra_args[@]:-}"
             ;;
         all)
             log_info "Running all tests..."
@@ -446,7 +446,7 @@ cmd_test() {
             fi
             ;;
         watch)
-            run_pytest_watch "${extra_args[@]}"
+            run_pytest_watch "${extra_args[@]:-}"
             ;;
         *)
             log_error "Unknown test type: $test_type"
