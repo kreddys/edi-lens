@@ -1,422 +1,154 @@
-# FILE: docker/docker-compose.yml
-# BASE configuration for LOCAL DEVELOPMENT and AUTOMATED TESTING.
-# All paths are relative to this file's location inside the /docker directory.
+# Docker Compose for NiFi Development
+# Simple NiFi + Registry + Database + Backend setup
+# Clean architecture focusing on core functionality
 
 services:
-  caddy:
-    image: caddy:2-alpine
-    container_name: caddy
-    ports:
-      - "3001:3001" # Main app port
-      - "8081:8081" # Keycloak UI port
-      - "9001:9001" # MinIO Console port
-      - "8082:8082" # SFTPGo UI port
-      - "8080:8080" # NiFi UI port
-      - "18080:18080" # NiFi Registry UI port
-      - "3030:3030" # Grafana UI port
-      - "9090:9090" # Prometheus UI port
-      - "3100:3100" # Loki API port
-    volumes:
-      - ./caddy/dev.Caddyfile:/etc/caddy/Caddyfile
-    networks:
-      - edi_lens_network
-    depends_on: [backend, frontend, keycloak, sftpgo]
-
   db:
-    build:
-      context: ..
-      dockerfile: docker/postgres/Dockerfile
-    container_name: db
+    image: postgres:16-alpine
+    container_name: edi-lens-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: edi_lens
+      # NiFi Registry database
+      POSTGRES_MULTIPLE_DATABASES: nifi_registry
     ports:
       - "5432:5432"
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_SFTPGO_USER: ${POSTGRES_SFTPGO_USER}
-      POSTGRES_SFTPGO_PASSWORD: ${POSTGRES_SFTPGO_PASSWORD}
-      POSTGRES_SFTPGO_DB: ${POSTGRES_SFTPGO_DB}
-      POSTGRES_NIFI_REGISTRY_USER: ${POSTGRES_NIFI_REGISTRY_USER}
-      POSTGRES_NIFI_REGISTRY_PASSWORD: ${POSTGRES_NIFI_REGISTRY_PASSWORD}
-      POSTGRES_NIFI_REGISTRY_DB: ${POSTGRES_NIFI_REGISTRY_DB}
-      POSTGRES_KC_USER: ${POSTGRES_KC_USER}
-      POSTGRES_KC_PASSWORD: ${POSTGRES_KC_PASSWORD}
-      POSTGRES_KC_DB: ${POSTGRES_KC_DB}
     volumes:
-      # ./ is now the /docker directory
-      - ./postgres/init-app-dbs.sh:/docker-entrypoint-initdb.d/init-app-dbs.sh
-      - ./postgres/healthcheck.sh:/usr/local/bin/healthcheck.sh
+      - ./postgres/create-multiple-dbs.sh:/docker-entrypoint-initdb.d/create-multiple-dbs.sh
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - edi_lens_network
     healthcheck:
-      test: ["CMD", "healthcheck.sh"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  keycloak:
-    image: quay.io/keycloak/keycloak:latest
-    container_name: keycloak
-    depends_on: { db: { condition: service_healthy } }
-    environment:
-      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN}
-      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
-      # Database Connection
-      - KC_DB=postgres
-      - KC_DB_URL_HOST=${POSTGRES_HOST}
-      - KC_DB_URL_PORT=${POSTGRES_PORT}
-      - KC_DB_URL_DATABASE=${POSTGRES_KC_DB}
-      - KC_DB_USERNAME=${POSTGRES_KC_USER}
-      - KC_DB_PASSWORD=${POSTGRES_KC_PASSWORD}
-      # HTTP & Proxy Settings
-      - KC_HTTP_ENABLED=true
-      - KC_PROXY=edge
-      - KC_HOSTNAME_STRICT=false
-      # This explicitly tells Keycloak its public-facing URL, which it will use
-      # for generating redirects and reporting its "issuer" URL.
-      #- KC_HOSTNAME=localhost:8081
-    networks:
-      - edi_lens_network
-    # `start-dev` is crucial for local development. It skips the lengthy 'build'
-    # phase that the production start command requires, leading to much faster startups.
-    command: start-dev      
-
-  backend:
-    build:
-      context: .. # <-- CHANGE: Go up one level to the project root for context
-      dockerfile: docker/backend/Dockerfile
-      target: test
-    container_name: backend
-    depends_on:
-      - db
-      - keycloak
-      - minio
-    volumes:
-      - ../backend:/home/appuser/app:delegated # <-- CHANGE: Go up one level
-      - /home/appuser/app/.venv
-      - sftp_tenant_data:/sftp/tenants
-      - e2e_test_data:/e2e_test_files  # Shared volume for e2e file processing tests
-    networks: [ edi_lens_network ]
-    env_file: [ ../.env.dev ] # <-- CHANGE: Go up one level
-    environment:
-      - WAIT_FOR_KEYCLOAK=true
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://backend:8000/api/v1/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s # Give it extra time to start up and run migrations    
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir alembic
-
-  frontend:
-    build:
-      context: .. # <-- CHANGE: Go up one level to the project root for context
-      dockerfile: docker/admin-ui/Dockerfile.dev
-    container_name: frontend
-    volumes:
-      - ../frontend:/app:delegated # <-- CHANGE: Go up one level
-      - frontend-node-modules:/app/node_modules
-    env_file: [ ../.env.dev ] # <-- CHANGE: Go up one level
-    depends_on: [ backend ]
-    networks: [ edi_lens_network ]
-    command: npm run dev -- --host 0.0.0.0 --port 3000
-
-  minio:
-    image: minio/minio:latest
-    container_name: minio
-    command: server /data --console-address ":9001"
-    volumes:
-      - minio_data:/data
-    environment:
-      - MINIO_ROOT_USER=${STORAGE_ACCESS_KEY:-minioadmin}
-      - MINIO_ROOT_PASSWORD=${STORAGE_SECRET_KEY:-minioadmin}
-      - MINIO_DOMAIN=minio.localhost
-    networks:
-      - edi_lens_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://minio:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  create-minio-bucket:
-    image: minio/mc:latest
-    container_name: create-minio-bucket
-    profiles:
-      - setup
-    depends_on:
-      minio:
-        condition: service_healthy
-    environment:
-      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY:-minioadmin}
-      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-minioadmin}
-      - STORAGE_BUCKET=${STORAGE_BUCKET:-edi-lens}
-    entrypoint: >
-      /bin/sh -c "
-      echo 'Waiting for MinIO to be ready...';
-      until (/usr/bin/mc alias set local-minio http://minio:9000 $STORAGE_ACCESS_KEY $STORAGE_SECRET_KEY >/dev/null 2>&1) do echo '...retrying connection to minio' && sleep 2; done;
-      echo 'MinIO is ready. Creating bucket...';
-      /usr/bin/mc mb local-minio/$STORAGE_BUCKET --ignore-existing >/dev/null 2>&1 || echo 'Bucket already exists';
-      /usr/bin/mc anonymous set public local-minio/$STORAGE_BUCKET >/dev/null 2>&1 || echo 'Policy already set';
-      echo 'Bucket setup complete.';
-      exit 0;
-      "
-    networks:
-      - edi_lens_network
-
-  sftpgo:
-    image: drakkan/sftpgo:v2.6
-    container_name: sftpgo
-    hostname: sftpgo
-    # Run as root to allow pipe file creation - this is the recommended approach from SFTPGo docs
-    user: "0:0"
-    environment:
-      # --- SFTPGo Default Admin Credentials ---
-      SFTPGO_DEFAULT_ADMIN_USERNAME: ${SFTPGO_ADMIN_USER}
-      SFTPGO_DEFAULT_ADMIN_PASSWORD: ${SFTPGO_ADMIN_PASSWORD}
-      
-      # --- Data Provider Configuration (PostgreSQL) ---
-      SFTPGO_DATA_PROVIDER__DRIVER: "postgresql"
-      SFTPGO_DATA_PROVIDER__NAME: "${POSTGRES_SFTPGO_DB}"
-      SFTPGO_DATA_PROVIDER__HOST: "${POSTGRES_HOST}"
-      SFTPGO_DATA_PROVIDER__PORT: "5432"
-      SFTPGO_DATA_PROVIDER__USERNAME: "${POSTGRES_SFTPGO_USER}"
-      SFTPGO_DATA_PROVIDER__PASSWORD: "${POSTGRES_SFTPGO_PASSWORD}"
-      SFTPGO_DATA_PROVIDER__SSLMODE: "0" # 0 means disabled
-      SFTPGO_DATA_PROVIDER__CREATE_DEFAULT_ADMIN: "true"
-
-      # --- OIDC Configuration (Keycloak) ---
-      SFTPGO_HTTPD__BINDINGS__0__OIDC__CLIENT_ID: "sftpgo"
-      SFTPGO_HTTPD__BINDINGS__0__OIDC__CLIENT_SECRET: "${KEYCLOAK_SFTPGO_CLIENT_SECRET}"
-      # This URL is for container-to-container communication. It must use the internal service name.
-      SFTPGO_HTTPD__BINDINGS__0__OIDC__CONFIG_URL: "${KEYCLOAK_URL}/realms/edi-lens"
-      SFTPGO_HTTPD__BINDINGS__0__OIDC__REDIRECT_BASE_URL: "http://localhost:8082"
-      SFTPGO_HTTPD__BINDINGS__0__OIDC__INSECURE_SKIP_SIGNATURE_CHECK: "false"
-      SFTPGO_HTTPD__BINDINGS__0__OIDC__SCOPES: "openid,profile,email,groups"
-      SFTPGO_HTTPD__BINDINGS__0__OIDC__USERNAME_FIELD: "preferred_username"
-      SFTPGO_HTTPD__BINDINGS__0__OIDC__ROLE_FIELD: "groups"
-      SFTPGO_HTTPD__BINDINGS__0__OIDC__AUTO_CREATE_USER: "true"
-
-      # Event hooks are configured via SFTPGo API (see event actions and rules)
-    volumes:
-      - sftpgo_data:/var/lib/sftpgo/
-    ports:
-      - "2022:2022"
-    networks:
-      - edi_lens_network
-    depends_on:
-      - db
-      - minio
-      - keycloak
-      - backend
-    restart: unless-stopped
-    command: sftpgo serve
-
-  nifi:
-    build:
-      context: ..
-      dockerfile: docker/nifi-processors/Dockerfile.extension
-    container_name: nifi
-    hostname: nifi
-    env_file: [ ../.env.dev ]
-    environment:
-      # === MINIMAL NiFi CONFIGURATION ===
-      - NIFI_WEB_HTTPS_HOST=0.0.0.0
-      - NIFI_WEB_HTTPS_PORT=8443
-      - NIFI_WEB_PROXY_HOST=${NIFI_WEB_PROXY_HOST}
-      
-      # Fix proxy context path for proper routing
-      - NIFI_WEB_PROXY_CONTEXT_PATH=
-      
-      # Use single-user authentication (temporary until OIDC is working)
-      - NIFI_SECURITY_USER_LOGIN_IDENTITY_PROVIDER=single-user-provider
-      - NIFI_SECURITY_USER_AUTHORIZER=single-user-authorizer
-      
-      # JVM Configuration
-      - NIFI_JVM_HEAP_INIT=${NIFI_JVM_HEAP_INIT}
-      - NIFI_JVM_HEAP_MAX=${NIFI_JVM_HEAP_MAX}
-      
-    volumes:
-      # Data persistence
-      - nifi_database_repository:/opt/nifi/nifi-current/database_repository
-      - nifi_flowfile_repository:/opt/nifi/nifi-current/flowfile_repository
-      - nifi_content_repository:/opt/nifi/nifi-current/content_repository
-      - nifi_provenance_repository:/opt/nifi/nifi-current/provenance_repository
-      - nifi_conf:/opt/nifi/nifi-current/conf
-      
-      # SFTP access
-      - sftp_tenant_data:/sftp/tenants:ro
-      
-      # E2E test file processing
-      - e2e_test_data:/e2e_test_files
-      
-    networks:
-      - edi_lens_network
-    depends_on:
-      - keycloak
-      - backend
-      - nifi-registry
-    healthcheck:
-      test: ["CMD", "curl", "-k", "https://localhost:8443/nifi"]
-      interval: 30s
-      retries: 10
-      timeout: 10s
-      start_period: 120s
-    command: ["/opt/nifi/nifi-current/bin/entrypoint.sh"]
-
-  # Init container to fix NiFi Registry volume permissions
-  nifi-registry-init:
-    image: alpine:latest
-    container_name: nifi-registry-init
-    profiles:
-      - setup
-    volumes:
-      - nifi_registry_data:/opt/nifi-registry/nifi-registry-current/database
-      - nifi_registry_flow_storage:/opt/nifi-registry/nifi-registry-current/flow_storage
-    command: >
-      sh -c "
-      echo 'Fixing NiFi Registry volume permissions...';
-      chown -R 1000:1000 /opt/nifi-registry/nifi-registry-current/database;
-      chown -R 1000:1000 /opt/nifi-registry/nifi-registry-current/flow_storage;
-      chmod -R 755 /opt/nifi-registry/nifi-registry-current/database;
-      chmod -R 755 /opt/nifi-registry/nifi-registry-current/flow_storage;
-      echo 'NiFi Registry permissions fixed.';
-      "
-    networks:
-      - edi_lens_network
-
-  e2e-test-volume-init:
-    image: alpine:3.19
-    container_name: e2e-test-volume-init
-    profiles:
-      - setup
-    volumes:
-      - e2e_test_data:/e2e_test_files
-    command: >
-      sh -c "
-      echo 'Fixing e2e test volume permissions...';
-      mkdir -p /e2e_test_files &&
-      chown -R 1000:1000 /e2e_test_files &&
-      chmod -R 0777 /e2e_test_files &&
-      echo 'e2e test volume permissions set.';
-      "
-    networks:
-      - edi_lens_network
-
   nifi-registry:
     image: apache/nifi-registry:2.5.0
-    container_name: nifi-registry
+    container_name: edi-lens-registry
     environment:
-      - NIFI_REGISTRY_WEB_HTTP_HOST=0.0.0.0
-      - NIFI_REGISTRY_WEB_HTTP_PORT=18080
-      - NIFI_REGISTRY_DB_URL=jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_NIFI_REGISTRY_DB}
-      - NIFI_REGISTRY_DB_USER=${POSTGRES_NIFI_REGISTRY_USER}
-      - NIFI_REGISTRY_DB_PASS=${POSTGRES_NIFI_REGISTRY_PASSWORD}
-      - NIFI_REGISTRY_DB_CLASS=org.postgresql.Driver
-      - NIFI_REGISTRY_DB_DRIVER_CLASS=org.postgresql.Driver
-      - NIFI_REGISTRY_DB_DRIVER_DIRECTORY=/opt/nifi-registry/nifi-registry-current/lib
-    # ports:
-      # - "18080:18080"  # Proxied through Caddy instead
+      NIFI_REGISTRY_WEB_HTTP_HOST: 0.0.0.0
+      NIFI_REGISTRY_WEB_HTTP_PORT: 18080
+      # Use database for persistence
+      NIFI_REGISTRY_DB_URL: jdbc:postgresql://db:5432/nifi_registry
+      NIFI_REGISTRY_DB_USER: postgres
+      NIFI_REGISTRY_DB_PASS: postgres
+      NIFI_REGISTRY_DB_CLASS: org.postgresql.Driver
+      NIFI_REGISTRY_DB_DRIVER_CLASS: org.postgresql.Driver
+      NIFI_REGISTRY_DB_DRIVER_DIRECTORY: /opt/nifi-registry/nifi-registry-current/lib
+    ports:
+      - "18080:18080"
     volumes:
       - nifi_registry_data:/opt/nifi-registry/nifi-registry-current/database
-      - nifi_registry_flow_storage:/opt/nifi-registry/nifi-registry-current/flow_storage
+      - nifi_registry_flows:/opt/nifi-registry/nifi-registry-current/flow_storage
       # Mount PostgreSQL JDBC driver
       - ./nifi-registry/postgresql-42.7.4.jar:/opt/nifi-registry/nifi-registry-current/lib/postgresql-42.7.4.jar
-    user: "1000:1000"  # Now safe to use after init container fixes permissions
     networks:
       - edi_lens_network
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://nifi-registry:18080/nifi-registry/"]
+      test: ["CMD", "curl", "-f", "http://localhost:18080/nifi-registry/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  nifi:
+    image: apache/nifi:2.5.0
+    container_name: edi-lens-nifi
+    environment:
+      # Accept HTTPS mode (NiFi 2.5.0 Docker prefers HTTPS)
+      NIFI_WEB_HTTPS_PORT: 8443
+      NIFI_WEB_HTTPS_HOST: 0.0.0.0
+
+      # Single user authentication (minimum 12 chars password)
+      SINGLE_USER_CREDENTIALS_USERNAME: admin
+      SINGLE_USER_CREDENTIALS_PASSWORD: adminadmin123
+
+      # Required for property encryption
+      NIFI_SENSITIVE_PROPS_KEY: 'simple-key-for-development'
+
+      # JVM settings for development
+      NIFI_JVM_HEAP_INIT: 1g
+      NIFI_JVM_HEAP_MAX: 2g
+
+    ports:
+      - "8443:8443"
+    volumes:
+      - nifi_database:/opt/nifi/nifi-current/database_repository
+      - nifi_flowfile:/opt/nifi/nifi-current/flowfile_repository
+      - nifi_content:/opt/nifi/nifi-current/content_repository
+      - nifi_provenance:/opt/nifi/nifi-current/provenance_repository
+      - nifi_state:/opt/nifi/nifi-current/state
+      # Note: conf volume removed to allow NiFi to write authentication files
+    networks:
+      - edi_lens_network
+    depends_on:
+      nifi-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-k", "https://localhost:8443/nifi/"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/backend/Dockerfile
+    container_name: edi-lens-backend
+    environment:
+      # Database
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/edi_lens
+
+      # NiFi configuration - HTTPS URLs with single user auth
+      NIFI_URL: https://nifi:8443
+      NIFI_USERNAME: admin
+      NIFI_PASSWORD: adminadmin123
+
+      # NiFi Registry configuration
+      NIFI_REGISTRY_URL: http://nifi-registry:18080
+      NIFI_REGISTRY_AUTH_TOKEN: ''
+
+      # Development mode
+      DEBUG: "true"
+
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend:/app:delegated
+      - /app/.venv  # Exclude venv from sync
+    networks:
+      - edi_lens_network
+    depends_on:
+      db:
+        condition: service_healthy
+      nifi:
+        condition: service_healthy
+      nifi-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
-
-  # === MONITORING SERVICES ===
-  # Loki for log aggregation
-  loki:
-    image: grafana/loki:latest
-    container_name: loki
-    volumes:
-      - ./monitoring/loki/local-config.yaml:/etc/loki/local-config.yaml
-      - loki_data:/loki
-    command: -config.file=/etc/loki/local-config.yaml
-    networks:
-      - edi_lens_network
-    restart: unless-stopped
-
-  # Prometheus for metrics collection
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=200h'
-      - '--web.enable-lifecycle'
-    networks:
-      - edi_lens_network
-    restart: unless-stopped
-
-  # Grafana for visualization
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
-      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
-    networks:
-      - edi_lens_network
-    depends_on:
-      - loki
-      - prometheus
-    restart: unless-stopped
-
-  # Promtail for log forwarding to Loki
-  promtail:
-    image: grafana/promtail:latest
-    container_name: promtail
-    volumes:
-      - ./monitoring/promtail/promtail-config-docker.yml:/etc/promtail/config.yml:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: -config.file=/etc/promtail/config.yml -config.expand-env=true
-    networks:
-      - edi_lens_network
-    depends_on:
-      - loki
-    restart: unless-stopped
+      start_period: 30s
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 
 volumes:
-  postgres_app_data: {}
-  frontend-node-modules: {}
-  minio_data: {}
-  sftpgo_data: {}
-  sftp_tenant_data: {}
-  e2e_test_data: {}  # Shared volume for e2e test file processing
-  nifi_database_repository:
-  nifi_flowfile_repository:
-  nifi_content_repository:
-  nifi_provenance_repository:
-  nifi_conf:
+  postgres_data:
   nifi_registry_data:
-  nifi_registry_flow_storage:
-  prometheus_data: {}
-  grafana_data: {}
-  loki_data: {}
+  nifi_registry_flows:
+  nifi_database:
+  nifi_flowfile:
+  nifi_content:
+  nifi_provenance:
+  nifi_state:
 
 networks:
   edi_lens_network:

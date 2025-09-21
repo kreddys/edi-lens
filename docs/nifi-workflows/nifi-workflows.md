@@ -1,10 +1,17 @@
-# NiFi Workflow Backend Redesign - Simplified Architecture
+# NiFi Workflow Backend Redesign - Systematic Rebuild
 
 ## Purpose
-- Simplify the backend NiFi/NiFi Registry integration for clear, straightforward setup
-- Eliminate complex hybrid deployment patterns in favor of direct Registry-first approach
-- Provide easy deployment of flows with robust parameter substitution and validation
-- Maintain comprehensive error handling while reducing architectural complexity
+- **Systematic ground-up rebuild** of NiFi/Registry integration starting from minimal Docker setup
+- **Test-driven development** approach ensuring each layer works before adding complexity
+- **Clear separation** between infrastructure concerns and application logic
+- **Incremental feature addition** with proper validation at each step
+
+## Implementation Philosophy
+1. **Infrastructure First**: Start with minimal Docker setup (no auth, HTTP-only)
+2. **Connectivity Before Features**: Ensure basic NiFi/Registry communication works
+3. **Test Each Layer**: Unit → Integration → E2E testing at every step
+4. **Reference Legacy Selectively**: Use backend_legacy for patterns, not wholesale copying
+5. **Modular Growth**: Add one feature at a time with full test coverage
 
 ## Current Issues Analysis
 
@@ -41,22 +48,37 @@ WorkflowService → HybridDeploymentEngine → NiFiService → NiFiClient/Regist
 4. **Unified Validation**: Single validation pipeline that covers schema, parameters, and NiFi compatibility
 5. **Structured Errors**: Clear error types with actionable messages for different failure scenarios
 
-## Simplified Module Layout
+## Minimal Module Layout (Phase 1)
 ```
-src/
-  nifi/
-    clients/
-      nifi_client.py           # Direct NiFi API client (existing, enhanced)
-      registry_client.py       # Direct Registry API client (existing, enhanced)
-    core/
-      deployment_service.py    # Single deployment orchestrator (replaces hybrid approach)
-      parameter_manager.py     # Unified parameter context management
-      validation_service.py    # Consolidated validation pipeline
-  services/
-    workflow_service.py        # Simplified workflow orchestration
-    template_service.py        # Template management (existing, minimal changes)
-  validation/
-    flow_validator.py          # Renamed and simplified template validator
+backend/
+├── src/
+│   ├── core/
+│   │   ├── config.py          # Simple configuration (HTTP-only)
+│   │   └── database.py        # Basic async database setup
+│   ├── clients/
+│   │   ├── nifi_client.py     # Minimal NiFi client (no auth)
+│   │   └── registry_client.py # Minimal Registry client (no auth)
+│   ├── models/               # (Add as needed)
+│   ├── services/             # (Add incrementally)
+│   └── main.py               # FastAPI with health checks
+├── tests/
+│   ├── unit/                 # Mock-based tests
+│   ├── integration/          # Against real Docker services
+│   └── e2e/                  # Full workflow scenarios
+└── pyproject.toml            # Minimal dependencies
+```
+
+## Infrastructure Setup (Phase 1)
+```
+docker/
+├── docker-compose-minimal.yml  # No auth, HTTP-only setup
+│   ├── postgres             # Simple database
+│   ├── nifi                 # HTTP-only, no security
+│   ├── nifi-registry        # HTTP-only, simple setup
+│   └── backend              # Our minimal app
+├── .env.minimal             # Simple environment config
+└── postgres/
+    └── create-multiple-dbs.sh  # Database setup script
 ```
 
 ## Component Responsibilities
@@ -200,10 +222,65 @@ Each error type includes:
 - **Better error messages**: Clear indication of what failed and how to fix it
 - **More reliable workflows**: Single deployment path thoroughly tested and optimized
 
-## Next Actions
-1. **Review and approve** this simplified architecture approach
-2. **Create implementation plan** with specific milestones and deliverables
-3. **Begin with parameter manager** as it's the most self-contained component
-4. **Implement deployment service** to replace hybrid deployment approach
-5. **Update workflow service** to use new simplified services
-6. **Remove legacy code** after successful migration and testing
+## Implementation Phases
+
+### Phase 1: Minimal Infrastructure ✅ COMPLETED
+- [x] Create `docker-compose-minimal.yml` with HTTP-only setup
+- [x] Remove complex authentication and monitoring
+- [x] Create `.env.minimal` for simple configuration
+- [x] Build minimal backend structure from scratch
+- [x] Implement basic NiFi and Registry clients
+- [x] Add health check endpoints for connectivity testing
+- [x] Create unit tests for basic functionality
+
+### Phase 2: Basic Connectivity 🔄 IN PROGRESS
+- [ ] Test Docker setup (start services, verify connectivity)
+- [ ] Run unit tests to ensure client logic works
+- [ ] Add integration tests against real NiFi/Registry
+- [ ] Verify all health check endpoints work
+- [ ] Document how to run the minimal setup
+
+### Phase 3: Template Operations (NEXT)
+- [ ] Add template upload/download to Registry
+- [ ] Create simple template format validation
+- [ ] Add bucket management operations
+- [ ] Test full template lifecycle (create → upload → download)
+
+### Phase 4: Workflow Deployment
+- [ ] Add parameter context management
+- [ ] Implement Registry-to-NiFi deployment
+- [ ] Add workflow status tracking
+- [ ] Create end-to-end deployment tests
+
+### Phase 5: Production Features
+- [ ] Add authentication (when needed)
+- [ ] Add monitoring and observability
+- [ ] Implement proper error handling
+- [ ] Add comprehensive validation
+
+## Current Status
+
+**Infrastructure**: ✅ Complete - Minimal Docker setup ready
+**Backend Structure**: ✅ Complete - Clean modular architecture
+**Basic Clients**: ✅ Complete - NiFi and Registry clients implemented
+**Unit Tests**: ✅ Complete - Basic connectivity tests written
+
+**NEXT STEP**: Test the minimal setup by starting Docker services and running connectivity tests
+
+## Testing the Setup
+
+```bash
+# Start minimal infrastructure
+cd docker
+docker-compose -f docker-compose-minimal.yml up -d
+
+# Install dependencies and run tests
+cd ../backend
+poetry install
+poetry run pytest tests/unit/ -v
+
+# Test health endpoints
+curl http://localhost:8000/health
+curl http://localhost:8000/health/nifi
+curl http://localhost:8000/health/registry
+```
