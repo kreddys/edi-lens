@@ -15,9 +15,11 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # use it. Otherwise fall back to a writable path under the repo so
 # local development still works.
 SERVICES_DIR="/opt/codex-services"
-if [ ! -w "$(dirname "$SERVICES_DIR")" ] || [ ! -d "$(dirname "$SERVICES_DIR")" ]; then
-    # If /opt isn't writable (local macOS dev), keep default repo-local
-    SERVICES_DIR="$PROJECT_ROOT/codex-services"
+SERVICES_DIR_DEFAULT="/opt/codex-services"
+# Prefer an existing /opt/codex-services (cached by Codex) if present.
+# Only fall back to a repo-local path when /opt/codex-services does not exist.
+if [ -d "$SERVICES_DIR_DEFAULT" ]; then
+    SERVICES_DIR="$SERVICES_DIR_DEFAULT"
 fi
 DOWNLOADS_DIR="$SERVICES_DIR/downloads"
 LOGS_DIR="$SERVICES_DIR/logs"
