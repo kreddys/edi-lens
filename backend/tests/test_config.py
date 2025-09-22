@@ -22,7 +22,7 @@ def get_test_settings() -> Settings:
         )
     else:
         # Docker testing - use host.docker.internal URLs 
-        # Note: This may have JWT audience validation issues for NiFi
+        # Note: NiFi tests are skipped in docker mode due to JWT audience validation limitation
         settings = Settings(
             # Use host.docker.internal for Docker networking
             NIFI_URL="https://host.docker.internal:8443",
