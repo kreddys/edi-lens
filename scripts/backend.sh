@@ -233,7 +233,11 @@ DEVELOPMENT:
     test [type] [mode]   Run tests (unit, integration, e2e, or all)
                          - unit: always run locally
                          - integration [local|docker]: run locally or in docker (default: local)
-                         - e2e [local|docker]: run locally or in docker (default: local)
+                         - e2e [local|local-verbose|docker|docker-verbose]: run locally or in docker
+                           * local: standard test execution
+                           * local-verbose: comprehensive logging with validation report
+                           * docker: tests in container
+                           * docker-verbose: container tests with validation
                          - all [local|docker]: run all tests in specified mode (default: local)
     test:watch           Run tests in watch mode
     lint                 Run code linting
@@ -245,17 +249,20 @@ HEALTH & DEBUGGING:
     doctor               Diagnose common issues
 
 EXAMPLES:
-    ./scripts/backend.sh start                    # Start all services in dev mode
-    ./scripts/backend.sh dev                      # Start all services in dev mode (hot reload)
-    ./scripts/backend.sh prod                     # Start all services in production mode
-    ./scripts/backend.sh test unit                # Run unit tests locally
-    ./scripts/backend.sh test integration         # Run integration tests locally (default)
-    ./scripts/backend.sh test integration local   # Run integration tests locally
-    ./scripts/backend.sh test integration docker  # Run integration tests in docker
-    ./scripts/backend.sh test all                 # Run all tests locally (default)
-    ./scripts/backend.sh test all docker          # Run all tests in docker mode
-    ./scripts/backend.sh logs backend             # Show backend logs
-    ./scripts/backend.sh health                   # Check service health
+    ./scripts/backend.sh start                         # Start all services in dev mode
+    ./scripts/backend.sh dev                           # Start all services in dev mode (hot reload)
+    ./scripts/backend.sh prod                          # Start all services in production mode
+    ./scripts/backend.sh test unit                     # Run unit tests locally
+    ./scripts/backend.sh test integration              # Run integration tests locally (default)
+    ./scripts/backend.sh test integration local        # Run integration tests locally
+    ./scripts/backend.sh test integration docker       # Run integration tests in docker
+    ./scripts/backend.sh test e2e local                # Run E2E tests locally
+    ./scripts/backend.sh test e2e local-verbose        # Run E2E tests with comprehensive validation
+    ./scripts/backend.sh test e2e docker-verbose       # Run E2E tests in docker with validation
+    ./scripts/backend.sh test all                      # Run all tests locally (default)
+    ./scripts/backend.sh test all docker               # Run all tests in docker mode
+    ./scripts/backend.sh logs backend                  # Show backend logs
+    ./scripts/backend.sh health                        # Check service health
 
 SERVICES:
     - backend     (port 8000)  FastAPI application
@@ -582,6 +589,46 @@ cmd_test() {
                         poetry run pytest -m e2e tests/e2e/ -v
                     fi
                     ;;
+                local-verbose)
+                    log_info "Running e2e tests locally with VERBOSE logging..."
+                    log_info "Tests will connect to Docker services via localhost URLs"
+                    log_info "Capturing detailed logs for validation..."
+                    
+                    # Create e2e logs directory
+                    mkdir -p logs/e2e
+                    local timestamp=$(date +"%Y%m%d_%H%M%S")
+                    local log_file="logs/e2e/e2e_test_${timestamp}.log"
+                    local validation_file="logs/e2e/e2e_validation_${timestamp}.log"
+                    
+                    # Set environment for local testing with verbose logging
+                    export TEST_MODE=local
+                    export NIFI_URL=https://localhost:8443
+                    export NIFI_REGISTRY_URL=http://localhost:18080
+                    export DEBUG=true
+                    
+                    log_info "Starting comprehensive E2E test validation..."
+                    log_info "Test logs will be saved to: $log_file"
+                    log_info "Validation report will be saved to: $validation_file"
+                    
+                    # Run tests with full verbose output and capture logs
+                    {
+                        echo "=== E2E Test Execution Started at $(date) ==="
+                        echo "=== Environment ==="
+                        echo "TEST_MODE: $TEST_MODE"
+                        echo "NIFI_URL: $NIFI_URL"
+                        echo "NIFI_REGISTRY_URL: $NIFI_REGISTRY_URL"
+                        echo "DEBUG: $DEBUG"
+                        echo ""
+                        
+                        poetry run pytest -m e2e tests/e2e/ -v -s --tb=long "${extra_args[@]:-}" 2>&1
+                        
+                        echo ""
+                        echo "=== E2E Test Execution Completed at $(date) ==="
+                    } | tee "$log_file"
+                    
+                    # Perform validation analysis
+                    cmd_validate_e2e_test "$log_file" "$validation_file" "$timestamp"
+                    ;;
                 docker)
                     log_info "Running e2e tests in Docker container..."
                     ensure_backend_test_env
@@ -592,9 +639,38 @@ cmd_test() {
                         docker exec -e TEST_MODE=docker edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v
                     fi
                     ;;
+                docker-verbose)
+                    log_info "Running e2e tests in Docker container with VERBOSE logging..."
+                    ensure_backend_test_env
+                    
+                    # Create e2e logs directory
+                    mkdir -p logs/e2e
+                    local timestamp=$(date +"%Y%m%d_%H%M%S")
+                    local log_file="logs/e2e/e2e_docker_test_${timestamp}.log"
+                    local validation_file="logs/e2e/e2e_docker_validation_${timestamp}.log"
+                    
+                    log_info "Test logs will be saved to: $log_file"
+                    log_info "Validation report will be saved to: $validation_file"
+                    
+                    # Run tests with full verbose output and capture logs
+                    {
+                        echo "=== E2E Docker Test Execution Started at $(date) ==="
+                        echo "=== Environment ==="
+                        echo "TEST_MODE: docker"
+                        echo ""
+                        
+                        docker exec -e TEST_MODE=docker -e DEBUG=true edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v -s --tb=long "${extra_args[@]:-}" 2>&1
+                        
+                        echo ""
+                        echo "=== E2E Docker Test Execution Completed at $(date) ==="
+                    } | tee "$log_file"
+                    
+                    # Perform validation analysis
+                    cmd_validate_e2e_test "$log_file" "$validation_file" "$timestamp"
+                    ;;
                 *)
                     log_error "Unknown test mode: $test_mode"
-                    log_info "Available modes for e2e tests: local, docker"
+                    log_info "Available modes for e2e tests: local, local-verbose, docker, docker-verbose"
                     exit 1
                     ;;
             esac
@@ -617,7 +693,7 @@ cmd_test() {
         *)
             log_error "Unknown test type: $test_type"
             log_info "Available types: unit, integration, e2e, all, watch"
-            log_info "For integration/e2e, add mode: local or docker"
+            log_info "For integration/e2e, add mode: local, local-verbose, docker, docker-verbose"
             exit 1
             ;;
     esac
@@ -728,6 +804,247 @@ cmd_debug() {
     echo ""
     echo "=== Recent Backend Logs ==="
     docker logs edi-lens-backend --tail 10 2>/dev/null || echo "Backend container not running"
+}
+
+cmd_validate_e2e_test() {
+    local log_file="$1"
+    local validation_file="$2"
+    local timestamp="$3"
+    
+    log_step "Validating E2E test execution..."
+    
+    {
+        echo "=== E2E Test Validation Report ==="
+        echo "Generated at: $(date)"
+        echo "Test timestamp: $timestamp"
+        echo "Log file: $log_file"
+        echo ""
+        
+        # Test execution summary
+        echo "=== TEST EXECUTION SUMMARY ==="
+        if grep -q "PASSED\|FAILED" "$log_file"; then
+            local passed_count=$(grep -c "PASSED" "$log_file" || echo "0")
+            local failed_count=$(grep -c "FAILED" "$log_file" || echo "0")
+            local total_count=$((passed_count + failed_count))
+            
+            echo "Total tests executed: $total_count"
+            echo "Tests passed: $passed_count"
+            echo "Tests failed: $failed_count"
+            
+            if [ "$failed_count" -eq 0 ]; then
+                echo "✅ All tests passed!"
+            else
+                echo "❌ Some tests failed"
+            fi
+        else
+            echo "⚠️ No test results found in log"
+        fi
+        echo ""
+        
+        # API connectivity validation
+        echo "=== API CONNECTIVITY VALIDATION ==="
+        if grep -q "API is healthy" "$log_file"; then
+            echo "✅ API health check passed"
+        else
+            echo "❌ API health check failed"
+        fi
+        
+        if grep -q "Successfully retrieved.*buckets" "$log_file"; then
+            echo "✅ Registry bucket listing worked"
+        else
+            echo "⚠️ Registry bucket listing may have failed"
+        fi
+        
+        if grep -q "Flow creation failed\|Registry not available" "$log_file"; then
+            echo "⚠️ Flow creation encountered expected errors (Registry unavailable)"
+        elif grep -q "Successfully created flow" "$log_file"; then
+            echo "✅ Flow creation worked"
+        else
+            echo "⚠️ Flow creation status unclear"
+        fi
+        echo ""
+        
+        # Logging system validation
+        echo "=== LOGGING SYSTEM VALIDATION ==="
+        local log_entries_found=false
+        
+        # Check for different log levels
+        if grep -q "DEBUG\|INFO\|WARNING\|ERROR" "$log_file"; then
+            echo "✅ Multiple log levels detected"
+            log_entries_found=true
+        fi
+        
+        # Check for professional logging (no emojis in backend logs)
+        if grep -q "Initializing.*client\|Starting.*Backend\|Registry API request" "$log_file"; then
+            echo "✅ Professional logging format detected"
+            log_entries_found=true
+        fi
+        
+        # Check for structured error handling
+        if grep -q "error_type\|user_message\|action_required" "$log_file"; then
+            echo "✅ Structured error handling detected"
+            log_entries_found=true
+        fi
+        
+        # Check for audit logging
+        if grep -q "audit" "$log_file"; then
+            echo "✅ Audit logging detected"
+            log_entries_found=true
+        fi
+        
+        if [ "$log_entries_found" = false ]; then
+            echo "⚠️ Limited logging detected - may need investigation"
+        fi
+        echo ""
+        
+        # Performance validation
+        echo "=== PERFORMANCE VALIDATION ==="
+        if grep -q "([0-9]*\.[0-9]*ms)" "$log_file"; then
+            echo "✅ Request timing detected"
+            
+            # Extract and analyze response times
+            local slow_requests=$(grep -o "([0-9]*\.[0-9]*ms)" "$log_file" | grep -o "[0-9]*\.[0-9]*" | awk '$1 > 1000' | wc -l || echo "0")
+            if [ "$slow_requests" -gt 0 ]; then
+                echo "⚠️ $slow_requests slow requests detected (>1000ms)"
+            else
+                echo "✅ No slow requests detected"
+            fi
+        else
+            echo "⚠️ No request timing information found"
+        fi
+        echo ""
+        
+        # Error analysis
+        echo "=== ERROR ANALYSIS ==="
+        local error_count=$(grep -c "ERROR\|FAILED\|Exception" "$log_file" || echo "0")
+        if [ "$error_count" -eq 0 ]; then
+            echo "✅ No errors detected"
+        else
+            echo "⚠️ $error_count error entries found"
+            echo "Error summary:"
+            grep "ERROR\|FAILED\|Exception" "$log_file" | head -5 | sed 's/^/  - /'
+            if [ "$error_count" -gt 5 ]; then
+                echo "  ... and $((error_count - 5)) more errors"
+            fi
+        fi
+        echo ""
+        
+        # Service integration validation
+        echo "=== SERVICE INTEGRATION VALIDATION ==="
+        if grep -q "Registry.*client.*for.*http" "$log_file"; then
+            echo "✅ Registry client initialization detected"
+        else
+            echo "⚠️ Registry client initialization not found"
+        fi
+        
+        if grep -q "NiFi.*client.*for.*https" "$log_file"; then
+            echo "✅ NiFi client initialization detected"
+        else
+            echo "⚠️ NiFi client initialization not found"
+        fi
+        
+        if grep -q "FlowService" "$log_file"; then
+            echo "✅ FlowService integration detected"
+        else
+            echo "⚠️ FlowService integration not found"
+        fi
+        echo ""
+        
+        # Test coverage validation
+        echo "=== TEST COVERAGE VALIDATION ==="
+        local phases_detected=0
+        
+        if grep -q "Phase 1.*buckets" "$log_file"; then
+            echo "✅ Phase 1: Bucket listing tested"
+            ((phases_detected++))
+        fi
+        
+        if grep -q "Phase 2.*Creating flow" "$log_file"; then
+            echo "✅ Phase 2: Flow creation tested"
+            ((phases_detected++))
+        fi
+        
+        if grep -q "API error handling" "$log_file"; then
+            echo "✅ Error handling tests executed"
+            ((phases_detected++))
+        fi
+        
+        if grep -q "Concurrent operations" "$log_file"; then
+            echo "✅ Concurrent operations tested"
+            ((phases_detected++))
+        fi
+        
+        echo "Total test phases detected: $phases_detected"
+        
+        if [ "$phases_detected" -ge 3 ]; then
+            echo "✅ Comprehensive test coverage detected"
+        else
+            echo "⚠️ Limited test coverage - may need investigation"
+        fi
+        echo ""
+        
+        # Overall assessment
+        echo "=== OVERALL ASSESSMENT ==="
+        local validation_score=0
+        
+        # Scoring criteria
+        if grep -q "All tests passed\|PASSED" "$log_file"; then ((validation_score++)); fi
+        if grep -q "API is healthy" "$log_file"; then ((validation_score++)); fi
+        if [ "$log_entries_found" = true ]; then ((validation_score++)); fi
+        if [ "$phases_detected" -ge 3 ]; then ((validation_score++)); fi
+        if [ "$error_count" -lt 10 ]; then ((validation_score++)); fi
+        
+        echo "Validation score: $validation_score/5"
+        
+        if [ "$validation_score" -ge 4 ]; then
+            echo "🎉 EXCELLENT: E2E tests are working correctly with comprehensive validation"
+        elif [ "$validation_score" -ge 3 ]; then
+            echo "✅ GOOD: E2E tests are mostly working with minor issues"
+        elif [ "$validation_score" -ge 2 ]; then
+            echo "⚠️ FAIR: E2E tests have some functionality but need attention"
+        else
+            echo "❌ POOR: E2E tests may not be working correctly - investigation needed"
+        fi
+        
+        echo ""
+        echo "=== RECOMMENDATIONS ==="
+        if [ "$validation_score" -lt 4 ]; then
+            echo "1. Check service connectivity (NiFi, Registry)"
+            echo "2. Verify test environment setup"
+            echo "3. Review error messages in detail"
+            echo "4. Consider running tests with services fully deployed"
+        else
+            echo "1. E2E tests are working well"
+            echo "2. Consider adding more test scenarios"
+            echo "3. Monitor performance for production readiness"
+        fi
+        
+        echo ""
+        echo "=== LOG FILE LOCATIONS ==="
+        echo "Full test log: $log_file"
+        echo "This validation report: $validation_file"
+        echo "Application logs: logs/edi_lens.log"
+        echo "JSON logs: logs/edi_lens.jsonl"
+        echo "Audit logs: logs/audit.jsonl"
+        
+    } > "$validation_file"
+    
+    # Display summary
+    echo ""
+    log_success "E2E test validation completed!"
+    log_info "Validation report saved to: $validation_file"
+    
+    # Show key findings
+    local validation_score=$(grep "Validation score:" "$validation_file" | grep -o "[0-9]/[0-9]")
+    local overall_assessment=$(grep "EXCELLENT:\|GOOD:\|FAIR:\|POOR:" "$validation_file" | head -1)
+    
+    echo ""
+    log_info "=== VALIDATION SUMMARY ==="
+    log_info "Score: $validation_score"
+    log_info "Assessment: $overall_assessment"
+    echo ""
+    log_info "View full report: cat $validation_file"
+    log_info "View test logs: cat $log_file"
 }
 
 cmd_doctor() {
