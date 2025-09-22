@@ -29,6 +29,7 @@ services:
   nifi-registry:
     image: apache/nifi-registry:2.5.0
     container_name: edi-lens-registry
+    user: "0:0"  # Run as root to fix permissions
     env_file:
       - ../.env
     environment:
@@ -53,11 +54,11 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:18080/nifi-registry/"]
+      test: ["CMD", "curl", "-f", "http://localhost:18080/nifi-registry-api/config"]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 30s
+      retries: 15
+      start_period: 60s
 
   nifi:
     image: apache/nifi:2.5.0
@@ -104,7 +105,7 @@ services:
   backend:
     build:
       context: ..
-      dockerfile: docker/backend/Dockerfile
+      dockerfile: docker/backend/Dockerfile.dev
     container_name: edi-lens-backend
     env_file:
       - ../.env
@@ -117,12 +118,25 @@ services:
       NIFI_REGISTRY_AUTH_TOKEN: ${NIFI_REGISTRY_AUTH_TOKEN}
       DEBUG: ${DEBUG}
       VERIFY_SSL: ${VERIFY_SSL}
+      # Enable hot reload optimizations
+      PYTHONPATH: /app
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
 
     ports:
       - "8000:8000"
     volumes:
-      - ../backend:/app:delegated
-      - /app/.venv  # Exclude venv from sync
+      # Mount source code for hot reload
+      - ../backend/src:/app/src:cached
+      - ../backend/tests:/app/tests:cached
+      - ../backend/pyproject.toml:/app/pyproject.toml:cached
+      # Exclude Python cache and venv from sync for performance
+      - /app/.venv
+      - /app/__pycache__
+      - /app/src/__pycache__
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Allow access to host services for testing
+      - "localhost:host-gateway"  # Map localhost to host for JWT audience validation
     networks:
       - edi_lens_network
     depends_on:
@@ -138,7 +152,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    # Hot reload command with optimized reload directory
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src --log-level info
 
 volumes:
   postgres_data:

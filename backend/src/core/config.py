@@ -46,6 +46,10 @@ class Settings(BaseSettings):
 
     # Development flags
     DEBUG: bool = Field(default=False)
+    
+    # Docker-specific URLs for testing (when JWT audience != access URL)
+    DOCKER_NIFI_URL: Optional[str] = Field(default=None)
+    DOCKER_REGISTRY_URL: Optional[str] = Field(default=None)
 
 
 @lru_cache(maxsize=1)

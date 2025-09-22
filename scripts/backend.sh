@@ -217,7 +217,9 @@ USAGE:
     ./scripts/backend.sh <command> [options]
 
 COMMANDS:
-    start                Start all services (Docker Compose)
+    start                Start all services (Docker Compose with hot reload)
+    dev                  Start in development mode (same as start, with hot reload)
+    prod                 Start in production mode (no hot reload, optimized)
     stop                 Stop all services
     restart              Restart all services
     status               Show service status
@@ -228,7 +230,11 @@ COMMANDS:
 
 DEVELOPMENT:
     setup                Install dependencies and prepare development environment
-    test [type]          Run tests (unit, integration, e2e, or all)
+    test [type] [mode]   Run tests (unit, integration, e2e, or all)
+                         - unit: always run locally
+                         - integration [local|docker]: run locally or in docker (default: local)
+                         - e2e [local|docker]: run locally or in docker (default: local)
+                         - all [local|docker]: run all tests in specified mode (default: local)
     test:watch           Run tests in watch mode
     lint                 Run code linting
     format               Format code with black/isort
@@ -239,10 +245,17 @@ HEALTH & DEBUGGING:
     doctor               Diagnose common issues
 
 EXAMPLES:
-    ./scripts/backend.sh start              # Start all services
-    ./scripts/backend.sh test unit          # Run unit tests
-    ./scripts/backend.sh logs backend       # Show backend logs
-    ./scripts/backend.sh health             # Check service health
+    ./scripts/backend.sh start                    # Start all services in dev mode
+    ./scripts/backend.sh dev                      # Start all services in dev mode (hot reload)
+    ./scripts/backend.sh prod                     # Start all services in production mode
+    ./scripts/backend.sh test unit                # Run unit tests locally
+    ./scripts/backend.sh test integration         # Run integration tests locally (default)
+    ./scripts/backend.sh test integration local   # Run integration tests locally
+    ./scripts/backend.sh test integration docker  # Run integration tests in docker
+    ./scripts/backend.sh test all                 # Run all tests locally (default)
+    ./scripts/backend.sh test all docker          # Run all tests in docker mode
+    ./scripts/backend.sh logs backend             # Show backend logs
+    ./scripts/backend.sh health                   # Check service health
 
 SERVICES:
     - backend     (port 8000)  FastAPI application
@@ -261,6 +274,11 @@ cmd_start() {
 
     cd "$DOCKER_DIR"
     load_env_file
+    
+    # Build containers first to ensure latest changes
+    log_info "Building containers with latest changes..."
+    $DOCKER_COMPOSE build
+    
     $DOCKER_COMPOSE up -d
 
     log_info "Services starting in background..."
@@ -288,6 +306,46 @@ cmd_start() {
     log_info "  ./scripts/backend.sh health    # Check service health"
     log_info "  ./scripts/backend.sh test unit # Run tests"
     log_info "  ./scripts/backend.sh logs      # View logs"
+    echo ""
+    log_info "Development mode: Hot reload is enabled. Changes to src/ will automatically restart the backend."
+}
+
+cmd_prod() {
+    check_docker
+    check_docker_compose
+
+    log_step "Starting EDI Lens backend services in PRODUCTION mode..."
+
+    cd "$DOCKER_DIR"
+    load_env_file
+    
+    # Build containers first to ensure latest changes
+    log_info "Building containers for production..."
+    $DOCKER_COMPOSE -f docker-compose.yml -f docker-compose.prod.yml build
+    
+    $DOCKER_COMPOSE -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+    log_info "Services starting in background..."
+
+    # Wait for key services
+    if ! wait_for_container_healthy "edi-lens-db" 120; then
+        log_error "Database failed to start within timeout"
+        log_info "Showing recent database logs (last 200 lines):"
+        docker logs --tail 200 edi-lens-db || true
+    fi
+    wait_for_service "Registry" "http://localhost:18080/nifi-registry-api/config" || true
+    wait_for_service "NiFi" "https://localhost:8443/nifi/" || true
+    wait_for_service "Backend" "http://localhost:8000/health" || true
+
+    log_success "All services are running in PRODUCTION mode!"
+    echo ""
+    log_info "Access points:"
+    log_info "  Backend API:    http://localhost:8000"
+    log_info "  NiFi UI:        https://localhost:8443/nifi/ (admin/adminadmin123)"
+    log_info "  Registry UI:    http://localhost:18080/nifi-registry/"
+    log_info "  Database:       postgresql://postgres:postgres@localhost:5432/edi_lens"
+    echo ""
+    log_info "Production mode: Optimized for performance, no hot reload."
 }
 
 cmd_stop() {
@@ -432,9 +490,10 @@ cmd_test() {
     check_poetry
 
     local test_type="${1:-all}"
+    local test_mode="${2:-local}"  # Default to local for all tests
     local -a extra_args=()
-    if (( $# > 1 )); then
-        extra_args=("${@:2}")
+    if (( $# > 2 )); then
+        extra_args=("${@:3}")
     fi
     cd "$BACKEND_DIR"
 
@@ -442,10 +501,14 @@ cmd_test() {
 
     case "$test_type" in
         unit)
-            # Ensure virtualenv deps are installed. If poetry run pytest is not available, try to install.
+            # Unit tests always run locally
+            if [[ "$test_mode" != "docker" && "$test_mode" != "all" ]]; then
+                log_info "Unit tests always run locally (ignoring mode: $test_mode)"
+            fi
+            
+            # Ensure virtualenv deps are installed
             if ! poetry run pytest --version >/dev/null 2>&1; then
                 log_warn "pytest not found in the virtualenv. Installing dependencies with poetry (no-root)..."
-                # Use --no-root so Poetry only installs dependencies and doesn't try to install the current project package
                 poetry install --no-interaction --no-root || {
                     log_error "'poetry install' failed. Please check your environment or run 'poetry install' in $BACKEND_DIR"
                     exit 1
@@ -459,29 +522,94 @@ cmd_test() {
             fi
             ;;
         integration)
-            log_info "Ensuring services are running for integration tests..."
-            ensure_backend_test_env
-            if (( ${#extra_args[@]} )); then
-                docker exec edi-lens-backend poetry run pytest -m integration tests/integration/ -v "${extra_args[@]}"
-            else
-                docker exec edi-lens-backend poetry run pytest -m integration tests/integration/ -v
-            fi
+            case "$test_mode" in
+                local)
+                    log_info "Running integration tests locally..."
+                    log_info "Tests will connect to Docker services via localhost URLs"
+                    
+                    # Check if services are running
+                    if ! curl -s -k "https://localhost:8443/nifi/" >/dev/null 2>&1; then
+                        log_warn "NiFi not reachable at https://localhost:8443 - consider starting services first"
+                    fi
+                    if ! curl -s "http://localhost:18080/nifi-registry-api/config" >/dev/null 2>&1; then
+                        log_warn "Registry not reachable at http://localhost:18080 - consider starting services first"
+                    fi
+                    
+                    # Set environment for local testing (localhost URLs)
+                    export TEST_MODE=local
+                    export NIFI_URL=https://localhost:8443
+                    export NIFI_REGISTRY_URL=http://localhost:18080
+                    
+                    if (( ${#extra_args[@]} )); then
+                        poetry run pytest -m integration tests/integration/ -v "${extra_args[@]}"
+                    else
+                        poetry run pytest -m integration tests/integration/ -v
+                    fi
+                    ;;
+                docker)
+                    log_info "Running integration tests in Docker container..."
+                    log_info "Tests will connect to Docker services via host.docker.internal URLs"
+                    ensure_backend_test_env
+                    
+                    # Set environment for docker testing (host.docker.internal URLs to avoid SSL issues)
+                    if (( ${#extra_args[@]} )); then
+                        docker exec -e TEST_MODE=docker edi-lens-backend poetry run pytest -m integration tests/integration/ -v "${extra_args[@]}"
+                    else
+                        docker exec -e TEST_MODE=docker edi-lens-backend poetry run pytest -m integration tests/integration/ -v
+                    fi
+                    ;;
+                *)
+                    log_error "Unknown test mode: $test_mode"
+                    log_info "Available modes for integration tests: local, docker"
+                    exit 1
+                    ;;
+            esac
             ;;
         e2e)
-            log_info "Ensuring services are running for e2e tests..."
-            ensure_backend_test_env
-            if (( ${#extra_args[@]} )); then
-                docker exec edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v "${extra_args[@]}"
-            else
-                docker exec edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v
-            fi
+            case "$test_mode" in
+                local)
+                    log_info "Running e2e tests locally..."
+                    log_info "Tests will connect to Docker services via localhost URLs"
+                    
+                    # Set environment for local testing
+                    export TEST_MODE=local
+                    export NIFI_URL=https://localhost:8443
+                    export NIFI_REGISTRY_URL=http://localhost:18080
+                    
+                    if (( ${#extra_args[@]} )); then
+                        poetry run pytest -m e2e tests/e2e/ -v "${extra_args[@]}"
+                    else
+                        poetry run pytest -m e2e tests/e2e/ -v
+                    fi
+                    ;;
+                docker)
+                    log_info "Running e2e tests in Docker container..."
+                    ensure_backend_test_env
+                    
+                    if (( ${#extra_args[@]} )); then
+                        docker exec -e TEST_MODE=docker edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v "${extra_args[@]}"
+                    else
+                        docker exec -e TEST_MODE=docker edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v
+                    fi
+                    ;;
+                *)
+                    log_error "Unknown test mode: $test_mode"
+                    log_info "Available modes for e2e tests: local, docker"
+                    exit 1
+                    ;;
+            esac
             ;;
         all)
-            log_info "Running all tests..."
+            log_info "Running all tests in $test_mode mode..."
+            # Unit tests always run locally
+            log_info "Running unit tests locally..."
             poetry run pytest -m unit tests/unit/ -v
-            ensure_backend_test_env
-            docker exec edi-lens-backend poetry run pytest -m integration tests/integration/ -v
-            docker exec edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v
+            
+            # Integration and e2e in specified mode (default local)
+            log_info "Running integration tests in $test_mode mode..."
+            cmd_test integration "$test_mode"
+            log_info "Running e2e tests in $test_mode mode..."
+            cmd_test e2e "$test_mode"
             ;;
         watch)
             run_pytest_watch "${extra_args[@]:-}"
@@ -489,6 +617,7 @@ cmd_test() {
         *)
             log_error "Unknown test type: $test_type"
             log_info "Available types: unit, integration, e2e, all, watch"
+            log_info "For integration/e2e, add mode: local or docker"
             exit 1
             ;;
     esac
@@ -665,6 +794,8 @@ main() {
 
     case "$command" in
         start) cmd_start "$@" ;;
+        dev) cmd_start "$@" ;;
+        prod) cmd_prod "$@" ;;
         stop) cmd_stop "$@" ;;
         restart) cmd_restart "$@" ;;
         status) cmd_status "$@" ;;

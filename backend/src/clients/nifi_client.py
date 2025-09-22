@@ -52,10 +52,7 @@ class NiFiClient:
 
     async def _create_session(self) -> aiohttp.ClientSession:
         headers = {"Accept": "application/json"}
-        auth = None
-        if self.username and self.password:
-            auth = aiohttp.BasicAuth(self.username, self.password)
-
+        
         connector = None
         if not self.verify_ssl:
             ssl_context = ssl.create_default_context()
@@ -63,12 +60,49 @@ class NiFiClient:
             ssl_context.verify_mode = ssl.CERT_NONE
             connector = aiohttp.TCPConnector(ssl=ssl_context)
 
-        return aiohttp.ClientSession(
+        session = aiohttp.ClientSession(
             headers=headers,
-            auth=auth,
             connector=connector,
             timeout=self._timeout,
         )
+        
+        # Get access token if username/password provided
+        if self.username and self.password:
+            await self._authenticate_session(session)
+        
+        return session
+
+    async def _authenticate_session(self, session: aiohttp.ClientSession) -> None:
+        """Authenticate session and get access token for NiFi 2.x."""
+        
+        # First, get access token using username/password
+        auth_url = f"{self.nifi_url}/nifi-api/access/token"
+        
+        try:
+            async with session.post(
+                auth_url,
+                data=f"username={self.username}&password={self.password}",
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Accept": "text/plain"
+                }
+            ) as response:
+                if response.status == 201:
+                    token = await response.text()
+                    # Add token to session headers
+                    session.headers["Authorization"] = f"Bearer {token}"
+                    log.info("Successfully authenticated with NiFi")
+                elif response.status == 400:
+                    log.error("Authentication failed: Invalid credentials")
+                elif response.status == 409:
+                    log.error("Authentication failed: User account is locked")
+                else:
+                    response_text = await response.text()
+                    log.error(f"Authentication failed with status {response.status}: {response_text}")
+                    
+        except Exception as exc:
+            log.error(f"Failed to authenticate with NiFi: {exc}")
+            # Continue without token - some endpoints might still work
 
     async def _request(self, method: str, path: str, **kwargs) -> Any:
         if self.session is None:
