@@ -38,6 +38,7 @@ class NiFiClient(LoggerMixin):
         self.verify_ssl = verify_ssl
         self._timeout = aiohttp.ClientTimeout(total=timeout) if timeout else None
         self.session: Optional[aiohttp.ClientSession] = session
+        self.auth_token: Optional[str] = None
         
         self.logger.info("Initializing NiFi client for %s", self.nifi_url)
         self.logger.debug("Authentication: %s", "enabled" if username else "disabled")
@@ -71,8 +72,8 @@ class NiFiClient(LoggerMixin):
             self.session = None
 
     async def _create_session(self) -> aiohttp.ClientSession:
-        headers = {"Accept": "application/json"}
-        
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+
         connector = None
         if not self.verify_ssl:
             ssl_context = ssl.create_default_context()
@@ -80,24 +81,36 @@ class NiFiClient(LoggerMixin):
             ssl_context.verify_mode = ssl.CERT_NONE
             connector = aiohttp.TCPConnector(ssl=ssl_context)
 
+        # Create initial session for authentication
         session = aiohttp.ClientSession(
-            headers=headers,
             connector=connector,
             timeout=self._timeout,
         )
-        
+
         # Get access token if username/password provided
         if self.username and self.password:
             await self._authenticate_session(session)
-        
+
+        # Close initial session and recreate with auth headers
+        await session.close()
+
+        # Add authorization header if we have a token
+        if self.auth_token:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
+
+        # Create final authenticated session
+        session = aiohttp.ClientSession(
+            headers=headers,
+            connector=aiohttp.TCPConnector(ssl=ssl_context) if not self.verify_ssl else None,
+            timeout=self._timeout,
+        )
+
         return session
 
-    async def _authenticate_session(self, session: aiohttp.ClientSession) -> None:
-        """Authenticate session and get access token for NiFi 2.x."""
-        
-        # First, get access token using username/password
+    async def _get_fresh_token(self, session: aiohttp.ClientSession) -> str:
+        """Get a fresh access token for NiFi."""
         auth_url = f"{self.nifi_url}/nifi-api/access/token"
-        
+
         try:
             async with session.post(
                 auth_url,
@@ -109,20 +122,29 @@ class NiFiClient(LoggerMixin):
             ) as response:
                 if response.status == 201:
                     token = await response.text()
-                    # Add token to session headers
-                    session.headers["Authorization"] = f"Bearer {token}"
-                    log.info("Successfully authenticated with NiFi")
+                    self.logger.debug("Successfully obtained fresh NiFi token")
+                    return token
                 elif response.status == 400:
-                    log.error("Authentication failed: Invalid credentials")
+                    self.logger.error("Authentication failed: Invalid credentials")
                 elif response.status == 409:
-                    log.error("Authentication failed: User account is locked")
+                    self.logger.error("Authentication failed: User account is locked")
                 else:
                     response_text = await response.text()
-                    log.error(f"Authentication failed with status {response.status}: {response_text}")
-                    
+                    self.logger.error(f"Authentication failed with status {response.status}: {response_text}")
+
         except Exception as exc:
-            log.error(f"Failed to authenticate with NiFi: {exc}")
-            # Continue without token - some endpoints might still work
+            self.logger.error(f"Failed to authenticate with NiFi: {exc}")
+
+        return ""
+
+    async def _authenticate_session(self, session: aiohttp.ClientSession) -> None:
+        """Authenticate session and get access token for NiFi 2.x."""
+        token = await self._get_fresh_token(session)
+        if token:
+            self.auth_token = token
+            self.logger.info("Successfully authenticated with NiFi")
+        else:
+            self.logger.warning("Failed to get NiFi token - continuing without authentication")
 
     async def _request(self, method: str, path: str, **kwargs) -> Any:
         if self.session is None:
@@ -132,7 +154,7 @@ class NiFiClient(LoggerMixin):
 
         url = f"{self.nifi_url}{path}"
         start_time = time.time()
-        
+
         # Log request details
         self.logger.debug("NiFi API request: %s %s", method, path)
         if kwargs.get("json"):
@@ -141,21 +163,21 @@ class NiFiClient(LoggerMixin):
         try:
             async with self.session.request(method, url, **kwargs) as response:
                 execution_time = (time.time() - start_time) * 1000
-                
+
                 # Log response details
-                self.logger.debug("NiFi API response: %d (%.2fms) %s", 
+                self.logger.debug("NiFi API response: %d (%.2fms) %s",
                                 response.status, execution_time, response.content_type)
-                
+
                 # Check for errors before parsing response
                 if response.status >= 400:
                     error_text = await response.text()
                     self.logger.error("NiFi API error %d: %s", response.status, error_text)
-                
+
                 response.raise_for_status()
-                
+
                 # Log successful response
                 self.logger.debug("NiFi API success: %s %s -> %d", method, path, response.status)
-                
+
                 if response.content_type == "application/json":
                     result = await response.json()
                     if isinstance(result, list):
@@ -166,10 +188,10 @@ class NiFiClient(LoggerMixin):
                         self.logger.debug("Response data: %s", type(result).__name__)
                     return result
                 return await response.text()
-                
+
         except aiohttp.ClientError as exc:
             execution_time = (time.time() - start_time) * 1000
-            self.logger.error("NiFi client request failed after %.2fms: %s %s - %s", 
+            self.logger.error("NiFi client request failed after %.2fms: %s %s - %s",
                             execution_time, method, path, exc)
             raise NiFiClientError(f"Request to NiFi failed: {exc}") from exc
 
@@ -231,29 +253,31 @@ class NiFiClient(LoggerMixin):
     async def import_from_registry(
         self,
         parent_group_id: str,
-        bucket_id: str,
-        flow_id: str,
-        *,
-        version: int = 1,
-        registry_id: str = "default",
+        flow_snapshot: Dict[str, Any],
+        position: Dict[str, float] = None,
+        group_name: str = None,
     ) -> Dict[str, Any]:
-        """Import a process group from the NiFi registry."""
+        """Import a process group from the NiFi registry using flow snapshot."""
+
+        if position is None:
+            position = {"x": 0.0, "y": 0.0}
+
+        # Extract group name from flow snapshot if not provided
+        if group_name is None:
+            group_name = (flow_snapshot.get("flowContents", {}).get("name") or
+                         flow_snapshot.get("flow", {}).get("name") or
+                         "Imported Flow")
 
         payload = {
-            "revision": {"version": 0},
-            "component": {
-                "versionControlInformation": {
-                    "bucketId": bucket_id,
-                    "flowId": flow_id,
-                    "version": version,
-                    "registryId": registry_id,
-                }
-            },
+            "revisionDTO": {"version": 0},
+            "flowSnapshot": flow_snapshot,
+            "positionDTO": position,
+            "groupName": group_name
         }
 
         result = await self._request(
             "POST",
-            f"/nifi-api/process-groups/{parent_group_id}/process-groups",
+            f"/nifi-api/process-groups/{parent_group_id}/process-groups/import",
             json=payload,
         )
         if not isinstance(result, dict):
@@ -342,7 +366,7 @@ class NiFiClient(LoggerMixin):
 
     async def set_parameter_context_for_process_group(self, process_group_id: str, parameter_context_id: str, revision: int) -> Dict[str, Any]:
         """Associate a parameter context with a process group."""
-        
+
         payload = {
             "revision": {"version": revision},
             "component": {
@@ -352,8 +376,36 @@ class NiFiClient(LoggerMixin):
                 }
             }
         }
-        
+
         result = await self._request("PUT", f"/nifi-api/process-groups/{process_group_id}", json=payload)
         if not isinstance(result, dict):
             raise NiFiClientError("Unexpected response setting parameter context")
         return result
+
+    async def create_registry_client(self, name: str, url: str, description: str = "") -> Dict[str, Any]:
+        """Create a Registry client in NiFi."""
+
+        payload = {
+            "revision": {"version": 0},
+            "component": {
+                "name": name,
+                "description": description,
+                "properties": {
+                    "url": url
+                },
+                "type": "org.apache.nifi.registry.flow.NifiRegistryFlowRegistryClient"
+            }
+        }
+
+        result = await self._request("POST", "/nifi-api/controller/registry-clients", json=payload)
+        if not isinstance(result, dict):
+            raise NiFiClientError("Unexpected response creating registry client")
+        return result
+
+    async def list_registry_clients(self) -> List[Dict[str, Any]]:
+        """List all Registry clients in NiFi."""
+
+        result = await self._request("GET", "/nifi-api/controller/registry-clients")
+        if not isinstance(result, dict):
+            raise NiFiClientError("Unexpected response listing registry clients")
+        return result.get("registries", [])

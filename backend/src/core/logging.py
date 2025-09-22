@@ -75,12 +75,13 @@ class ColoredFormatter(logging.Formatter):
 
 def setup_logging(settings: Settings) -> None:
     """Configure comprehensive logging for the application."""
-    
-    # Determine log level
-    if settings.DEBUG:
-        log_level = "DEBUG"
-    else:
-        log_level = "INFO"
+
+    # Determine log levels from environment variables
+    console_log_level = settings.LOG_LEVEL_CONSOLE or ("DEBUG" if settings.DEBUG else "INFO")
+    file_log_level = settings.LOG_LEVEL_FILE or "DEBUG"
+    client_log_level = settings.LOG_LEVEL_CLIENTS or "INFO"
+    service_log_level = settings.LOG_LEVEL_SERVICES or "INFO"
+    api_log_level = settings.LOG_LEVEL_API or "INFO"
     
     # Create logs directory if it doesn't exist
     logs_dir = Path("logs")
@@ -110,13 +111,13 @@ def setup_logging(settings: Settings) -> None:
         "handlers": {
             "console": {
                 "class": "logging.StreamHandler",
-                "level": log_level,
+                "level": console_log_level,
                 "formatter": "colored" if sys.stdout.isatty() else "simple",
                 "stream": "ext://sys.stdout"
             },
             "file_all": {
                 "class": "logging.handlers.RotatingFileHandler",
-                "level": "DEBUG",
+                "level": file_log_level,
                 "formatter": "detailed",
                 "filename": "logs/edi_lens.log",
                 "maxBytes": 10485760,  # 10MB
@@ -154,11 +155,11 @@ def setup_logging(settings: Settings) -> None:
         "loggers": {
             # Root logger
             "": {
-                "level": log_level,
+                "level": console_log_level,
                 "handlers": ["console", "file_all", "file_error", "file_json"],
                 "propagate": False
             },
-            
+
             # Application loggers
             "src": {
                 "level": "DEBUG",
@@ -166,17 +167,17 @@ def setup_logging(settings: Settings) -> None:
                 "propagate": False
             },
             "src.clients": {
-                "level": "DEBUG",
+                "level": client_log_level,
                 "handlers": ["console", "file_all", "file_error", "file_json"],
                 "propagate": False
             },
             "src.services": {
-                "level": "DEBUG", 
+                "level": service_log_level,
                 "handlers": ["console", "file_all", "file_error", "file_json"],
                 "propagate": False
             },
             "src.api": {
-                "level": "DEBUG",
+                "level": api_log_level,
                 "handlers": ["console", "file_all", "file_error", "file_json"],
                 "propagate": False
             },
@@ -237,8 +238,8 @@ def setup_logging(settings: Settings) -> None:
     
     # Log the successful setup
     logger = logging.getLogger(__name__)
-    logger.info("Logging system initialized with level: %s", log_level)
-    logger.debug("Debug logging enabled")
+    logger.info("Logging system initialized - Console: %s, File: %s, Clients: %s, Services: %s, API: %s",
+                console_log_level, file_log_level, client_log_level, service_log_level, api_log_level)
 
 
 def get_logger(name: str) -> logging.Logger:

@@ -170,17 +170,20 @@ class FlowService(LoggerMixin):
 
     # NiFi Deployment Operations
     async def deploy_flow(
-        self, 
-        bucket_id: str, 
-        flow_id: str, 
-        parameters: Dict[str, Any] = None, 
+        self,
+        bucket_id: str,
+        flow_id: str,
+        parameters: Dict[str, Any] = None,
         version: Optional[int] = None,
         parent_group_id: str = "root"
     ) -> Dict[str, Any]:
         """Deploy flow from Registry to NiFi with parameter context."""
         try:
             deployment_info = {}
-            
+
+            # 0. Ensure Registry client exists in NiFi
+            registry_id = await self._ensure_registry_client()
+
             # 1. Create parameter context if parameters provided
             if parameters:
                 param_context_name = f"params-{flow_id}-{bucket_id}"
@@ -193,7 +196,7 @@ class FlowService(LoggerMixin):
                             "sensitive": False
                         }
                     })
-                
+
                 param_context = await self.nifi_client.create_parameter_context(
                     name=param_context_name,
                     description=f"Parameters for flow {flow_id}",
@@ -202,19 +205,25 @@ class FlowService(LoggerMixin):
                 deployment_info["parameter_context_id"] = param_context["id"]
                 log.info(f"Created parameter context: {param_context['id']}")
             
-            # 2. Import flow from Registry
+            # 2. Get flow snapshot from Registry
+            self.logger.debug("Getting flow snapshot from Registry...")
+            flow_snapshot = await self.registry_client.get_flow_version(bucket_id, flow_id, version or 1)
+            self.logger.info("Retrieved flow snapshot: %s v%s",
+                           flow_snapshot.get("snapshotMetadata", {}).get("flowIdentifier"),
+                           flow_snapshot.get("snapshotMetadata", {}).get("version"))
+
+            # 3. Import flow from Registry snapshot
             import_result = await self.nifi_client.import_from_registry(
                 parent_group_id=parent_group_id,
-                bucket_id=bucket_id,
-                flow_id=flow_id,
-                version=version or 1
+                flow_snapshot=flow_snapshot,
+                position={"x": 100.0, "y": 100.0}
             )
             
             process_group_id = import_result["id"]
             deployment_info["process_group_id"] = process_group_id
             log.info(f"Imported flow as process group: {process_group_id}")
             
-            # 3. Associate parameter context with process group
+            # 4. Associate parameter context with process group
             if parameters and "parameter_context_id" in deployment_info:
                 pg_revision = import_result["revision"]["version"]
                 await self.nifi_client.set_parameter_context_for_process_group(
@@ -415,3 +424,34 @@ class FlowService(LoggerMixin):
         except Exception as exc:
             log.error(f"Failed to get parameters for flow {flow_id}: {exc}")
             raise FlowServiceError(f"Failed to get flow parameters: {exc}") from exc
+
+    async def _ensure_registry_client(self) -> str:
+        """Ensure Registry client exists in NiFi and return its ID."""
+        try:
+            # Check if Registry client already exists
+            registries = await self.nifi_client.list_registry_clients()
+
+            for registry in registries:
+                registry_url = registry.get("component", {}).get("properties", {}).get("url", "")
+                # Check if this registry matches our Registry URL
+                if self.registry_client.registry_url in registry_url or registry_url in self.registry_client.registry_url:
+                    registry_id = registry.get("id")
+                    self.logger.info("Found existing Registry client: %s", registry_id)
+                    return registry_id
+
+            # Create new Registry client if none exists
+            self.logger.info("Creating new Registry client for %s", self.registry_client.registry_url)
+
+            registry_result = await self.nifi_client.create_registry_client(
+                name="EDI Lens Registry",
+                url=self.registry_client.registry_url,
+                description="Registry client for EDI Lens flows"
+            )
+
+            registry_id = registry_result.get("id")
+            self.logger.info("Created Registry client: %s", registry_id)
+
+            return registry_id
+
+        except (NiFiClientError, KeyError) as exc:
+            raise FlowServiceError(f"Failed to ensure Registry client: {exc}") from exc

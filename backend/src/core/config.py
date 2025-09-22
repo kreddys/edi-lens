@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = Field(default="0.1.0")
 
     # NiFi Configuration
-    NIFI_URL: str = Field(default="http://localhost:8080")
+    NIFI_URL: str = Field(default="https://localhost:8443")
     NIFI_USERNAME: Optional[str] = Field(default=None)
     NIFI_PASSWORD: Optional[str] = Field(default=None)
 
@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     LOG_TO_FILE: bool = Field(default=True, description="Enable file logging")
     LOG_FILE_MAX_SIZE: int = Field(default=10485760, description="Max log file size in bytes")
     LOG_FILE_BACKUP_COUNT: int = Field(default=5, description="Number of log file backups")
+
+    # Component-specific logging levels
+    LOG_LEVEL_CONSOLE: Optional[str] = Field(default=None, description="Console log level override")
+    LOG_LEVEL_FILE: Optional[str] = Field(default=None, description="File log level override")
+    LOG_LEVEL_CLIENTS: Optional[str] = Field(default=None, description="Client logging level")
+    LOG_LEVEL_SERVICES: Optional[str] = Field(default=None, description="Service logging level")
+    LOG_LEVEL_API: Optional[str] = Field(default=None, description="API logging level")
 
 
 @lru_cache(maxsize=1)

@@ -70,65 +70,165 @@ Line 4: End of test file"""
         return Path(input_file_path)
 
     def get_registry_flow_definition(self, test_directories: Dict[str, str]) -> Dict[str, Any]:
-        """Define a flow using registry-first format with parameters."""
+        """Define a flow using NiFi's native VersionedProcessGroup format."""
         import time
+        import uuid
         timestamp = int(time.time())
-        
+
+        # Generate unique IDs for processors
+        getfile_id = str(uuid.uuid4())
+        update_attr_id = str(uuid.uuid4())
+        putfile_id = str(uuid.uuid4())
+        conn1_id = str(uuid.uuid4())
+        conn2_id = str(uuid.uuid4())
+
         return {
+            "identifier": str(uuid.uuid4()),
             "name": f"E2E Registry Flow {timestamp}",
-            "description": "Registry-first GetFile → UpdateAttribute → PutFile flow for E2E testing",
+            "comments": "Registry-first GetFile → UpdateAttribute → PutFile flow for E2E testing",
+            "position": {
+                "x": 0.0,
+                "y": 0.0
+            },
+            "processGroups": [],
+            "remoteProcessGroups": [],
             "processors": [
                 {
-                    "id": "getfile-processor",
+                    "identifier": getfile_id,
                     "name": "Get Input Files",
                     "type": "org.apache.nifi.processors.standard.GetFile",
+                    "bundle": {
+                        "group": "org.apache.nifi",
+                        "artifact": "nifi-standard-nar",
+                        "version": "1.23.2"
+                    },
+                    "position": {
+                        "x": 100.0,
+                        "y": 100.0
+                    },
                     "properties": {
                         "Input Directory": "#{input_directory}",
                         "File Filter": "#{input_pattern}",
                         "Keep Source File": "false",
                         "Minimum File Age": "0 sec"
                     },
-                    "relationships": ["success", "failure"]
+                    "schedulingPeriod": "1 sec",
+                    "schedulingStrategy": "TIMER_DRIVEN",
+                    "executionNode": "ALL",
+                    "penaltyDuration": "30 sec",
+                    "yieldDuration": "1 sec",
+                    "bulletinLevel": "WARN",
+                    "runDurationMillis": 0,
+                    "concurrentlySchedulableTaskCount": 1,
+                    "autoTerminatedRelationships": ["failure"]
                 },
                 {
-                    "id": "update-attribute-processor",
-                    "name": "Add Processing Metadata", 
+                    "identifier": update_attr_id,
+                    "name": "Add Processing Metadata",
                     "type": "org.apache.nifi.processors.attributes.UpdateAttribute",
+                    "bundle": {
+                        "group": "org.apache.nifi",
+                        "artifact": "nifi-update-attribute-nar",
+                        "version": "1.23.2"
+                    },
+                    "position": {
+                        "x": 400.0,
+                        "y": 100.0
+                    },
                     "properties": {
                         "filename": "processed_${filename}",
                         "processing.timestamp": "${now():format('yyyy-MM-dd HH:mm:ss')}",
                         "processing.test_run": f"e2e-{timestamp}"
                     },
-                    "relationships": ["success"]
+                    "schedulingPeriod": "0 sec",
+                    "schedulingStrategy": "EVENT_DRIVEN",
+                    "executionNode": "ALL",
+                    "penaltyDuration": "30 sec",
+                    "yieldDuration": "1 sec",
+                    "bulletinLevel": "WARN",
+                    "runDurationMillis": 0,
+                    "concurrentlySchedulableTaskCount": 1,
+                    "autoTerminatedRelationships": []
                 },
                 {
-                    "id": "putfile-processor",
+                    "identifier": putfile_id,
                     "name": "Write Output Files",
                     "type": "org.apache.nifi.processors.standard.PutFile",
+                    "bundle": {
+                        "group": "org.apache.nifi",
+                        "artifact": "nifi-standard-nar",
+                        "version": "1.23.2"
+                    },
+                    "position": {
+                        "x": 700.0,
+                        "y": 100.0
+                    },
                     "properties": {
                         "Directory": "#{output_directory}",
                         "Create Missing Directories": "true"
                     },
-                    "relationships": ["success", "failure"]
+                    "schedulingPeriod": "0 sec",
+                    "schedulingStrategy": "EVENT_DRIVEN",
+                    "executionNode": "ALL",
+                    "penaltyDuration": "30 sec",
+                    "yieldDuration": "1 sec",
+                    "bulletinLevel": "WARN",
+                    "runDurationMillis": 0,
+                    "concurrentlySchedulableTaskCount": 1,
+                    "autoTerminatedRelationships": ["failure", "success"]
                 }
             ],
+            "inputPorts": [],
+            "outputPorts": [],
             "connections": [
                 {
-                    "source": "getfile-processor",
-                    "destination": "update-attribute-processor",
-                    "relationships": ["success"]
+                    "identifier": conn1_id,
+                    "name": "",
+                    "source": {
+                        "id": getfile_id,
+                        "type": "PROCESSOR"
+                    },
+                    "destination": {
+                        "id": update_attr_id,
+                        "type": "PROCESSOR"
+                    },
+                    "selectedRelationships": ["success"],
+                    "flowFileExpiration": "0 sec",
+                    "backPressureDataSizeThreshold": "1 GB",
+                    "backPressureObjectThreshold": 10000,
+                    "bends": [],
+                    "prioritizers": []
                 },
                 {
-                    "source": "update-attribute-processor",
-                    "destination": "putfile-processor",
-                    "relationships": ["success"]
+                    "identifier": conn2_id,
+                    "name": "",
+                    "source": {
+                        "id": update_attr_id,
+                        "type": "PROCESSOR"
+                    },
+                    "destination": {
+                        "id": putfile_id,
+                        "type": "PROCESSOR"
+                    },
+                    "selectedRelationships": ["success"],
+                    "flowFileExpiration": "0 sec",
+                    "backPressureDataSizeThreshold": "1 GB",
+                    "backPressureObjectThreshold": 10000,
+                    "bends": [],
+                    "prioritizers": []
                 }
             ],
-            "parameters": {
-                "input_directory": test_directories["input"],
-                "output_directory": test_directories["output"],
-                "input_pattern": ".*\\.txt$"
-            }
+            "labels": [],
+            "funnels": [],
+            "controllerServices": [],
+            "variables": {},
+            "parameterContextName": f"E2E-Test-Context-{timestamp}",
+            "defaultFlowFileExpiration": "0 sec",
+            "defaultBackPressureObjectThreshold": 10000,
+            "defaultBackPressureDataSizeThreshold": "1 GB",
+            "flowFileConcurrency": "UNBOUNDED",
+            "flowFileOutboundPolicy": "STREAM_WHEN_AVAILABLE",
+            "scheduledState": "DISABLED"
         }
 
     async def wait_for_api_health(self, max_attempts: int = 30) -> bool:
@@ -202,10 +302,17 @@ Line 4: End of test file"""
                 # Phase 2: Create Flow in Registry
                 print("Phase 2: Creating flow in Registry")
                 
+                # Create parameters separately for the test
+                flow_parameters = {
+                    "input_directory": test_directories["input"],
+                    "output_directory": test_directories["output"],
+                    "input_pattern": ".*\\.txt$"
+                }
+
                 create_flow_request = {
                     "bucket_id": bucket_id,
                     "flow_definition": flow_definition,
-                    "parameters": flow_definition["parameters"]
+                    "parameters": flow_parameters
                 }
                 
                 create_response = await client.post(
@@ -253,7 +360,7 @@ Line 4: End of test file"""
                 print("Phase Phase 4: Deploying flow to NiFi")
                 
                 deploy_request = {
-                    "parameters": flow_definition["parameters"],
+                    "parameters": flow_parameters,
                     "version": version
                 }
                 
@@ -508,7 +615,7 @@ Line 4: End of test file"""
                 "http://localhost:8000/api/flows/",
                 json=invalid_flow_request
             )
-            assert create_response.status_code in [400, 404, 500]
+            assert create_response.status_code in [400, 404, 422, 500]
             print("SUCCESS: Flow creation with invalid bucket properly handled")
             
         print("SUCCESS: API layer validation completed")

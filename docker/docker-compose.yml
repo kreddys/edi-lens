@@ -110,11 +110,11 @@ services:
     env_file:
       - ../.env
     environment:
-      DATABASE_URL: ${BACKEND_DATABASE_URL}
-      NIFI_URL: ${BACKEND_NIFI_URL}
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/edi_lens
+      NIFI_URL: ${NIFI_URL}
       NIFI_USERNAME: ${NIFI_USERNAME}
       NIFI_PASSWORD: ${NIFI_PASSWORD}
-      NIFI_REGISTRY_URL: ${BACKEND_NIFI_REGISTRY_URL}
+      NIFI_REGISTRY_URL: ${NIFI_REGISTRY_URL}
       NIFI_REGISTRY_AUTH_TOKEN: ${NIFI_REGISTRY_AUTH_TOKEN}
       DEBUG: ${DEBUG}
       VERIFY_SSL: ${VERIFY_SSL}

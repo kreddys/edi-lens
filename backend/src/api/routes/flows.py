@@ -117,7 +117,7 @@ async def create_flow(
     try:
         result = await flow_service.create_flow(
             bucket_id=request.bucket_id,
-            flow_definition=request.flow_definition.dict(),
+            flow_definition=request.flow_definition.model_dump(),
             parameters=request.parameters,
         )
         
@@ -221,7 +221,7 @@ async def update_flow(
         result = await flow_service.update_flow(
             bucket_id=bucket_id,
             flow_id=flow_id,
-            flow_definition=request.flow_definition.dict() if request.flow_definition else None,
+            flow_definition=request.flow_definition.model_dump() if request.flow_definition else None,
             parameters=request.parameters,
         )
         
@@ -235,7 +235,7 @@ async def update_flow(
         else:
             raise HTTPException(
                 status_code=400,
-                detail=result.error.dict() if result.error else "Flow update failed",
+                detail=result.error.model_dump() if result.error else "Flow update failed",
             )
             
     except HTTPException:
@@ -291,17 +291,18 @@ async def deploy_flow(
             version=request.version,
         )
         
-        if result.success:
+        if result.get("success"):
             return FlowDeploymentResponse(
                 success=True,
-                process_group_id=result.process_group_id,
-                parameter_context_id=result.parameter_context_id,
+                process_group_id=result.get("process_group_id"),
+                parameter_context_id=result.get("parameter_context_id"),
                 message="Flow deployed successfully",
             )
         else:
+            error_detail = result.get("error", {})
             raise HTTPException(
                 status_code=400,
-                detail=result.error.dict() if result.error else "Flow deployment failed",
+                detail=error_detail,
             )
             
     except HTTPException:

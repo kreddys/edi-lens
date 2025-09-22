@@ -65,6 +65,49 @@ load_env_file() {
     fi
 }
 
+load_local_env() {
+    local local_env_file="$PROJECT_ROOT/.env.local"
+    if [[ -f "$local_env_file" ]]; then
+        log_debug "Loading local environment variables from $local_env_file"
+        set -a
+        # shellcheck disable=SC1090
+        source "$local_env_file"
+        set +a
+    else
+        log_warn "Local environment file not found: $local_env_file"
+        log_info "Using fallback localhost URLs for local testing"
+        export NIFI_URL=https://localhost:8443
+        export NIFI_REGISTRY_URL=http://localhost:18080
+    fi
+}
+
+reconfigure_backend_for_local_testing() {
+    log_info "Reconfiguring backend for local testing..."
+
+    # Stop current backend
+    docker-compose -f "$DOCKER_DIR/docker-compose.yml" stop backend >/dev/null 2>&1
+    docker-compose -f "$DOCKER_DIR/docker-compose.yml" rm -f backend >/dev/null 2>&1
+
+    # Start backend with local configuration
+    log_debug "Starting backend with localhost URLs..."
+    docker-compose -f "$DOCKER_DIR/docker-compose.yml" -f "$DOCKER_DIR/docker-compose.local.yml" up -d backend >/dev/null 2>&1
+
+    # Wait for backend to be ready
+    local max_attempts=30
+    local attempt=1
+    while [[ $attempt -le $max_attempts ]]; do
+        if curl -s http://localhost:8000/health >/dev/null 2>&1; then
+            log_success "Backend reconfigured for local testing"
+            return 0
+        fi
+        sleep 1
+        ((attempt++))
+    done
+
+    log_error "Backend failed to start after reconfiguration"
+    return 1
+}
+
 is_port_in_use() {
     local port="$1"
 
@@ -533,19 +576,17 @@ cmd_test() {
                 local)
                     log_info "Running integration tests locally..."
                     log_info "Tests will connect to Docker services via localhost URLs"
-                    
+
+                    # Load local environment configuration
+                    load_local_env
+
                     # Check if services are running
-                    if ! curl -s -k "https://localhost:8443/nifi/" >/dev/null 2>&1; then
-                        log_warn "NiFi not reachable at https://localhost:8443 - consider starting services first"
+                    if ! curl -s -k "$NIFI_URL/nifi/" >/dev/null 2>&1; then
+                        log_warn "NiFi not reachable at $NIFI_URL - consider starting services first"
                     fi
-                    if ! curl -s "http://localhost:18080/nifi-registry-api/config" >/dev/null 2>&1; then
-                        log_warn "Registry not reachable at http://localhost:18080 - consider starting services first"
+                    if ! curl -s "$NIFI_REGISTRY_URL/nifi-registry-api/config" >/dev/null 2>&1; then
+                        log_warn "Registry not reachable at $NIFI_REGISTRY_URL - consider starting services first"
                     fi
-                    
-                    # Set environment for local testing (localhost URLs)
-                    export TEST_MODE=local
-                    export NIFI_URL=https://localhost:8443
-                    export NIFI_REGISTRY_URL=http://localhost:18080
                     
                     if (( ${#extra_args[@]} )); then
                         poetry run pytest -m integration tests/integration/ -v "${extra_args[@]}"
@@ -577,11 +618,12 @@ cmd_test() {
                 local)
                     log_info "Running e2e tests locally..."
                     log_info "Tests will connect to Docker services via localhost URLs"
-                    
-                    # Set environment for local testing
-                    export TEST_MODE=local
-                    export NIFI_URL=https://localhost:8443
-                    export NIFI_REGISTRY_URL=http://localhost:18080
+
+                    # Load local environment configuration
+                    load_local_env
+
+                    # Reconfigure backend to use localhost URLs
+                    reconfigure_backend_for_local_testing
                     
                     if (( ${#extra_args[@]} )); then
                         poetry run pytest -m e2e tests/e2e/ -v "${extra_args[@]}"
@@ -593,18 +635,18 @@ cmd_test() {
                     log_info "Running e2e tests locally with VERBOSE logging..."
                     log_info "Tests will connect to Docker services via localhost URLs"
                     log_info "Capturing detailed logs for validation..."
-                    
+
+                    # Load local environment configuration
+                    load_local_env
+
+                    # Reconfigure backend to use localhost URLs
+                    reconfigure_backend_for_local_testing
+
                     # Create e2e logs directory
                     mkdir -p logs/e2e
                     local timestamp=$(date +"%Y%m%d_%H%M%S")
                     local log_file="logs/e2e/e2e_test_${timestamp}.log"
                     local validation_file="logs/e2e/e2e_validation_${timestamp}.log"
-                    
-                    # Set environment for local testing with verbose logging
-                    export TEST_MODE=local
-                    export NIFI_URL=https://localhost:8443
-                    export NIFI_REGISTRY_URL=http://localhost:18080
-                    export DEBUG=true
                     
                     log_info "Starting comprehensive E2E test validation..."
                     log_info "Test logs will be saved to: $log_file"
@@ -614,7 +656,6 @@ cmd_test() {
                     {
                         echo "=== E2E Test Execution Started at $(date) ==="
                         echo "=== Environment ==="
-                        echo "TEST_MODE: $TEST_MODE"
                         echo "NIFI_URL: $NIFI_URL"
                         echo "NIFI_REGISTRY_URL: $NIFI_REGISTRY_URL"
                         echo "DEBUG: $DEBUG"

@@ -21,29 +21,86 @@ class DeploymentStatus(str, Enum):
     ERROR = "ERROR"
 
 
-class FlowProcessor(BaseModel):
-    """Flow processor definition."""
+# NiFi Standard Models - following NiFi Registry API spec
+
+class Position(BaseModel):
+    """Position coordinates."""
+    x: float
+    y: float
+
+
+class Bundle(BaseModel):
+    """Component bundle information."""
+    group: str
+    artifact: str
+    version: str
+
+
+class ConnectableComponent(BaseModel):
+    """Connectable component reference."""
     id: str
+    type: str  # PROCESSOR, FUNNEL, INPUT_PORT, OUTPUT_PORT, etc.
+
+
+class VersionedConnection(BaseModel):
+    """NiFi versioned connection."""
+    identifier: str
+    name: str = ""
+    source: ConnectableComponent
+    destination: ConnectableComponent
+    selectedRelationships: List[str]
+    flowFileExpiration: str = "0 sec"
+    backPressureDataSizeThreshold: str = "1 GB"
+    backPressureObjectThreshold: int = 10000
+    bends: List[Position] = Field(default_factory=list)
+    prioritizers: List[str] = Field(default_factory=list)
+
+
+class VersionedProcessor(BaseModel):
+    """NiFi versioned processor."""
+    identifier: str
     name: str
     type: str
-    properties: Dict[str, Any] = Field(default_factory=dict)
-    relationships: List[str] = Field(default_factory=list)
+    bundle: Bundle
+    position: Position
+    properties: Dict[str, str] = Field(default_factory=dict)
+    schedulingPeriod: str = "0 sec"
+    schedulingStrategy: str = "EVENT_DRIVEN"  # TIMER_DRIVEN, EVENT_DRIVEN, CRON_DRIVEN
+    executionNode: str = "ALL"  # ALL, PRIMARY
+    penaltyDuration: str = "30 sec"
+    yieldDuration: str = "1 sec"
+    bulletinLevel: str = "WARN"
+    runDurationMillis: int = 0
+    concurrentlySchedulableTaskCount: int = 1
+    autoTerminatedRelationships: List[str] = Field(default_factory=list)
 
 
-class FlowConnection(BaseModel):
-    """Flow connection definition."""
-    source: str
-    destination: str
-    relationships: List[str]
-    
-    
-class FlowDefinition(BaseModel):
-    """Complete flow definition."""
+class VersionedProcessGroup(BaseModel):
+    """NiFi versioned process group - this is the main flow definition."""
+    identifier: str
     name: str
-    description: Optional[str] = None
-    processors: List[FlowProcessor] = Field(default_factory=list)
-    connections: List[FlowConnection] = Field(default_factory=list)
-    parameters: Dict[str, Any] = Field(default_factory=dict)
+    comments: Optional[str] = None
+    position: Position
+    processGroups: List['VersionedProcessGroup'] = Field(default_factory=list)
+    remoteProcessGroups: List[Dict[str, Any]] = Field(default_factory=list)
+    processors: List[VersionedProcessor] = Field(default_factory=list)
+    inputPorts: List[Dict[str, Any]] = Field(default_factory=list)
+    outputPorts: List[Dict[str, Any]] = Field(default_factory=list)
+    connections: List[VersionedConnection] = Field(default_factory=list)
+    labels: List[Dict[str, Any]] = Field(default_factory=list)
+    funnels: List[Dict[str, Any]] = Field(default_factory=list)
+    controllerServices: List[Dict[str, Any]] = Field(default_factory=list)
+    variables: Dict[str, str] = Field(default_factory=dict)
+    parameterContextName: Optional[str] = None
+    defaultFlowFileExpiration: str = "0 sec"
+    defaultBackPressureObjectThreshold: int = 10000
+    defaultBackPressureDataSizeThreshold: str = "1 GB"
+    flowFileConcurrency: str = "UNBOUNDED"  # UNBOUNDED, SINGLE_FLOWFILE_PER_NODE
+    flowFileOutboundPolicy: str = "STREAM_WHEN_AVAILABLE"  # STREAM_WHEN_AVAILABLE, BATCH_OUTPUT
+    scheduledState: str = "DISABLED"  # ENABLED, DISABLED, RUNNING
+
+# Update model references
+VersionedProcessGroup.model_rebuild()
 
 
 class Flow(BaseModel):
@@ -93,13 +150,13 @@ class APIErrorResponse(BaseModel):
 class CreateFlowRequest(BaseModel):
     """Request to create a new flow."""
     bucket_id: str
-    flow_definition: FlowDefinition
+    flow_definition: VersionedProcessGroup
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
 class UpdateFlowRequest(BaseModel):
     """Request to update an existing flow."""
-    flow_definition: Optional[FlowDefinition] = None
+    flow_definition: Optional[VersionedProcessGroup] = None
     parameters: Optional[Dict[str, Any]] = None
 
 
