@@ -37,13 +37,13 @@ async def list_buckets(
     """List available Registry buckets."""
     start_time = time.time()
     
-    log.info("📋 Listing available Registry buckets")
+    log.info("Listing available Registry buckets")
     
     try:
         buckets = await flow_service.list_buckets()
         execution_time = (time.time() - start_time) * 1000
         
-        log.info("✅ Successfully retrieved %d buckets (%.2fms)", len(buckets), execution_time)
+        log.info("Successfully retrieved %d buckets (%.2fms)", len(buckets), execution_time)
         
         # Audit log
         audit_logger.log_api_call(
@@ -57,7 +57,7 @@ async def list_buckets(
         
     except Exception as exc:
         execution_time = (time.time() - start_time) * 1000
-        log.error("❌ Failed to list buckets after %.2fms: %s", execution_time, exc)
+        log.error("Failed to list buckets after %.2fms: %s", execution_time, exc)
         
         # Audit log for errors
         audit_logger.log_api_call(
@@ -108,11 +108,11 @@ async def create_flow(
     start_time = time.time()
     flow_name = request.flow_definition.name
     
-    log.info("🚀 Creating flow '%s' in bucket '%s'", flow_name, request.bucket_id)
-    log.debug("📊 Flow definition: %d processors, %d connections", 
+    log.info("Creating flow '%s' in bucket '%s'", flow_name, request.bucket_id)
+    log.debug("Flow definition: %d processors, %d connections", 
              len(request.flow_definition.processors), 
              len(request.flow_definition.connections))
-    log.debug("⚙️ Parameters: %d items", len(request.parameters))
+    log.debug("Parameters: %d items", len(request.parameters))
     
     try:
         result = await flow_service.create_flow(
@@ -124,7 +124,7 @@ async def create_flow(
         execution_time = (time.time() - start_time) * 1000
         
         if result.get("success"):
-            log.info("🎉 Successfully created flow '%s' (ID: %s) in %.2fms", 
+            log.info("Successfully created flow '%s' (ID: %s) in %.2fms", 
                     flow_name, result.get("flow_id"), execution_time)
             
             # Audit log success
@@ -143,7 +143,7 @@ async def create_flow(
                 message="Flow created successfully",
             )
         else:
-            log.warning("⚠️ Flow creation failed: %s", result.get("error", {}).get("user_message"))
+            log.warning("Flow creation failed: %s", result.get("error", {}).get("user_message"))
             
             # Audit log for business logic failures
             audit_logger.log_api_call(
@@ -164,7 +164,7 @@ async def create_flow(
         raise
     except Exception as exc:
         execution_time = (time.time() - start_time) * 1000
-        log.error("❌ Unexpected error creating flow '%s' after %.2fms: %s", 
+        log.error("Unexpected error creating flow '%s' after %.2fms: %s", 
                  flow_name, execution_time, exc)
         
         # Audit log for system errors

@@ -23,31 +23,31 @@ class FlowService(LoggerMixin):
         self.nifi_client = nifi_client
         self.registry_client = registry_client
         
-        self.logger.info("🔧 Initializing FlowService")
-        self.logger.debug("📊 NiFi client: %s", self.nifi_client.__class__.__name__)
-        self.logger.debug("📊 Registry client: %s", self.registry_client.__class__.__name__)
+        self.logger.info("Initializing FlowService")
+        self.logger.debug("NiFi client: %s", self.nifi_client.__class__.__name__)
+        self.logger.debug("Registry client: %s", self.registry_client.__class__.__name__)
 
     # Registry Operations
     async def create_flow(self, bucket_id: str, flow_definition: Dict[str, Any], parameters: Dict[str, Any] = None) -> Dict[str, Any]:
         """Create a new flow in Registry with initial version."""
         flow_name = flow_definition.get("name", "Unnamed Flow")
         
-        self.logger.info("🚀 Creating flow '%s' in bucket '%s'", flow_name, bucket_id)
-        self.logger.debug("📄 Flow definition processors: %d", len(flow_definition.get("processors", [])))
-        self.logger.debug("🔗 Flow definition connections: %d", len(flow_definition.get("connections", [])))
-        self.logger.debug("⚙️ Parameters provided: %d", len(parameters) if parameters else 0)
+        self.logger.info("Creating flow '%s' in bucket '%s'", flow_name, bucket_id)
+        self.logger.debug("Flow definition processors: %d", len(flow_definition.get("processors", [])))
+        self.logger.debug("Flow definition connections: %d", len(flow_definition.get("connections", [])))
+        self.logger.debug("Parameters provided: %d", len(parameters) if parameters else 0)
         
         try:
             description = flow_definition.get("description", "")
             
             # 1. Create flow metadata in Registry
-            self.logger.debug("📝 Creating flow metadata in Registry...")
+            self.logger.debug("Creating flow metadata in Registry...")
             flow_result = await self.registry_client.create_flow(bucket_id, flow_name, description)
             flow_id = flow_result["identifier"]
-            self.logger.info("✅ Flow metadata created with ID: %s", flow_id)
+            self.logger.info("Flow metadata created with ID: %s", flow_id)
             
             # 2. Create initial version with flow definition
-            self.logger.debug("📦 Creating initial flow version...")
+            self.logger.debug("Creating initial flow version...")
             version_result = await self.registry_client.create_flow_version(
                 bucket_id=bucket_id,
                 flow_id=flow_id,
@@ -56,7 +56,7 @@ class FlowService(LoggerMixin):
                 comments="Initial flow version"
             )
             
-            self.logger.info("🎉 Successfully created flow '%s' (ID: %s) in bucket '%s'", 
+            self.logger.info("Successfully created flow '%s' (ID: %s) in bucket '%s'", 
                            flow_name, flow_id, bucket_id)
             
             # Audit log
@@ -79,7 +79,7 @@ class FlowService(LoggerMixin):
             }
             
         except (RegistryClientError, KeyError) as exc:
-            self.logger.error("❌ Failed to create flow '%s' in bucket '%s': %s", 
+            self.logger.error("Failed to create flow '%s' in bucket '%s': %s", 
                             flow_name, bucket_id, exc)
             return {
                 "success": False,

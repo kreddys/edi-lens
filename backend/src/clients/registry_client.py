@@ -37,33 +37,33 @@ class RegistryClient(LoggerMixin):
         self._timeout = aiohttp.ClientTimeout(total=timeout) if timeout else None
         self.session: Optional[aiohttp.ClientSession] = session
         
-        self.logger.info("🔧 Initializing Registry client for %s", self.registry_url)
-        self.logger.debug("🔐 Authentication: %s", "token provided" if auth_token else "none")
-        self.logger.debug("🔒 SSL verification: %s", "enabled" if verify_ssl else "disabled")
-        self.logger.debug("⏱️ Timeout: %ss", timeout if timeout else "unlimited")
+        self.logger.info("Initializing Registry client for %s", self.registry_url)
+        self.logger.debug("Authentication: %s", "token provided" if auth_token else "none")
+        self.logger.debug("SSL verification: %s", "enabled" if verify_ssl else "disabled")
+        self.logger.debug("Timeout: %ss", timeout if timeout else "unlimited")
         
         if not verify_ssl:
-            self.logger.warning("⚠️ SSL verification is disabled - not recommended for production")
+            self.logger.warning("SSL verification is disabled - not recommended for production")
 
     async def __aenter__(self) -> "RegistryClient":
-        self.logger.debug("🚀 Starting Registry client session")
+        self.logger.debug("Starting Registry client session")
         
         if self.session is None:
             self.session = await self._create_session()
-            self.logger.debug("✅ Registry client session created")
+            self.logger.debug("Registry client session created")
         else:
-            self.logger.debug("♻️ Reusing existing Registry client session")
+            self.logger.debug("Reusing existing Registry client session")
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         if exc_type:
-            self.logger.error("❌ Registry client session ended with error: %s", exc_val)
+            self.logger.error("Registry client session ended with error: %s", exc_val)
         else:
-            self.logger.debug("✅ Registry client session ended normally")
+            self.logger.debug("Registry client session ended normally")
         
         if self.session and self._external_session is None:
             await self.session.close()
-            self.logger.debug("🔌 Registry client session closed")
+            self.logger.debug("Registry client session closed")
             self.session = None
 
     async def _create_session(self) -> aiohttp.ClientSession:
@@ -95,40 +95,42 @@ class RegistryClient(LoggerMixin):
         start_time = time.time()
         
         # Log request details
-        self.logger.debug("📤 Registry API request: %s %s", method, path)
+        self.logger.debug("Registry API request: %s %s", method, path)
         if kwargs.get("json"):
-            self.logger.debug("📄 Request payload size: %d bytes", len(str(kwargs["json"])))
+            self.logger.debug("Request payload size: %d bytes", len(str(kwargs["json"])))
 
         try:
             async with self.session.request(method, url, **kwargs) as response:
                 execution_time = (time.time() - start_time) * 1000
                 
                 # Log response details
-                self.logger.debug("📥 Registry API response: %d (%.2fms) %s", 
+                self.logger.debug("Registry API response: %d (%.2fms) %s", 
                                 response.status, execution_time, response.content_type)
                 
                 # Check for errors before parsing response
                 if response.status >= 400:
                     error_text = await response.text()
-                    self.logger.error("❌ Registry API error %d: %s", response.status, error_text)
+                    self.logger.error("Registry API error %d: %s", response.status, error_text)
                 
                 response.raise_for_status()
                 
                 # Log successful response
-                self.logger.debug("✅ Registry API success: %s %s → %d", method, path, response.status)
+                self.logger.debug("Registry API success: %s %s -> %d", method, path, response.status)
                 
                 if response.content_type == "application/json":
                     result = await response.json()
-                    self.logger.debug("📊 Response data size: %d items" if isinstance(result, list) 
-                                    else "📊 Response data: dict with %d keys" if isinstance(result, dict)
-                                    else "📊 Response data: %s", 
-                                    len(result) if isinstance(result, (list, dict)) else type(result).__name__)
+                    if isinstance(result, list):
+                        self.logger.debug("Response data: %d items", len(result))
+                    elif isinstance(result, dict):
+                        self.logger.debug("Response data: dict with %d keys", len(result))
+                    else:
+                        self.logger.debug("Response data: %s", type(result).__name__)
                     return result
                 return await response.text()
                 
         except aiohttp.ClientError as exc:
             execution_time = (time.time() - start_time) * 1000
-            self.logger.error("❌ Registry client request failed after %.2fms: %s %s - %s", 
+            self.logger.error("Registry client request failed after %.2fms: %s %s - %s", 
                             execution_time, method, path, exc)
             raise RegistryClientError(f"Request to NiFi Registry failed: {exc}") from exc
 

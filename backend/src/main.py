@@ -22,8 +22,8 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan management."""
     # Startup
-    logger.info("🚀 Starting EDI Lens NiFi Backend v%s", settings.APP_VERSION)
-    logger.info("📊 Configuration: Debug=%s, NiFi=%s, Registry=%s", 
+    logger.info("Starting EDI Lens NiFi Backend v%s", settings.APP_VERSION)
+    logger.info("Configuration: Debug=%s, NiFi=%s, Registry=%s", 
                 settings.DEBUG, settings.NIFI_URL, settings.NIFI_REGISTRY_URL)
     audit_logger.log_system_event("application_startup", {
         "version": settings.APP_VERSION,
@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
-    logger.info("🛑 Shutting down EDI Lens NiFi Backend")
+    logger.info("Shutting down EDI Lens NiFi Backend")
     audit_logger.log_system_event("application_shutdown")
     await dispose_engine()
 
@@ -62,8 +62,8 @@ async def log_requests(request: Request, call_next):
     start_time = time.time()
     
     # Log request
-    logger.debug("🔍 Incoming request: %s %s", request.method, request.url.path)
-    logger.debug("📋 Request headers: %s", dict(request.headers))
+    logger.debug("Incoming request: %s %s", request.method, request.url.path)
+    logger.debug("Request headers: %s", dict(request.headers))
     
     # Process request
     response: Response = await call_next(request)
@@ -72,7 +72,7 @@ async def log_requests(request: Request, call_next):
     execution_time = (time.time() - start_time) * 1000
     
     # Log response
-    logger.info("✅ %s %s → %d (%.2fms)", 
+    logger.info("%s %s -> %d (%.2fms)", 
                 request.method, request.url.path, response.status_code, execution_time)
     
     # Audit log for API calls
@@ -86,7 +86,7 @@ async def log_requests(request: Request, call_next):
     
     # Log slow requests
     if execution_time > 1000:  # Log if > 1 second
-        logger.warning("🐌 Slow request detected: %s %s took %.2fms", 
+        logger.warning("Slow request detected: %s %s took %.2fms", 
                       request.method, request.url.path, execution_time)
     
     return response
@@ -94,8 +94,8 @@ async def log_requests(request: Request, call_next):
 app.include_router(health_router)
 app.include_router(flows_router, prefix="/api")
 
-logger.info("📚 Registered routes: health, flows")
-logger.info("🌐 API endpoints available at /api/flows")
+logger.info("Registered routes: health, flows")
+logger.info("API endpoints available at /api/flows")
 
 
 if __name__ == "__main__":  # pragma: no cover - script execution helper
