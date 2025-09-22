@@ -9,6 +9,7 @@ from fastapi import Depends
 from ..clients.nifi_client import NiFiClient
 from ..clients.registry_client import RegistryClient
 from ..core.config import Settings, get_settings
+from ..services.flow_service import FlowService
 
 
 async def get_nifi_client(
@@ -36,3 +37,11 @@ async def get_registry_client(
         verify_ssl=settings.VERIFY_SSL,
     ) as client:
         yield client
+
+
+async def get_flow_service(
+    nifi_client: NiFiClient = Depends(get_nifi_client),
+    registry_client: RegistryClient = Depends(get_registry_client),
+) -> FlowService:
+    """Provide a configured FlowService instance."""
+    return FlowService(nifi_client=nifi_client, registry_client=registry_client)

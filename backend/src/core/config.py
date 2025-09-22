@@ -46,6 +46,13 @@ class Settings(BaseSettings):
 
     # Development flags
     DEBUG: bool = Field(default=False)
+    
+    # Logging configuration
+    LOG_LEVEL: str = Field(default="INFO", description="Application log level")
+    LOG_FORMAT: str = Field(default="detailed", description="Log format: simple, detailed, json")
+    LOG_TO_FILE: bool = Field(default=True, description="Enable file logging")
+    LOG_FILE_MAX_SIZE: int = Field(default=10485760, description="Max log file size in bytes")
+    LOG_FILE_BACKUP_COUNT: int = Field(default=5, description="Number of log file backups")
 
 
 @lru_cache(maxsize=1)
