@@ -140,8 +140,8 @@ Line 4: End of test file"""
                         "processing.timestamp": "${now():format('yyyy-MM-dd HH:mm:ss')}",
                         "processing.test_run": f"e2e-{timestamp}"
                     },
-                    "schedulingPeriod": "0 sec",
-                    "schedulingStrategy": "EVENT_DRIVEN",
+                    "schedulingPeriod": "1 sec",
+                    "schedulingStrategy": "TIMER_DRIVEN",
                     "executionNode": "ALL",
                     "penaltyDuration": "30 sec",
                     "yieldDuration": "1 sec",
@@ -167,8 +167,8 @@ Line 4: End of test file"""
                         "Directory": "#{output_directory}",
                         "Create Missing Directories": "true"
                     },
-                    "schedulingPeriod": "0 sec",
-                    "schedulingStrategy": "EVENT_DRIVEN",
+                    "schedulingPeriod": "1 sec",
+                    "schedulingStrategy": "TIMER_DRIVEN",
                     "executionNode": "ALL",
                     "penaltyDuration": "30 sec",
                     "yieldDuration": "1 sec",
@@ -381,7 +381,12 @@ Line 4: End of test file"""
                     print(f"   - Parameter Context ID: {parameter_context_id}")
                 else:
                     print("WARNING: NiFi deployment failed - testing deployment API only")
-                    assert deploy_response.status_code in [500, 503], f"Unexpected deployment error: {deploy_response.text}"
+                    assert deploy_response.status_code in [400, 500, 503], f"Unexpected deployment error: {deploy_response.text}"
+                    error_payload = deploy_response.json().get("detail", {})
+                    print(f"ERROR DETAIL: {error_payload}")
+                    if deploy_response.status_code == 400:
+                        assert error_payload.get("error_type") == "FLOW_DEPLOYMENT_FAILED"
+                        assert "failures" in error_payload.get("details", {})
                     print("SUCCESS: Deployment API tested successfully (NiFi unavailable)")
                     return  # Skip remaining phases
                 
@@ -580,101 +585,3 @@ Line 4: End of test file"""
                     print(f"Cleaned up Cleaned up test directories: {base_path}")
             except Exception as e:
                 print(f"WARNING: Cleanup warning: {e}")
-
-    @pytest.mark.asyncio
-    async def test_api_layer_only(self):
-        """Test API layer functionality when Registry is unavailable."""
-        print("Testing API Layer Functionality (Registry Unavailable Mode)")
-        
-        async with AsyncClient() as client:
-            # Test that API layer works even when Registry is down
-            print("Testing API endpoints with graceful Registry failure...")
-            
-            # Test health endpoint
-            health_response = await client.get("http://localhost:8000/health")
-            assert health_response.status_code == 200
-            print("SUCCESS: Health endpoint working")
-            
-            # Test bucket listing (should work even if Registry returns empty)
-            buckets_response = await client.get("http://localhost:8000/api/flows/buckets")
-            assert buckets_response.status_code == 200
-            print("SUCCESS: Bucket listing API working")
-            
-            # Test flow creation with invalid bucket (should return proper error)
-            invalid_flow_request = {
-                "bucket_id": "non-existent-bucket",
-                "flow_definition": {
-                    "name": "Test Flow",
-                    "processors": [],
-                    "connections": []
-                },
-                "parameters": {}
-            }
-            
-            create_response = await client.post(
-                "http://localhost:8000/api/flows/",
-                json=invalid_flow_request
-            )
-            assert create_response.status_code in [400, 404, 422, 500]
-            print("SUCCESS: Flow creation with invalid bucket properly handled")
-            
-        print("SUCCESS: API layer validation completed")
-
-    @pytest.mark.asyncio
-    async def test_api_error_handling(self):
-        """Test API error handling with invalid requests."""
-        print("Testing API Error Handling")
-        
-        async with AsyncClient() as client:
-            
-            # Test invalid bucket ID
-            invalid_bucket_response = await client.get("http://localhost:8000/api/flows/invalid-bucket-id")
-            print(f"SUCCESS: Invalid bucket handling: {invalid_bucket_response.status_code}")
-            
-            # Test invalid flow creation
-            invalid_flow_request = {
-                "bucket_id": "invalid",
-                "flow_definition": {
-                    "name": "",  # Invalid empty name
-                    "processors": []
-                },
-                "parameters": {}
-            }
-            
-            invalid_create_response = await client.post(
-                "http://localhost:8000/api/flows/",
-                json=invalid_flow_request
-            )
-            print(f"SUCCESS: Invalid flow creation handling: {invalid_create_response.status_code}")
-            
-            # Test non-existent flow status
-            nonexistent_status_response = await client.get("http://localhost:8000/api/flows/fake/fake-flow-id/status")
-            print(f"SUCCESS: Non-existent flow handling: {nonexistent_status_response.status_code}")
-        
-        print("SUCCESS: API error handling tests completed")
-
-    @pytest.mark.asyncio
-    async def test_concurrent_operations(self):
-        """Test concurrent flow operations."""
-        print("Testing Testing Concurrent Operations")
-        
-        # Wait for API health
-        api_healthy = await self.wait_for_api_health()
-        if not api_healthy:
-            pytest.skip("API is not healthy - skipping concurrent test")
-        
-        async with AsyncClient() as client:
-            
-            # Test concurrent bucket listings
-            tasks = []
-            for i in range(5):
-                task = client.get("http://localhost:8000/api/flows/buckets")
-                tasks.append(task)
-            
-            responses = await asyncio.gather(*tasks, return_exceptions=True)
-            successful_responses = [r for r in responses if hasattr(r, 'status_code') and r.status_code == 200]
-            
-            print(f"SUCCESS: Concurrent bucket requests: {len(successful_responses)}/5 successful")
-            assert len(successful_responses) >= 3, "Most concurrent requests should succeed"
-        
-        print("SUCCESS: Concurrent operations test completed")

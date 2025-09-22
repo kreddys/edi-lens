@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import ssl
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 
@@ -223,6 +224,99 @@ class NiFiClient(LoggerMixin):
             raise NiFiClientError("Unexpected response format for process group flow")
         return result
 
+    async def get_process_group(self, process_group_id: str, *, ui_only: bool = False) -> Dict[str, Any]:
+        """Get process group metadata."""
+
+        path = f"/nifi-api/process-groups/{process_group_id}"
+        if ui_only:
+            path += "?uiOnly=true"
+
+        result = await self._request("GET", path)
+        if not isinstance(result, dict):
+            raise NiFiClientError("Unexpected response format for process group")
+        return result
+
+    async def dry_run_import_process_group(
+        self,
+        parent_group_id: str,
+        upload_entity: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Call NiFi import endpoint with dry-run flag for validation."""
+
+        result = await self._request(
+            "POST",
+            f"/nifi-api/process-groups/{parent_group_id}/process-groups/import",
+            json=upload_entity,
+            params={"dryRun": "true"},
+        )
+        if not isinstance(result, dict):
+            raise NiFiClientError("Unexpected response during dry-run import")
+        return result
+
+    async def create_process_group(
+        self,
+        parent_group_id: str,
+        name: str,
+        *,
+        position: Optional[Dict[str, float]] = None,
+    ) -> Dict[str, Any]:
+        """Create a new process group under the given parent."""
+
+        payload = {
+            "revision": {"version": 0},
+            "component": {
+                "parentGroupId": parent_group_id,
+                "name": name,
+                "position": position or {"x": 0.0, "y": 0.0},
+            },
+        }
+
+        result = await self._request(
+            "POST",
+            f"/nifi-api/process-groups/{parent_group_id}/process-groups",
+            json=payload,
+        )
+        if not isinstance(result, dict):
+            raise NiFiClientError("Unexpected response creating process group")
+        return result
+
+    async def update_process_group(
+        self,
+        process_group_id: str,
+        *,
+        revision: Optional[int] = None,
+        name: Optional[str] = None,
+        position: Optional[Dict[str, float]] = None,
+        parameter_context_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Update process group attributes."""
+
+        if revision is None:
+            current = await self.get_process_group(process_group_id)
+            revision = current.get("revision", {}).get("version", 0)
+
+        component: Dict[str, Any] = {"id": process_group_id}
+        if name is not None:
+            component["name"] = name
+        if position is not None:
+            component["position"] = position
+        if parameter_context_id is not None:
+            component["parameterContext"] = {"id": parameter_context_id}
+
+        payload = {
+            "revision": {"version": revision},
+            "component": component,
+        }
+
+        result = await self._request(
+            "PUT",
+            f"/nifi-api/process-groups/{process_group_id}",
+            json=payload,
+        )
+        if not isinstance(result, dict):
+            raise NiFiClientError("Unexpected response updating process group")
+        return result
+
     async def create_parameter_context(
         self,
         name: str,
@@ -248,6 +342,177 @@ class NiFiClient(LoggerMixin):
         )
         if not isinstance(result, dict):
             raise NiFiClientError("Unexpected response creating parameter context")
+        return result
+
+    async def delete_parameter_context(self, context_id: str, *, revision: int) -> Dict[str, Any]:
+        """Delete a parameter context by ID."""
+
+        params = {"version": revision}
+        result = await self._request(
+            "DELETE",
+            f"/nifi-api/parameter-contexts/{context_id}",
+            params=params,
+        )
+        if not isinstance(result, dict):
+            raise NiFiClientError("Unexpected response deleting parameter context")
+        return result
+
+    async def create_processor(
+        self,
+        parent_group_id: str,
+        processor_type: str,
+        name: str,
+        *,
+        position: Optional[Dict[str, float]] = None,
+        properties: Optional[Dict[str, Any]] = None,
+        scheduling: Optional[Dict[str, Any]] = None,
+        auto_terminated_relationships: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Create a processor within the specified process group."""
+
+        formatted_properties: Dict[str, Any] = {}
+        if properties:
+            for key, value in properties.items():
+                if isinstance(value, (dict, list)):
+                    formatted_properties[key] = json.dumps(value)
+                elif value is None:
+                    formatted_properties[key] = ""
+                else:
+                    formatted_properties[key] = str(value)
+
+        scheduling_period = "0 sec"
+        scheduling_strategy = "TIMER_DRIVEN"
+        concurrent_tasks = 1
+        execution_node = None
+        bulletin_level = None
+        if scheduling:
+            scheduling_period = (
+                scheduling.get("period")
+                or scheduling.get("schedulingPeriod")
+                or scheduling_period
+            )
+            scheduling_strategy = (
+                scheduling.get("strategy")
+                or scheduling.get("schedulingStrategy")
+                or scheduling_strategy
+            )
+            concurrent_tasks = (
+                scheduling.get("concurrent_tasks")
+                or scheduling.get("concurrentlySchedulableTaskCount")
+                or concurrent_tasks
+            )
+            execution_node = scheduling.get("executionNode")
+            bulletin_level = scheduling.get("bulletinLevel")
+
+        config: Dict[str, Any] = {
+            "properties": formatted_properties,
+            "schedulingPeriod": scheduling_period,
+            "schedulingStrategy": scheduling_strategy,
+            "concurrentlySchedulableTaskCount": concurrent_tasks,
+        }
+        if execution_node is not None:
+            config["executionNode"] = execution_node
+        if bulletin_level is not None:
+            config["bulletinLevel"] = bulletin_level
+        if auto_terminated_relationships:
+            config["autoTerminatedRelationships"] = list(auto_terminated_relationships)
+
+        payload = {
+            "revision": {"version": 0},
+            "component": {
+                "parentGroupId": parent_group_id,
+                "name": name,
+                "type": processor_type,
+                "position": position or {"x": 0.0, "y": 0.0},
+                "config": config,
+            },
+        }
+
+        result = await self._request(
+            "POST",
+            f"/nifi-api/process-groups/{parent_group_id}/processors",
+            json=payload,
+        )
+        if not isinstance(result, dict):
+            raise NiFiClientError("Unexpected response creating processor")
+        return result
+
+    async def get_processor(self, processor_id: str) -> Dict[str, Any]:
+        """Get processor details by ID."""
+
+        result = await self._request("GET", f"/nifi-api/processors/{processor_id}")
+        if not isinstance(result, dict):
+            raise NiFiClientError("Unexpected response getting processor")
+        return result
+
+    async def delete_processor(self, processor_id: str, *, revision: int) -> Dict[str, Any]:
+        """Delete a processor by ID."""
+
+        params = {"version": revision}
+        result = await self._request(
+            "DELETE",
+            f"/nifi-api/processors/{processor_id}",
+            params=params,
+        )
+        if not isinstance(result, dict):
+            raise NiFiClientError("Unexpected response deleting processor")
+        return result
+
+    async def create_connection(
+        self,
+        parent_group_id: str,
+        source_id: str,
+        source_type: str,
+        destination_id: str,
+        destination_type: str,
+        *,
+        name: str = "",
+        relationships: Optional[List[str]] = None,
+        back_pressure_object_threshold: Optional[int] = None,
+        back_pressure_data_size_threshold: Optional[str] = None,
+        flow_file_expiration: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create a connection between NiFi components."""
+
+        component: Dict[str, Any] = {
+            "parentGroupId": parent_group_id,
+            "name": name,
+            "source": {"id": source_id, "type": source_type},
+            "destination": {"id": destination_id, "type": destination_type},
+            "selectedRelationships": relationships or ["success"],
+        }
+        if back_pressure_object_threshold is not None:
+            component["backPressureObjectThreshold"] = back_pressure_object_threshold
+        if back_pressure_data_size_threshold is not None:
+            component["backPressureDataSizeThreshold"] = back_pressure_data_size_threshold
+        if flow_file_expiration is not None:
+            component["flowFileExpiration"] = flow_file_expiration
+
+        payload = {
+            "revision": {"version": 0},
+            "component": component,
+        }
+
+        result = await self._request(
+            "POST",
+            f"/nifi-api/process-groups/{parent_group_id}/connections",
+            json=payload,
+        )
+        if not isinstance(result, dict):
+            raise NiFiClientError("Unexpected response creating connection")
+        return result
+
+    async def delete_connection(self, connection_id: str, *, revision: int) -> Dict[str, Any]:
+        """Delete a connection by ID."""
+
+        params = {"version": revision}
+        result = await self._request(
+            "DELETE",
+            f"/nifi-api/connections/{connection_id}",
+            params=params,
+        )
+        if not isinstance(result, dict):
+            raise NiFiClientError("Unexpected response deleting connection")
         return result
 
     async def import_from_registry(

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
 from ..clients.nifi_client import NiFiClient, NiFiClientError
 from ..clients.registry_client import RegistryClient, RegistryClientError
 from ..core.logging import get_logger, LoggerMixin, audit_logger
+from .flow_deployment_executor import FlowDeploymentExecutor
+from .validators.flow_definition_validator import FlowDefinitionValidator
 
 log = get_logger(__name__)
 
@@ -22,6 +25,8 @@ class FlowService(LoggerMixin):
     def __init__(self, nifi_client: NiFiClient, registry_client: RegistryClient):
         self.nifi_client = nifi_client
         self.registry_client = registry_client
+        self.deployment_executor = FlowDeploymentExecutor(nifi_client)
+        self.flow_validator = FlowDefinitionValidator(nifi_client)
         
         self.logger.info("Initializing FlowService")
         self.logger.debug("NiFi client: %s", self.nifi_client.__class__.__name__)
@@ -37,6 +42,38 @@ class FlowService(LoggerMixin):
         self.logger.debug("Flow definition connections: %d", len(flow_definition.get("connections", [])))
         self.logger.debug("Parameters provided: %d", len(parameters) if parameters else 0)
         
+        try:
+            validation_report = await self.flow_validator.validate(
+                flow_definition,
+                parameters=parameters,
+            )
+        except NiFiClientError as exc:
+            self.logger.error("NiFi validation call failed: %s", exc)
+            return {
+                "success": False,
+                "error": {
+                    "error_type": "FLOW_VALIDATION_FAILED",
+                    "user_message": "Unable to validate flow against NiFi",
+                    "action_required": "Check NiFi connectivity and try again",
+                    "details": {"message": str(exc)},
+                }
+            }
+
+        if validation_report.get("has_errors"):
+            self.logger.warning(
+                "Flow validation failed: %d issues detected",
+                len(validation_report.get("issues", [])),
+            )
+            return {
+                "success": False,
+                "error": {
+                    "error_type": "FLOW_VALIDATION_FAILED",
+                    "user_message": "Flow definition failed NiFi validation",
+                    "action_required": "Review validation issues",
+                    "details": validation_report,
+                }
+            }
+
         try:
             description = flow_definition.get("description", "")
             
@@ -177,78 +214,52 @@ class FlowService(LoggerMixin):
         version: Optional[int] = None,
         parent_group_id: str = "root"
     ) -> Dict[str, Any]:
-        """Deploy flow from Registry to NiFi with parameter context."""
+        """Deploy flow by creating each component individually in NiFi."""
+
+        parameters = parameters or {}
+
         try:
-            deployment_info = {}
-
-            # 0. Ensure Registry client exists in NiFi
-            registry_id = await self._ensure_registry_client()
-
-            # 1. Create parameter context if parameters provided
-            if parameters:
-                param_context_name = f"params-{flow_id}-{bucket_id}"
-                param_list = []
-                for name, value in parameters.items():
-                    param_list.append({
-                        "parameter": {
-                            "name": name,
-                            "value": str(value),
-                            "sensitive": False
-                        }
-                    })
-
-                param_context = await self.nifi_client.create_parameter_context(
-                    name=param_context_name,
-                    description=f"Parameters for flow {flow_id}",
-                    parameters=param_list
-                )
-                deployment_info["parameter_context_id"] = param_context["id"]
-                log.info(f"Created parameter context: {param_context['id']}")
-            
-            # 2. Get flow snapshot from Registry
-            self.logger.debug("Getting flow snapshot from Registry...")
-            flow_snapshot = await self.registry_client.get_flow_version(bucket_id, flow_id, version or 1)
-            self.logger.info("Retrieved flow snapshot: %s v%s",
-                           flow_snapshot.get("snapshotMetadata", {}).get("flowIdentifier"),
-                           flow_snapshot.get("snapshotMetadata", {}).get("version"))
-
-            # 3. Import flow from Registry snapshot
-            import_result = await self.nifi_client.import_from_registry(
-                parent_group_id=parent_group_id,
-                flow_snapshot=flow_snapshot,
-                position={"x": 100.0, "y": 100.0}
+            await self._ensure_registry_client()
+            flow_snapshot = await self.registry_client.get_flow_version(
+                bucket_id,
+                flow_id,
+                version or 1,
             )
-            
-            process_group_id = import_result["id"]
-            deployment_info["process_group_id"] = process_group_id
-            log.info(f"Imported flow as process group: {process_group_id}")
-            
-            # 4. Associate parameter context with process group
-            if parameters and "parameter_context_id" in deployment_info:
-                pg_revision = import_result["revision"]["version"]
-                await self.nifi_client.set_parameter_context_for_process_group(
-                    process_group_id=process_group_id,
-                    parameter_context_id=deployment_info["parameter_context_id"],
-                    revision=pg_revision
-                )
-                log.info(f"Associated parameter context with process group")
-            
-            return {
-                "success": True,
-                "process_group_id": process_group_id,
-                "parameter_context_id": deployment_info.get("parameter_context_id"),
-                "deployment_details": deployment_info
-            }
-            
-        except (NiFiClientError, KeyError) as exc:
+        except (NiFiClientError, RegistryClientError) as exc:
             return {
                 "success": False,
                 "error": {
                     "error_type": "FLOW_DEPLOYMENT_FAILED",
-                    "user_message": f"Failed to deploy flow: {exc}",
-                    "action_required": "Check NiFi connectivity and flow definition"
-                }
+                    "user_message": f"Failed to prepare deployment: {exc}",
+                    "action_required": "Verify NiFi and Registry connectivity",
+                },
             }
+
+        executor_result = await self.deployment_executor.execute(
+            flow_snapshot.get("flowContents", {}),
+            parameters=parameters,
+            parent_group_id=parent_group_id,
+            parameter_context_name=f"params-{flow_id}-{bucket_id}" if parameters else None,
+            cleanup_on_success=False,
+        )
+
+        if not executor_result.get("success", False):
+            return {
+                "success": False,
+                "error": {
+                    "error_type": "FLOW_DEPLOYMENT_FAILED",
+                    "user_message": "Failed to deploy flow: component creation errors encountered",
+                    "action_required": "Review deployment failures for corrective action",
+                    "details": executor_result,
+                },
+            }
+
+        return {
+            "success": True,
+            "process_group_id": executor_result.get("process_group_id"),
+            "parameter_context_id": executor_result.get("parameter_context_id"),
+            "deployment_details": executor_result,
+        }
 
     async def start_flow_by_process_group(self, process_group_id: str) -> Dict[str, Any]:
         """Start all processors in a deployed flow by process group ID."""
@@ -455,3 +466,4 @@ class FlowService(LoggerMixin):
 
         except (NiFiClientError, KeyError) as exc:
             raise FlowServiceError(f"Failed to ensure Registry client: {exc}") from exc
+
