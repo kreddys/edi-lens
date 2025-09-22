@@ -897,17 +897,25 @@ cmd_validate_e2e_test() {
         fi
         echo ""
         
-        # Performance validation
+        # Performance validation (check backend logs for timing)
         echo "=== PERFORMANCE VALIDATION ==="
-        if grep -q "([0-9]*\.[0-9]*ms)" "$log_file"; then
+        local backend_timing=""
+        if command -v docker >/dev/null 2>&1; then
+            backend_timing=$(docker logs edi-lens-backend --since="5 minutes ago" 2>/dev/null | grep -o "([0-9]*\.[0-9]*ms)" | head -5 || echo "")
+        fi
+        
+        if [ -n "$backend_timing" ] || grep -q "([0-9]*\.[0-9]*ms)" "$log_file"; then
             echo "✅ Request timing detected"
             
-            # Extract and analyze response times
-            local slow_requests=$(grep -o "([0-9]*\.[0-9]*ms)" "$log_file" | grep -o "[0-9]*\.[0-9]*" | awk '$1 > 1000' | wc -l || echo "0")
-            if [ "$slow_requests" -gt 0 ]; then
-                echo "⚠️ $slow_requests slow requests detected (>1000ms)"
-            else
-                echo "✅ No slow requests detected"
+            # Extract and analyze response times from backend logs
+            if [ -n "$backend_timing" ]; then
+                local slow_requests=$(echo "$backend_timing" | grep -o "[0-9]*\.[0-9]*" | awk '$1 > 1000' | wc -l || echo "0")
+                if [ "$slow_requests" -gt 0 ]; then
+                    echo "⚠️ $slow_requests slow requests detected (>1000ms)"
+                else
+                    echo "✅ No slow requests detected"
+                fi
+                echo "Sample response times: $(echo "$backend_timing" | head -3 | tr '\n' ' ')"
             fi
         else
             echo "⚠️ No request timing information found"
@@ -929,24 +937,44 @@ cmd_validate_e2e_test() {
         fi
         echo ""
         
-        # Service integration validation
+        # Service integration validation (check docker logs during test execution)
         echo "=== SERVICE INTEGRATION VALIDATION ==="
-        if grep -q "Registry.*client.*for.*http" "$log_file"; then
-            echo "✅ Registry client initialization detected"
-        else
-            echo "⚠️ Registry client initialization not found"
-        fi
+        local test_start_time=$(grep "E2E Test Execution Started" "$log_file" | head -1 | grep -o "at [^=]*" | sed 's/at //')
+        local test_end_time=$(grep "E2E Test Execution Completed" "$log_file" | head -1 | grep -o "at [^=]*" | sed 's/at //')
         
-        if grep -q "NiFi.*client.*for.*https" "$log_file"; then
-            echo "✅ NiFi client initialization detected"
+        # Check for backend activity during test execution by examining docker logs
+        if command -v docker >/dev/null 2>&1; then
+            local backend_logs_during_test=""
+            if [ -n "$test_start_time" ] && [ -n "$test_end_time" ]; then
+                # Convert to docker log format and check for activity
+                backend_logs_during_test=$(docker logs edi-lens-backend --since="5 minutes ago" 2>/dev/null | grep -E "(Initializing.*client|FlowService|GET|POST)" | head -10 || echo "")
+            fi
+            
+            if echo "$backend_logs_during_test" | grep -q "Registry.*client"; then
+                echo "✅ Registry client initialization detected in backend logs"
+            else
+                echo "⚠️ Registry client initialization not found in backend logs"
+            fi
+            
+            if echo "$backend_logs_during_test" | grep -q "NiFi.*client"; then
+                echo "✅ NiFi client initialization detected in backend logs"
+            else
+                echo "⚠️ NiFi client initialization not found in backend logs"
+            fi
+            
+            if echo "$backend_logs_during_test" | grep -q "FlowService\|GET.*flows\|POST.*flows"; then
+                echo "✅ FlowService/API integration detected in backend logs"
+            else
+                echo "⚠️ FlowService/API integration not found in backend logs"
+            fi
+            
+            # Show sample of backend activity for verification
+            if [ -n "$backend_logs_during_test" ]; then
+                echo "Sample backend activity during test:"
+                echo "$backend_logs_during_test" | head -3 | sed 's/^/  /'
+            fi
         else
-            echo "⚠️ NiFi client initialization not found"
-        fi
-        
-        if grep -q "FlowService" "$log_file"; then
-            echo "✅ FlowService integration detected"
-        else
-            echo "⚠️ FlowService integration not found"
+            echo "⚠️ Docker not available for backend log verification"
         fi
         echo ""
         
