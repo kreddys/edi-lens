@@ -156,7 +156,12 @@ class BucketInfo(BaseModel):
     identifier: str
     name: str
     description: Optional[str] = None
-    created: datetime
+    createdTimestamp: int
+    
+    @property
+    def created(self) -> datetime:
+        """Convert timestamp to datetime."""
+        return datetime.fromtimestamp(self.createdTimestamp / 1000)
 
 
 class BucketListResponse(BaseModel):

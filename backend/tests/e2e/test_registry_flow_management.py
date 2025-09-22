@@ -190,14 +190,14 @@ Line 4: End of test file"""
                 available_buckets = buckets_data.get("buckets", [])
                 print(f"Found {len(available_buckets)} available buckets")
                 
-                # Use first available bucket or skip if none available
+                # Use first available bucket or fail if none available
                 if available_buckets:
                     bucket_id = available_buckets[0]["identifier"]
                     print(f"   - Using existing bucket: {bucket_id}")
                 else:
-                    print("No Registry buckets available - testing API layer only")
-                    bucket_id = "test-bucket-id"  # Use a test ID for API validation
-                    print(f"   - Using test bucket ID: {bucket_id} (Registry unavailable)")
+                    pytest.fail("E2E test failed: No Registry buckets available. "
+                               "E2E tests require at least one bucket in NiFi Registry. "
+                               "Please create a bucket or use the API-layer-only test instead.")
                 
                 # Phase 2: Create Flow in Registry
                 print("Phase 2: Creating flow in Registry")
@@ -222,20 +222,21 @@ Line 4: End of test file"""
                     version = flow_data.get("version", 1)
                     print(f"Flow created successfully: {flow_id} (v{version})")
                 else:
-                    # Handle case where Registry/bucket is not available
-                    print("Registry or bucket not available - testing API layer only")
-                    assert create_response.status_code in [400, 500, 503], f"Unexpected error: {create_response.text}"
+                    # Handle case where Registry/bucket is not available - this should FAIL the E2E test
+                    print("ERROR: Registry or bucket not available - E2E test cannot proceed")
+                    print(f"Create flow response: {create_response.status_code}")
+                    print(f"Error details: {create_response.text}")
                     
-                    # Verify error response structure
+                    # Verify error response structure for debugging
                     error_data = create_response.json()
-                    assert "detail" in error_data, "Error response should have detail field"
-                    if isinstance(error_data["detail"], dict):
-                        assert "error_type" in error_data["detail"], "Error should have error_type"
-                        assert "user_message" in error_data["detail"], "Error should have user_message"
-                        print(f"Error handling validated: {error_data['detail']['error_type']}")
+                    if isinstance(error_data.get("detail"), dict):
+                        print(f"Error type: {error_data['detail'].get('error_type')}")
+                        print(f"User message: {error_data['detail'].get('user_message')}")
                     
-                    print("API layer tested successfully (Registry/bucket unavailable)")
-                    return  # Skip remaining phases
+                    # FAIL the test - E2E tests require full system availability
+                    pytest.fail(f"E2E test failed: Cannot create flows in Registry. "
+                               f"Registry response: {create_response.status_code} - {create_response.text}. "
+                               f"E2E tests require a functional Registry with available buckets.")
                 
                 # Phase 3: Retrieve Flow from Registry
                 print("Phase Phase 3: Retrieving flow from Registry")
@@ -474,9 +475,48 @@ Line 4: End of test file"""
                 print(f"WARNING: Cleanup warning: {e}")
 
     @pytest.mark.asyncio
+    async def test_api_layer_only(self):
+        """Test API layer functionality when Registry is unavailable."""
+        print("Testing API Layer Functionality (Registry Unavailable Mode)")
+        
+        async with AsyncClient() as client:
+            # Test that API layer works even when Registry is down
+            print("Testing API endpoints with graceful Registry failure...")
+            
+            # Test health endpoint
+            health_response = await client.get("http://localhost:8000/health")
+            assert health_response.status_code == 200
+            print("SUCCESS: Health endpoint working")
+            
+            # Test bucket listing (should work even if Registry returns empty)
+            buckets_response = await client.get("http://localhost:8000/api/flows/buckets")
+            assert buckets_response.status_code == 200
+            print("SUCCESS: Bucket listing API working")
+            
+            # Test flow creation with invalid bucket (should return proper error)
+            invalid_flow_request = {
+                "bucket_id": "non-existent-bucket",
+                "flow_definition": {
+                    "name": "Test Flow",
+                    "processors": [],
+                    "connections": []
+                },
+                "parameters": {}
+            }
+            
+            create_response = await client.post(
+                "http://localhost:8000/api/flows/",
+                json=invalid_flow_request
+            )
+            assert create_response.status_code in [400, 404, 500]
+            print("SUCCESS: Flow creation with invalid bucket properly handled")
+            
+        print("SUCCESS: API layer validation completed")
+
+    @pytest.mark.asyncio
     async def test_api_error_handling(self):
         """Test API error handling with invalid requests."""
-        print("Testing Testing API Error Handling")
+        print("Testing API Error Handling")
         
         async with AsyncClient() as client:
             
