@@ -1,16 +1,16 @@
-"""Flow service for managing NiFi flows with Registry storage."""
+"""Flow service implementing the deployment-first workflow."""
 
 from __future__ import annotations
 
-import asyncio
-import logging
+import time
 from typing import Any, Dict, List, Optional
 
-from ..clients.nifi_client import NiFiClient, NiFiClientError
-from ..clients.registry_client import RegistryClient, RegistryClientError
+from ..clients.nifi_unified import NiFiUnifiedClient
+from ..clients.registry_unified import RegistryUnifiedClient
 from ..core.logging import get_logger, LoggerMixin, audit_logger
-from .flow_deployment_executor import FlowDeploymentExecutor
-from .validators.flow_definition_validator import FlowDefinitionValidator
+from .nifi_deployment_service import NiFiDeploymentService
+from .nifi_version_control_service import NiFiVersionControlService
+from .registry_flow_service import RegistryFlowService
 
 log = get_logger(__name__)
 
@@ -20,450 +20,295 @@ class FlowServiceError(RuntimeError):
 
 
 class FlowService(LoggerMixin):
-    """Service for managing flows using Registry + NiFi integration."""
+    """
+    Flow service implementing deployment-first workflow:
+    1. Deploy and validate in NiFi
+    2. Upload to Registry with version control if successful
+    """
 
-    def __init__(self, nifi_client: NiFiClient, registry_client: RegistryClient):
-        self.nifi_client = nifi_client
-        self.registry_client = registry_client
-        self.deployment_executor = FlowDeploymentExecutor(nifi_client)
-        self.flow_validator = FlowDefinitionValidator(nifi_client)
-        
-        self.logger.info("Initializing FlowService")
-        self.logger.debug("NiFi client: %s", self.nifi_client.__class__.__name__)
-        self.logger.debug("Registry client: %s", self.registry_client.__class__.__name__)
+    def __init__(self, nifi_client: NiFiUnifiedClient, registry_client: RegistryUnifiedClient):
+        self.nifi_deployment = NiFiDeploymentService(nifi_client)
+        self.nifi_version_control = NiFiVersionControlService(nifi_client, registry_client)
+        self.registry_flows = RegistryFlowService(registry_client)
 
-    # Registry Operations
-    async def create_flow(self, bucket_id: str, flow_definition: Dict[str, Any], parameters: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Create a new flow in Registry with initial version."""
-        flow_name = flow_definition.get("name", "Unnamed Flow")
-        
-        self.logger.info("Creating flow '%s' in bucket '%s'", flow_name, bucket_id)
-        self.logger.debug("Flow definition processors: %d", len(flow_definition.get("processors", [])))
-        self.logger.debug("Flow definition connections: %d", len(flow_definition.get("connections", [])))
-        self.logger.debug("Parameters provided: %d", len(parameters) if parameters else 0)
-        
-        try:
-            validation_report = await self.flow_validator.validate(
-                flow_definition,
-                parameters=parameters,
-            )
-        except NiFiClientError as exc:
-            self.logger.error("NiFi validation call failed: %s", exc)
-            return {
-                "success": False,
-                "error": {
-                    "error_type": "FLOW_VALIDATION_FAILED",
-                    "user_message": "Unable to validate flow against NiFi",
-                    "action_required": "Check NiFi connectivity and try again",
-                    "details": {"message": str(exc)},
-                }
-            }
+        self.logger.info("Initialized Flow Service")
 
-        if validation_report.get("has_errors"):
-            self.logger.warning(
-                "Flow validation failed: %d issues detected",
-                len(validation_report.get("issues", [])),
-            )
-            return {
-                "success": False,
-                "error": {
-                    "error_type": "FLOW_VALIDATION_FAILED",
-                    "user_message": "Flow definition failed NiFi validation",
-                    "action_required": "Review validation issues",
-                    "details": validation_report,
-                }
-            }
-
-        try:
-            description = flow_definition.get("description", "")
-            
-            # 1. Create flow metadata in Registry
-            self.logger.debug("Creating flow metadata in Registry...")
-            flow_result = await self.registry_client.create_flow(bucket_id, flow_name, description)
-            flow_id = flow_result["identifier"]
-            self.logger.info("Flow metadata created with ID: %s", flow_id)
-            
-            # 2. Create initial version with flow definition
-            self.logger.debug("Creating initial flow version...")
-            version_result = await self.registry_client.create_flow_version(
-                bucket_id=bucket_id,
-                flow_id=flow_id,
-                flow_contents=flow_definition,
-                version=1,
-                comments="Initial flow version"
-            )
-            
-            self.logger.info("Successfully created flow '%s' (ID: %s) in bucket '%s'", 
-                           flow_name, flow_id, bucket_id)
-            
-            # Audit log
-            audit_logger.log_flow_operation(
-                operation="create_flow",
-                bucket_id=bucket_id,
-                flow_id=flow_id,
-                details={
-                    "flow_name": flow_name,
-                    "processors_count": len(flow_definition.get("processors", [])),
-                    "connections_count": len(flow_definition.get("connections", [])),
-                    "has_parameters": bool(parameters)
-                }
-            )
-            
-            return {
-                "success": True,
-                "flow_id": flow_id,
-                "version": 1
-            }
-            
-        except (RegistryClientError, KeyError) as exc:
-            self.logger.error("Failed to create flow '%s' in bucket '%s': %s", 
-                            flow_name, bucket_id, exc)
-            return {
-                "success": False,
-                "error": {
-                    "error_type": "FLOW_CREATION_FAILED",
-                    "user_message": f"Failed to create flow in Registry: {exc}",
-                    "action_required": "Check flow definition and Registry connectivity"
-                }
-            }
-
-    async def get_flow(self, bucket_id: str, flow_id: str, version: Optional[int] = None) -> Dict[str, Any]:
-        """Get flow definition from Registry."""
-        try:
-            if version is None:
-                # Get latest version
-                return await self.registry_client.get_latest_flow_version(bucket_id, flow_id)
-            else:
-                # Get specific version
-                return await self.registry_client.get_flow_version(bucket_id, flow_id, version)
-                
-        except RegistryClientError as exc:
-            raise FlowServiceError(f"Failed to get flow from Registry: {exc}") from exc
-
-    async def list_flows(self, bucket_id: str) -> List[Dict[str, Any]]:
-        """List all flows in a bucket."""
-        try:
-            return await self.registry_client.list_flows(bucket_id)
-        except RegistryClientError as exc:
-            raise FlowServiceError(f"Failed to list flows: {exc}") from exc
-
-    async def list_buckets(self) -> List[Dict[str, Any]]:
-        """List available Registry buckets."""
-        try:
-            return await self.registry_client.list_buckets()
-        except RegistryClientError as exc:
-            raise FlowServiceError(f"Failed to list buckets: {exc}") from exc
-
-    async def delete_flow(self, bucket_id: str, flow_id: str) -> bool:
-        """Delete a flow and all its versions."""
-        try:
-            await self.registry_client.delete_flow(bucket_id, flow_id)
-            log.info(f"Deleted flow {flow_id} from bucket {bucket_id}")
-            return True
-        except RegistryClientError as exc:
-            raise FlowServiceError(f"Failed to delete flow: {exc}") from exc
-
-    async def update_flow(self, bucket_id: str, flow_id: str, flow_definition: Optional[Dict[str, Any]] = None, parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Update flow by creating a new version."""
-        try:
-            if flow_definition is None:
-                return {
-                    "success": False,
-                    "error": {
-                        "error_type": "INVALID_REQUEST",
-                        "user_message": "Flow definition is required for update",
-                        "action_required": "Provide a valid flow definition"
-                    }
-                }
-            
-            # Get current latest version to determine next version number
-            latest = await self.registry_client.get_latest_flow_version(bucket_id, flow_id)
-            next_version = latest["snapshotMetadata"]["version"] + 1
-            
-            # Create new version
-            version_result = await self.registry_client.create_flow_version(
-                bucket_id=bucket_id,
-                flow_id=flow_id,
-                flow_contents=flow_definition,
-                version=next_version,
-                comments=f"Updated to version {next_version}"
-            )
-            
-            return {
-                "success": True,
-                "flow_id": flow_id,
-                "version": next_version
-            }
-            
-        except (RegistryClientError, KeyError) as exc:
-            return {
-                "success": False,
-                "error": {
-                    "error_type": "FLOW_UPDATE_FAILED",
-                    "user_message": f"Failed to update flow: {exc}",
-                    "action_required": "Check flow definition and Registry connectivity"
-                }
-            }
-
-    # NiFi Deployment Operations
-    async def deploy_flow(
+    async def deploy_and_store_flow(
         self,
         bucket_id: str,
-        flow_id: str,
+        flow_definition: Dict[str, Any],
         parameters: Dict[str, Any] = None,
-        version: Optional[int] = None,
-        parent_group_id: str = "root"
+        parent_group_id: str = "root",
+        flow_name: Optional[str] = None,
+        flow_description: str = "",
     ) -> Dict[str, Any]:
-        """Deploy flow by creating each component individually in NiFi."""
-
+        """
+        Deploy flow to NiFi and store in Registry with version control.
+        This is the main method implementing the improved workflow.
+        """
+        flow_name = flow_name or flow_definition.get("name", f"flow-{int(time.time())}")
         parameters = parameters or {}
 
-        try:
-            await self._ensure_registry_client()
-            flow_snapshot = await self.registry_client.get_flow_version(
-                bucket_id,
-                flow_id,
-                version or 1,
-            )
-        except (NiFiClientError, RegistryClientError) as exc:
-            return {
-                "success": False,
-                "error": {
-                    "error_type": "FLOW_DEPLOYMENT_FAILED",
-                    "user_message": f"Failed to prepare deployment: {exc}",
-                    "action_required": "Verify NiFi and Registry connectivity",
-                },
-            }
+        self.logger.info("Starting deploy-and-store workflow for flow: %s", flow_name)
 
-        executor_result = await self.deployment_executor.execute(
-            flow_snapshot.get("flowContents", {}),
+        # Step 1: Deploy and validate in NiFi
+        deployment_result = await self.nifi_deployment.deploy_and_validate_flow(
+            flow_definition=flow_definition,
             parameters=parameters,
             parent_group_id=parent_group_id,
-            parameter_context_name=f"params-{flow_id}-{bucket_id}" if parameters else None,
-            cleanup_on_success=False,
+            flow_name=flow_name,
         )
 
-        if not executor_result.get("success", False):
+        if not deployment_result.get("success"):
+            self.logger.warning("Flow deployment failed, stopping workflow")
             return {
                 "success": False,
+                "stage": "deployment",
                 "error": {
-                    "error_type": "FLOW_DEPLOYMENT_FAILED",
-                    "user_message": "Failed to deploy flow: component creation errors encountered",
-                    "action_required": "Review deployment failures for corrective action",
-                    "details": executor_result,
+                    "error_type": "DEPLOYMENT_FAILED",
+                    "user_message": "Flow failed to deploy and validate in NiFi",
+                    "action_required": "Fix deployment issues and try again",
+                    "deployment_details": deployment_result,
                 },
             }
+
+        process_group_id = deployment_result.get("process_group_id")
+        parameter_context_id = deployment_result.get("parameter_context_id")
+
+        self.logger.info("Flow deployed successfully, proceeding to Registry upload")
+
+        # Step 2: Upload to Registry with version control
+        registry_result = await self.nifi_version_control.upload_to_registry_with_version_control(
+            process_group_id=process_group_id,
+            bucket_id=bucket_id,
+            flow_name=flow_name,
+            description=flow_description,
+            comments="Initial version from deployment-first workflow",
+        )
+
+        if not registry_result.get("success"):
+            self.logger.warning("Registry upload failed, but flow remains deployed")
+            return {
+                "success": True,  # Deployment succeeded, Registry upload failed
+                "stage": "registry_upload",
+                "deployment_result": deployment_result,
+                "registry_warning": {
+                    "error_type": "REGISTRY_UPLOAD_FAILED",
+                    "user_message": "Flow deployed successfully but failed to upload to Registry",
+                    "action_required": "Flow is ready to use, Registry upload can be retried later",
+                    "registry_details": registry_result.get("error", {}),
+                },
+            }
+
+        self.logger.info("Flow successfully deployed and stored with version control")
+
+        # Audit log
+        audit_logger.log_flow_operation(
+            operation="deploy_and_store_flow",
+            bucket_id=bucket_id,
+            flow_id=registry_result.get("flow_id"),
+            details={
+                "flow_name": flow_name,
+                "process_group_id": process_group_id,
+                "parameter_context_id": parameter_context_id,
+                "has_parameters": bool(parameters),
+                "processors_count": deployment_result.get("summary", {}).get("total_processors", 0),
+                "connections_count": deployment_result.get("summary", {}).get("total_connections", 0),
+            },
+        )
 
         return {
             "success": True,
-            "process_group_id": executor_result.get("process_group_id"),
-            "parameter_context_id": executor_result.get("parameter_context_id"),
-            "deployment_details": executor_result,
+            "stage": "completed",
+            "flow_id": registry_result.get("flow_id"),
+            "version": registry_result.get("version"),
+            "process_group_id": process_group_id,
+            "parameter_context_id": parameter_context_id,
+            "deployment_result": deployment_result,
+            "registry_result": registry_result,
         }
 
-    async def start_flow_by_process_group(self, process_group_id: str) -> Dict[str, Any]:
-        """Start all processors in a deployed flow by process group ID."""
-        try:
-            result = await self.nifi_client.start_process_group(process_group_id)
-            log.info(f"Started process group: {process_group_id}")
-            return {"status": "RUNNING", "process_group_id": process_group_id}
-            
-        except NiFiClientError as exc:
-            raise FlowServiceError(f"Failed to start flow: {exc}") from exc
+    async def update_deployed_flow(
+        self,
+        process_group_id: str,
+        flow_definition: Optional[Dict[str, Any]] = None,
+        parameters: Optional[Dict[str, Any]] = None,
+        commit_changes: bool = True,
+        comments: str = "Updated flow",
+    ) -> Dict[str, Any]:
+        """
+        Update a deployed flow by modifying NiFi and optionally committing to Registry.
+        """
+        self.logger.info("Updating deployed flow: %s", process_group_id)
 
-    async def stop_flow_by_process_group(self, process_group_id: str) -> Dict[str, Any]:
-        """Stop all processors in a deployed flow by process group ID."""
         try:
-            result = await self.nifi_client.stop_process_group(process_group_id)
-            log.info(f"Stopped process group: {process_group_id}")
-            return {"status": "STOPPED", "process_group_id": process_group_id}
-            
-        except NiFiClientError as exc:
-            raise FlowServiceError(f"Failed to stop flow: {exc}") from exc
+            # For now, this is a placeholder for more complex update logic
+            # In a full implementation, this would:
+            # 1. Stop the flow
+            # 2. Update processors/connections
+            # 3. Restart the flow
+            # 4. Commit changes to Registry if requested
 
-    async def undeploy_flow_by_process_group(self, process_group_id: str, parameter_context_id: Optional[str] = None) -> Dict[str, Any]:
-        """Remove flow from NiFi canvas and clean up parameter context by process group ID."""
-        try:
-            # 1. Stop the process group first
-            await self.stop_flow_by_process_group(process_group_id)
-            
-            # 2. Get current revision for deletion
-            pg_info = await self.nifi_client.get_root_process_group()
-            # Note: In a real implementation, we'd need to find the specific PG revision
-            # For now, we'll use revision 0 as a placeholder
-            
-            # 3. Delete process group
-            await self.nifi_client.delete_process_group(process_group_id, revision=0)
-            log.info(f"Deleted process group: {process_group_id}")
-            
-            # 4. Clean up parameter context if provided
-            if parameter_context_id:
-                # Note: Parameter context deletion would require additional API calls
-                # to handle dependencies and get proper revision
-                log.info(f"Parameter context cleanup needed: {parameter_context_id}")
-            
-            return {"status": "UNDEPLOYED", "process_group_id": process_group_id}
-            
-        except NiFiClientError as exc:
-            raise FlowServiceError(f"Failed to undeploy flow: {exc}") from exc
+            if commit_changes:
+                commit_result = await self.nifi_version_control.commit_local_changes(
+                    process_group_id=process_group_id,
+                    comments=comments,
+                )
 
-    async def get_flow_status_by_process_group(self, process_group_id: str) -> Dict[str, Any]:
-        """Get deployment status of a flow by process group ID."""
-        try:
-            flow_info = await self.nifi_client.get_process_group_flow(process_group_id)
-            
-            # Extract status information
-            status_info = {
-                "process_group_id": process_group_id,
-                "status": "UNKNOWN",
-                "processor_count": 0,
-                "running_count": 0,
-                "stopped_count": 0
-            }
-            
-            # Count processor states
-            if "processGroupFlow" in flow_info:
-                processors = flow_info["processGroupFlow"].get("flow", {}).get("processors", [])
-                status_info["processor_count"] = len(processors)
-                
-                for processor in processors:
-                    if processor.get("status", {}).get("runStatus") == "Running":
-                        status_info["running_count"] += 1
-                    else:
-                        status_info["stopped_count"] += 1
-                
-                # Determine overall status
-                if status_info["running_count"] > 0:
-                    status_info["status"] = "RUNNING"
-                elif status_info["processor_count"] > 0:
-                    status_info["status"] = "STOPPED"
-                else:
-                    status_info["status"] = "EMPTY"
-            
-            return status_info
-            
-        except NiFiClientError as exc:
-            raise FlowServiceError(f"Failed to get flow status: {exc}") from exc
+                if not commit_result.get("success"):
+                    return {
+                        "success": False,
+                        "error": {
+                            "error_type": "COMMIT_FAILED",
+                            "user_message": "Flow updated but failed to commit to Registry",
+                            "action_required": "Commit can be retried later",
+                            "details": commit_result.get("error", {}),
+                        },
+                    }
 
-    async def update_flow_parameters_by_context(self, parameter_context_id: str, parameters: Dict[str, str]) -> Dict[str, Any]:
-        """Update parameters for a deployed flow by parameter context ID."""
-        try:
-            # Get current parameter context to get revision
-            current_context = await self.nifi_client.get_parameter_context(parameter_context_id)
-            revision = current_context["revision"]["version"]
-            
-            # Update parameters
-            result = await self.nifi_client.update_parameter_context(
-                context_id=parameter_context_id,
-                parameters=parameters,
-                revision=revision
-            )
-            
-            log.info(f"Updated parameters for context: {parameter_context_id}")
-            return {"status": "UPDATED", "parameter_context_id": parameter_context_id}
-            
-        except NiFiClientError as exc:
-            raise FlowServiceError(f"Failed to update flow parameters: {exc}") from exc
-
-    # Additional API-compatible methods
-    async def start_flow(self, bucket_id: str, flow_id: str) -> bool:
-        """Start flow by bucket and flow ID (finds deployed process group)."""
-        # This would need a way to track deployed flows
-        # For now, we'll implement a simplified version
-        try:
-            # In a real implementation, we'd need to store deployment mappings
-            # For now, return True as a placeholder
-            log.info(f"Starting flow {flow_id} in bucket {bucket_id}")
-            return True
-        except Exception as exc:
-            log.error(f"Failed to start flow {flow_id}: {exc}")
-            return False
-
-    async def stop_flow(self, bucket_id: str, flow_id: str) -> bool:
-        """Stop flow by bucket and flow ID (finds deployed process group)."""
-        try:
-            # In a real implementation, we'd need to store deployment mappings
-            log.info(f"Stopping flow {flow_id} in bucket {bucket_id}")
-            return True
-        except Exception as exc:
-            log.error(f"Failed to stop flow {flow_id}: {exc}")
-            return False
-
-    async def undeploy_flow(self, bucket_id: str, flow_id: str) -> None:
-        """Undeploy flow by bucket and flow ID."""
-        try:
-            # In a real implementation, we'd need to store deployment mappings
-            log.info(f"Undeploying flow {flow_id} from bucket {bucket_id}")
-        except Exception as exc:
-            log.error(f"Failed to undeploy flow {flow_id}: {exc}")
-            raise FlowServiceError(f"Failed to undeploy flow: {exc}") from exc
-
-    async def get_flow_status(self, bucket_id: str, flow_id: str) -> Dict[str, Any]:
-        """Get flow status by bucket and flow ID."""
-        try:
-            # In a real implementation, we'd track deployment status
             return {
-                "flow_id": flow_id,
-                "bucket_id": bucket_id,
-                "deployment_status": "NOT_DEPLOYED",
-                "process_group_id": None,
-                "parameter_context_id": None,
-                "active_processors": 0,
-                "stopped_processors": 0,
-                "invalid_processors": 0
+                "success": True,
+                "process_group_id": process_group_id,
+                "committed": commit_changes,
             }
+
         except Exception as exc:
-            log.error(f"Failed to get flow status {flow_id}: {exc}")
-            raise FlowServiceError(f"Failed to get flow status: {exc}") from exc
+            self.logger.error("Failed to update deployed flow %s: %s", process_group_id, exc)
+            return {
+                "success": False,
+                "error": {
+                    "error_type": "UPDATE_FAILED",
+                    "user_message": f"Failed to update flow: {exc}",
+                    "action_required": "Check flow status and try again",
+                    "details": {"message": str(exc)},
+                },
+            }
 
-    async def update_flow_parameters(self, bucket_id: str, flow_id: str, parameters: Dict[str, Any]) -> bool:
-        """Update flow parameters by bucket and flow ID."""
+    # Flow Management Operations
+    async def start_flow(self, process_group_id: str) -> Dict[str, Any]:
+        """Start a deployed flow."""
         try:
-            # In a real implementation, we'd find the parameter context and update it
-            log.info(f"Updating parameters for flow {flow_id} in bucket {bucket_id}")
-            return True
+            result = await self.nifi_deployment.start_flow(process_group_id)
+            self.logger.info("Started flow: %s", process_group_id)
+            return {"success": True, **result}
         except Exception as exc:
-            log.error(f"Failed to update parameters for flow {flow_id}: {exc}")
-            return False
+            self.logger.error("Failed to start flow %s: %s", process_group_id, exc)
+            return {
+                "success": False,
+                "error": {
+                    "error_type": "START_FAILED",
+                    "user_message": f"Failed to start flow: {exc}",
+                    "action_required": "Check flow status and NiFi connectivity",
+                },
+            }
 
-    async def get_flow_parameters(self, bucket_id: str, flow_id: str) -> Dict[str, Any]:
-        """Get current flow parameters by bucket and flow ID."""
+    async def stop_flow(self, process_group_id: str) -> Dict[str, Any]:
+        """Stop a deployed flow."""
         try:
-            # In a real implementation, we'd find the parameter context and return its parameters
-            log.info(f"Getting parameters for flow {flow_id} in bucket {bucket_id}")
-            return {}
+            result = await self.nifi_deployment.stop_flow(process_group_id)
+            self.logger.info("Stopped flow: %s", process_group_id)
+            return {"success": True, **result}
         except Exception as exc:
-            log.error(f"Failed to get parameters for flow {flow_id}: {exc}")
-            raise FlowServiceError(f"Failed to get flow parameters: {exc}") from exc
+            self.logger.error("Failed to stop flow %s: %s", process_group_id, exc)
+            return {
+                "success": False,
+                "error": {
+                    "error_type": "STOP_FAILED",
+                    "user_message": f"Failed to stop flow: {exc}",
+                    "action_required": "Check flow status and NiFi connectivity",
+                },
+            }
 
-    async def _ensure_registry_client(self) -> str:
-        """Ensure Registry client exists in NiFi and return its ID."""
+    async def delete_flow(self, process_group_id: str, remove_from_registry: bool = False) -> Dict[str, Any]:
+        """Delete a deployed flow and optionally remove from Registry."""
         try:
-            # Check if Registry client already exists
-            registries = await self.nifi_client.list_registry_clients()
+            # Get version control info before deletion
+            vc_info = None
+            if remove_from_registry:
+                vc_result = await self.nifi_version_control.get_version_control_info(process_group_id)
+                if vc_result.get("success"):
+                    vc_info = vc_result.get("version_control_info", {}).get("versionControlInformation", {})
 
-            for registry in registries:
-                registry_url = registry.get("component", {}).get("properties", {}).get("url", "")
-                # Check if this registry matches our Registry URL
-                if self.registry_client.registry_url in registry_url or registry_url in self.registry_client.registry_url:
-                    registry_id = registry.get("id")
-                    self.logger.info("Found existing Registry client: %s", registry_id)
-                    return registry_id
+            # Delete from NiFi
+            nifi_result = await self.nifi_deployment.delete_flow(process_group_id)
 
-            # Create new Registry client if none exists
-            self.logger.info("Creating new Registry client for %s", self.registry_client.registry_url)
+            # Delete from Registry if requested and we have version control info
+            if remove_from_registry and vc_info:
+                bucket_id = vc_info.get("bucketId")
+                flow_id = vc_info.get("flowId")
+                if bucket_id and flow_id:
+                    try:
+                        await self.registry_flows.delete_flow(bucket_id, flow_id)
+                        self.logger.info("Deleted flow from Registry: %s", flow_id)
+                    except Exception as exc:
+                        self.logger.warning("Failed to delete flow from Registry: %s", exc)
 
-            registry_result = await self.nifi_client.create_registry_client(
-                name="EDI Lens Registry",
-                url=self.registry_client.registry_url,
-                description="Registry client for EDI Lens flows"
-            )
+            self.logger.info("Deleted flow: %s", process_group_id)
+            return {"success": True, **nifi_result}
 
-            registry_id = registry_result.get("id")
-            self.logger.info("Created Registry client: %s", registry_id)
+        except Exception as exc:
+            self.logger.error("Failed to delete flow %s: %s", process_group_id, exc)
+            return {
+                "success": False,
+                "error": {
+                    "error_type": "DELETE_FAILED",
+                    "user_message": f"Failed to delete flow: {exc}",
+                    "action_required": "Check flow status and try again",
+                },
+            }
 
-            return registry_id
+    async def get_flow_status(self, process_group_id: str) -> Dict[str, Any]:
+        """Get status of a deployed flow."""
+        try:
+            status = await self.nifi_deployment.get_flow_status(process_group_id)
 
-        except (NiFiClientError, KeyError) as exc:
-            raise FlowServiceError(f"Failed to ensure Registry client: {exc}") from exc
+            # Also get version control info if available
+            vc_result = await self.nifi_version_control.get_version_control_info(process_group_id)
+            if vc_result.get("success"):
+                status["version_control"] = vc_result.get("version_control_info", {})
 
+            return {"success": True, **status}
+
+        except Exception as exc:
+            self.logger.error("Failed to get flow status %s: %s", process_group_id, exc)
+            return {
+                "success": False,
+                "error": {
+                    "error_type": "STATUS_FAILED",
+                    "user_message": f"Failed to get flow status: {exc}",
+                    "action_required": "Check process group ID and NiFi connectivity",
+                },
+            }
+
+    # Version Control Operations
+    async def commit_changes(self, process_group_id: str, comments: str = "Updated flow") -> Dict[str, Any]:
+        """Commit local changes to Registry."""
+        return await self.nifi_version_control.commit_local_changes(process_group_id, comments)
+
+    async def update_from_registry(self, process_group_id: str) -> Dict[str, Any]:
+        """Update flow from Registry."""
+        return await self.nifi_version_control.update_from_registry(process_group_id)
+
+    async def revert_changes(self, process_group_id: str) -> Dict[str, Any]:
+        """Revert local changes to Registry version."""
+        return await self.nifi_version_control.revert_local_changes(process_group_id)
+
+    async def get_local_modifications(self, process_group_id: str) -> Dict[str, Any]:
+        """Get local modifications."""
+        return await self.nifi_version_control.get_local_modifications(process_group_id)
+
+    # Registry Operations (passthrough to registry service)
+    async def list_buckets(self) -> List[Dict[str, Any]]:
+        """List Registry buckets."""
+        return await self.registry_flows.list_buckets()
+
+    async def list_flows(self, bucket_id: str) -> List[Dict[str, Any]]:
+        """List flows in a bucket."""
+        return await self.registry_flows.list_flows(bucket_id)
+
+    async def get_flow_from_registry(self, bucket_id: str, flow_id: str, version: Optional[int] = None) -> Dict[str, Any]:
+        """Get flow from Registry."""
+        if version is None:
+            return await self.registry_flows.get_latest_flow_version(bucket_id, flow_id)
+        else:
+            return await self.registry_flows.get_flow_version(bucket_id, flow_id, version)

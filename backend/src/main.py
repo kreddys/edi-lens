@@ -23,13 +23,13 @@ async def lifespan(app: FastAPI):
     """Application lifespan management."""
     # Startup
     logger.info("Starting EDI Lens NiFi Backend v%s", settings.APP_VERSION)
-    logger.info("Configuration: Debug=%s, NiFi=%s, Registry=%s", 
-                settings.DEBUG, settings.NIFI_URL, settings.NIFI_REGISTRY_URL)
+    logger.info("Configuration: Debug=%s, NiFi=%s, Registry=%s",
+                settings.DEBUG, settings.nifi_url, settings.registry_url)
     audit_logger.log_system_event("application_startup", {
         "version": settings.APP_VERSION,
         "debug": settings.DEBUG,
-        "nifi_url": settings.NIFI_URL,
-        "registry_url": settings.NIFI_REGISTRY_URL
+        "nifi_url": settings.nifi_url,
+        "registry_url": settings.registry_url
     })
     
     yield
@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="EDI Lens NiFi Backend",
-    description="Registry-first NiFi flow management backend",
+    description="Deployment-first NiFi flow management backend",
     version=settings.APP_VERSION,
     lifespan=lifespan,
 )

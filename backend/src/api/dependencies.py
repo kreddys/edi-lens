@@ -1,47 +1,108 @@
-"""Reusable FastAPI dependencies."""
+"""Dependency injection for flow services."""
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from typing import AsyncGenerator
 
-from fastapi import Depends
+from src.clients.nifi_unified import NiFiUnifiedClient
+from src.clients.registry_unified import RegistryUnifiedClient
+from src.core.config import get_settings
+from src.services.flow_service import FlowService
 
-from ..clients.nifi_client import NiFiClient
-from ..clients.registry_client import RegistryClient
-from ..core.config import Settings, get_settings
-from ..services.flow_service import FlowService
+# Global instances (will be replaced with proper DI container in production)
+_nifi_client: NiFiUnifiedClient | None = None
+_registry_client: RegistryUnifiedClient | None = None
+_flow_service: FlowService | None = None
 
 
-async def get_nifi_client(
-    settings: Settings = Depends(get_settings),
-) -> AsyncGenerator[NiFiClient, None]:
-    """Provide a NiFi client configured from application settings."""
+async def get_nifi_client() -> AsyncGenerator[NiFiUnifiedClient, None]:
+    """Get NiFi unified client instance."""
+    global _nifi_client
 
-    async with NiFiClient(
-        settings.NIFI_URL,
-        settings.NIFI_USERNAME,
-        settings.NIFI_PASSWORD,
-        verify_ssl=settings.VERIFY_SSL,
-    ) as client:
+    if _nifi_client is None:
+        settings = get_settings()
+        _nifi_client = NiFiUnifiedClient(
+            nifi_url=settings.nifi_url,
+            username=settings.nifi_username,
+            password=settings.nifi_password,
+            verify_ssl=settings.nifi_verify_ssl,
+        )
+
+    async with _nifi_client as client:
         yield client
 
 
-async def get_registry_client(
-    settings: Settings = Depends(get_settings),
-) -> AsyncGenerator[RegistryClient, None]:
-    """Provide a NiFi Registry client configured from application settings."""
+async def get_registry_client() -> AsyncGenerator[RegistryUnifiedClient, None]:
+    """Get Registry unified client instance."""
+    global _registry_client
 
-    async with RegistryClient(
-        settings.NIFI_REGISTRY_URL,
-        settings.NIFI_REGISTRY_AUTH_TOKEN,
-        verify_ssl=settings.VERIFY_SSL,
-    ) as client:
+    if _registry_client is None:
+        settings = get_settings()
+        _registry_client = RegistryUnifiedClient(
+            registry_url=settings.registry_url,
+            auth_token=settings.registry_auth_token,
+            verify_ssl=settings.registry_verify_ssl,
+        )
+
+    async with _registry_client as client:
         yield client
 
 
-async def get_flow_service(
-    nifi_client: NiFiClient = Depends(get_nifi_client),
-    registry_client: RegistryClient = Depends(get_registry_client),
-) -> FlowService:
-    """Provide a configured FlowService instance."""
-    return FlowService(nifi_client=nifi_client, registry_client=registry_client)
+async def get_flow_service() -> FlowService:
+    """Get flow service instance."""
+    global _flow_service
+
+    if _flow_service is None:
+        settings = get_settings()
+
+        # Create client instances
+        nifi_client = NiFiUnifiedClient(
+            nifi_url=settings.nifi_url,
+            username=settings.nifi_username,
+            password=settings.nifi_password,
+            verify_ssl=settings.nifi_verify_ssl,
+        )
+
+        registry_client = RegistryUnifiedClient(
+            registry_url=settings.registry_url,
+            auth_token=settings.registry_auth_token,
+            verify_ssl=settings.registry_verify_ssl,
+        )
+
+        _flow_service = FlowService(nifi_client, registry_client)
+
+    return _flow_service
+
+
+async def get_nifi_deployment_service():
+    """Get NiFi deployment service instance."""
+    service = await get_flow_service()
+    return service.nifi_deployment
+
+
+async def get_nifi_version_control_service():
+    """Get NiFi version control service instance."""
+    service = await get_flow_service()
+    return service.nifi_version_control
+
+
+async def get_registry_flow_service():
+    """Get Registry flow service instance."""
+    service = await get_flow_service()
+    return service.registry_flows
+
+
+# Cleanup function for application shutdown
+async def cleanup_clients():
+    """Cleanup client instances."""
+    global _nifi_client, _registry_client, _flow_service
+
+    if _nifi_client:
+        await _nifi_client.__aexit__(None, None, None)
+        _nifi_client = None
+
+    if _registry_client:
+        await _registry_client.__aexit__(None, None, None)
+        _registry_client = None
+
+    _flow_service = None

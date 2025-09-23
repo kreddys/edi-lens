@@ -30,15 +30,17 @@ class Settings(BaseSettings):
     APP_VERSION: str = Field(default="0.1.0")
 
     # NiFi Configuration
-    NIFI_URL: str = Field(default="https://localhost:8443")
-    NIFI_USERNAME: Optional[str] = Field(default=None)
-    NIFI_PASSWORD: Optional[str] = Field(default=None)
+    nifi_url: str = Field(default="https://localhost:8443", alias="NIFI_URL")
+    nifi_username: Optional[str] = Field(default=None, alias="NIFI_USERNAME")
+    nifi_password: Optional[str] = Field(default=None, alias="NIFI_PASSWORD")
+    nifi_verify_ssl: bool = Field(default=True, alias="NIFI_VERIFY_SSL")
 
     # NiFi Registry Configuration
-    NIFI_REGISTRY_URL: str = Field(default="http://localhost:18080")
-    NIFI_REGISTRY_AUTH_TOKEN: Optional[str] = Field(default=None)
+    registry_url: str = Field(default="http://localhost:18080", alias="NIFI_REGISTRY_URL")
+    registry_auth_token: Optional[str] = Field(default=None, alias="NIFI_REGISTRY_AUTH_TOKEN")
+    registry_verify_ssl: bool = Field(default=True, alias="REGISTRY_VERIFY_SSL")
 
-    # HTTP client behaviour
+    # HTTP client behaviour (deprecated - use specific verify_ssl settings)
     VERIFY_SSL: bool = Field(
         default=True,
         description="Control client-side TLS verification for NiFi services",

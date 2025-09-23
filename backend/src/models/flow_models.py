@@ -1,245 +1,174 @@
-"""Pydantic models for flow management API."""
+"""Pydantic models for improved flow management API."""
 
 from __future__ import annotations
 
-import logging
-from datetime import datetime
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, validator
-
-log = logging.getLogger(__name__)
+from pydantic import BaseModel, Field
 
 
-class DeploymentStatus(str, Enum):
-    """Flow deployment status."""
-    NOT_DEPLOYED = "NOT_DEPLOYED"
-    DEPLOYED = "DEPLOYED"
-    RUNNING = "RUNNING"
-    STOPPED = "STOPPED"
-    ERROR = "ERROR"
+class FlowDefinition(BaseModel):
+    """Flow definition model."""
+    name: str = Field(..., description="Flow name")
+    description: str = Field("", description="Flow description")
+    processors: List[Dict[str, Any]] = Field(default_factory=list, description="List of processors")
+    connections: List[Dict[str, Any]] = Field(default_factory=list, description="List of connections")
+    process_groups: List[Dict[str, Any]] = Field(default_factory=list, description="List of nested process groups")
 
 
-# NiFi Standard Models - following NiFi Registry API spec
-
-class Position(BaseModel):
-    """Position coordinates."""
-    x: float
-    y: float
-
-
-class Bundle(BaseModel):
-    """Component bundle information."""
-    group: str
-    artifact: str
-    version: str
+class DeployAndStoreFlowRequest(BaseModel):
+    """Request model for deploy-and-store operation."""
+    bucket_id: str = Field(..., description="Registry bucket ID")
+    flow_definition: FlowDefinition = Field(..., description="Flow definition")
+    parameters: Dict[str, Any] = Field(default_factory=dict, description="Flow parameters")
+    parent_group_id: str = Field("root", description="Parent process group ID")
+    flow_name: Optional[str] = Field(None, description="Override flow name")
+    flow_description: str = Field("", description="Flow description for Registry")
 
 
-class ConnectableComponent(BaseModel):
-    """Connectable component reference."""
-    id: str
-    type: str  # PROCESSOR, FUNNEL, INPUT_PORT, OUTPUT_PORT, etc.
+class DeploymentSummary(BaseModel):
+    """Summary of deployment results."""
+    total_processors: int = Field(0, description="Total processors in definition")
+    created_processors: int = Field(0, description="Successfully created processors")
+    failed_processors: int = Field(0, description="Failed processor creations")
+    total_connections: int = Field(0, description="Total connections in definition")
+    created_connections: int = Field(0, description="Successfully created connections")
+    failed_connections: int = Field(0, description="Failed connection creations")
 
 
-class VersionedConnection(BaseModel):
-    """NiFi versioned connection."""
-    identifier: str
-    name: str = ""
-    source: ConnectableComponent
-    destination: ConnectableComponent
-    selectedRelationships: List[str]
-    flowFileExpiration: str = "0 sec"
-    backPressureDataSizeThreshold: str = "1 GB"
-    backPressureObjectThreshold: int = 10000
-    bends: List[Position] = Field(default_factory=list)
-    prioritizers: List[str] = Field(default_factory=list)
+class DeployAndStoreFlowResponse(BaseModel):
+    """Response model for deploy-and-store operation."""
+    success: bool = Field(..., description="Whether operation succeeded")
+    stage: str = Field(..., description="Stage where operation completed/failed")
+    flow_id: Optional[str] = Field(None, description="Registry flow ID")
+    version: Optional[int] = Field(None, description="Registry flow version")
+    process_group_id: Optional[str] = Field(None, description="NiFi process group ID")
+    parameter_context_id: Optional[str] = Field(None, description="NiFi parameter context ID")
+    message: str = Field(..., description="Operation result message")
+    deployment_summary: Optional[DeploymentSummary] = Field(None, description="Deployment summary")
 
 
-class VersionedProcessor(BaseModel):
-    """NiFi versioned processor."""
-    identifier: str
-    name: str
-    type: str
-    bundle: Bundle
-    position: Position
-    properties: Dict[str, str] = Field(default_factory=dict)
-    schedulingPeriod: str = "0 sec"
-    schedulingStrategy: str = "EVENT_DRIVEN"  # TIMER_DRIVEN, EVENT_DRIVEN, CRON_DRIVEN
-    executionNode: str = "ALL"  # ALL, PRIMARY
-    penaltyDuration: str = "30 sec"
-    yieldDuration: str = "1 sec"
-    bulletinLevel: str = "WARN"
-    runDurationMillis: int = 0
-    concurrentlySchedulableTaskCount: int = 1
-    autoTerminatedRelationships: List[str] = Field(default_factory=list)
-
-
-class VersionedProcessGroup(BaseModel):
-    """NiFi versioned process group - this is the main flow definition."""
-    identifier: str
-    name: str
-    comments: Optional[str] = None
-    position: Position
-    processGroups: List['VersionedProcessGroup'] = Field(default_factory=list)
-    remoteProcessGroups: List[Dict[str, Any]] = Field(default_factory=list)
-    processors: List[VersionedProcessor] = Field(default_factory=list)
-    inputPorts: List[Dict[str, Any]] = Field(default_factory=list)
-    outputPorts: List[Dict[str, Any]] = Field(default_factory=list)
-    connections: List[VersionedConnection] = Field(default_factory=list)
-    labels: List[Dict[str, Any]] = Field(default_factory=list)
-    funnels: List[Dict[str, Any]] = Field(default_factory=list)
-    controllerServices: List[Dict[str, Any]] = Field(default_factory=list)
-    variables: Dict[str, str] = Field(default_factory=dict)
-    parameterContextName: Optional[str] = None
-    defaultFlowFileExpiration: str = "0 sec"
-    defaultBackPressureObjectThreshold: int = 10000
-    defaultBackPressureDataSizeThreshold: str = "1 GB"
-    flowFileConcurrency: str = "UNBOUNDED"  # UNBOUNDED, SINGLE_FLOWFILE_PER_NODE
-    flowFileOutboundPolicy: str = "STREAM_WHEN_AVAILABLE"  # STREAM_WHEN_AVAILABLE, BATCH_OUTPUT
-    scheduledState: str = "DISABLED"  # ENABLED, DISABLED, RUNNING
-
-# Update model references
-VersionedProcessGroup.model_rebuild()
-
-
-class Flow(BaseModel):
-    """Represents a versioned flow in NiFi Registry."""
-    
-    # Registry identifiers (persistent)
-    bucket_id: str
-    flow_id: str
-    version: int = 1
-    name: str
-    description: Optional[str] = None
-    created: Optional[datetime] = None
-    modified: Optional[datetime] = None
-    
-    # Runtime deployment state (ephemeral)
-    process_group_id: Optional[str] = None
-    parameter_context_id: Optional[str] = None
-    deployment_status: DeploymentStatus = DeploymentStatus.NOT_DEPLOYED
-
-
-class FlowVersion(BaseModel):
-    """Flow version information."""
-    version: int
-    created: datetime
-    created_by: str
-    comments: Optional[str] = None
-
-
-class ValidationError(BaseModel):
-    """Validation error details."""
-    field: str
-    message: str
-    code: str
-
-
-class APIErrorResponse(BaseModel):
-    """Standardized API error response."""
-    error_type: str
-    user_message: str
-    action_required: str
-    validation_errors: Optional[List[ValidationError]] = None
-    technical_details: Optional[Dict[str, Any]] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-
-
-# Request Models
-class CreateFlowRequest(BaseModel):
-    """Request to create a new flow."""
-    bucket_id: str
-    flow_definition: VersionedProcessGroup
-    parameters: Dict[str, Any] = Field(default_factory=dict)
-
-
-class UpdateFlowRequest(BaseModel):
-    """Request to update an existing flow."""
-    flow_definition: Optional[VersionedProcessGroup] = None
-    parameters: Optional[Dict[str, Any]] = None
-
-
-class DeployFlowRequest(BaseModel):
-    """Request to deploy a flow."""
-    parameters: Dict[str, Any] = Field(default_factory=dict)
-    version: Optional[int] = None
-
-
-class UpdateParametersRequest(BaseModel):
-    """Request to update flow parameters."""
-    parameters: Dict[str, Any]
-
-
-# Response Models
-class FlowCreationResponse(BaseModel):
-    """Response from flow creation."""
-    success: bool
-    flow_id: Optional[str] = None
-    version: Optional[int] = None
-    message: str
-    error: Optional[APIErrorResponse] = None
-
-
-class FlowDeploymentResponse(BaseModel):
-    """Response from flow deployment."""
-    success: bool
-    process_group_id: Optional[str] = None
-    parameter_context_id: Optional[str] = None
-    message: str
-    error: Optional[APIErrorResponse] = None
+class UpdateDeployedFlowRequest(BaseModel):
+    """Request model for updating deployed flows."""
+    flow_definition: Optional[FlowDefinition] = Field(None, description="Updated flow definition")
+    parameters: Optional[Dict[str, Any]] = Field(None, description="Updated parameters")
+    commit_changes: bool = Field(True, description="Whether to commit changes to Registry")
+    comments: str = Field("Updated flow", description="Commit comments")
 
 
 class FlowStatusResponse(BaseModel):
-    """Flow status response."""
-    flow_id: str
-    bucket_id: str
-    deployment_status: DeploymentStatus
-    process_group_id: Optional[str] = None
-    parameter_context_id: Optional[str] = None
-    active_processors: int = 0
-    stopped_processors: int = 0
-    invalid_processors: int = 0
+    """Response model for flow status."""
+    process_group_id: str = Field(..., description="Process group ID")
+    status: str = Field(..., description="Overall flow status")
+    processor_count: int = Field(0, description="Total number of processors")
+    running_count: int = Field(0, description="Number of running processors")
+    stopped_count: int = Field(0, description="Number of stopped processors")
+    invalid_count: int = Field(0, description="Number of invalid processors")
+    version_control: Optional[Dict[str, Any]] = Field(None, description="Version control information")
 
 
-class FlowListResponse(BaseModel):
-    """List of flows response."""
-    flows: List[Flow]
-    total: int
+class VersionControlOperationResponse(BaseModel):
+    """Response model for version control operations."""
+    success: bool = Field(..., description="Whether operation succeeded")
+    process_group_id: str = Field(..., description="Process group ID")
+    message: str = Field(..., description="Operation result message")
+    committed: bool = Field(False, description="Whether changes were committed")
 
 
-class BucketInfo(BaseModel):
-    """Registry bucket information."""
-    identifier: str
-    name: str
-    description: Optional[str] = None
-    createdTimestamp: int
-    
-    @property
-    def created(self) -> datetime:
-        """Convert timestamp to datetime."""
-        return datetime.fromtimestamp(self.createdTimestamp / 1000)
+class ErrorDetail(BaseModel):
+    """Error detail model."""
+    error_type: str = Field(..., description="Error type")
+    user_message: str = Field(..., description="User-friendly error message")
+    action_required: str = Field(..., description="Suggested action")
+    details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
 
 
-class BucketListResponse(BaseModel):
-    """List of buckets response."""
-    buckets: List[BucketInfo]
-    total: int
+class ComponentFailure(BaseModel):
+    """Component failure model."""
+    component_type: str = Field(..., description="Type of component (processor, connection, etc.)")
+    component_name: str = Field(..., description="Name of the component")
+    error_type: str = Field(..., description="Type of error")
+    message: str = Field(..., description="Error message")
+    details: Dict[str, Any] = Field(default_factory=dict, description="Additional error details")
 
 
-# Result Models (for service layer)
-class FlowCreationResult(BaseModel):
-    """Internal result from flow creation."""
-    success: bool
-    flow_id: Optional[str] = None
-    version: Optional[int] = None
-    error: Optional[APIErrorResponse] = None
+class ValidationResult(BaseModel):
+    """Validation result model."""
+    success: bool = Field(..., description="Whether validation passed")
+    summary: DeploymentSummary = Field(..., description="Validation summary")
+    failures: List[ComponentFailure] = Field(default_factory=list, description="Validation failures")
+    process_group_id: Optional[str] = Field(None, description="Process group ID if created")
+    parameter_context_id: Optional[str] = Field(None, description="Parameter context ID if created")
 
 
-class FlowDeploymentResult(BaseModel):
-    """Internal result from flow deployment."""
-    success: bool
-    process_group_id: Optional[str] = None
-    parameter_context_id: Optional[str] = None
-    error: Optional[APIErrorResponse] = None
-    deployment_details: Optional[Dict[str, Any]] = None
+class FlowParameter(BaseModel):
+    """Flow parameter model."""
+    name: str = Field(..., description="Parameter name")
+    value: str = Field(..., description="Parameter value")
+    description: str = Field("", description="Parameter description")
+    sensitive: bool = Field(False, description="Whether parameter is sensitive")
+
+
+class ParameterContextInfo(BaseModel):
+    """Parameter context information."""
+    context_id: str = Field(..., description="Parameter context ID")
+    name: str = Field(..., description="Parameter context name")
+    description: str = Field("", description="Parameter context description")
+    parameters: List[FlowParameter] = Field(default_factory=list, description="Context parameters")
+
+
+class VersionControlInfo(BaseModel):
+    """Version control information."""
+    registry_id: str = Field(..., description="Registry client ID")
+    bucket_id: str = Field(..., description="Registry bucket ID")
+    flow_id: str = Field(..., description="Registry flow ID")
+    version: int = Field(..., description="Current version")
+    flow_name: str = Field(..., description="Flow name in Registry")
+    has_local_changes: bool = Field(False, description="Whether there are uncommitted local changes")
+    latest_version: Optional[int] = Field(None, description="Latest version available in Registry")
+
+
+class ProcessorInfo(BaseModel):
+    """Processor information."""
+    processor_id: str = Field(..., description="Processor ID")
+    name: str = Field(..., description="Processor name")
+    type: str = Field(..., description="Processor type")
+    state: str = Field(..., description="Processor state")
+    validation_status: str = Field(..., description="Validation status")
+    validation_errors: List[str] = Field(default_factory=list, description="Validation errors")
+
+
+class ConnectionInfo(BaseModel):
+    """Connection information."""
+    connection_id: str = Field(..., description="Connection ID")
+    name: str = Field(..., description="Connection name")
+    source_name: str = Field(..., description="Source processor name")
+    destination_name: str = Field(..., description="Destination processor name")
+    queued_count: int = Field(0, description="Number of queued FlowFiles")
+    queued_size: str = Field("0 bytes", description="Size of queued data")
+
+
+class DetailedFlowStatus(BaseModel):
+    """Detailed flow status model."""
+    process_group_id: str = Field(..., description="Process group ID")
+    name: str = Field(..., description="Flow name")
+    status: str = Field(..., description="Overall flow status")
+    processors: List[ProcessorInfo] = Field(default_factory=list, description="Processor details")
+    connections: List[ConnectionInfo] = Field(default_factory=list, description="Connection details")
+    parameter_context: Optional[ParameterContextInfo] = Field(None, description="Parameter context info")
+    version_control: Optional[VersionControlInfo] = Field(None, description="Version control info")
+    last_modified: Optional[str] = Field(None, description="Last modification timestamp")
+
+
+class BulkOperationRequest(BaseModel):
+    """Request model for bulk operations."""
+    process_group_ids: List[str] = Field(..., description="List of process group IDs")
+    operation: str = Field(..., description="Operation to perform (start, stop, delete)")
+    options: Dict[str, Any] = Field(default_factory=dict, description="Operation options")
+
+
+class BulkOperationResponse(BaseModel):
+    """Response model for bulk operations."""
+    success: bool = Field(..., description="Whether all operations succeeded")
+    results: Dict[str, Dict[str, Any]] = Field(..., description="Results per process group ID")
+    summary: Dict[str, int] = Field(..., description="Summary of successes/failures")

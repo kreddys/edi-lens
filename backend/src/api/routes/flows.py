@@ -1,8 +1,7 @@
-"""API routes for flow management."""
+"""API routes for deployment-first flow management."""
 
 from __future__ import annotations
 
-import logging
 import time
 from typing import Dict, List, Optional
 
@@ -12,15 +11,11 @@ from starlette.status import HTTP_200_OK, HTTP_201_CREATED
 from src.api.dependencies import get_flow_service
 from src.core.logging import get_logger, audit_logger
 from src.models.flow_models import (
-    BucketListResponse,
-    CreateFlowRequest,
-    DeployFlowRequest,
-    FlowCreationResponse,
-    FlowDeploymentResponse,
-    FlowListResponse,
+    DeployAndStoreFlowRequest,
+    DeployAndStoreFlowResponse,
     FlowStatusResponse,
-    UpdateFlowRequest,
-    UpdateParametersRequest,
+    UpdateDeployedFlowRequest,
+    VersionControlOperationResponse,
 )
 from src.services.flow_service import FlowService
 
@@ -29,44 +24,427 @@ log = get_logger(__name__)
 router = APIRouter(prefix="/flows", tags=["flows"])
 
 
-@router.get("/buckets", response_model=BucketListResponse)
-async def list_buckets(
-    request: Request,
+@router.post("/deploy-and-store", response_model=DeployAndStoreFlowResponse, status_code=HTTP_201_CREATED)
+async def deploy_and_store_flow(
+    request: DeployAndStoreFlowRequest,
+    http_request: Request,
     flow_service: FlowService = Depends(get_flow_service),
-) -> BucketListResponse:
-    """List available Registry buckets."""
+) -> DeployAndStoreFlowResponse:
+    """
+    Deploy flow to NiFi and store in Registry with version control.
+    This is the main endpoint for the deployment-first workflow.
+    """
     start_time = time.time()
-    
-    log.info("Listing available Registry buckets")
-    
+    flow_name = request.flow_definition.name
+
+    log.info("Starting deploy-and-store for flow '%s' in bucket '%s'", flow_name, request.bucket_id)
+    log.debug("Flow definition: %d processors, %d connections",
+             len(request.flow_definition.processors),
+             len(request.flow_definition.connections))
+    log.debug("Parameters: %d items", len(request.parameters))
+
     try:
-        buckets = await flow_service.list_buckets()
-        execution_time = (time.time() - start_time) * 1000
-        
-        log.info("Successfully retrieved %d buckets (%.2fms)", len(buckets), execution_time)
-        
-        # Audit log
-        audit_logger.log_api_call(
-            method=request.method,
-            endpoint=str(request.url.path),
-            response_status=200,
-            execution_time_ms=execution_time
+        result = await flow_service.deploy_and_store_flow(
+            bucket_id=request.bucket_id,
+            flow_definition=request.flow_definition.model_dump(),
+            parameters=request.parameters,
+            parent_group_id=request.parent_group_id,
+            flow_name=request.flow_name,
+            flow_description=request.flow_description,
         )
-        
-        return BucketListResponse(buckets=buckets, total=len(buckets))
-        
+
+        execution_time = (time.time() - start_time) * 1000
+
+        if result.get("success"):
+            log.info("Successfully deployed and stored flow '%s' in %.2fms", flow_name, execution_time)
+
+            # Audit log success
+            audit_logger.log_api_call(
+                method=http_request.method,
+                endpoint=str(http_request.url.path),
+                request_data={"bucket_id": request.bucket_id, "flow_name": flow_name},
+                response_status=201,
+                execution_time_ms=execution_time
+            )
+
+            return DeployAndStoreFlowResponse(
+                success=True,
+                stage=result.get("stage"),
+                flow_id=result.get("flow_id"),
+                version=result.get("version"),
+                process_group_id=result.get("process_group_id"),
+                parameter_context_id=result.get("parameter_context_id"),
+                message="Flow deployed and stored successfully",
+                deployment_summary=result.get("deployment_result", {}).get("summary", {}),
+            )
+        else:
+            log.warning("Deploy-and-store failed at stage %s: %s",
+                       result.get("stage"), result.get("error", {}).get("user_message"))
+
+            # Audit log for business logic failures
+            audit_logger.log_api_call(
+                method=http_request.method,
+                endpoint=str(http_request.url.path),
+                request_data={"bucket_id": request.bucket_id, "flow_name": flow_name},
+                response_status=400,
+                execution_time_ms=execution_time
+            )
+
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", {}) if result.get("error") else "Deploy-and-store failed",
+            )
+
+    except HTTPException:
+        raise
     except Exception as exc:
         execution_time = (time.time() - start_time) * 1000
-        log.error("Failed to list buckets after %.2fms: %s", execution_time, exc)
-        
-        # Audit log for errors
+        log.error("Unexpected error in deploy-and-store for '%s' after %.2fms: %s",
+                 flow_name, execution_time, exc)
+
+        # Audit log for system errors
         audit_logger.log_api_call(
-            method=request.method,
-            endpoint=str(request.url.path),
+            method=http_request.method,
+            endpoint=str(http_request.url.path),
+            request_data={"bucket_id": request.bucket_id, "flow_name": flow_name},
             response_status=500,
             execution_time_ms=execution_time
         )
-        
+
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_type": "INTERNAL_SERVER_ERROR",
+                "user_message": "An unexpected error occurred",
+                "action_required": "Contact system administrator",
+            },
+        ) from exc
+
+
+@router.get("/{process_group_id}/status", response_model=FlowStatusResponse)
+async def get_flow_status(
+    process_group_id: str = Path(..., description="Process Group ID"),
+    flow_service: FlowService = Depends(get_flow_service),
+) -> FlowStatusResponse:
+    """Get status of a deployed flow."""
+    try:
+        result = await flow_service.get_flow_status(process_group_id)
+
+        if result.get("success"):
+            return FlowStatusResponse(**{k: v for k, v in result.items() if k != "success"})
+        else:
+            raise HTTPException(
+                status_code=404 if "not found" in str(result.get("error", {})).lower() else 500,
+                detail=result.get("error", {}),
+            )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("Failed to get flow status for %s", process_group_id)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_type": "STATUS_FAILED",
+                "user_message": f"Failed to get flow status: {exc}",
+                "action_required": "Check process group ID and try again",
+            },
+        ) from exc
+
+
+@router.post("/{process_group_id}/start", status_code=HTTP_200_OK)
+async def start_flow(
+    process_group_id: str = Path(..., description="Process Group ID"),
+    flow_service: FlowService = Depends(get_flow_service),
+) -> Dict[str, str]:
+    """Start all processors in a deployed flow."""
+    try:
+        result = await flow_service.start_flow(process_group_id)
+
+        if result.get("success"):
+            return {"message": "Flow started successfully", "process_group_id": process_group_id}
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", {}),
+            )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("Failed to start flow %s", process_group_id)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_type": "START_FAILED",
+                "user_message": f"Failed to start flow: {exc}",
+                "action_required": "Check flow status and try again",
+            },
+        ) from exc
+
+
+@router.post("/{process_group_id}/stop", status_code=HTTP_200_OK)
+async def stop_flow(
+    process_group_id: str = Path(..., description="Process Group ID"),
+    flow_service: FlowService = Depends(get_flow_service),
+) -> Dict[str, str]:
+    """Stop all processors in a deployed flow."""
+    try:
+        result = await flow_service.stop_flow(process_group_id)
+
+        if result.get("success"):
+            return {"message": "Flow stopped successfully", "process_group_id": process_group_id}
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", {}),
+            )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("Failed to stop flow %s", process_group_id)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_type": "STOP_FAILED",
+                "user_message": f"Failed to stop flow: {exc}",
+                "action_required": "Check flow status and try again",
+            },
+        ) from exc
+
+
+@router.delete("/{process_group_id}")
+async def delete_flow(
+    process_group_id: str = Path(..., description="Process Group ID"),
+    remove_from_registry: bool = Query(False, description="Also remove from Registry"),
+    flow_service: FlowService = Depends(get_flow_service),
+):
+    """Delete a deployed flow and optionally remove from Registry."""
+    try:
+        result = await flow_service.delete_flow(process_group_id, remove_from_registry)
+
+        if result.get("success"):
+            return {
+                "message": "Flow deleted successfully",
+                "process_group_id": process_group_id,
+                "removed_from_registry": remove_from_registry,
+            }
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", {}),
+            )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("Failed to delete flow %s", process_group_id)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_type": "DELETE_FAILED",
+                "user_message": f"Failed to delete flow: {exc}",
+                "action_required": "Check process group ID and try again",
+            },
+        ) from exc
+
+
+@router.put("/{process_group_id}", response_model=VersionControlOperationResponse)
+async def update_deployed_flow(
+    request: UpdateDeployedFlowRequest,
+    process_group_id: str = Path(..., description="Process Group ID"),
+    flow_service: FlowService = Depends(get_flow_service),
+) -> VersionControlOperationResponse:
+    """Update a deployed flow and optionally commit changes to Registry."""
+    try:
+        result = await flow_service.update_deployed_flow(
+            process_group_id=process_group_id,
+            flow_definition=request.flow_definition.model_dump() if request.flow_definition else None,
+            parameters=request.parameters,
+            commit_changes=request.commit_changes,
+            comments=request.comments,
+        )
+
+        if result.get("success"):
+            return VersionControlOperationResponse(
+                success=True,
+                process_group_id=process_group_id,
+                message="Flow updated successfully",
+                committed=result.get("committed", False),
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", {}),
+            )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("Failed to update flow %s", process_group_id)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_type": "UPDATE_FAILED",
+                "user_message": f"Failed to update flow: {exc}",
+                "action_required": "Check process group ID and try again",
+            },
+        ) from exc
+
+
+# Version Control Operations
+@router.post("/{process_group_id}/version-control/commit", response_model=VersionControlOperationResponse)
+async def commit_changes(
+    process_group_id: str = Path(..., description="Process Group ID"),
+    comments: str = Query("Updated flow", description="Commit comments"),
+    flow_service: FlowService = Depends(get_flow_service),
+) -> VersionControlOperationResponse:
+    """Commit local changes to Registry."""
+    try:
+        result = await flow_service.commit_changes(process_group_id, comments)
+
+        if result.get("success"):
+            return VersionControlOperationResponse(
+                success=True,
+                process_group_id=process_group_id,
+                message="Changes committed successfully",
+                committed=True,
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", {}),
+            )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("Failed to commit changes for flow %s", process_group_id)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_type": "COMMIT_FAILED",
+                "user_message": f"Failed to commit changes: {exc}",
+                "action_required": "Check version control status and try again",
+            },
+        ) from exc
+
+
+@router.post("/{process_group_id}/version-control/update", response_model=VersionControlOperationResponse)
+async def update_from_registry(
+    process_group_id: str = Path(..., description="Process Group ID"),
+    flow_service: FlowService = Depends(get_flow_service),
+) -> VersionControlOperationResponse:
+    """Update flow from latest version in Registry."""
+    try:
+        result = await flow_service.update_from_registry(process_group_id)
+
+        if result.get("success"):
+            return VersionControlOperationResponse(
+                success=True,
+                process_group_id=process_group_id,
+                message="Flow updated from Registry successfully",
+                committed=False,
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", {}),
+            )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("Failed to update flow %s from Registry", process_group_id)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_type": "UPDATE_FROM_REGISTRY_FAILED",
+                "user_message": f"Failed to update from Registry: {exc}",
+                "action_required": "Check version control status and try again",
+            },
+        ) from exc
+
+
+@router.post("/{process_group_id}/version-control/revert", response_model=VersionControlOperationResponse)
+async def revert_changes(
+    process_group_id: str = Path(..., description="Process Group ID"),
+    flow_service: FlowService = Depends(get_flow_service),
+) -> VersionControlOperationResponse:
+    """Revert local changes to Registry version."""
+    try:
+        result = await flow_service.revert_changes(process_group_id)
+
+        if result.get("success"):
+            return VersionControlOperationResponse(
+                success=True,
+                process_group_id=process_group_id,
+                message="Changes reverted successfully",
+                committed=False,
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", {}),
+            )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("Failed to revert changes for flow %s", process_group_id)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_type": "REVERT_FAILED",
+                "user_message": f"Failed to revert changes: {exc}",
+                "action_required": "Check version control status and try again",
+            },
+        ) from exc
+
+
+@router.get("/{process_group_id}/version-control/modifications")
+async def get_local_modifications(
+    process_group_id: str = Path(..., description="Process Group ID"),
+    flow_service: FlowService = Depends(get_flow_service),
+) -> Dict:
+    """Get local modifications for a version controlled flow."""
+    try:
+        result = await flow_service.get_local_modifications(process_group_id)
+
+        if result.get("success"):
+            return result.get("local_modifications", {})
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", {}),
+            )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("Failed to get local modifications for flow %s", process_group_id)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_type": "MODIFICATIONS_FAILED",
+                "user_message": f"Failed to get local modifications: {exc}",
+                "action_required": "Check version control status and try again",
+            },
+        ) from exc
+
+
+# Registry passthrough endpoints (for compatibility)
+@router.get("/registry/buckets")
+async def list_buckets(
+    flow_service: FlowService = Depends(get_flow_service),
+) -> List[Dict]:
+    """List available Registry buckets."""
+    try:
+        buckets = await flow_service.list_buckets()
+        return buckets
+    except Exception as exc:
+        log.exception("Failed to list buckets")
         raise HTTPException(
             status_code=500,
             detail={
@@ -77,15 +455,15 @@ async def list_buckets(
         ) from exc
 
 
-@router.get("/{bucket_id}", response_model=FlowListResponse)
-async def list_flows(
+@router.get("/registry/buckets/{bucket_id}/flows")
+async def list_flows_in_bucket(
     bucket_id: str = Path(..., description="Registry bucket ID"),
     flow_service: FlowService = Depends(get_flow_service),
-) -> FlowListResponse:
-    """List flows in a bucket."""
+) -> List[Dict]:
+    """List flows in a Registry bucket."""
     try:
         flows = await flow_service.list_flows(bucket_id)
-        return FlowListResponse(flows=flows, total=len(flows))
+        return flows
     except Exception as exc:
         log.exception("Failed to list flows in bucket %s", bucket_id)
         raise HTTPException(
@@ -98,104 +476,16 @@ async def list_flows(
         ) from exc
 
 
-@router.post("/", response_model=FlowCreationResponse, status_code=HTTP_201_CREATED)
-async def create_flow(
-    request: CreateFlowRequest,
-    http_request: Request,
-    flow_service: FlowService = Depends(get_flow_service),
-) -> FlowCreationResponse:
-    """Create a new flow in Registry."""
-    start_time = time.time()
-    flow_name = request.flow_definition.name
-    
-    log.info("Creating flow '%s' in bucket '%s'", flow_name, request.bucket_id)
-    log.debug("Flow definition: %d processors, %d connections", 
-             len(request.flow_definition.processors), 
-             len(request.flow_definition.connections))
-    log.debug("Parameters: %d items", len(request.parameters))
-    
-    try:
-        result = await flow_service.create_flow(
-            bucket_id=request.bucket_id,
-            flow_definition=request.flow_definition.model_dump(),
-            parameters=request.parameters,
-        )
-        
-        execution_time = (time.time() - start_time) * 1000
-        
-        if result.get("success"):
-            log.info("Successfully created flow '%s' (ID: %s) in %.2fms", 
-                    flow_name, result.get("flow_id"), execution_time)
-            
-            # Audit log success
-            audit_logger.log_api_call(
-                method=http_request.method,
-                endpoint=str(http_request.url.path),
-                request_data={"bucket_id": request.bucket_id, "flow_name": flow_name},
-                response_status=201,
-                execution_time_ms=execution_time
-            )
-            
-            return FlowCreationResponse(
-                success=True,
-                flow_id=result.get("flow_id"),
-                version=result.get("version"),
-                message="Flow created successfully",
-            )
-        else:
-            log.warning("Flow creation failed: %s", result.get("error", {}).get("user_message"))
-            
-            # Audit log for business logic failures
-            audit_logger.log_api_call(
-                method=http_request.method,
-                endpoint=str(http_request.url.path),
-                request_data={"bucket_id": request.bucket_id, "flow_name": flow_name},
-                response_status=400,
-                execution_time_ms=execution_time
-            )
-            
-            raise HTTPException(
-                status_code=400,
-                detail=result.get("error", {}) if result.get("error") else "Flow creation failed",
-            )
-            
-    except HTTPException:
-        # Re-raise HTTP exceptions (they're already logged above)
-        raise
-    except Exception as exc:
-        execution_time = (time.time() - start_time) * 1000
-        log.error("Unexpected error creating flow '%s' after %.2fms: %s", 
-                 flow_name, execution_time, exc)
-        
-        # Audit log for system errors
-        audit_logger.log_api_call(
-            method=http_request.method,
-            endpoint=str(http_request.url.path),
-            request_data={"bucket_id": request.bucket_id, "flow_name": flow_name},
-            response_status=500,
-            execution_time_ms=execution_time
-        )
-        
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error_type": "INTERNAL_SERVER_ERROR",
-                "user_message": "An unexpected error occurred",
-                "action_required": "Contact system administrator",
-            },
-        ) from exc
-
-
-@router.get("/{bucket_id}/{flow_id}", response_model=dict)
-async def get_flow(
+@router.get("/registry/buckets/{bucket_id}/flows/{flow_id}")
+async def get_flow_from_registry(
     bucket_id: str = Path(..., description="Registry bucket ID"),
     flow_id: str = Path(..., description="Flow ID"),
     version: Optional[int] = Query(None, description="Specific version (latest if not specified)"),
     flow_service: FlowService = Depends(get_flow_service),
 ) -> Dict:
-    """Get flow definition and metadata."""
+    """Get flow definition from Registry."""
     try:
-        flow = await flow_service.get_flow(bucket_id, flow_id, version)
+        flow = await flow_service.get_flow_from_registry(bucket_id, flow_id, version)
         return flow
     except Exception as exc:
         log.exception("Failed to get flow %s/%s", bucket_id, flow_id)
@@ -205,288 +495,5 @@ async def get_flow(
                 "error_type": "FLOW_NOT_FOUND" if "not found" in str(exc).lower() else "FLOW_GET_FAILED",
                 "user_message": f"Flow {flow_id} not found" if "not found" in str(exc).lower() else "Failed to retrieve flow",
                 "action_required": "Verify flow ID and try again",
-            },
-        ) from exc
-
-
-@router.put("/{bucket_id}/{flow_id}", response_model=FlowCreationResponse)
-async def update_flow(
-    request: UpdateFlowRequest,
-    bucket_id: str = Path(..., description="Registry bucket ID"),
-    flow_id: str = Path(..., description="Flow ID"),
-    flow_service: FlowService = Depends(get_flow_service),
-) -> FlowCreationResponse:
-    """Update an existing flow (creates new version)."""
-    try:
-        result = await flow_service.update_flow(
-            bucket_id=bucket_id,
-            flow_id=flow_id,
-            flow_definition=request.flow_definition.model_dump() if request.flow_definition else None,
-            parameters=request.parameters,
-        )
-        
-        if result.success:
-            return FlowCreationResponse(
-                success=True,
-                flow_id=result.flow_id,
-                version=result.version,
-                message="Flow updated successfully",
-            )
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=result.error.model_dump() if result.error else "Flow update failed",
-            )
-            
-    except HTTPException:
-        raise
-    except Exception as exc:
-        log.exception("Unexpected error updating flow %s/%s", bucket_id, flow_id)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error_type": "INTERNAL_SERVER_ERROR",
-                "user_message": "An unexpected error occurred",
-                "action_required": "Contact system administrator",
-            },
-        ) from exc
-
-
-@router.delete("/{bucket_id}/{flow_id}")
-async def delete_flow(
-    bucket_id: str = Path(..., description="Registry bucket ID"),
-    flow_id: str = Path(..., description="Flow ID"),
-    flow_service: FlowService = Depends(get_flow_service),
-):
-    """Delete a flow and all its versions."""
-    try:
-        await flow_service.delete_flow(bucket_id, flow_id)
-        return {"message": "Flow deleted successfully"}
-    except Exception as exc:
-        log.exception("Failed to delete flow %s/%s", bucket_id, flow_id)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error_type": "FLOW_DELETE_FAILED",
-                "user_message": f"Failed to delete flow {flow_id}",
-                "action_required": "Please try again or contact support",
-            },
-        ) from exc
-
-
-# Deployment Operations
-@router.post("/{bucket_id}/{flow_id}/deploy", response_model=FlowDeploymentResponse)
-async def deploy_flow(
-    request: DeployFlowRequest,
-    bucket_id: str = Path(..., description="Registry bucket ID"),
-    flow_id: str = Path(..., description="Flow ID"),
-    flow_service: FlowService = Depends(get_flow_service),
-) -> FlowDeploymentResponse:
-    """Deploy flow to NiFi canvas."""
-    try:
-        result = await flow_service.deploy_flow(
-            bucket_id=bucket_id,
-            flow_id=flow_id,
-            parameters=request.parameters,
-            version=request.version,
-        )
-        
-        if result.get("success"):
-            return FlowDeploymentResponse(
-                success=True,
-                process_group_id=result.get("process_group_id"),
-                parameter_context_id=result.get("parameter_context_id"),
-                message="Flow deployed successfully",
-            )
-        else:
-            error_detail = result.get("error", {})
-            raise HTTPException(
-                status_code=400,
-                detail=error_detail,
-            )
-            
-    except HTTPException:
-        raise
-    except Exception as exc:
-        log.exception("Unexpected error deploying flow %s/%s", bucket_id, flow_id)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error_type": "INTERNAL_SERVER_ERROR",
-                "user_message": "An unexpected error occurred",
-                "action_required": "Contact system administrator",
-            },
-        ) from exc
-
-
-@router.delete("/{bucket_id}/{flow_id}/deploy")
-async def undeploy_flow(
-    bucket_id: str = Path(..., description="Registry bucket ID"),
-    flow_id: str = Path(..., description="Flow ID"),
-    flow_service: FlowService = Depends(get_flow_service),
-):
-    """Undeploy flow from NiFi canvas."""
-    try:
-        await flow_service.undeploy_flow(bucket_id, flow_id)
-        return {"message": "Flow undeployed successfully"}
-    except Exception as exc:
-        log.exception("Failed to undeploy flow %s/%s", bucket_id, flow_id)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error_type": "FLOW_UNDEPLOY_FAILED",
-                "user_message": f"Failed to undeploy flow {flow_id}",
-                "action_required": "Please try again or contact support",
-            },
-        ) from exc
-
-
-@router.post("/{bucket_id}/{flow_id}/start", status_code=HTTP_200_OK)
-async def start_flow(
-    bucket_id: str = Path(..., description="Registry bucket ID"),
-    flow_id: str = Path(..., description="Flow ID"),
-    flow_service: FlowService = Depends(get_flow_service),
-) -> Dict[str, str]:
-    """Start flow processors."""
-    try:
-        success = await flow_service.start_flow(bucket_id, flow_id)
-        if success:
-            return {"message": "Flow started successfully"}
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error_type": "FLOW_START_FAILED",
-                    "user_message": "Failed to start flow",
-                    "action_required": "Verify flow is deployed and try again",
-                },
-            )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        log.exception("Failed to start flow %s/%s", bucket_id, flow_id)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error_type": "FLOW_START_FAILED",
-                "user_message": f"Failed to start flow {flow_id}",
-                "action_required": "Please try again or contact support",
-            },
-        ) from exc
-
-
-@router.post("/{bucket_id}/{flow_id}/stop", status_code=HTTP_200_OK)
-async def stop_flow(
-    bucket_id: str = Path(..., description="Registry bucket ID"),
-    flow_id: str = Path(..., description="Flow ID"),
-    flow_service: FlowService = Depends(get_flow_service),
-) -> Dict[str, str]:
-    """Stop flow processors."""
-    try:
-        success = await flow_service.stop_flow(bucket_id, flow_id)
-        if success:
-            return {"message": "Flow stopped successfully"}
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error_type": "FLOW_STOP_FAILED",
-                    "user_message": "Failed to stop flow",
-                    "action_required": "Verify flow is deployed and try again",
-                },
-            )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        log.exception("Failed to stop flow %s/%s", bucket_id, flow_id)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error_type": "FLOW_STOP_FAILED",
-                "user_message": f"Failed to stop flow {flow_id}",
-                "action_required": "Please try again or contact support",
-            },
-        ) from exc
-
-
-@router.get("/{bucket_id}/{flow_id}/status", response_model=FlowStatusResponse)
-async def get_flow_status(
-    bucket_id: str = Path(..., description="Registry bucket ID"),
-    flow_id: str = Path(..., description="Flow ID"),
-    flow_service: FlowService = Depends(get_flow_service),
-) -> FlowStatusResponse:
-    """Get flow deployment status."""
-    try:
-        status = await flow_service.get_flow_status(bucket_id, flow_id)
-        return FlowStatusResponse(**status)
-    except Exception as exc:
-        log.exception("Failed to get flow status %s/%s", bucket_id, flow_id)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error_type": "FLOW_STATUS_FAILED",
-                "user_message": f"Failed to get status for flow {flow_id}",
-                "action_required": "Please try again or contact support",
-            },
-        ) from exc
-
-
-@router.put("/{bucket_id}/{flow_id}/parameters", status_code=HTTP_200_OK)
-async def update_flow_parameters(
-    request: UpdateParametersRequest,
-    bucket_id: str = Path(..., description="Registry bucket ID"),
-    flow_id: str = Path(..., description="Flow ID"),
-    flow_service: FlowService = Depends(get_flow_service),
-) -> Dict[str, str]:
-    """Update flow parameters at runtime."""
-    try:
-        success = await flow_service.update_flow_parameters(
-            bucket_id=bucket_id,
-            flow_id=flow_id,
-            parameters=request.parameters,
-        )
-        if success:
-            return {"message": "Parameters updated successfully"}
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error_type": "PARAMETER_UPDATE_FAILED",
-                    "user_message": "Failed to update parameters",
-                    "action_required": "Verify flow is deployed and parameters are valid",
-                },
-            )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        log.exception("Failed to update parameters for flow %s/%s", bucket_id, flow_id)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error_type": "PARAMETER_UPDATE_FAILED",
-                "user_message": f"Failed to update parameters for flow {flow_id}",
-                "action_required": "Please try again or contact support",
-            },
-        ) from exc
-
-
-@router.get("/{bucket_id}/{flow_id}/parameters", response_model=Dict)
-async def get_flow_parameters(
-    bucket_id: str = Path(..., description="Registry bucket ID"),
-    flow_id: str = Path(..., description="Flow ID"),
-    flow_service: FlowService = Depends(get_flow_service),
-) -> Dict:
-    """Get current flow parameters."""
-    try:
-        parameters = await flow_service.get_flow_parameters(bucket_id, flow_id)
-        return parameters
-    except Exception as exc:
-        log.exception("Failed to get parameters for flow %s/%s", bucket_id, flow_id)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error_type": "PARAMETER_GET_FAILED",
-                "user_message": f"Failed to get parameters for flow {flow_id}",
-                "action_required": "Please try again or contact support",
             },
         ) from exc
