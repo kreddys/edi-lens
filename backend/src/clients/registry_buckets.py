@@ -84,10 +84,28 @@ class RegistryBucketClient(LoggerMixin):
         self.logger.info("Updated bucket: %s", bucket_id)
         return result
 
-    async def delete_bucket(self, bucket_id: str) -> None:
-        """Delete a bucket."""
-        self.logger.debug("Deleting bucket: %s", bucket_id)
-        await self.base.delete(f"/buckets/{bucket_id}")
+    async def delete_bucket(
+        self,
+        bucket_id: str,
+        revision: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Delete a bucket.
+
+        NiFi Registry requires the current revision version (and optional client id)
+        when deleting mutable resources. Forward these values when available so the
+        delete operation works against secured registries.
+        """
+
+        params: Optional[Dict[str, Any]] = None
+        if revision:
+            params = {}
+            if "version" in revision:
+                params["version"] = revision["version"]
+            if revision.get("clientId"):
+                params["clientId"] = revision["clientId"]
+
+        self.logger.debug("Deleting bucket: %s (revision: %s)", bucket_id, revision)
+        await self.base.delete(f"/buckets/{bucket_id}", params=params)
         self.logger.info("Deleted bucket: %s", bucket_id)
 
     async def get_bucket_permissions(self, bucket_id: str) -> Dict[str, Any]:

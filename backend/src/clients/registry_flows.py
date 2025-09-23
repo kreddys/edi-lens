@@ -44,6 +44,10 @@ class RegistryFlowClient(LoggerMixin):
         return await self.base.get(f"/buckets/{bucket_id}/flows/{flow_id}")
 
     async def list_flows(self, bucket_id: str) -> List[Dict[str, Any]]:
+        """Alias for `list_flows_in_bucket` for backwards compatibility."""
+        return await self.list_flows_in_bucket(bucket_id)
+
+    async def list_flows_in_bucket(self, bucket_id: str) -> List[Dict[str, Any]]:
         """List all flows in a bucket."""
         self.logger.debug("Listing flows in bucket: %s", bucket_id)
         result = await self.base.get(f"/buckets/{bucket_id}/flows")
@@ -77,10 +81,26 @@ class RegistryFlowClient(LoggerMixin):
         self.logger.info("Updated flow %s in bucket %s", flow_id, bucket_id)
         return result
 
-    async def delete_flow(self, bucket_id: str, flow_id: str) -> None:
+    async def delete_flow(
+        self,
+        bucket_id: str,
+        flow_id: str,
+        revision: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Delete a flow and all its versions."""
-        self.logger.debug("Deleting flow %s from bucket %s", flow_id, bucket_id)
-        await self.base.delete(f"/buckets/{bucket_id}/flows/{flow_id}")
+
+        params: Optional[Dict[str, Any]] = None
+        if revision:
+            params = {}
+            if "version" in revision:
+                params["version"] = revision["version"]
+            if revision.get("clientId"):
+                params["clientId"] = revision["clientId"]
+
+        self.logger.debug(
+            "Deleting flow %s from bucket %s (revision: %s)", flow_id, bucket_id, revision
+        )
+        await self.base.delete(f"/buckets/{bucket_id}/flows/{flow_id}", params=params)
         self.logger.info("Deleted flow %s from bucket %s", flow_id, bucket_id)
 
     async def create_flow_version(
