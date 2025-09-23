@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     nifi_username: Optional[str] = Field(default=None, alias="NIFI_USERNAME")
     nifi_password: Optional[str] = Field(default=None, alias="NIFI_PASSWORD")
     nifi_verify_ssl: bool = Field(default=True, alias="NIFI_VERIFY_SSL")
+    nifi_host_header: Optional[str] = Field(default=None, alias="NIFI_HOST_HEADER")
 
     # NiFi Registry Configuration
     registry_url: str = Field(default="http://localhost:18080", alias="NIFI_REGISTRY_URL")

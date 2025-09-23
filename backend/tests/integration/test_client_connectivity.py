@@ -9,7 +9,7 @@ import os
 import pytest
 import uuid
 
-from tests.test_config import get_test_nifi_client, get_test_registry_client
+from tests.test_config import get_test_nifi_client, get_test_registry_client, get_test_settings
 
 
 class TestNiFiClientConnectivity:
@@ -261,14 +261,11 @@ class TestCrossClientIntegration:
 
         nifi_client = get_test_nifi_client()
         registry_client = get_test_registry_client()
+        settings = get_test_settings()
 
-        # Verify URLs are set correctly based on test mode
-        if test_mode == "local":
-            assert "localhost" in nifi_client.base.nifi_url
-            assert "localhost" in registry_client.base.registry_url
-        else:
-            assert "host.docker.internal" in nifi_client.base.nifi_url
-            assert "host.docker.internal" in registry_client.base.registry_url
+        # Verify URLs are set based on the active test configuration
+        assert nifi_client.base.nifi_url == settings.nifi_url
+        assert registry_client.base.registry_url == settings.registry_url
 
         # Verify SSL is disabled for testing
         assert nifi_client.base.verify_ssl is False

@@ -22,6 +22,10 @@ BACKEND_DIR="$PROJECT_ROOT/backend"
 DOCKER_COMPOSE=""
 ENV_FILE="$PROJECT_ROOT/.env"
 
+# Test environment files
+TEST_ENV_DIR="$PROJECT_ROOT/backend/tests/env"
+CONTAINER_TEST_ENV_DIR="/app/tests/env"
+
 # Colors and logging
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
@@ -53,7 +57,7 @@ show_port_usage() {
     fi
 }
 
-load_env_file() {
+load_project_env() {
     if [[ -f "$ENV_FILE" ]]; then
         log_debug "Loading environment variables from $ENV_FILE"
         set -a
@@ -69,16 +73,53 @@ load_local_env() {
     local local_env_file="$PROJECT_ROOT/.env.local"
     if [[ -f "$local_env_file" ]]; then
         log_debug "Loading local environment variables from $local_env_file"
-        set -a
-        # shellcheck disable=SC1090
-        source "$local_env_file"
-        set +a
+        load_env_file "$local_env_file"
     else
         log_warn "Local environment file not found: $local_env_file"
         log_info "Using fallback localhost URLs for local testing"
         export NIFI_URL=https://localhost:8443
         export NIFI_REGISTRY_URL=http://localhost:18080
     fi
+}
+
+load_env_file() {
+    local env_file="$1"
+    if [[ -f "$env_file" ]]; then
+        log_debug "Loading environment variables from $env_file"
+        set -a
+        # shellcheck disable=SC1090
+        source "$env_file"
+        set +a
+    else
+        log_warn "Environment file not found: $env_file"
+    fi
+}
+
+get_test_env_file() {
+    local mode="${1:-local}"
+    case "$mode" in
+        docker)
+            echo "$TEST_ENV_DIR/test.docker.env"
+            ;;
+        *)
+            echo "$TEST_ENV_DIR/test.local.env"
+            ;;
+    esac
+}
+
+build_docker_env_args() {
+    local env_file="$1"
+    local args=()
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -z "$line" || "$line" =~ ^# ]] && continue
+        if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
+            local key="${BASH_REMATCH[1]}"
+            local value="${BASH_REMATCH[2]}"
+            args+=("-e" "$key=$value")
+        fi
+    done < "$env_file"
+
+    printf '%s\n' "${args[@]}"
 }
 
 reconfigure_backend_for_local_testing() {
@@ -323,7 +364,7 @@ cmd_start() {
     log_step "Starting EDI Lens backend services..."
 
     cd "$DOCKER_DIR"
-    load_env_file
+    load_project_env
     
     # Build containers first to ensure latest changes
     log_info "Building containers with latest changes..."
@@ -367,7 +408,7 @@ cmd_prod() {
     log_step "Starting EDI Lens backend services in PRODUCTION mode..."
 
     cd "$DOCKER_DIR"
-    load_env_file
+    load_project_env
     
     # Build containers first to ensure latest changes
     log_info "Building containers for production..."
@@ -404,7 +445,7 @@ cmd_stop() {
     log_step "Stopping EDI Lens backend services..."
 
     cd "$DOCKER_DIR"
-    load_env_file
+    load_project_env
     $DOCKER_COMPOSE down
 
     log_success "All services stopped"
@@ -443,7 +484,7 @@ cmd_logs() {
 
     local service="${1:-}"
     cd "$DOCKER_DIR"
-    load_env_file
+    load_project_env
 
     if [[ -n "$service" ]]; then
         log_info "Showing logs for: $service"
@@ -460,7 +501,7 @@ cmd_build() {
     log_step "Building services..."
 
     cd "$DOCKER_DIR"
-    load_env_file
+    load_project_env
     $DOCKER_COMPOSE build --no-cache
 
     log_success "Build complete"
@@ -482,7 +523,7 @@ cmd_clean() {
         log_step "Cleaning up backend containers and volumes..."
 
         cd "$DOCKER_DIR"
-        load_env_file
+        load_project_env
         $DOCKER_COMPOSE down -v --remove-orphans
 
         # Remove images
@@ -580,6 +621,12 @@ cmd_test() {
                     # Load local environment configuration
                     load_local_env
 
+                    local test_env_file
+                    test_env_file=$(get_test_env_file "local")
+                    export TEST_MODE=local
+                    export TEST_ENV_FILE="$test_env_file"
+                    load_env_file "$test_env_file"
+
                     # Check if services are running
                     if ! curl -s -k "$NIFI_URL/nifi/" >/dev/null 2>&1; then
                         log_warn "NiFi not reachable at $NIFI_URL - consider starting services first"
@@ -598,12 +645,25 @@ cmd_test() {
                     log_info "Running integration tests in Docker container..."
                     log_info "Tests will connect to Docker services via host.docker.internal URLs"
                     ensure_backend_test_env
+
+                    local host_test_env_file
+                    host_test_env_file=$(get_test_env_file "docker")
+                    if [[ ! -f "$host_test_env_file" ]]; then
+                        log_error "Docker test environment file not found: $host_test_env_file"
+                        exit 1
+                    fi
+                    local container_test_env_file="$CONTAINER_TEST_ENV_DIR/$(basename "$host_test_env_file")"
+                    local docker_env_args
+                    docker_env_args=($(build_docker_env_args "$host_test_env_file"))
+                    docker_env_args+=("-e" "TEST_MODE=docker" "-e" "TEST_ENV_FILE=$container_test_env_file")
                     
                     # Set environment for docker testing (host.docker.internal URLs to avoid SSL issues)
                     if (( ${#extra_args[@]} )); then
-                        docker exec -e TEST_MODE=docker edi-lens-backend poetry run pytest -m integration tests/integration/ -v "${extra_args[@]}"
+                        docker exec ${docker_env_args[@]} \
+                            edi-lens-backend poetry run pytest -m integration tests/integration/ -v "${extra_args[@]}"
                     else
-                        docker exec -e TEST_MODE=docker edi-lens-backend poetry run pytest -m integration tests/integration/ -v
+                        docker exec ${docker_env_args[@]} \
+                            edi-lens-backend poetry run pytest -m integration tests/integration/ -v
                     fi
                     ;;
                 *)
@@ -622,6 +682,12 @@ cmd_test() {
                     # Load local environment configuration
                     load_local_env
 
+                    local test_env_file
+                    test_env_file=$(get_test_env_file "local")
+                    export TEST_MODE=local
+                    export TEST_ENV_FILE="$test_env_file"
+                    load_env_file "$test_env_file"
+
                     # Reconfigure backend to use localhost URLs
                     reconfigure_backend_for_local_testing
                     
@@ -638,6 +704,12 @@ cmd_test() {
 
                     # Load local environment configuration
                     load_local_env
+
+                    local test_env_file
+                    test_env_file=$(get_test_env_file "local")
+                    export TEST_MODE=local
+                    export TEST_ENV_FILE="$test_env_file"
+                    load_env_file "$test_env_file"
 
                     # Reconfigure backend to use localhost URLs
                     reconfigure_backend_for_local_testing
@@ -673,16 +745,40 @@ cmd_test() {
                 docker)
                     log_info "Running e2e tests in Docker container..."
                     ensure_backend_test_env
+
+                    local host_test_env_file
+                    host_test_env_file=$(get_test_env_file "docker")
+                    if [[ ! -f "$host_test_env_file" ]]; then
+                        log_error "Docker test environment file not found: $host_test_env_file"
+                        exit 1
+                    fi
+                    local container_test_env_file="$CONTAINER_TEST_ENV_DIR/$(basename "$host_test_env_file")"
+                    local docker_env_args
+                    docker_env_args=($(build_docker_env_args "$host_test_env_file"))
+                    docker_env_args+=("-e" "TEST_MODE=docker" "-e" "TEST_ENV_FILE=$container_test_env_file")
                     
                     if (( ${#extra_args[@]} )); then
-                        docker exec -e TEST_MODE=docker edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v "${extra_args[@]}"
+                        docker exec ${docker_env_args[@]} \
+                            edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v "${extra_args[@]}"
                     else
-                        docker exec -e TEST_MODE=docker edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v
+                        docker exec ${docker_env_args[@]} \
+                            edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v
                     fi
                     ;;
                 docker-verbose)
                     log_info "Running e2e tests in Docker container with VERBOSE logging..."
                     ensure_backend_test_env
+
+                    local host_test_env_file
+                    host_test_env_file=$(get_test_env_file "docker")
+                    if [[ ! -f "$host_test_env_file" ]]; then
+                        log_error "Docker test environment file not found: $host_test_env_file"
+                        exit 1
+                    fi
+                    local container_test_env_file="$CONTAINER_TEST_ENV_DIR/$(basename "$host_test_env_file")"
+                    local docker_env_args
+                    docker_env_args=($(build_docker_env_args "$host_test_env_file"))
+                    docker_env_args+=("-e" "TEST_MODE=docker" "-e" "TEST_ENV_FILE=$container_test_env_file" "-e" "DEBUG=true")
                     
                     # Create e2e logs directory
                     mkdir -p logs/e2e
@@ -700,7 +796,8 @@ cmd_test() {
                         echo "TEST_MODE: docker"
                         echo ""
                         
-                        docker exec -e TEST_MODE=docker -e DEBUG=true edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v -s --tb=long "${extra_args[@]:-}" 2>&1
+                        docker exec ${docker_env_args[@]} \
+                            edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v -s --tb=long "${extra_args[@]:-}" 2>&1
                         
                         echo ""
                         echo "=== E2E Docker Test Execution Completed at $(date) ==="

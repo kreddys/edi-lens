@@ -30,6 +30,7 @@ class NiFiBaseClient(LoggerMixin):
         session: Optional[aiohttp.ClientSession] = None,
         verify_ssl: bool = True,
         timeout: Optional[float] = 30,
+        host_header: Optional[str] = None,
     ):
         self.nifi_url = nifi_url.rstrip("/")
         self.username = username
@@ -39,6 +40,7 @@ class NiFiBaseClient(LoggerMixin):
         self._timeout = aiohttp.ClientTimeout(total=timeout) if timeout else None
         self.session: Optional[aiohttp.ClientSession] = session
         self.auth_token: Optional[str] = None
+        self.host_header = host_header
 
         self.logger.info("Initializing NiFi base client for %s", self.nifi_url)
         self.logger.debug("Authentication: %s", "enabled" if username else "disabled")
@@ -129,6 +131,9 @@ class NiFiBaseClient(LoggerMixin):
             csrf_cookie = cookies.get("__Secure-Request-Token")
             if csrf_cookie and "Request-Token" not in request_headers:
                 request_headers["Request-Token"] = csrf_cookie.value
+
+        if self.host_header and "Host" not in request_headers:
+            request_headers["Host"] = self.host_header
 
         self.logger.debug("NiFi API %s %s", method, endpoint)
 

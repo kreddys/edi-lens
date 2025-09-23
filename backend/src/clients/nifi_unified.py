@@ -29,6 +29,7 @@ class NiFiUnifiedClient(LoggerMixin):
         session: Optional[aiohttp.ClientSession] = None,
         verify_ssl: bool = True,
         timeout: Optional[float] = 30,
+        host_header: Optional[str] = None,
     ):
         self.base = NiFiBaseClient(
             nifi_url=nifi_url,
@@ -37,6 +38,7 @@ class NiFiUnifiedClient(LoggerMixin):
             session=session,
             verify_ssl=verify_ssl,
             timeout=timeout,
+            host_header=host_header,
         )
 
         # Initialize specialized clients
