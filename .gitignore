@@ -53,7 +53,10 @@ __pycache__/
 .Python
 .venv/
 venv/
+# Allow committed test env files while ignoring other env folders
 env/
+!backend/tests/env/
+!backend/tests/env/*.env
 *.egg-info/
 dist/
 build/
@@ -82,5 +85,6 @@ nifi-admin-guide.txt
 
 local-services/
 codex-services/
+.codex-services/
 docker/codex-universal
 nifi-registry-api-spec.txt
