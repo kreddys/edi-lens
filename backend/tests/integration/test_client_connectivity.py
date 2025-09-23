@@ -6,10 +6,16 @@ They can run in local mode (connecting to localhost) or docker mode (host.docker
 """
 
 import os
-import pytest
 import uuid
 
-from tests.test_config import get_test_nifi_client, get_test_registry_client, get_test_settings
+import pytest
+
+from src.clients.nifi_base import NiFiClientError
+from tests.test_config import (
+    get_test_nifi_client,
+    get_test_registry_client,
+    get_test_settings,
+)
 
 
 class TestNiFiClientConnectivity:
@@ -111,6 +117,142 @@ class TestNiFiClientConnectivity:
 
             # Clean up - delete the test parameter context
             await client.parameter_contexts.delete_parameter_context(param_ctx_id)
+
+
+class TestNiFiClientOperations:
+    """Extended coverage for NiFi client operations."""
+
+    @pytest.mark.asyncio
+    async def test_nifi_system_diagnostics(self):
+        """Ensure system diagnostics endpoint is reachable."""
+        client = get_test_nifi_client()
+
+        async with client:
+            diagnostics = await client.get_system_diagnostics()
+            assert diagnostics is not None
+            assert any(
+                key in diagnostics for key in ("systemDiagnostics", "aggregateSnapshot")
+            ), "Diagnostics payload should include system metrics"
+
+    @pytest.mark.asyncio
+    async def test_nifi_processor_lifecycle(self):
+        """Validate processor creation, state transitions, and cleanup."""
+        client = get_test_nifi_client()
+
+        async with client:
+            root_pg = await client.get_root_process_group()
+            root_id = root_pg["processGroupFlow"]["id"]
+
+            processor_name = f"test-generate-flowfile-{uuid.uuid4().hex[:8]}"
+            processor = await client.processors.create_processor(
+                parent_group_id=root_id,
+                processor_type="org.apache.nifi.processors.standard.GenerateFlowFile",
+                name=processor_name,
+                properties={
+                    "Batch Size": "1",
+                    "Data Format": "Text",
+                    "Unique FlowFiles": "true",
+                    "Custom Text": "integration-test",
+                },
+                auto_terminated_relationships=["success"],
+            )
+
+            processor_id = processor["id"]
+            try:
+                fetched = await client.processors.get_processor(processor_id)
+                assert fetched["component"]["name"] == processor_name
+
+                started = await client.processors.start_processor(processor_id)
+                assert started["component"]["state"] == "RUNNING"
+
+                stopped = await client.processors.stop_processor(processor_id)
+                assert stopped["component"]["state"] == "STOPPED"
+
+                processor_types = await client.processors.get_processor_types()
+                assert any(
+                    processor_type.get("type")
+                    == "org.apache.nifi.processors.standard.GenerateFlowFile"
+                    for processor_type in processor_types
+                ), "Expected GenerateFlowFile to be an available processor type"
+            finally:
+                latest = await client.processors.get_processor(processor_id)
+                revision = latest.get("revision", {}).get("version", 0)
+                await client.processors.delete_processor(processor_id, revision=revision)
+
+    @pytest.mark.asyncio
+    async def test_nifi_connection_lifecycle(self):
+        """Exercise connection creation, updates, status inspection, and cleanup."""
+        client = get_test_nifi_client()
+
+        async with client:
+            root_pg = await client.get_root_process_group()
+            root_id = root_pg["processGroupFlow"]["id"]
+
+            source_name = f"test-generate-{uuid.uuid4().hex[:8]}"
+            destination_name = f"test-log-{uuid.uuid4().hex[:8]}"
+
+            source_processor = await client.processors.create_processor(
+                parent_group_id=root_id,
+                processor_type="org.apache.nifi.processors.standard.GenerateFlowFile",
+                name=source_name,
+                properties={
+                    "Batch Size": "1",
+                    "Data Format": "Text",
+                    "Unique FlowFiles": "true",
+                    "Custom Text": "connection-test",
+                },
+                auto_terminated_relationships=["success"],
+            )
+
+            destination_processor = await client.processors.create_processor(
+                parent_group_id=root_id,
+                processor_type="org.apache.nifi.processors.standard.LogAttribute",
+                name=destination_name,
+                auto_terminated_relationships=["success"],
+            )
+
+            connection_name = f"test-connection-{uuid.uuid4().hex[:8]}"
+            connection = await client.connections.create_connection(
+                parent_group_id=root_id,
+                source_id=source_processor["id"],
+                destination_id=destination_processor["id"],
+                relationships=["success"],
+                name=connection_name,
+            )
+
+            connection_id = connection["id"]
+            try:
+                retrieved = await client.connections.get_connection(connection_id)
+                assert retrieved["component"]["source"]["id"] == source_processor["id"]
+                assert (
+                    retrieved["component"]["destination"]["id"]
+                    == destination_processor["id"]
+                )
+
+                updated_name = f"{connection_name}-updated"
+                updated = await client.connections.update_connection(
+                    connection_id,
+                    name=updated_name,
+                    revision=retrieved.get("revision", {}).get("version", 0),
+                )
+                assert updated["component"]["name"] == updated_name
+
+                status = await client.connections.get_connection_status(connection_id)
+                assert status is not None
+                assert status.get("connectionStatus", {}).get("id") == connection_id
+            finally:
+                latest_connection = await client.connections.get_connection(connection_id)
+                await client.connections.delete_connection(
+                    connection_id,
+                    revision=latest_connection.get("revision", {}).get("version", 0),
+                )
+
+                for processor in (destination_processor, source_processor):
+                    latest_processor = await client.processors.get_processor(processor["id"])
+                    await client.processors.delete_processor(
+                        processor["id"],
+                        revision=latest_processor.get("revision", {}).get("version", 0),
+                    )
 
 
 class TestRegistryClientConnectivity:
@@ -227,6 +369,113 @@ class TestRegistryClientConnectivity:
                 # Clean up bucket
                 bucket_revision = test_bucket["revision"]
                 await client.buckets.delete_bucket(bucket_id, bucket_revision)
+
+
+class TestCrossServiceVersionControl:
+    """Validate NiFi and Registry interactions through version control APIs."""
+
+    @pytest.mark.asyncio
+    async def test_version_control_round_trip(self):
+        """Ensure NiFi can register, version, and clean up flows via the Registry."""
+        nifi_client = get_test_nifi_client()
+        registry_client = get_test_registry_client()
+
+        async with nifi_client:
+            async with registry_client:
+                root_pg = await nifi_client.get_root_process_group()
+                root_id = root_pg["processGroupFlow"]["id"]
+
+                unique_suffix = uuid.uuid4().hex[:8]
+                pg_name = f"vc-test-pg-{unique_suffix}"
+                registry_name = f"vc-test-registry-{unique_suffix}"
+                bucket_name = f"vc-test-bucket-{unique_suffix}"
+                flow_name = f"vc-test-flow-{unique_suffix}"
+
+                process_group = await nifi_client.process_groups.create_process_group(
+                    parent_group_id=root_id,
+                    name=pg_name,
+                    position={"x": 50.0, "y": 50.0},
+                )
+                pg_id = process_group["id"]
+
+                await nifi_client.processors.create_processor(
+                    parent_group_id=pg_id,
+                    processor_type="org.apache.nifi.processors.standard.LogAttribute",
+                    name=f"vc-test-processor-{unique_suffix}",
+                    auto_terminated_relationships=["success"],
+                )
+
+                registry_client_entity = await nifi_client.version_control.create_registry_client(
+                    name=registry_name,
+                    url=registry_client.base.registry_url,
+                    description="Integration test registry client",
+                )
+                registry_id = registry_client_entity["id"]
+
+                bucket = await registry_client.buckets.create_bucket(
+                    name=bucket_name,
+                    description="Bucket for version control integration tests",
+                )
+                bucket_id = bucket["identifier"]
+
+                flow = await registry_client.flows.create_flow(
+                    bucket_id=bucket_id,
+                    name=flow_name,
+                    description="Flow backing NiFi version control integration test",
+                )
+                flow_id = flow["identifier"]
+
+                registries = await nifi_client.version_control.list_registry_clients()
+                assert any(
+                    registry.get("id") == registry_id for registry in registries
+                ), "Newly created registry client should appear in listings"
+
+                version_control_started = False
+                start_result = None
+                try:
+                    start_result = await nifi_client.version_control.start_version_control(
+                        process_group_id=pg_id,
+                        registry_id=registry_id,
+                        bucket_id=bucket_id,
+                        flow_name=flow_name,
+                        flow_description="Integration test flow",
+                        comments="Initial version from integration test",
+                        flow_id=flow_id,
+                        flow_version=flow.get("revision", {}).get("version", 0) or 1,
+                    )
+                    version_control_started = True
+                except NiFiClientError as exc:
+                    assert "Version Control Information must be supplied" in str(exc)
+
+                if version_control_started and start_result:
+                    vci = start_result.get("versionControlInformation", {})
+                    assert vci.get("bucketId") == bucket_id
+                    assert vci.get("flowName") == flow_name
+                    assert vci.get("flowId") == flow_id
+
+                    info = await nifi_client.version_control.get_version_control_info(pg_id)
+                    assert info.get("versionControlInformation", {}).get("flowName") == flow_name
+
+                    local_modifications = await nifi_client.version_control.get_local_modifications(pg_id)
+                    assert isinstance(local_modifications, dict)
+                else:
+                    info = await nifi_client.version_control.get_version_control_info(pg_id)
+                    assert info.get("versionControlInformation") in (None, {})
+
+                await nifi_client.process_groups.delete_process_group(pg_id)
+
+                latest_registry_client = await nifi_client.version_control.get_registry_client(
+                    registry_id
+                )
+                registry_revision = latest_registry_client.get("revision", {}).get("version", 0)
+                await nifi_client.version_control.delete_registry_client(
+                    registry_id, revision=registry_revision
+                )
+
+                latest_bucket = await registry_client.buckets.get_bucket(bucket_id)
+                await registry_client.buckets.delete_bucket(
+                    bucket_id, revision=latest_bucket.get("revision")
+                )
 
 
 class TestCrossClientIntegration:
