@@ -24,6 +24,8 @@ class NiFiConnectionClient(LoggerMixin):
         destination_id: str,
         source_type: str = "PROCESSOR",
         destination_type: str = "PROCESSOR",
+        source_group_id: Optional[str] = None,
+        destination_group_id: Optional[str] = None,
         name: str = "",
         relationships: Optional[List[str]] = None,
         back_pressure_object_threshold: Optional[int] = None,
@@ -34,14 +36,21 @@ class NiFiConnectionClient(LoggerMixin):
         if relationships is None:
             relationships = []
 
+        if source_group_id is None:
+            source_group_id = parent_group_id
+        if destination_group_id is None:
+            destination_group_id = parent_group_id
+
         source = {
             "id": source_id,
             "type": source_type,
+            "groupId": source_group_id,
         }
 
         destination = {
             "id": destination_id,
             "type": destination_type,
+            "groupId": destination_group_id,
         }
 
         component = {

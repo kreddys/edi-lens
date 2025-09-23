@@ -66,20 +66,40 @@ class NiFiVersionControlClient(LoggerMixin):
         flow_name: str,
         flow_description: str = "",
         comments: str = "Initial version",
+        *,
+        flow_id: Optional[str] = None,
+        flow_version: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Place a process group under version control."""
+        pg_info = await self.base.get(f"/process-groups/{process_group_id}")
+        process_group_revision = pg_info.get("revision", {"version": 0})
+
         payload = {
-            "processGroupRevision": {"version": 0},
+            "processGroupRevision": process_group_revision,
             "versionControlInformation": {
+                "groupId": process_group_id,
                 "registryId": registry_id,
                 "bucketId": bucket_id,
                 "flowName": flow_name,
                 "flowDescription": flow_description,
                 "comments": comments,
+                "storageLocation": bucket_id,
             },
+            "componentId": process_group_id,
+            "disconnectedNodeAcknowledged": False,
         }
 
-        self.logger.debug("Starting version control for process group: %s", process_group_id)
+        if flow_id:
+            payload["versionControlInformation"]["flowId"] = flow_id
+            payload["versionControlInformation"]["version"] = (
+                flow_version if flow_version is not None else 0
+            )
+
+        self.logger.debug(
+            "Starting version control for process group %s with payload %s",
+            process_group_id,
+            payload,
+        )
         result = await self.base.post(f"/versions/process-groups/{process_group_id}", payload)
         self.logger.info("Started version control for process group: %s", process_group_id)
         return result
