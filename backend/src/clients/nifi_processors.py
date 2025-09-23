@@ -37,11 +37,14 @@ class NiFiProcessorClient(LoggerMixin):
             "position": position,
         }
 
-        if properties:
-            component["config"] = {
-                "properties": properties,
-                "autoTerminatedRelationships": auto_terminated_relationships or [],
-            }
+        config: Dict[str, Any] = {}
+        if properties is not None:
+            config["properties"] = properties
+        if auto_terminated_relationships is not None:
+            config["autoTerminatedRelationships"] = auto_terminated_relationships
+
+        if config:
+            component["config"] = config
 
         if scheduling:
             if "config" not in component:

@@ -202,7 +202,6 @@ class NiFiParameterManagement(LoggerMixin):
             await self.nifi.process_groups.set_parameter_context(
                 process_group_id=process_group_id,
                 parameter_context_id=parameter_context_id,
-                revision=0,
             )
 
             result = {

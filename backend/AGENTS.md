@@ -22,7 +22,7 @@ The script ensures Docker/Compose are available, builds containers, and waits fo
 
 ## Testing Workflow
 
-All backend tests should be executed through the management script to ensure environment variables are populated consistently.
+All backend tests **must** be executed through the management script to ensure environment variables are populated consistently. In particular, run integration suites with `./scripts/backend.sh test integration [local|docker]` so NiFi and Registry endpoints match the expected configuration. Do not call `pytest` directly from the backend directory when running checks for a contribution.
 
 ### Unit Tests
 

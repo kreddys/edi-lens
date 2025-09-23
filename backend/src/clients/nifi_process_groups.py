@@ -119,9 +119,18 @@ class NiFiProcessGroupClient(LoggerMixin):
         self,
         process_group_id: str,
         parameter_context_id: str,
-        revision: int = 0,
+        revision: Optional[int] = None,
+        client_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Set parameter context for a process group."""
+        if revision is None or client_id is None:
+            pg_info = await self.get_process_group(process_group_id)
+            current_revision = pg_info.get("revision", {})
+            if revision is None:
+                revision = current_revision.get("version", 0)
+            if client_id is None:
+                client_id = current_revision.get("clientId")
+
         payload = {
             "revision": {"version": revision},
             "component": {
@@ -129,6 +138,9 @@ class NiFiProcessGroupClient(LoggerMixin):
                 "parameterContext": {"id": parameter_context_id},
             },
         }
+
+        if client_id:
+            payload["revision"]["clientId"] = client_id
 
         self.logger.debug(
             "Setting parameter context %s for process group %s",
@@ -147,3 +159,30 @@ class NiFiProcessGroupClient(LoggerMixin):
         """Get process group status."""
         self.logger.debug("Getting process group status: %s", process_group_id)
         return await self.base.get(f"/flow/process-groups/{process_group_id}/status")
+
+    async def get_processors(self, process_group_id: str) -> List[Dict[str, Any]]:
+        """List processors within a process group."""
+        self.logger.debug(
+            "Listing processors for process group: %s", process_group_id
+        )
+        result = await self.base.get(f"/process-groups/{process_group_id}/processors")
+        processors = result.get("processors", [])
+        self.logger.info(
+            "Retrieved %d processors for process group %s",
+            len(processors),
+            process_group_id,
+        )
+        return processors
+
+    async def get_process_groups(self, parent_group_id: str) -> Dict[str, Any]:
+        """List child process groups within a parent group."""
+        self.logger.debug("Listing process groups under parent: %s", parent_group_id)
+        result = await self.base.get(
+            f"/process-groups/{parent_group_id}/process-groups"
+        )
+        self.logger.info(
+            "Retrieved %d process groups under parent %s",
+            len(result.get("processGroups", [])) if isinstance(result, dict) else 0,
+            parent_group_id,
+        )
+        return result

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Any, Dict, List, Optional
 
 from ..clients.registry_unified import RegistryUnifiedClient
@@ -26,18 +27,38 @@ class RegistryVersionManagement(LoggerMixin):
         bucket_id: str,
         flow_id: str,
         flow_contents: Dict[str, Any],
+        version: Optional[int] = None,
         comments: str = ""
     ) -> Dict[str, Any]:
         """Create a new version of a flow."""
         try:
+            target_version = version
+            if target_version is None:
+                flow_metadata = await self.registry.flows.get_flow(bucket_id, flow_id)
+                existing_versions = flow_metadata.get("versionCount", 0)
+                target_version = int(existing_versions) + 1
+            else:
+                flow_metadata = await self.registry.flows.get_flow(bucket_id, flow_id)
+
+            # Extract parameter context information if present in the snapshot
+            parameter_contexts_map: Dict[str, Any] = {}
+            flow_snapshot = copy.deepcopy(flow_contents)
+            flow_snapshot.pop("parameterContext", None)
+            snapshot_context_map = flow_snapshot.pop("_parameterContexts", None)
+            if isinstance(snapshot_context_map, dict):
+                parameter_contexts_map = snapshot_context_map
+
             version = await self.registry.flows.create_flow_version(
                 bucket_id=bucket_id,
                 flow_id=flow_id,
-                flow_contents=flow_contents,
-                comments=comments
+                flow_contents=flow_snapshot,
+                version=target_version,
+                comments=comments,
+                parameter_contexts=parameter_contexts_map,
+                flow_metadata=flow_metadata,
             )
 
-            version_number = version.get("version")
+            version_number = version.get("version") or version.get("snapshotMetadata", {}).get("version")
 
             result = {
                 "success": True,

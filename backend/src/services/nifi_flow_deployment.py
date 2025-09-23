@@ -52,14 +52,20 @@ class NiFiFlowDeployment(LoggerMixin):
                 deployment_info["parameter_context_id"] = parameter_context_id
 
             # Step 2: Create process group for flow
-            process_group_id = await self._create_process_group(
+            process_group = await self._create_process_group(
                 flow_name, parent_group_id
             )
+            process_group_id = process_group.get("id")
             deployment_info["process_group_id"] = process_group_id
 
             # Step 3: Set parameter context on process group if we have one
             if parameter_context_id:
-                await self._set_parameter_context(process_group_id, parameter_context_id)
+                await self._set_parameter_context(
+                    process_group_id,
+                    parameter_context_id,
+                    revision=process_group.get("revision", {}).get("version"),
+                    client_id=process_group.get("revision", {}).get("clientId"),
+                )
 
             # Step 4: Deploy processors
             processor_map, processor_failures = await self._deploy_processors(
@@ -171,7 +177,7 @@ class NiFiFlowDeployment(LoggerMixin):
         self.logger.info("Created parameter context: %s", parameter_context_id)
         return parameter_context_id
 
-    async def _create_process_group(self, flow_name: str, parent_group_id: str) -> str:
+    async def _create_process_group(self, flow_name: str, parent_group_id: str) -> Dict[str, Any]:
         """Create process group for the flow."""
         process_group = await self.nifi.process_groups.create_process_group(
             parent_group_id=parent_group_id,
@@ -180,16 +186,21 @@ class NiFiFlowDeployment(LoggerMixin):
         )
         process_group_id = process_group.get("id")
         self.logger.info("Created process group: %s", process_group_id)
-        return process_group_id
+        return process_group
 
     async def _set_parameter_context(
-        self, process_group_id: str, parameter_context_id: str
+        self,
+        process_group_id: str,
+        parameter_context_id: str,
+        revision: Optional[int] = None,
+        client_id: Optional[str] = None,
     ) -> None:
         """Set parameter context on process group."""
         await self.nifi.process_groups.set_parameter_context(
             process_group_id=process_group_id,
             parameter_context_id=parameter_context_id,
-            revision=0,
+            revision=revision,
+            client_id=client_id,
         )
         self.logger.info("Applied parameter context to process group")
 
@@ -203,25 +214,57 @@ class NiFiFlowDeployment(LoggerMixin):
 
         for processor_def in processors:
             try:
+                component_def = processor_def.get("component") or processor_def
+                config_def = component_def.get("config", {})
+
+                processor_type = processor_def.get("type") or component_def.get("type", "")
+                processor_name = processor_def.get("name") or component_def.get("name", "Unnamed Processor")
+                position = processor_def.get("position") or component_def.get("position")
+                properties = processor_def.get("properties") or config_def.get("properties")
+                auto_terminated = (
+                    processor_def.get("autoTerminatedRelationships")
+                    or config_def.get("autoTerminatedRelationships")
+                )
+
+                scheduling_period = (
+                    processor_def.get("schedulingPeriod")
+                    or config_def.get("schedulingPeriod")
+                )
+                scheduling_strategy = (
+                    processor_def.get("schedulingStrategy")
+                    or config_def.get("schedulingStrategy")
+                )
+                execution_node = (
+                    processor_def.get("executionNode")
+                    or config_def.get("executionNode")
+                )
+                concurrent_tasks = (
+                    processor_def.get("concurrentlySchedulableTaskCount")
+                    or config_def.get("concurrentlySchedulableTaskCount")
+                )
+                bulletin_level = (
+                    processor_def.get("bulletinLevel") or config_def.get("bulletinLevel")
+                )
+
                 processor = await self.nifi.processors.create_processor(
                     parent_group_id=process_group_id,
-                    processor_type=processor_def.get("type", ""),
-                    name=processor_def.get("name", "Unnamed Processor"),
-                    position=processor_def.get("position"),
-                    properties=processor_def.get("properties"),
+                    processor_type=processor_type,
+                    name=processor_name,
+                    position=position,
+                    properties=properties,
                     scheduling={
-                        "period": processor_def.get("schedulingPeriod"),
-                        "strategy": processor_def.get("schedulingStrategy"),
-                        "executionNode": processor_def.get("executionNode"),
-                        "concurrentlySchedulableTaskCount": processor_def.get("concurrentlySchedulableTaskCount"),
-                        "bulletinLevel": processor_def.get("bulletinLevel"),
+                        "period": scheduling_period,
+                        "strategy": scheduling_strategy,
+                        "executionNode": execution_node,
+                        "concurrentlySchedulableTaskCount": concurrent_tasks,
+                        "bulletinLevel": bulletin_level,
                     },
-                    auto_terminated_relationships=processor_def.get("autoTerminatedRelationships"),
+                    auto_terminated_relationships=auto_terminated,
                 )
 
                 new_id = processor.get("id") or processor.get("component", {}).get("id")
-                original_id = processor_def.get("identifier")
-                name = processor_def.get("name")
+                original_id = processor_def.get("identifier") or component_def.get("id")
+                name = processor_name
 
                 if original_id and new_id:
                     processor_map[original_id] = new_id
@@ -256,8 +299,9 @@ class NiFiFlowDeployment(LoggerMixin):
         failures: List[Dict[str, Any]] = []
 
         for connection_def in connections:
-            source_meta = connection_def.get("source", {})
-            dest_meta = connection_def.get("destination", {})
+            component_def = connection_def.get("component") or connection_def
+            source_meta = component_def.get("source", connection_def.get("source", {}))
+            dest_meta = component_def.get("destination", connection_def.get("destination", {}))
 
             # Resolve source and destination IDs
             source_id = processor_map.get(source_meta.get("id")) or processor_map.get(
@@ -288,11 +332,16 @@ class NiFiFlowDeployment(LoggerMixin):
                     source_type=source_meta.get("type", "PROCESSOR"),
                     destination_id=dest_id,
                     destination_type=dest_meta.get("type", "PROCESSOR"),
-                    name=connection_def.get("name", ""),
-                    relationships=connection_def.get("selectedRelationships"),
-                    back_pressure_object_threshold=connection_def.get("backPressureObjectThreshold"),
-                    back_pressure_data_size_threshold=connection_def.get("backPressureDataSizeThreshold"),
-                    flow_file_expiration=connection_def.get("flowFileExpiration"),
+                    name=connection_def.get("name")
+                    or component_def.get("name", ""),
+                    relationships=connection_def.get("selectedRelationships")
+                    or component_def.get("selectedRelationships"),
+                    back_pressure_object_threshold=connection_def.get("backPressureObjectThreshold")
+                    or component_def.get("backPressureObjectThreshold"),
+                    back_pressure_data_size_threshold=connection_def.get("backPressureDataSizeThreshold")
+                    or component_def.get("backPressureDataSizeThreshold"),
+                    flow_file_expiration=connection_def.get("flowFileExpiration")
+                    or component_def.get("flowFileExpiration"),
                 )
 
                 self.logger.debug("Created connection: %s", connection_def.get("name"))

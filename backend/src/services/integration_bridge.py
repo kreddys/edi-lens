@@ -126,7 +126,8 @@ class IntegrationBridge(LoggerMixin):
                     process_group_id=process_group_id,
                     bucket_id=bucket_id,
                     flow_id=flow_id,
-                    version=imported_version
+                    version=imported_version,
+                    registry_url=self.registry.base.registry_url,
                 )
 
             result = {
