@@ -80,10 +80,33 @@ class NiFiParameterContextClient(LoggerMixin):
         self.logger.info("Updated parameter context: %s", context_id)
         return result
 
-    async def delete_parameter_context(self, context_id: str, revision: int = 0) -> None:
+    async def delete_parameter_context(
+        self,
+        context_id: str,
+        revision: Optional[int] = None,
+        client_id: Optional[str] = None,
+    ) -> None:
         """Delete a parameter context."""
-        self.logger.debug("Deleting parameter context: %s (revision: %d)", context_id, revision)
-        await self.base.delete(f"/parameter-contexts/{context_id}", params={"version": revision})
+
+        if revision is None or client_id is None:
+            current_context = await self.get_parameter_context(context_id)
+            current_revision = current_context.get("revision", {})
+            if revision is None:
+                revision = current_revision.get("version", 0)
+            if client_id is None:
+                client_id = current_revision.get("clientId")
+
+        params = {"version": revision}
+        if client_id:
+            params["clientId"] = client_id
+
+        self.logger.debug(
+            "Deleting parameter context: %s (revision: %s, clientId: %s)",
+            context_id,
+            revision,
+            client_id,
+        )
+        await self.base.delete(f"/parameter-contexts/{context_id}", params=params)
         self.logger.info("Deleted parameter context: %s", context_id)
 
     async def list_parameter_contexts(self) -> List[Dict[str, Any]]:

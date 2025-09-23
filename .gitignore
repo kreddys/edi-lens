@@ -78,6 +78,8 @@ data/
 !backend/data/.vscode/
 
 nifi-rest-api-spec.txt
+nifi-admin-guide.txt
+
 local-services/
 codex-services/
 docker/codex-universal

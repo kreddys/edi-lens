@@ -52,10 +52,33 @@ class NiFiProcessGroupClient(LoggerMixin):
         self.logger.debug("Getting process group flow: %s", process_group_id)
         return await self.base.get(f"/flow/process-groups/{process_group_id}")
 
-    async def delete_process_group(self, process_group_id: str, revision: int = 0) -> None:
+    async def delete_process_group(
+        self,
+        process_group_id: str,
+        revision: Optional[int] = None,
+        client_id: Optional[str] = None,
+    ) -> None:
         """Delete a process group."""
-        self.logger.debug("Deleting process group: %s (revision: %d)", process_group_id, revision)
-        await self.base.delete(f"/process-groups/{process_group_id}", params={"version": revision})
+
+        if revision is None or client_id is None:
+            current_pg = await self.get_process_group(process_group_id)
+            current_revision = current_pg.get("revision", {})
+            if revision is None:
+                revision = current_revision.get("version", 0)
+            if client_id is None:
+                client_id = current_revision.get("clientId")
+
+        params = {"version": revision}
+        if client_id:
+            params["clientId"] = client_id
+
+        self.logger.debug(
+            "Deleting process group: %s (revision: %s, clientId: %s)",
+            process_group_id,
+            revision,
+            client_id,
+        )
+        await self.base.delete(f"/process-groups/{process_group_id}", params=params)
         self.logger.info("Deleted process group: %s", process_group_id)
 
     async def start_process_group(self, process_group_id: str) -> Dict[str, Any]:

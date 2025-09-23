@@ -7,6 +7,7 @@ import ssl
 from typing import Any, Dict, List, Optional
 
 import aiohttp
+from yarl import URL
 
 from ..core.logging import get_logger, LoggerMixin
 
@@ -90,6 +91,8 @@ class NiFiBaseClient(LoggerMixin):
                 if response.status == 201:
                     self.auth_token = await response.text()
                     self.logger.info("Successfully authenticated with NiFi")
+                    if self.session is not None:
+                        self.session.cookie_jar.clear()
                     return self.auth_token
                 else:
                     error_text = await response.text()
@@ -119,6 +122,13 @@ class NiFiBaseClient(LoggerMixin):
             request_headers["Authorization"] = f"Bearer {self.auth_token}"
         if headers:
             request_headers.update(headers)
+
+        # Add CSRF request token header when NiFi has issued a token cookie.
+        if self.session and method.upper() in {"POST", "PUT", "DELETE", "PATCH"}:
+            cookies = self.session.cookie_jar.filter_cookies(URL(url))
+            csrf_cookie = cookies.get("__Secure-Request-Token")
+            if csrf_cookie and "Request-Token" not in request_headers:
+                request_headers["Request-Token"] = csrf_cookie.value
 
         self.logger.debug("NiFi API %s %s", method, endpoint)
 
