@@ -34,7 +34,7 @@ class RegistryFlowManagement(LoggerMixin):
                 bucket_id=bucket_id,
                 name=flow_name,
                 description=description,
-                type=flow_type
+                flow_type=flow_type
             )
 
             flow_id = flow.get("identifier")
@@ -174,20 +174,26 @@ class RegistryFlowManagement(LoggerMixin):
     async def list_all_flows(self) -> List[Dict[str, Any]]:
         """List all flows across all buckets."""
         try:
-            flows = await self.registry.flows.list_flows()
+            buckets = await self.registry.buckets.list_buckets()
 
-            result = []
-            for flow in flows:
-                result.append({
-                    "flow_id": flow.get("identifier"),
-                    "bucket_id": flow.get("bucketIdentifier"),
-                    "name": flow.get("name"),
-                    "description": flow.get("description", ""),
-                    "type": flow.get("type"),
-                    "created_timestamp": flow.get("createdTimestamp"),
-                    "modified_timestamp": flow.get("modifiedTimestamp"),
-                    "version_count": flow.get("versionCount", 0)
-                })
+            result: List[Dict[str, Any]] = []
+            for bucket in buckets:
+                bucket_id = bucket.get("identifier")
+                bucket_name = bucket.get("name")
+                flows = await self.registry.flows.list_flows(bucket_id)
+
+                for flow in flows:
+                    result.append({
+                        "flow_id": flow.get("identifier"),
+                        "bucket_id": bucket_id,
+                        "bucket_name": bucket_name,
+                        "name": flow.get("name"),
+                        "description": flow.get("description", ""),
+                        "type": flow.get("type"),
+                        "created_timestamp": flow.get("createdTimestamp"),
+                        "modified_timestamp": flow.get("modifiedTimestamp"),
+                        "version_count": flow.get("versionCount", 0)
+                    })
 
             self.logger.debug("Listed %d flows across all buckets", len(result))
             return result

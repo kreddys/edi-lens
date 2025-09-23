@@ -108,20 +108,39 @@ class RegistryFlowClient(LoggerMixin):
         bucket_id: str,
         flow_id: str,
         flow_contents: Dict[str, Any],
-        version: Optional[int] = None,
+        version: int,
         comments: str = "",
+        parameter_contexts: Optional[Dict[str, Any]] = None,
+        flow_metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Create a new version of a flow."""
+        parameter_contexts = parameter_contexts or {}
+
         payload = {
             "comments": comments,
             "flowContents": flow_contents,
+            "snapshotMetadata": {
+                "bucketIdentifier": bucket_id,
+                "flowIdentifier": flow_id,
+                "version": version,
+                "comments": comments,
+            },
+            "bucket": {"identifier": bucket_id},
+            "flow": {
+                "identifier": flow_id,
+                "name": (flow_metadata or {}).get("name"),
+                "description": (flow_metadata or {}).get("description", ""),
+            },
+            "parameterContexts": parameter_contexts,
+            "flowEncodingVersion": flow_contents.get("flowEncodingVersion", "1.0"),
         }
 
-        if version is not None:
-            payload["version"] = version
-
-        self.logger.debug("Creating version for flow %s in bucket %s", flow_id, bucket_id)
-        result = await self.base.post(f"/buckets/{bucket_id}/flows/{flow_id}/versions", payload)
+        self.logger.debug(
+            "Creating version %s for flow %s in bucket %s", version, flow_id, bucket_id
+        )
+        result = await self.base.post(
+            f"/buckets/{bucket_id}/flows/{flow_id}/versions", payload
+        )
 
         version_num = result.get("snapshotMetadata", {}).get("version")
         self.logger.info("Created version %s for flow %s", version_num, flow_id)

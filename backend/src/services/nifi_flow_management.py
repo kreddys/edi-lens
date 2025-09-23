@@ -239,6 +239,8 @@ class NiFiFlowManagement(LoggerMixin):
         """Get all processors in a process group."""
         try:
             processors_response = await self.nifi.process_groups.get_processors(process_group_id)
+            if isinstance(processors_response, list):
+                return processors_response
             return processors_response.get("processors", [])
         except Exception as exc:
             self.logger.error("Failed to get processors for process group %s: %s", process_group_id, exc)
