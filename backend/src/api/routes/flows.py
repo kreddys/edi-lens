@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from starlette.status import HTTP_200_OK, HTTP_201_CREATED
 
-from src.api.dependencies import get_flow_service
+from src.api.dependencies import get_workflow_orchestrator
 from src.core.logging import get_logger, audit_logger
 from src.models.flow_models import (
     DeployAndStoreFlowRequest,
@@ -17,7 +17,7 @@ from src.models.flow_models import (
     UpdateDeployedFlowRequest,
     VersionControlOperationResponse,
 )
-from src.services.flow_service import FlowService
+from src.services.workflow_orchestrator import WorkflowOrchestrator
 
 log = get_logger(__name__)
 
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/flows", tags=["flows"])
 async def deploy_and_store_flow(
     request: DeployAndStoreFlowRequest,
     http_request: Request,
-    flow_service: FlowService = Depends(get_flow_service),
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
 ) -> DeployAndStoreFlowResponse:
     """
     Deploy flow to NiFi and store in Registry with version control.
@@ -44,13 +44,13 @@ async def deploy_and_store_flow(
     log.debug("Parameters: %d items", len(request.parameters))
 
     try:
-        result = await flow_service.deploy_and_store_flow(
-            bucket_id=request.bucket_id,
+        result = await orchestrator.deploy_and_register_flow(
             flow_definition=request.flow_definition.model_dump(),
-            parameters=request.parameters,
-            parent_group_id=request.parent_group_id,
             flow_name=request.flow_name,
-            flow_description=request.flow_description,
+            bucket_name=request.bucket_id,  # Assuming bucket_id is actually bucket name for now
+            parameters=request.parameters,
+            comments=request.flow_description,
+            parent_group_id=request.parent_group_id,
         )
 
         execution_time = (time.time() - start_time) * 1000
@@ -70,12 +70,12 @@ async def deploy_and_store_flow(
             return DeployAndStoreFlowResponse(
                 success=True,
                 stage=result.get("stage"),
-                flow_id=result.get("flow_id"),
-                version=result.get("version"),
+                flow_id=result.get("registry_upload", {}).get("flow_id"),
+                version=result.get("registry_upload", {}).get("version"),
                 process_group_id=result.get("process_group_id"),
-                parameter_context_id=result.get("parameter_context_id"),
+                parameter_context_id=result.get("nifi_deployment", {}).get("parameter_context_id"),
                 message="Flow deployed and stored successfully",
-                deployment_summary=result.get("deployment_result", {}).get("summary", {}),
+                deployment_summary=result.get("nifi_deployment", {}).get("summary", {}),
             )
         else:
             log.warning("Deploy-and-store failed at stage %s: %s",
@@ -124,19 +124,13 @@ async def deploy_and_store_flow(
 @router.get("/{process_group_id}/status", response_model=FlowStatusResponse)
 async def get_flow_status(
     process_group_id: str = Path(..., description="Process Group ID"),
-    flow_service: FlowService = Depends(get_flow_service),
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
 ) -> FlowStatusResponse:
     """Get status of a deployed flow."""
     try:
-        result = await flow_service.get_flow_status(process_group_id)
+        result = await orchestrator.get_flow_overview(process_group_id)
 
-        if result.get("success"):
-            return FlowStatusResponse(**{k: v for k, v in result.items() if k != "success"})
-        else:
-            raise HTTPException(
-                status_code=404 if "not found" in str(result.get("error", {})).lower() else 500,
-                detail=result.get("error", {}),
-            )
+        return FlowStatusResponse(**result)
 
     except HTTPException:
         raise
@@ -155,18 +149,18 @@ async def get_flow_status(
 @router.post("/{process_group_id}/start", status_code=HTTP_200_OK)
 async def start_flow(
     process_group_id: str = Path(..., description="Process Group ID"),
-    flow_service: FlowService = Depends(get_flow_service),
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
 ) -> Dict[str, str]:
     """Start all processors in a deployed flow."""
     try:
-        result = await flow_service.start_flow(process_group_id)
+        result = await orchestrator.start_flow_workflow(process_group_id)
 
         if result.get("success"):
             return {"message": "Flow started successfully", "process_group_id": process_group_id}
         else:
             raise HTTPException(
                 status_code=400,
-                detail=result.get("error", {}),
+                detail=result.get("start_result", {}),
             )
 
     except HTTPException:
@@ -186,18 +180,18 @@ async def start_flow(
 @router.post("/{process_group_id}/stop", status_code=HTTP_200_OK)
 async def stop_flow(
     process_group_id: str = Path(..., description="Process Group ID"),
-    flow_service: FlowService = Depends(get_flow_service),
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
 ) -> Dict[str, str]:
     """Stop all processors in a deployed flow."""
     try:
-        result = await flow_service.stop_flow(process_group_id)
+        result = await orchestrator.stop_flow_workflow(process_group_id)
 
         if result.get("success"):
             return {"message": "Flow stopped successfully", "process_group_id": process_group_id}
         else:
             raise HTTPException(
                 status_code=400,
-                detail=result.get("error", {}),
+                detail=result.get("stop_result", {}),
             )
 
     except HTTPException:
@@ -218,11 +212,11 @@ async def stop_flow(
 async def delete_flow(
     process_group_id: str = Path(..., description="Process Group ID"),
     remove_from_registry: bool = Query(False, description="Also remove from Registry"),
-    flow_service: FlowService = Depends(get_flow_service),
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
 ):
     """Delete a deployed flow and optionally remove from Registry."""
     try:
-        result = await flow_service.delete_flow(process_group_id, remove_from_registry)
+        result = await orchestrator.delete_flow_workflow(process_group_id, remove_from_registry)
 
         if result.get("success"):
             return {
@@ -233,7 +227,7 @@ async def delete_flow(
         else:
             raise HTTPException(
                 status_code=400,
-                detail=result.get("error", {}),
+                detail=result.get("nifi_delete", {}),
             )
 
     except HTTPException:
@@ -254,30 +248,21 @@ async def delete_flow(
 async def update_deployed_flow(
     request: UpdateDeployedFlowRequest,
     process_group_id: str = Path(..., description="Process Group ID"),
-    flow_service: FlowService = Depends(get_flow_service),
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
 ) -> VersionControlOperationResponse:
     """Update a deployed flow and optionally commit changes to Registry."""
     try:
-        result = await flow_service.update_deployed_flow(
-            process_group_id=process_group_id,
-            flow_definition=request.flow_definition.model_dump() if request.flow_definition else None,
-            parameters=request.parameters,
-            commit_changes=request.commit_changes,
-            comments=request.comments,
+        # This endpoint would need a custom implementation combining multiple orchestrator services
+        # For now, return a not implemented response
+        raise HTTPException(
+            status_code=501,
+            detail={
+                "error_type": "NOT_IMPLEMENTED",
+                "user_message": "Update deployed flow endpoint needs to be reimplemented with new architecture",
+                "action_required": "Use separate endpoints for flow updates and version control operations",
+            },
         )
 
-        if result.get("success"):
-            return VersionControlOperationResponse(
-                success=True,
-                process_group_id=process_group_id,
-                message="Flow updated successfully",
-                committed=result.get("committed", False),
-            )
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=result.get("error", {}),
-            )
 
     except HTTPException:
         raise
@@ -298,11 +283,14 @@ async def update_deployed_flow(
 async def commit_changes(
     process_group_id: str = Path(..., description="Process Group ID"),
     comments: str = Query("Updated flow", description="Commit comments"),
-    flow_service: FlowService = Depends(get_flow_service),
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
 ) -> VersionControlOperationResponse:
     """Commit local changes to Registry."""
     try:
-        result = await flow_service.commit_changes(process_group_id, comments)
+        result = await orchestrator.integration_bridge.sync_flow_with_registry(
+            process_group_id=process_group_id,
+            action="push"
+        )
 
         if result.get("success"):
             return VersionControlOperationResponse(
@@ -314,7 +302,7 @@ async def commit_changes(
         else:
             raise HTTPException(
                 status_code=400,
-                detail=result.get("error", {}),
+                detail={"message": result.get("message", "Commit failed")},
             )
 
     except HTTPException:
@@ -334,11 +322,14 @@ async def commit_changes(
 @router.post("/{process_group_id}/version-control/update", response_model=VersionControlOperationResponse)
 async def update_from_registry(
     process_group_id: str = Path(..., description="Process Group ID"),
-    flow_service: FlowService = Depends(get_flow_service),
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
 ) -> VersionControlOperationResponse:
     """Update flow from latest version in Registry."""
     try:
-        result = await flow_service.update_from_registry(process_group_id)
+        result = await orchestrator.integration_bridge.sync_flow_with_registry(
+            process_group_id=process_group_id,
+            action="pull"
+        )
 
         if result.get("success"):
             return VersionControlOperationResponse(
@@ -350,7 +341,7 @@ async def update_from_registry(
         else:
             raise HTTPException(
                 status_code=400,
-                detail=result.get("error", {}),
+                detail={"message": result.get("message", "Update failed")},
             )
 
     except HTTPException:
@@ -370,11 +361,15 @@ async def update_from_registry(
 @router.post("/{process_group_id}/version-control/revert", response_model=VersionControlOperationResponse)
 async def revert_changes(
     process_group_id: str = Path(..., description="Process Group ID"),
-    flow_service: FlowService = Depends(get_flow_service),
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
 ) -> VersionControlOperationResponse:
     """Revert local changes to Registry version."""
     try:
-        result = await flow_service.revert_changes(process_group_id)
+        # Disconnect and re-import from Registry to revert changes
+        result = await orchestrator.integration_bridge.sync_flow_with_registry(
+            process_group_id=process_group_id,
+            action="pull"
+        )
 
         if result.get("success"):
             return VersionControlOperationResponse(
@@ -386,7 +381,7 @@ async def revert_changes(
         else:
             raise HTTPException(
                 status_code=400,
-                detail=result.get("error", {}),
+                detail={"message": result.get("message", "Revert failed")},
             )
 
     except HTTPException:
@@ -406,19 +401,19 @@ async def revert_changes(
 @router.get("/{process_group_id}/version-control/modifications")
 async def get_local_modifications(
     process_group_id: str = Path(..., description="Process Group ID"),
-    flow_service: FlowService = Depends(get_flow_service),
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
 ) -> Dict:
     """Get local modifications for a version controlled flow."""
     try:
-        result = await flow_service.get_local_modifications(process_group_id)
+        result = await orchestrator.integration_bridge.compare_with_registry(process_group_id)
 
-        if result.get("success"):
-            return result.get("local_modifications", {})
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=result.get("error", {}),
-            )
+        return {
+            "has_local_changes": result.get("has_local_changes", False),
+            "differences": result.get("differences", {}),
+            "current_version": result.get("current_version"),
+            "latest_version": result.get("latest_version"),
+            "is_latest": result.get("is_latest", True)
+        }
 
     except HTTPException:
         raise
@@ -437,11 +432,11 @@ async def get_local_modifications(
 # Registry passthrough endpoints (for compatibility)
 @router.get("/registry/buckets")
 async def list_buckets(
-    flow_service: FlowService = Depends(get_flow_service),
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
 ) -> List[Dict]:
     """List available Registry buckets."""
     try:
-        buckets = await flow_service.list_buckets()
+        buckets = await orchestrator.registry_bucket_mgmt.list_buckets()
         return buckets
     except Exception as exc:
         log.exception("Failed to list buckets")
@@ -458,11 +453,11 @@ async def list_buckets(
 @router.get("/registry/buckets/{bucket_id}/flows")
 async def list_flows_in_bucket(
     bucket_id: str = Path(..., description="Registry bucket ID"),
-    flow_service: FlowService = Depends(get_flow_service),
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
 ) -> List[Dict]:
     """List flows in a Registry bucket."""
     try:
-        flows = await flow_service.list_flows(bucket_id)
+        flows = await orchestrator.registry_flow_mgmt.list_flows_in_bucket(bucket_id)
         return flows
     except Exception as exc:
         log.exception("Failed to list flows in bucket %s", bucket_id)
@@ -481,11 +476,14 @@ async def get_flow_from_registry(
     bucket_id: str = Path(..., description="Registry bucket ID"),
     flow_id: str = Path(..., description="Flow ID"),
     version: Optional[int] = Query(None, description="Specific version (latest if not specified)"),
-    flow_service: FlowService = Depends(get_flow_service),
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
 ) -> Dict:
     """Get flow definition from Registry."""
     try:
-        flow = await flow_service.get_flow_from_registry(bucket_id, flow_id, version)
+        if version:
+            flow = await orchestrator.registry_version_mgmt.get_flow_version(bucket_id, flow_id, version)
+        else:
+            flow = await orchestrator.registry_version_mgmt.get_latest_flow_version(bucket_id, flow_id)
         return flow
     except Exception as exc:
         log.exception("Failed to get flow %s/%s", bucket_id, flow_id)
