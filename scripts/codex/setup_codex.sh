@@ -1095,26 +1095,24 @@ setup_backend() {
 
     cd "$PROJECT_ROOT/backend"
 
-    # Check if virtual environment already exists and is configured
-    if [ -f "venv/bin/activate" ] && [ -f "start.sh" ]; then
-        info "Backend virtual environment already configured"
-        # Just run migrations if needed
-        source venv/bin/activate
-        source "$ENV_FILE"
-        poetry run alembic upgrade head
-        success "Backend configuration updated"
-        return 0
+    local created_venv=false
+    if [ ! -f "venv/bin/activate" ]; then
+        info "Creating backend virtual environment"
+        python3 -m venv venv
+        created_venv=true
+    else
+        info "Reusing existing backend virtual environment"
     fi
 
-    # Create virtual environment
-    python3 -m venv venv
+    # shellcheck source=/dev/null
     source venv/bin/activate
 
-    # Install poetry
+    # Install Poetry every time so dependency updates are picked up even when
+    # the cached Codex environment persists between tasks.
     pip install --upgrade pip poetry
 
-    # Install dependencies
-    poetry install
+    info "Installing backend dependencies via Poetry"
+    poetry install --with dev
 
     # Run database migrations
     info "Running database migrations..."
@@ -1158,7 +1156,11 @@ exec poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 EOF
     chmod +x start.sh
 
-    success "Backend configured"
+    if [ "$created_venv" = true ]; then
+        success "Backend virtual environment created and configured"
+    else
+        success "Backend virtual environment refreshed and configured"
+    fi
 }
 
 setup_frontend() {
