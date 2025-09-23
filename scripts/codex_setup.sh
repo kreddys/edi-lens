@@ -22,6 +22,18 @@ success() { printf "${GREEN}[SUCCESS]${NC} %s\n" "$1"; }
 warn() { printf "${YELLOW}[WARN]${NC} %s\n" "$1"; }
 error() { printf "${RED}[ERROR]${NC} %s\n" "$1"; exit 1; }
 
+log_process_state() {
+    local name="$1"
+    local pattern="$2"
+    local pids
+
+    if pids=$(pgrep -f "$pattern" 2>/dev/null); then
+        info "$name appears to be running (pids: $pids)"
+    else
+        info "$name is not currently running"
+    fi
+}
+
 require_cmd() {
     local cmd="$1"
     if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -161,9 +173,10 @@ setup_environment() {
         error "This script must be run as root to manage services and packages"
     fi
 
-    if [ -d "$SERVICES_DIR_DEFAULT" ]; then
+    if mkdir -p "$SERVICES_DIR_DEFAULT" 2>/dev/null; then
         SERVICES_DIR="$SERVICES_DIR_DEFAULT"
     else
+        warn "Falling back to repository-scoped services directory at $SERVICES_DIR_FALLBACK"
         SERVICES_DIR="$SERVICES_DIR_FALLBACK"
         mkdir -p "$SERVICES_DIR"
     fi
@@ -198,6 +211,27 @@ setup_environment() {
     info "Environment prepared (SERVICES_DIR=$SERVICES_DIR)"
 }
 
+log_cached_services_state() {
+    info "Inspecting cached service state"
+
+    if [ ! -d "$SERVICES_DIR" ]; then
+        info "Services directory $SERVICES_DIR does not exist yet"
+        return
+    fi
+
+    local contents
+    contents=$(ls -1 "$SERVICES_DIR" 2>/dev/null | paste -sd ' ' - || true)
+    if [ -n "$contents" ]; then
+        info "Existing service directories: $contents"
+    else
+        info "Services directory currently empty"
+    fi
+
+    log_process_state "PostgreSQL" "postgres.*main"
+    log_process_state "NiFi" "org.apache.nifi.NiFi"
+    log_process_state "NiFi Registry" "org.apache.nifi.registry.NiFiRegistry"
+}
+
 install_minimal_system_dependencies() {
     info "Installing minimal system dependencies"
 
@@ -207,22 +241,12 @@ install_minimal_system_dependencies() {
         postgresql-16 \
         postgresql-client-16 \
         postgresql-contrib-16 \
-        postgresql-server-dev-16 \
-        build-essential \
-        git \
-        cmake \
-        pkg-config \
-        libreadline-dev \
-        zlib1g-dev \
-        libssl-dev \
-        libclang-dev \
         curl \
         unzip \
-        xz-utils \
-        python3-pip \
-        python3-venv \
         openjdk-21-jdk \
         ca-certificates \
+        python3 \
+        python3-pip \
         sudo
 
     success "Minimal system dependencies installed"
@@ -231,9 +255,13 @@ install_minimal_system_dependencies() {
 setup_postgresql() {
     info "Setting up PostgreSQL"
 
+    log_process_state "PostgreSQL" "postgres.*main"
+
     if pgrep -f "postgres.*main" >/dev/null; then
+        local postgres_pids
+        postgres_pids=$(pgrep -f "postgres.*main" 2>/dev/null | paste -sd ' ' - || true)
         if sudo -u postgres psql -lqt | cut -d '|' -f 1 | grep -qw "$POSTGRES_DB"; then
-            info "PostgreSQL already running with required databases, skipping setup"
+            info "PostgreSQL already running with required databases, skipping setup (pids: ${postgres_pids:-unknown})"
             return 0
         fi
     fi
@@ -265,6 +293,17 @@ setup_postgresql() {
 
 setup_nifi_registry() {
     info "Setting up NiFi Registry"
+
+    log_process_state "NiFi Registry" "org.apache.nifi.registry.NiFiRegistry"
+
+    if pgrep -f "org.apache.nifi.registry.NiFiRegistry" >/dev/null; then
+        if curl -fs "http://localhost:18080/nifi-registry/" >/dev/null 2>&1; then
+            local registry_pids
+            registry_pids=$(pgrep -f "org.apache.nifi.registry.NiFiRegistry" 2>/dev/null | paste -sd ' ' - || true)
+            info "NiFi Registry already running and reachable, skipping setup (pids: ${registry_pids:-unknown})"
+            return 0
+        fi
+    fi
 
     local install_dir="$SERVICES_DIR/nifi-registry"
     local archive="$DOWNLOADS_DIR/nifi-registry-$NIFI_REGISTRY_VERSION-bin.zip"
@@ -303,8 +342,12 @@ setup_nifi_registry() {
 setup_nifi() {
     info "Setting up Apache NiFi"
 
+    log_process_state "NiFi" "org.apache.nifi.NiFi"
+
     if curl -kfs "https://localhost:8443/nifi/" >/dev/null 2>&1; then
-        info "NiFi already running and healthy, skipping setup"
+        local nifi_pids
+        nifi_pids=$(pgrep -f "org.apache.nifi.NiFi" 2>/dev/null | paste -sd ' ' - || true)
+        info "NiFi already running and healthy, skipping setup (pids: ${nifi_pids:-unknown})"
         return 0
     fi
 
@@ -521,6 +564,7 @@ minimal_setup_main() {
     info "====================================================================="
 
     setup_environment
+    log_cached_services_state
     install_minimal_system_dependencies
     setup_postgresql
     setup_nifi_registry
