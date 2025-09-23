@@ -4,7 +4,7 @@ Welcome to the EDI Lens backend. This service is a FastAPI application that orch
 
 ## Local Development Environment
 
-* **Python toolchain**: managed with [Poetry](https://python-poetry.org/). Always install dependencies with `poetry install --with dev` before running tests or linting.
+* **Python toolchain**: managed with [Poetry](https://python-poetry.org/). The Codex setup script automatically runs `poetry install --with dev` inside the backend virtual environment; avoid re-running it manually unless you are developing outside the Codex automation.
 * **Entry point**: FastAPI app and supporting services live under `src/`. Clients that call NiFi and Registry APIs reside in `src/clients`, domain services in `src/services`, and workflow orchestration in `src/services/workflow_orchestrator.py`.
 * **Environment configuration**: default runtime settings are defined via `.env` (optional) and test fixtures in `tests/env`. When `.env.local` is absent, local test runs fall back to localhost defaults that assume Docker services on standard ports (NiFi 8443, Registry 18080, Backend 8000, Postgres 5432).
 
