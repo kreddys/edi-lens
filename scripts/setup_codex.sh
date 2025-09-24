@@ -41,6 +41,7 @@ require_cmd() {
     fi
 }
 
+
 curl_download() {
     local url="$1"
     local dest="$2"
@@ -106,31 +107,31 @@ ensure_env_value() {
 }
 
 create_env_file() {
-    if [ -f "$ENV_FILE_REPO" ]; then
-        info "Using existing $ENV_FILE_REPO"
-        ensure_env_value "$ENV_FILE_REPO" "NIFI_SENSITIVE_PROPS_KEY" "codex_nifi_secret_key_2024_pass!"
-        ensure_env_value "$ENV_FILE_REPO" "NIFI_WEB_PROXY_HOST" "localhost:8443"
-        ensure_env_value "$ENV_FILE_REPO" "NIFI_JVM_HEAP_INIT" "1g"
-        ensure_env_value "$ENV_FILE_REPO" "NIFI_JVM_HEAP_MAX" "2g"
-        ensure_env_value "$ENV_FILE_REPO" "NIFI_ADMIN_USER" "admin"
-        ensure_env_value "$ENV_FILE_REPO" "NIFI_ADMIN_PASSWORD" "nifi_admin_codex_2024"
-        ensure_env_value "$ENV_FILE_REPO" "NIFI_USERNAME" "admin"
-        ensure_env_value "$ENV_FILE_REPO" "NIFI_PASSWORD" "nifi_admin_codex_2024"
-        ensure_env_value "$ENV_FILE_REPO" "NIFI_VERSION" "2.6.0"
-        ensure_env_value "$ENV_FILE_REPO" "NIFI_REGISTRY_VERSION" "2.6.0"
-        ensure_env_value "$ENV_FILE_REPO" "POSTGRES_HOST" "localhost"
-        ensure_env_value "$ENV_FILE_REPO" "POSTGRES_PORT" "5432"
-        ensure_env_value "$ENV_FILE_REPO" "POSTGRES_USER" "edi_user"
-        ensure_env_value "$ENV_FILE_REPO" "POSTGRES_PASSWORD" "codex_password_2024"
-        ensure_env_value "$ENV_FILE_REPO" "POSTGRES_DB" "edi_lens"
-        ensure_env_value "$ENV_FILE_REPO" "POSTGRES_NIFI_REGISTRY_USER" "nifi_registry"
-        ensure_env_value "$ENV_FILE_REPO" "POSTGRES_NIFI_REGISTRY_PASSWORD" "nifi_registry_password_2024"
-        ensure_env_value "$ENV_FILE_REPO" "POSTGRES_NIFI_REGISTRY_DB" "nifi_registry"
+    if [ -f "$ENV_FILE" ]; then
+        info "Using existing $ENV_FILE"
+        ensure_env_value "$ENV_FILE" "NIFI_SENSITIVE_PROPS_KEY" "codex_nifi_secret_key_2024_pass!"
+        ensure_env_value "$ENV_FILE" "NIFI_WEB_PROXY_HOST" "localhost:8443"
+        ensure_env_value "$ENV_FILE" "NIFI_JVM_HEAP_INIT" "1g"
+        ensure_env_value "$ENV_FILE" "NIFI_JVM_HEAP_MAX" "2g"
+        ensure_env_value "$ENV_FILE" "NIFI_ADMIN_USER" "admin"
+        ensure_env_value "$ENV_FILE" "NIFI_ADMIN_PASSWORD" "nifi_admin_codex_2024"
+        ensure_env_value "$ENV_FILE" "NIFI_USERNAME" "admin"
+        ensure_env_value "$ENV_FILE" "NIFI_PASSWORD" "nifi_admin_codex_2024"
+        ensure_env_value "$ENV_FILE" "NIFI_VERSION" "2.6.0"
+        ensure_env_value "$ENV_FILE" "NIFI_REGISTRY_VERSION" "2.6.0"
+        ensure_env_value "$ENV_FILE" "POSTGRES_HOST" "localhost"
+        ensure_env_value "$ENV_FILE" "POSTGRES_PORT" "5432"
+        ensure_env_value "$ENV_FILE" "POSTGRES_USER" "edi_user"
+        ensure_env_value "$ENV_FILE" "POSTGRES_PASSWORD" "codex_password_2024"
+        ensure_env_value "$ENV_FILE" "POSTGRES_DB" "edi_lens"
+        ensure_env_value "$ENV_FILE" "POSTGRES_NIFI_REGISTRY_USER" "nifi_registry"
+        ensure_env_value "$ENV_FILE" "POSTGRES_NIFI_REGISTRY_PASSWORD" "nifi_registry_password_2024"
+        ensure_env_value "$ENV_FILE" "POSTGRES_NIFI_REGISTRY_DB" "nifi_registry"
         return
     fi
 
-    info "Creating Codex environment file in repository: $ENV_FILE_REPO"
-    cat > "$ENV_FILE_REPO" <<EOF_ENV
+    info "Creating Codex environment file: $ENV_FILE"
+    cat > "$ENV_FILE" <<EOF_ENV
 # ==============================================================================
 # EDI LENS - CODEX ENVIRONMENT CONFIGURATION
 # ==============================================================================
@@ -141,7 +142,6 @@ POSTGRES_PORT=5432
 POSTGRES_USER=edi_user
 POSTGRES_PASSWORD=codex_password_2024
 POSTGRES_DB=edi_lens
-POSTGRES_SERVER=localhost
 
 POSTGRES_NIFI_REGISTRY_USER=nifi_registry
 POSTGRES_NIFI_REGISTRY_PASSWORD=nifi_registry_password_2024
@@ -163,7 +163,7 @@ NIFI_REGISTRY_VERSION=2.6.0
 NIFI_URL=https://localhost:8443
 NIFI_REGISTRY_URL=http://localhost:18080
 EOF_ENV
-    chmod 644 "$ENV_FILE_REPO" || true
+    chmod 644 "$ENV_FILE" || true
 }
 
 setup_environment() {
@@ -181,7 +181,7 @@ setup_environment() {
         mkdir -p "$SERVICES_DIR"
     fi
 
-    ENV_FILE="$SERVICES_DIR/.env.codex"
+    ENV_FILE="$PROJECT_ROOT/.env.local"
     DOWNLOADS_DIR="$SERVICES_DIR/downloads"
     LOGS_DIR="$SERVICES_DIR/logs"
     BIN_DIR="$SERVICES_DIR/bin"
@@ -189,10 +189,6 @@ setup_environment() {
     mkdir -p "$DOWNLOADS_DIR" "$LOGS_DIR" "$BIN_DIR"
 
     create_env_file
-
-    if [ ! -f "$ENV_FILE" ]; then
-        ln -sf "$ENV_FILE_REPO" "$ENV_FILE"
-    fi
 
     set -a
     [ -f "$ENV_FILE" ] && source "$ENV_FILE"
@@ -208,7 +204,7 @@ setup_environment() {
     : "${POSTGRES_NIFI_REGISTRY_PASSWORD:=nifi_registry_password_2024}"
     : "${POSTGRES_PORT:=5432}"
 
-    info "Environment prepared (SERVICES_DIR=$SERVICES_DIR)"
+    info "Environment prepared (SERVICES_DIR=$SERVICES_DIR, ENV_FILE=$ENV_FILE)"
 }
 
 log_cached_services_state() {
@@ -315,21 +311,47 @@ check_port() {
 install_minimal_system_dependencies() {
     info "Installing minimal system dependencies"
 
-    apt-get update
+    # Check what's already installed to avoid unnecessary work
+    local packages_to_install=()
+    local required_packages=(
+        "postgresql-16"
+        "postgresql-client-16" 
+        "curl"
+        "unzip"
+        "openjdk-21-jre-headless"
+        "ca-certificates"
+        "python3-minimal"
+        "python3-pip"
+        "netcat-openbsd"
+        "sudo"
+    )
 
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        postgresql-16 \
-        postgresql-client-16 \
-        postgresql-contrib-16 \
-        curl \
-        unzip \
-        openjdk-21-jdk \
-        ca-certificates \
-        python3 \
-        python3-pip \
-        sudo
+    for pkg in "${required_packages[@]}"; do
+        if ! dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
+            packages_to_install+=("$pkg")
+        else
+            info "  ✓ $pkg already installed"
+        fi
+    done
 
-    success "Minimal system dependencies installed"
+    if [ ${#packages_to_install[@]} -eq 0 ]; then
+        success "All required packages already installed - skipping installation"
+        return 0
+    fi
+
+    info "Need to install: ${packages_to_install[*]}"
+    
+    # Update package lists only if we need to install something
+    apt-get update -qq
+
+    # Install only what's needed with minimal recommendations
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${packages_to_install[@]}"
+
+    # Clean up to save space
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+    
+    success "Minimal system dependencies installed (${#packages_to_install[@]} packages)"
 }
 
 setup_postgresql() {
@@ -780,7 +802,7 @@ minimal_setup_main() {
     info "📁 Service directories:"
     info "  Services   : $SERVICES_DIR"
     info "  Logs       : $LOGS_DIR"
-    info "  Environment: $ENV_FILE_REPO"
+    info "  Environment: $ENV_FILE"
     echo ""
     info "🔧 Maintenance commands:"
     info "  Start all  : sudo bash scripts/maintain_codex.sh start"
@@ -796,7 +818,6 @@ SERVICES_DIR="$SERVICES_DIR_DEFAULT"
 DOWNLOADS_DIR=""
 LOGS_DIR=""
 BIN_DIR=""
-ENV_FILE_REPO="$PROJECT_ROOT/.env.codex"
-ENV_FILE="$SERVICES_DIR/.env.codex"
+ENV_FILE="$PROJECT_ROOT/.env.local"
 
 minimal_setup_main "$@"

@@ -27,7 +27,6 @@ status() { printf "${CYAN}[STATUS]${NC} %s\n" "$1"; }
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SERVICES_DIR_DEFAULT="/opt/codex-services"
 SERVICES_DIR_FALLBACK="$PROJECT_ROOT/.codex-services"
-ENV_FILE_REPO="$PROJECT_ROOT/.env.codex"
 
 # Determine services directory
 if [ -d "$SERVICES_DIR_DEFAULT" ]; then
@@ -36,7 +35,7 @@ else
     SERVICES_DIR="$SERVICES_DIR_FALLBACK"
 fi
 
-ENV_FILE="$SERVICES_DIR/.env.codex"
+ENV_FILE="$PROJECT_ROOT/.env.local"
 LOGS_DIR="$SERVICES_DIR/logs"
 
 # Load environment if available
