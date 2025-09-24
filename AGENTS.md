@@ -140,6 +140,7 @@ The project uses `.env.local` for all environment configuration:
 - Backend dependencies are managed with Poetry
 - All services run on localhost with standard ports
 - Check service health with maintenance script before testing
+- Ignore any directories that end with `_legacy`; they contain deprecated code that should not be modified or considered during development or reviews.
 
 ## 🆘 Troubleshooting
 
