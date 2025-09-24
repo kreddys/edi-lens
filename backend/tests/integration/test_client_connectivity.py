@@ -11,6 +11,7 @@ import uuid
 import pytest
 
 from src.clients.nifi_base import NiFiClientError
+from src.clients.registry_base import RegistryClientError
 from tests.test_config import (
     get_test_nifi_client,
     get_test_registry_client,
@@ -133,6 +134,34 @@ class TestNiFiClientOperations:
             assert any(
                 key in diagnostics for key in ("systemDiagnostics", "aggregateSnapshot")
             ), "Diagnostics payload should include system metrics"
+
+
+class TestNiFiErrorResponses:
+    """Validate NiFi error responses include actionable details."""
+
+    @pytest.mark.asyncio
+    async def test_create_process_group_with_invalid_parent(self):
+        """Creating a process group with an invalid parent should surface details."""
+
+        client = get_test_nifi_client()
+
+        async with client:
+            invalid_parent_id = "not-a-real-parent-group"
+
+            with pytest.raises(NiFiClientError) as exc_info:
+                await client.process_groups.create_process_group(
+                    parent_group_id=invalid_parent_id,
+                    name="invalid-parent-test",
+                    position={"x": 0.0, "y": 0.0},
+                )
+
+            message = str(exc_info.value)
+
+            assert "NiFi API error" in message
+            # NiFi should echo the bad identifier so operators know what failed.
+            assert invalid_parent_id in message
+            # Ensure we surface concrete API feedback instead of generic log guidance.
+            assert "log" not in message.lower()
 
     @pytest.mark.asyncio
     async def test_nifi_processor_lifecycle(self):
@@ -324,6 +353,32 @@ class TestRegistryClientConnectivity:
             # Verify deletion
             buckets_final = await client.buckets.list_buckets()
             assert len(buckets_final) == initial_count
+
+
+class TestRegistryErrorResponses:
+    """Validate Registry error responses include actionable details."""
+
+    @pytest.mark.asyncio
+    async def test_create_flow_with_invalid_bucket(self):
+        """Creating a flow in a non-existent bucket should return actionable details."""
+
+        client = get_test_registry_client()
+
+        async with client:
+            invalid_bucket_id = "bucket-that-does-not-exist"
+
+            with pytest.raises(RegistryClientError) as exc_info:
+                await client.flows.create_flow(
+                    bucket_id=invalid_bucket_id,
+                    name="invalid-bucket-test",
+                    description="Ensure invalid bucket responses are descriptive",
+                )
+
+            message = str(exc_info.value)
+
+            assert "Registry API error" in message
+            assert "does not exist" in message.lower()
+            assert "log" not in message.lower()
 
     @pytest.mark.asyncio
     async def test_registry_flow_operations(self):
