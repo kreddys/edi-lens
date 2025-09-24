@@ -74,18 +74,15 @@ def _build_sample_flow_definition(unique_suffix: str) -> dict:
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_workflow_orchestrator_end_to_end():
-    """Validate orchestrator workflows against live NiFi and Registry services."""
+async def test_deployment_first_workflow():
+    """Test the deployment-first workflow architecture."""
 
     unique_suffix = uuid.uuid4().hex[:8]
     flow_definition = _build_sample_flow_definition(unique_suffix)
     flow_name = f"integration-flow-{unique_suffix}"
-    imported_flow_name = f"{flow_name}-imported"
     bucket_name = f"integration-bucket-{unique_suffix}"
-    registry_client_name = f"integration-registry-{unique_suffix}"
 
-    deployment_parameters = {"greeting": "hello-world"}
-    import_parameters = {"threshold": "5"}
+    deployment_parameters = {"greeting": "hello-world", "batch_size": "5"}
 
     nifi_client = get_test_nifi_client()
     registry_client = get_test_registry_client()
@@ -99,69 +96,80 @@ async def test_workflow_orchestrator_end_to_end():
                 "parameter_contexts": set(),
                 "bucket_id": None,
                 "flow_id": None,
-                "registry_client_id": None,
             }
 
             try:
+                # Test 1: Deploy and Register Flow (main deployment-first workflow)
                 deploy_result = await orchestrator.deploy_and_register_flow(
                     flow_definition=flow_definition,
                     flow_name=flow_name,
                     bucket_name=bucket_name,
                     parameters=deployment_parameters,
-                    comments="Integration test deployment",
+                    comments="Integration test - deployment-first workflow",
                 )
 
-                assert deploy_result["success"] is True
-                process_group_id = deploy_result["process_group_id"]
-                cleanup["process_groups"].append(process_group_id)
+                # Validate deployment success
+                assert deploy_result["success"] is True, f"Deployment failed: {deploy_result}"
+                assert deploy_result["workflow"] == "deploy_and_register"
+                assert deploy_result["stage"] == "completed"
+                assert deploy_result["flow_name"] == flow_name
 
+                # Extract key IDs for further testing
+                process_group_id = deploy_result["process_group_id"]
                 bucket_id = deploy_result["bucket_info"]["bucket_id"]
                 flow_id = deploy_result["registry_upload"]["flow_id"]
+                
+                cleanup["process_groups"].append(process_group_id)
                 cleanup["bucket_id"] = bucket_id
                 cleanup["flow_id"] = flow_id
 
-                parameter_context_id = deploy_result["nifi_deployment"].get(
-                    "parameter_context_id"
-                )
+                # Validate NiFi deployment details
+                nifi_deployment = deploy_result["nifi_deployment"]
+                assert nifi_deployment["success"] is True
+                assert nifi_deployment["process_group_id"] == process_group_id
+                
+                parameter_context_id = nifi_deployment.get("parameter_context_id")
                 if parameter_context_id:
                     cleanup["parameter_contexts"].add(parameter_context_id)
 
-                registry_entity = await nifi_client.version_control.create_registry_client(
-                    name=registry_client_name,
-                    url=registry_client.base.registry_url,
-                    description="Integration test registry client",
-                )
-                registry_client_id = registry_entity["id"]
-                cleanup["registry_client_id"] = registry_client_id
+                # Validate Registry upload details
+                registry_upload = deploy_result["registry_upload"]
+                assert registry_upload["success"] is True
+                assert registry_upload["flow_id"] == flow_id
+                assert registry_upload.get("version") >= 1
 
-                await nifi_client.version_control.start_version_control(
-                    process_group_id=process_group_id,
-                    registry_id=registry_client_id,
-                    bucket_id=bucket_id,
-                    flow_name=flow_name,
-                    flow_description="Integration test flow deployment",
-                    comments="Initial version",
-                    flow_id=flow_id,
-                    flow_version=deploy_result["registry_upload"].get("version") or 1,
-                )
+                # Validate bucket creation
+                bucket_info = deploy_result["bucket_info"]
+                assert bucket_info["bucket_id"] == bucket_id
+                assert bucket_info["bucket_name"] == bucket_name
 
-                version_info = await nifi_client.version_control.get_version_control_info(
+                # Test 2: Get Flow Overview
+                overview = await orchestrator.get_flow_overview(process_group_id)
+                assert overview["process_group_id"] == process_group_id
+                assert overview["is_under_version_control"] is True
+                assert overview["has_parameters"] is True
+                
+                if parameter_context_id:
+                    assert overview["parameter_context"]["parameter_context_id"] == parameter_context_id
+
+                # Test 3: Flow Operations (Start/Stop)
+                start_result = await orchestrator.start_flow_workflow(process_group_id)
+                assert start_result["success"] is True
+                assert start_result["workflow"] == "start_flow"
+                assert start_result["process_group_id"] == process_group_id
+
+                stop_result = await orchestrator.stop_flow_workflow(process_group_id)
+                assert stop_result["success"] is True
+                assert stop_result["workflow"] == "stop_flow"
+
+                # Test 4: Version Control Operations
+                comparison = await orchestrator.integration_bridge.compare_with_registry(
                     process_group_id
                 )
-                assert version_info.get("bucketId") == bucket_id
-                assert version_info.get("flowId") == flow_id
+                assert comparison["bucket_id"] == bucket_id
+                assert comparison["flow_id"] == flow_id
 
-                overview = await orchestrator.get_flow_overview(process_group_id)
-                assert overview["is_under_version_control"] is True
-                assert overview["parameter_context"]["parameter_context_id"] == parameter_context_id
-
-                push_result = await orchestrator.integration_bridge.sync_flow_with_registry(
-                    process_group_id=process_group_id,
-                    action="push",
-                )
-                assert push_result["success"] is True
-                assert push_result["action"] == "push"
-
+                # Test 5: List All Flows
                 listings = await orchestrator.list_all_flows()
                 assert any(
                     flow["process_group_id"] == process_group_id
@@ -175,67 +183,16 @@ async def test_workflow_orchestrator_end_to_end():
                     for bucket in listings["registry_buckets"]
                 )
 
-                import_result = await orchestrator.import_and_deploy_flow(
-                    bucket_id=bucket_id,
-                    flow_id=flow_id,
-                    parameters=import_parameters,
-                    flow_name=imported_flow_name,
-                )
-                assert import_result["success"] is True
-                imported_pg_id = import_result["process_group_id"]
-                cleanup["process_groups"].append(imported_pg_id)
-
-                imported_context = (
-                    await orchestrator.nifi_param_mgmt.get_process_group_parameter_context(
-                        imported_pg_id
-                    )
-                )
-                if imported_context:
-                    cleanup["parameter_contexts"].add(
-                        imported_context["parameter_context_id"]
-                    )
-
-                start_result = await orchestrator.start_flow_workflow(imported_pg_id)
-                assert start_result["success"] is True
-
-                stop_result = await orchestrator.stop_flow_workflow(imported_pg_id)
-                assert stop_result["success"] is True
-
-                comparison = await orchestrator.integration_bridge.compare_with_registry(
-                    process_group_id
-                )
-                assert comparison["bucket_id"] == bucket_id
-                assert comparison["flow_id"] == flow_id
-
-                disconnect_imported = await orchestrator.integration_bridge.disconnect_from_registry(
-                    imported_pg_id
-                )
-                assert disconnect_imported["success"] is True
-
-                delete_imported = await orchestrator.delete_flow_workflow(
-                    imported_pg_id,
-                    remove_from_registry=False,
-                )
-                assert delete_imported["success"] is True
-                cleanup["process_groups"].remove(imported_pg_id)
-
-                disconnect_primary = await orchestrator.integration_bridge.disconnect_from_registry(
-                    process_group_id
-                )
-                assert disconnect_primary["success"] is True
-
-                delete_primary = await orchestrator.delete_flow_workflow(
+                # Test 6: Delete Flow
+                delete_result = await orchestrator.delete_flow_workflow(
                     process_group_id,
-                    remove_from_registry=False,
+                    remove_from_registry=True,  # Test full cleanup
                 )
-                assert delete_primary["success"] is True
+                assert delete_result["success"] is True
+                assert delete_result["workflow"] == "delete_flow"
                 cleanup["process_groups"].remove(process_group_id)
 
-                await orchestrator.registry_flow_mgmt.delete_flow(
-                    bucket_id=bucket_id,
-                    flow_id=flow_id,
-                )
-
+                # Clean up bucket (it should be empty now)
                 latest_bucket = await registry_client.buckets.get_bucket(bucket_id)
                 await registry_client.buckets.delete_bucket(
                     bucket_id, latest_bucket["revision"]
@@ -243,32 +200,18 @@ async def test_workflow_orchestrator_end_to_end():
                 cleanup["bucket_id"] = None
                 cleanup["flow_id"] = None
 
-                latest_registry_client = await nifi_client.version_control.get_registry_client(
-                    registry_client_id
-                )
-                registry_revision = latest_registry_client.get("revision", {}).get(
-                    "version", 0
-                )
-                await nifi_client.version_control.delete_registry_client(
-                    registry_client_id,
-                    revision=registry_revision,
-                )
-                cleanup["registry_client_id"] = None
-
+                # Clean up parameter contexts
                 for context_id in list(cleanup["parameter_contexts"]):
                     await orchestrator.nifi_param_mgmt.delete_parameter_context(context_id)
                     cleanup["parameter_contexts"].remove(context_id)
 
             finally:
+                # Cleanup any remaining resources
                 for pg_id in list(cleanup["process_groups"]):
-                    try:
-                        await orchestrator.integration_bridge.disconnect_from_registry(pg_id)
-                    except Exception:
-                        pass
                     try:
                         await orchestrator.delete_flow_workflow(
                             pg_id,
-                            remove_from_registry=False,
+                            remove_from_registry=True,
                         )
                     except Exception:
                         pass
@@ -302,19 +245,158 @@ async def test_workflow_orchestrator_end_to_end():
                     except Exception:
                         pass
 
-                if cleanup["registry_client_id"]:
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_import_and_deploy_workflow():
+    """Test the import and deploy workflow from Registry."""
+
+    unique_suffix = uuid.uuid4().hex[:8]
+    flow_definition = _build_sample_flow_definition(unique_suffix)
+    original_flow_name = f"original-flow-{unique_suffix}"
+    imported_flow_name = f"imported-flow-{unique_suffix}"
+    bucket_name = f"import-test-bucket-{unique_suffix}"
+
+    deployment_parameters = {"greeting": "original"}
+    import_parameters = {"greeting": "imported", "threshold": "10"}
+
+    nifi_client = get_test_nifi_client()
+    registry_client = get_test_registry_client()
+
+    async with nifi_client:
+        async with registry_client:
+            orchestrator = WorkflowOrchestrator(nifi_client, registry_client)
+
+            cleanup = {
+                "process_groups": [],
+                "parameter_contexts": set(),
+                "bucket_id": None,
+                "flow_id": None,
+            }
+
+            try:
+                # Step 1: Create a flow in Registry first (using deploy workflow)
+                deploy_result = await orchestrator.deploy_and_register_flow(
+                    flow_definition=flow_definition,
+                    flow_name=original_flow_name,
+                    bucket_name=bucket_name,
+                    parameters=deployment_parameters,
+                    comments="Original flow for import testing",
+                )
+
+                assert deploy_result["success"] is True
+                original_pg_id = deploy_result["process_group_id"]
+                bucket_id = deploy_result["bucket_info"]["bucket_id"]
+                flow_id = deploy_result["registry_upload"]["flow_id"]
+                
+                cleanup["process_groups"].append(original_pg_id)
+                cleanup["bucket_id"] = bucket_id
+                cleanup["flow_id"] = flow_id
+
+                if deploy_result["nifi_deployment"].get("parameter_context_id"):
+                    cleanup["parameter_contexts"].add(
+                        deploy_result["nifi_deployment"]["parameter_context_id"]
+                    )
+
+                # Step 2: Test import and deploy workflow
+                import_result = await orchestrator.import_and_deploy_flow(
+                    bucket_id=bucket_id,
+                    flow_id=flow_id,
+                    parameters=import_parameters,
+                    flow_name=imported_flow_name,
+                )
+
+                # Validate import success
+                assert import_result["success"] is True
+                assert import_result["workflow"] == "import_and_deploy"
+                assert import_result["stage"] == "completed"
+                assert import_result["bucket_id"] == bucket_id
+                assert import_result["flow_id"] == flow_id
+                assert import_result["parameters_applied"] is True
+
+                imported_pg_id = import_result["process_group_id"]
+                cleanup["process_groups"].append(imported_pg_id)
+
+                # Verify imported flow has different process group ID
+                assert imported_pg_id != original_pg_id
+
+                # Step 3: Test flow operations on imported flow
+                start_result = await orchestrator.start_flow_workflow(imported_pg_id)
+                assert start_result["success"] is True
+
+                stop_result = await orchestrator.stop_flow_workflow(imported_pg_id)
+                assert stop_result["success"] is True
+
+                # Step 4: Get overview of imported flow
+                imported_overview = await orchestrator.get_flow_overview(imported_pg_id)
+                assert imported_overview["process_group_id"] == imported_pg_id
+                assert imported_overview["is_under_version_control"] is True
+
+                # Step 5: Cleanup - delete imported flow
+                delete_imported = await orchestrator.delete_flow_workflow(
+                    imported_pg_id,
+                    remove_from_registry=False,  # Keep Registry flow for original
+                )
+                assert delete_imported["success"] is True
+                cleanup["process_groups"].remove(imported_pg_id)
+
+                # Step 6: Cleanup - delete original flow and Registry artifacts
+                delete_original = await orchestrator.delete_flow_workflow(
+                    original_pg_id,
+                    remove_from_registry=True,
+                )
+                assert delete_original["success"] is True
+                cleanup["process_groups"].remove(original_pg_id)
+
+                # Clean up bucket
+                latest_bucket = await registry_client.buckets.get_bucket(bucket_id)
+                await registry_client.buckets.delete_bucket(
+                    bucket_id, latest_bucket["revision"]
+                )
+                cleanup["bucket_id"] = None
+                cleanup["flow_id"] = None
+
+                # Clean up parameter contexts
+                for context_id in list(cleanup["parameter_contexts"]):
+                    await orchestrator.nifi_param_mgmt.delete_parameter_context(context_id)
+                    cleanup["parameter_contexts"].remove(context_id)
+
+            finally:
+                # Cleanup any remaining resources
+                for pg_id in list(cleanup["process_groups"]):
                     try:
-                        latest_registry_client = (
-                            await nifi_client.version_control.get_registry_client(
-                                cleanup["registry_client_id"]
-                            )
+                        await orchestrator.delete_flow_workflow(
+                            pg_id,
+                            remove_from_registry=True,
                         )
-                        registry_revision = latest_registry_client.get("revision", {}).get(
-                            "version", 0
+                    except Exception:
+                        pass
+
+                for context_id in list(cleanup["parameter_contexts"]):
+                    try:
+                        await orchestrator.nifi_param_mgmt.delete_parameter_context(
+                            context_id
                         )
-                        await nifi_client.version_control.delete_registry_client(
-                            cleanup["registry_client_id"],
-                            revision=registry_revision,
+                    except Exception:
+                        pass
+
+                if cleanup["flow_id"] and cleanup["bucket_id"]:
+                    try:
+                        await orchestrator.registry_flow_mgmt.delete_flow(
+                            cleanup["bucket_id"],
+                            cleanup["flow_id"],
+                        )
+                    except Exception:
+                        pass
+
+                if cleanup["bucket_id"]:
+                    try:
+                        latest_bucket = await registry_client.buckets.get_bucket(
+                            cleanup["bucket_id"]
+                        )
+                        await registry_client.buckets.delete_bucket(
+                            cleanup["bucket_id"],
+                            latest_bucket["revision"],
                         )
                     except Exception:
                         pass

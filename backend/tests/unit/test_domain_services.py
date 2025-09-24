@@ -251,20 +251,20 @@ class TestRegistryBucketManagement:
 
         assert result["success"] is True
         assert result["bucket_id"] == "bucket-123"
-        assert result["name"] == "test-bucket"
+        assert result["bucket_name"] == "test-bucket"
 
     @pytest.mark.asyncio
     async def test_get_or_create_bucket_existing(self, bucket_management_service, mock_registry_client):
         """Test get_or_create with existing bucket."""
         # Mock list_buckets to return existing bucket
         bucket_management_service.list_buckets = AsyncMock(
-            return_value=[{"bucket_id": "bucket-123", "name": "existing-bucket"}]
+            return_value=[{"bucket_id": "bucket-123", "bucket_name": "existing-bucket"}]
         )
 
         result = await bucket_management_service.get_or_create_bucket("existing-bucket")
 
         assert result["bucket_id"] == "bucket-123"
-        assert result["name"] == "existing-bucket"
+        assert result["bucket_name"] == "existing-bucket"
 
     @pytest.mark.asyncio
     async def test_get_or_create_bucket_new(self, bucket_management_service, mock_registry_client):
@@ -274,13 +274,13 @@ class TestRegistryBucketManagement:
 
         # Mock create_bucket
         bucket_management_service.create_bucket = AsyncMock(
-            return_value={"success": True, "bucket_id": "bucket-456", "name": "new-bucket"}
+            return_value={"success": True, "bucket_id": "bucket-456", "bucket_name": "new-bucket"}
         )
 
         result = await bucket_management_service.get_or_create_bucket("new-bucket")
 
         assert result["bucket_id"] == "bucket-456"
-        assert result["name"] == "new-bucket"
+        assert result["bucket_name"] == "new-bucket"
 
 
 class TestWorkflowOrchestrator:

@@ -23,6 +23,39 @@ class IntegrationBridge(LoggerMixin):
         self.registry = registry_client
         self.logger.info("Initialized Integration Bridge service")
 
+    async def ensure_registry_client_available(self) -> str:
+        """Ensure NiFi has a Registry client configured for version control operations."""
+        try:
+            # Try to find existing registry client by URL
+            registries = await self.nifi.version_control.list_registry_clients()
+            registry_url = self.registry.base.registry_url
+            
+            # Look for existing client with matching URL
+            for registry in registries:
+                component = registry.get("component", {})
+                properties = component.get("properties", {})
+                if properties.get("url") == registry_url:
+                    registry_id = registry.get("id") or component.get("id")
+                    if registry_id:
+                        self.logger.debug("Found existing registry client: %s", registry_id)
+                        return registry_id
+            
+            # Create new registry client if none found
+            self.logger.info("Creating new NiFi Registry client for: %s", registry_url)
+            registry_entity = await self.nifi.version_control.create_registry_client(
+                name="edi-lens-registry",
+                url=registry_url,
+                description="Auto-created Registry client for EDI Lens integration"
+            )
+            
+            registry_id = registry_entity.get("id")
+            self.logger.info("Created NiFi Registry client: %s", registry_id)
+            return registry_id
+            
+        except Exception as exc:
+            self.logger.error("Failed to ensure registry client is available: %s", exc)
+            raise IntegrationBridgeError(f"Failed to ensure registry client: {exc}") from exc
+
     async def upload_flow_to_registry(
         self,
         process_group_id: str,
@@ -61,6 +94,17 @@ class IntegrationBridge(LoggerMixin):
                 comments=comments
             )
 
+            # Link the process group to version control after successful upload
+            registry_client_id = await self.ensure_registry_client_available()
+            
+            await self.nifi.version_control.link_process_group_to_registry(
+                process_group_id=process_group_id,
+                bucket_id=bucket_id,
+                flow_id=flow_id,
+                version=version_result.get("version"),
+                registry_id=registry_client_id,
+            )
+
             result = {
                 "success": True,
                 "process_group_id": process_group_id,
@@ -70,13 +114,14 @@ class IntegrationBridge(LoggerMixin):
                 "version": version_result.get("version"),
                 "comments": comments,
                 "created_timestamp": version_result.get("created_timestamp"),
+                "version_control_linked": True,
                 "upload_summary": {
                     "processor_count": len(process_group_snapshot.get("processors", [])),
                     "connection_count": len(process_group_snapshot.get("connections", [])),
                 }
             }
 
-            self.logger.info("Uploaded flow %s (process group %s) to Registry as version %d",
+            self.logger.info("Uploaded flow %s (process group %s) to Registry as version %d and linked to version control",
                            flow_name, process_group_id, version_result.get("version"))
             return result
 
@@ -119,6 +164,9 @@ class IntegrationBridge(LoggerMixin):
             )
 
             if deployment_result.get("success"):
+                # Ensure Registry client is available before linking
+                registry_client_id = await self.ensure_registry_client_available()
+                
                 # Link the process group to Registry for version control
                 process_group_id = deployment_result.get("process_group_id")
 
@@ -127,7 +175,7 @@ class IntegrationBridge(LoggerMixin):
                     bucket_id=bucket_id,
                     flow_id=flow_id,
                     version=imported_version,
-                    registry_url=self.registry.base.registry_url,
+                    registry_id=registry_client_id,
                 )
 
             result = {

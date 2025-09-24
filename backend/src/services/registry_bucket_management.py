@@ -21,6 +21,19 @@ class RegistryBucketManagement(LoggerMixin):
         self.registry = registry_client
         self.logger.info("Initialized Registry Bucket Management service")
 
+    def _normalize_bucket_response(self, bucket_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize bucket response to consistent shape across all operations."""
+        return {
+            "bucket_id": bucket_data.get("identifier") or bucket_data.get("bucket_id"),
+            "bucket_name": bucket_data.get("name") or bucket_data.get("bucket_name"),
+            "description": bucket_data.get("description", ""),
+            "allow_public_read": bucket_data.get("allowPublicRead") or bucket_data.get("allow_public_read", False),
+            "created_timestamp": bucket_data.get("createdTimestamp") or bucket_data.get("created_timestamp"),
+            "modified_timestamp": bucket_data.get("modifiedTimestamp") or bucket_data.get("modified_timestamp"),
+            "permissions": bucket_data.get("permissions", {}),
+            "revision": bucket_data.get("revision", {})
+        }
+
     async def create_bucket(
         self,
         name: str,
@@ -35,18 +48,14 @@ class RegistryBucketManagement(LoggerMixin):
                 allow_public_read=allow_public_read
             )
 
-            bucket_id = bucket.get("identifier")
-
+            normalized_bucket = self._normalize_bucket_response(bucket)
+            
             result = {
                 "success": True,
-                "bucket_id": bucket_id,
-                "name": name,
-                "description": description,
-                "allow_public_read": allow_public_read,
-                "created_timestamp": bucket.get("createdTimestamp")
+                **normalized_bucket
             }
 
-            self.logger.info("Created bucket: %s (%s)", name, bucket_id)
+            self.logger.info("Created bucket: %s (%s)", name, normalized_bucket["bucket_id"])
             return result
 
         except Exception as exc:
@@ -57,17 +66,7 @@ class RegistryBucketManagement(LoggerMixin):
         """Get bucket details by ID."""
         try:
             bucket = await self.registry.buckets.get_bucket(bucket_id)
-
-            result = {
-                "bucket_id": bucket.get("identifier"),
-                "name": bucket.get("name"),
-                "description": bucket.get("description", ""),
-                "allow_public_read": bucket.get("allowPublicRead", False),
-                "created_timestamp": bucket.get("createdTimestamp"),
-                "modified_timestamp": bucket.get("modifiedTimestamp"),
-                "permissions": bucket.get("permissions", {}),
-                "revision": bucket.get("revision", {})
-            }
+            result = self._normalize_bucket_response(bucket)
 
             self.logger.debug("Retrieved bucket: %s", bucket_id)
             return result
@@ -145,15 +144,7 @@ class RegistryBucketManagement(LoggerMixin):
 
             result = []
             for bucket in buckets:
-                result.append({
-                    "bucket_id": bucket.get("identifier"),
-                    "name": bucket.get("name"),
-                    "description": bucket.get("description", ""),
-                    "allow_public_read": bucket.get("allowPublicRead", False),
-                    "created_timestamp": bucket.get("createdTimestamp"),
-                    "modified_timestamp": bucket.get("modifiedTimestamp"),
-                    "permissions": bucket.get("permissions", {})
-                })
+                result.append(self._normalize_bucket_response(bucket))
 
             self.logger.debug("Listed %d buckets", len(result))
             return result
@@ -168,7 +159,7 @@ class RegistryBucketManagement(LoggerMixin):
             buckets = await self.list_buckets()
 
             for bucket in buckets:
-                if bucket.get("name") == bucket_name:
+                if bucket.get("bucket_name") == bucket_name:
                     return bucket
 
             return None
