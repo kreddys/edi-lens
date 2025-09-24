@@ -212,24 +212,104 @@ setup_environment() {
 }
 
 log_cached_services_state() {
-    info "Inspecting cached service state"
+    info "====================================================================="
+    info "🔍 DEPENDENCY CHECK - Analyzing cached service state"
+    info "====================================================================="
 
     if [ ! -d "$SERVICES_DIR" ]; then
-        info "Services directory $SERVICES_DIR does not exist yet"
+        info "Services directory $SERVICES_DIR does not exist yet - fresh installation required"
         return
     fi
 
     local contents
     contents=$(ls -1 "$SERVICES_DIR" 2>/dev/null | paste -sd ' ' - || true)
     if [ -n "$contents" ]; then
-        info "Existing service directories: $contents"
+        info "📁 Existing service directories: $contents"
+        
+        # Check each service directory for completeness
+        for service_dir in postgresql nifi nifi-registry; do
+            if [ -d "$SERVICES_DIR/$service_dir" ]; then
+                local size=$(du -sh "$SERVICES_DIR/$service_dir" 2>/dev/null | cut -f1 || echo "unknown")
+                info "  ✓ $service_dir directory found (size: $size)"
+            else
+                warn "  ✗ $service_dir directory missing - will need installation"
+            fi
+        done
     else
-        info "Services directory currently empty"
+        info "📁 Services directory currently empty - fresh installation required"
     fi
 
-    log_process_state "PostgreSQL" "postgres.*main"
-    log_process_state "NiFi" "org.apache.nifi.NiFi"
-    log_process_state "NiFi Registry" "org.apache.nifi.registry.NiFiRegistry"
+    # Enhanced process state logging with dependency analysis
+    info "🔄 Checking running processes:"
+    check_service_dependency "PostgreSQL" "postgres.*main" "5432" "postgresql"
+    check_service_dependency "NiFi" "org.apache.nifi.NiFi" "8443" "nifi" 
+    check_service_dependency "NiFi Registry" "org.apache.nifi.registry.NiFiRegistry" "18080" "nifi-registry"
+}
+
+check_service_dependency() {
+    local name="$1"
+    local pattern="$2" 
+    local port="$3"
+    local service_dir="$4"
+    local pids
+    local can_start=false
+    
+    info "  Analyzing $name:"
+    
+    if pids=$(pgrep -f "$pattern" 2>/dev/null); then
+        success "    ✓ Process running (PIDs: $pids)"
+        if check_port "$port"; then
+            success "    ✓ Port $port responding"
+            info "    → $name is healthy - skipping installation"
+            return 0
+        else
+            warn "    ⚠ Process running but port $port not responding"
+        fi
+    else
+        info "    ○ Process not running"
+    fi
+    
+    # Check if service can be started without reinstallation
+    if [ -d "$SERVICES_DIR/$service_dir" ]; then
+        info "    ✓ Installation directory exists"
+        case "$service_dir" in
+            "postgresql")
+                if [ -f "/var/lib/postgresql/16/main/PG_VERSION" ]; then
+                    can_start=true
+                    info "    ✓ PostgreSQL data directory initialized"
+                fi
+                ;;
+            "nifi")
+                if [ -f "$SERVICES_DIR/$service_dir/nifi-$NIFI_VERSION/bin/nifi.sh" ]; then
+                    can_start=true
+                    info "    ✓ NiFi installation complete"
+                fi
+                ;;
+            "nifi-registry") 
+                if [ -f "$SERVICES_DIR/$service_dir/nifi-registry-$NIFI_REGISTRY_VERSION/bin/nifi-registry.sh" ]; then
+                    can_start=true
+                    info "    ✓ NiFi Registry installation complete"
+                fi
+                ;;
+        esac
+    else
+        info "    ○ Installation directory missing"
+    fi
+    
+    if [ "$can_start" = true ]; then
+        info "    → $name can be started without reinstallation"
+    else
+        info "    → $name requires installation/configuration"
+    fi
+}
+
+check_port() {
+    local port="$1"
+    if [ "$port" = "8443" ]; then
+        curl -kfs "https://localhost:$port/" >/dev/null 2>&1
+    else
+        curl -fs "http://localhost:$port/" >/dev/null 2>&1 || nc -z localhost "$port" 2>/dev/null
+    fi
 }
 
 install_minimal_system_dependencies() {
@@ -253,16 +333,38 @@ install_minimal_system_dependencies() {
 }
 
 setup_postgresql() {
-    info "Setting up PostgreSQL"
+    info "====================================================================="
+    info "🐘 POSTGRESQL SETUP"
+    info "====================================================================="
 
-    log_process_state "PostgreSQL" "postgres.*main"
-
+    # Enhanced dependency check
     if pgrep -f "postgres.*main" >/dev/null; then
         local postgres_pids
         postgres_pids=$(pgrep -f "postgres.*main" 2>/dev/null | paste -sd ' ' - || true)
         if sudo -u postgres psql -lqt | cut -d '|' -f 1 | grep -qw "$POSTGRES_DB"; then
-            info "PostgreSQL already running with required databases, skipping setup (pids: ${postgres_pids:-unknown})"
+            success "✓ PostgreSQL already running with required databases (PIDs: ${postgres_pids:-unknown})"
+            info "  → Skipping PostgreSQL installation and configuration"
             return 0
+        else
+            info "PostgreSQL running but missing required databases - will configure"
+        fi
+    else
+        # Check if PostgreSQL can be started without reinstallation
+        if [ -f "/var/lib/postgresql/16/main/PG_VERSION" ] && command -v postgres >/dev/null 2>&1; then
+            info "PostgreSQL installation detected - attempting to start existing service"
+            if ! pgrep -f "postgres.*main" >/dev/null; then
+                info "Starting existing PostgreSQL server"
+                su - postgres -c '/usr/lib/postgresql/16/bin/pg_ctl start -D /var/lib/postgresql/16/main -l /var/log/postgresql/postgresql-16-main.log -o "-c config_file=/etc/postgresql/16/main/postgresql.conf"' >/dev/null 2>&1
+                sleep 5
+                if pgrep -f "postgres.*main" >/dev/null; then
+                    success "✓ Successfully started existing PostgreSQL installation"
+                    # Continue to database creation
+                else
+                    warn "Failed to start existing PostgreSQL - proceeding with fresh installation"
+                fi
+            fi
+        else
+            info "No existing PostgreSQL installation found - proceeding with fresh installation"
         fi
     fi
 
@@ -292,16 +394,49 @@ setup_postgresql() {
 }
 
 setup_nifi_registry() {
-    info "Setting up NiFi Registry"
+    info "====================================================================="
+    info "📋 NIFI REGISTRY SETUP"
+    info "====================================================================="
 
-    log_process_state "NiFi Registry" "org.apache.nifi.registry.NiFiRegistry"
-
+    # Enhanced dependency check
     if pgrep -f "org.apache.nifi.registry.NiFiRegistry" >/dev/null; then
         if curl -fs "http://localhost:18080/nifi-registry/" >/dev/null 2>&1; then
             local registry_pids
             registry_pids=$(pgrep -f "org.apache.nifi.registry.NiFiRegistry" 2>/dev/null | paste -sd ' ' - || true)
-            info "NiFi Registry already running and reachable, skipping setup (pids: ${registry_pids:-unknown})"
+            success "✓ NiFi Registry already running and healthy (PIDs: ${registry_pids:-unknown})"
+            info "  → Skipping NiFi Registry installation"
             return 0
+        else
+            warn "NiFi Registry process found but not responding - will restart"
+            pkill -f "org.apache.nifi.registry.NiFiRegistry" 2>/dev/null || true
+            sleep 3
+        fi
+    else
+        # Check if NiFi Registry can be started without reinstallation
+        local install_dir="$SERVICES_DIR/nifi-registry"
+        if [ -f "$install_dir/nifi-registry-$NIFI_REGISTRY_VERSION/bin/nifi-registry.sh" ]; then
+            info "Existing NiFi Registry installation detected - attempting to start"
+            local registry_home="$install_dir/nifi-registry-$NIFI_REGISTRY_VERSION"
+            cd "$registry_home"
+            
+            info "Starting existing NiFi Registry installation"
+            NIFI_REGISTRY_DB_URL="jdbc:postgresql://localhost:$POSTGRES_PORT/$POSTGRES_NIFI_REGISTRY_DB" \
+            NIFI_REGISTRY_DB_USER="$POSTGRES_NIFI_REGISTRY_USER" \
+            NIFI_REGISTRY_DB_PASS="$POSTGRES_NIFI_REGISTRY_PASSWORD" \
+            NIFI_REGISTRY_WEB_HTTP_HOST=0.0.0.0 \
+            NIFI_REGISTRY_WEB_HTTP_PORT=18080 \
+            nohup ./bin/nifi-registry.sh run > "$LOGS_DIR/nifi-registry.log" 2>&1 &
+            
+            if wait_for_service "http://localhost:18080/nifi-registry/" "NiFi Registry" 30; then
+                success "✓ Successfully started existing NiFi Registry installation"
+                return 0
+            else
+                warn "Failed to start existing NiFi Registry - proceeding with fresh installation"
+                pkill -f "org.apache.nifi.registry.NiFiRegistry" 2>/dev/null || true
+                sleep 3
+            fi
+        else
+            info "No existing NiFi Registry installation found - proceeding with fresh installation"
         fi
     fi
 
@@ -340,15 +475,47 @@ setup_nifi_registry() {
 }
 
 setup_nifi() {
-    info "Setting up Apache NiFi"
+    info "====================================================================="
+    info "🌊 APACHE NIFI SETUP"
+    info "====================================================================="
 
-    log_process_state "NiFi" "org.apache.nifi.NiFi"
-
+    # Enhanced dependency check
     if curl -kfs "https://localhost:8443/nifi/" >/dev/null 2>&1; then
         local nifi_pids
         nifi_pids=$(pgrep -f "org.apache.nifi.NiFi" 2>/dev/null | paste -sd ' ' - || true)
-        info "NiFi already running and healthy, skipping setup (pids: ${nifi_pids:-unknown})"
+        success "✓ NiFi already running and healthy (PIDs: ${nifi_pids:-unknown})"
+        info "  → Skipping NiFi installation"
         return 0
+    elif pgrep -f "org.apache.nifi.NiFi" >/dev/null; then
+        warn "NiFi process found but not responding - will restart"
+        pkill -f "org.apache.nifi.NiFi" 2>/dev/null || true
+        sleep 5
+    fi
+
+    # Check if NiFi can be started without reinstallation
+    local install_dir="$SERVICES_DIR/nifi"
+    if [ -f "$install_dir/nifi-$NIFI_VERSION/bin/nifi.sh" ]; then
+        info "Existing NiFi installation detected - attempting to start"
+        local nifi_home="$install_dir/nifi-$NIFI_VERSION"
+        
+        if [ -f "$nifi_home/start_nifi.sh" ]; then
+            info "Starting existing NiFi installation"
+            su -s /bin/bash nifi -c "$nifi_home/start_nifi.sh" >> "$LOGS_DIR/nifi.log" 2>&1 &
+            
+            sleep 10
+            if wait_for_service "https://localhost:8443/nifi/" "NiFi" 60; then
+                success "✓ Successfully started existing NiFi installation"
+                return 0
+            else
+                warn "Failed to start existing NiFi - proceeding with fresh installation"
+                pkill -f "org.apache.nifi.NiFi" 2>/dev/null || true
+                sleep 5
+            fi
+        else
+            info "Existing NiFi installation incomplete - proceeding with fresh installation"
+        fi
+    else
+        info "No existing NiFi installation found - proceeding with fresh installation"
     fi
 
     local install_dir="$SERVICES_DIR/nifi"
@@ -559,25 +726,67 @@ verify_minimal_services() {
 }
 
 minimal_setup_main() {
+    local start_time=$(date +%s)
+    
     info "====================================================================="
-    info "🚀 Starting minimal Codex setup (PostgreSQL, NiFi, NiFi Registry)"
+    info "🚀 EDI LENS - MINIMAL CODEX SETUP"
+    info "====================================================================="
+    info "Starting setup for PostgreSQL, NiFi, and NiFi Registry"
+    info "Timestamp: $(date)"
     info "====================================================================="
 
+    # Step 1: Environment preparation
+    info "📋 STEP 1/7: Environment preparation"
     setup_environment
+
+    # Step 2: Dependency analysis
+    info "📋 STEP 2/7: Analyzing cached dependencies"
     log_cached_services_state
+
+    # Step 3: System dependencies
+    info "📋 STEP 3/7: Installing system dependencies"
     install_minimal_system_dependencies
+
+    # Step 4: PostgreSQL setup
+    info "📋 STEP 4/7: PostgreSQL setup"
     setup_postgresql
+
+    # Step 5: NiFi Registry setup
+    info "📋 STEP 5/7: NiFi Registry setup"
     setup_nifi_registry
+
+    # Step 6: NiFi setup
+    info "📋 STEP 6/7: Apache NiFi setup"
     setup_nifi
+
+    # Step 7: Final verification
+    info "📋 STEP 7/7: Service verification"
     verify_minimal_services
 
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    
     echo ""
-    success "Minimal Codex services installed successfully"
+    echo "====================================================================="
+    success "🎉 SETUP COMPLETED SUCCESSFULLY"
+    echo "====================================================================="
+    info "⏱️  Total setup time: ${duration} seconds"
     echo ""
-    info "Service endpoints:"
+    info "🌐 Service endpoints:"
     info "  PostgreSQL : localhost:${POSTGRES_PORT:-5432} (database: $POSTGRES_DB)"
     info "  NiFi       : https://localhost:8443 (user: $NIFI_ADMIN_USER)"
     info "  Registry   : http://localhost:18080"
+    echo ""
+    info "📁 Service directories:"
+    info "  Services   : $SERVICES_DIR"
+    info "  Logs       : $LOGS_DIR"
+    info "  Environment: $ENV_FILE_REPO"
+    echo ""
+    info "🔧 Maintenance commands:"
+    info "  Start all  : sudo bash scripts/maintain_codex.sh start"
+    info "  Stop all   : sudo bash scripts/maintain_codex.sh stop"
+    info "  Status     : sudo bash scripts/maintain_codex.sh status"
+    echo "====================================================================="
 }
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
