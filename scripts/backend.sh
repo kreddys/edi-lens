@@ -1,15 +1,15 @@
 #!/bin/bash
 # ==============================================================================
-# EDI Lens New Backend Management Script
+# EDI Lens Backend Management Script - SIMPLIFIED
 # ==============================================================================
-# Simple, focused script for the new backend architecture
+# Simple, focused script for the backend with local-only testing
 # Usage: ./scripts/backend.sh [command] [options]
 #
 # Philosophy: Simple, predictable, fast
-# - Single responsibility: manage the new backend only
+# - Single responsibility: manage the backend
 # - Clear commands with intuitive names
-# - Fast feedback and helpful error messages
-# - No complex environment abstractions
+# - Tests run locally only, connecting to configured endpoints
+# - No complex Docker test environment abstractions
 # ==============================================================================
 
 set -euo pipefail
@@ -21,10 +21,6 @@ DOCKER_DIR="$PROJECT_ROOT/docker"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 DOCKER_COMPOSE=""
 ENV_FILE="$PROJECT_ROOT/.env"
-
-# Test environment files
-TEST_ENV_DIR="$PROJECT_ROOT/backend/tests/env"
-CONTAINER_TEST_ENV_DIR="/app/tests/env"
 
 # Colors and logging
 readonly RED='\033[0;31m'
@@ -57,6 +53,19 @@ show_port_usage() {
     fi
 }
 
+is_port_in_use() {
+    local port="$1"
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -Pi ":$port" -sTCP:LISTEN -t >/dev/null 2>&1
+    elif command -v ss >/dev/null 2>&1; then
+        ss -tuln | grep -q ":$port "
+    elif command -v netstat >/dev/null 2>&1; then
+        netstat -tuln | grep -q ":$port "
+    else
+        return 1
+    fi
+}
+
 load_project_env() {
     if [[ -f "$ENV_FILE" ]]; then
         log_debug "Loading environment variables from $ENV_FILE"
@@ -69,167 +78,85 @@ load_project_env() {
     fi
 }
 
-load_local_env() {
-    local local_env_file="$PROJECT_ROOT/.env.local"
-    if [[ -f "$local_env_file" ]]; then
-        log_debug "Loading local environment variables from $local_env_file"
-        load_env_file "$local_env_file"
-    else
-        log_warn "Local environment file not found: $local_env_file"
-        log_info "Using fallback localhost URLs for local testing"
-        export NIFI_URL=https://localhost:8443
-        export NIFI_REGISTRY_URL=http://localhost:18080
-    fi
-}
-
-load_env_file() {
-    local env_file="$1"
-    if [[ -f "$env_file" ]]; then
-        log_debug "Loading environment variables from $env_file"
-        set -a
-        # shellcheck disable=SC1090
-        source "$env_file"
-        set +a
-    else
-        log_warn "Environment file not found: $env_file"
-    fi
-}
-
-get_test_env_file() {
-    local mode="${1:-local}"
-    case "$mode" in
-        docker)
-            echo "$TEST_ENV_DIR/test.docker.env"
-            ;;
-        *)
-            echo "$TEST_ENV_DIR/test.local.env"
-            ;;
-    esac
-}
-
-build_docker_env_args() {
-    local env_file="$1"
-    local args=()
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        [[ -z "$line" || "$line" =~ ^# ]] && continue
-        if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
-            local key="${BASH_REMATCH[1]}"
-            local value="${BASH_REMATCH[2]}"
-            args+=("-e" "$key=$value")
-        fi
-    done < "$env_file"
-
-    printf '%s\n' "${args[@]}"
-}
-
-reconfigure_backend_for_local_testing() {
-    log_info "Reconfiguring backend for local testing..."
-
-    # Stop current backend
-    docker-compose -f "$DOCKER_DIR/docker-compose.yml" stop backend >/dev/null 2>&1
-    docker-compose -f "$DOCKER_DIR/docker-compose.yml" rm -f backend >/dev/null 2>&1
-
-    # Start backend with local configuration
-    log_debug "Starting backend with localhost URLs..."
-    docker-compose -f "$DOCKER_DIR/docker-compose.yml" -f "$DOCKER_DIR/docker-compose.local.yml" up -d backend >/dev/null 2>&1
-
-    # Wait for backend to be ready
-    local max_attempts=30
-    local attempt=1
-    while [[ $attempt -le $max_attempts ]]; do
-        if curl -s http://localhost:8000/health >/dev/null 2>&1; then
-            log_success "Backend reconfigured for local testing"
-            return 0
-        fi
-        sleep 1
-        ((attempt++))
-    done
-
-    log_error "Backend failed to start after reconfiguration"
-    return 1
-}
-
-is_port_in_use() {
-    local port="$1"
-
-    if command -v lsof >/dev/null 2>&1; then
-        if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
-            return 0
-        fi
-        return 1
-    elif command -v ss >/dev/null 2>&1; then
-        if ss -tulpn 2>/dev/null | grep -q ":$port "; then
-            return 0
-        fi
-        return 1
-    elif command -v netstat >/dev/null 2>&1; then
-        if netstat -an 2>/dev/null | grep -q ".$port "; then
-            return 0
-        fi
-        return 1
-    fi
-
-    return 1
-}
-
-# Utility functions
+# Check functions
 check_docker() {
+    if ! command -v docker >/dev/null 2>&1; then
+        log_error "Docker is not installed or not in PATH"
+        exit 1
+    fi
+
     if ! docker info >/dev/null 2>&1; then
-        log_error "Docker is not running. Please start Docker and try again."
+        log_error "Docker is not running or accessible"
         exit 1
     fi
 }
 
 check_docker_compose() {
-    if command -v "docker-compose" >/dev/null 2>&1; then
+    check_docker
+
+    if command -v docker-compose >/dev/null 2>&1; then
         DOCKER_COMPOSE="docker-compose"
     elif docker compose version >/dev/null 2>&1; then
         DOCKER_COMPOSE="docker compose"
     else
-        log_error "Neither 'docker-compose' nor 'docker compose' is available."
+        log_error "Neither 'docker-compose' nor 'docker compose' is available"
         exit 1
     fi
 }
 
 check_backend_dir() {
     if [[ ! -d "$BACKEND_DIR" ]]; then
-        log_error "Backend directory not found at $BACKEND_DIR"
+        log_error "Backend directory not found: $BACKEND_DIR"
         exit 1
     fi
 }
 
 check_poetry() {
     if ! command -v poetry >/dev/null 2>&1; then
-        log_error "Poetry is not installed. Please install it first: https://python-poetry.org/docs/#installation"
-        exit 1
-    fi
-}
-
-run_pytest_watch() {
-    if poetry run ptw --help >/dev/null 2>&1; then
-        poetry run ptw tests/unit/ "$@"
-    else
-        log_error "pytest-watch is not installed. Install it with 'poetry add --group dev pytest-watch'."
+        log_error "Poetry is not installed. Please install Poetry: https://python-poetry.org/docs/#installation"
         exit 1
     fi
 }
 
 ensure_backend_container_running() {
     if ! docker ps --format "{{.Names}}" | grep -q "^edi-lens-backend$"; then
-        log_warn "Backend container is not running. Starting services..."
-        cmd_start
+        log_error "Backend container is not running. Start services with './scripts/backend.sh start'."
+        exit 1
     fi
 }
 
-ensure_backend_test_env() {
-    ensure_backend_container_running
-    if ! docker exec edi-lens-backend poetry run pytest --version >/dev/null 2>&1; then
-        log_info "Installing test dependencies inside backend container..."
-        if ! docker exec edi-lens-backend poetry install --with dev --no-root >/dev/null 2>&1; then
-            log_error "Failed to install test dependencies inside backend container"
-            exit 1
+wait_for_container_healthy() {
+    local container_name="$1"
+    local timeout="${2:-60}"
+    local attempt=1
+
+    log_info "Waiting for container '$container_name' to report healthy (timeout: ${timeout}s)..."
+
+    while [[ $attempt -le $timeout ]]; do
+        local health_status
+        health_status=$(docker inspect --format='{{.State.Health.Status}}' "$container_name" 2>/dev/null || echo "none")
+
+        if [[ "$health_status" == "healthy" ]]; then
+            log_success "Container '$container_name' is healthy!"
+            return 0
+        elif [[ "$health_status" == "none" ]]; then
+            # Container doesn't have health check, just check if it's running
+            if docker ps --format "{{.Names}}" | grep -q "^$container_name$"; then
+                log_success "Container '$container_name' is running (no health check)!"
+                return 0
+            fi
         fi
-    fi
+
+        if [[ $((attempt % 10)) -eq 0 ]]; then
+            echo -n "."
+        fi
+
+        sleep 1
+        ((attempt++))
+    done
+
+    log_error "Container '$container_name' failed to become healthy within ${timeout}s"
+    return 1
 }
 
 wait_for_service() {
@@ -240,90 +167,73 @@ wait_for_service() {
 
     log_info "Waiting for $service_name to be ready..."
 
-    while [ $attempt -le $max_attempts ]; do
+    while [[ $attempt -le $max_attempts ]]; do
         if curl -s -k "$url" >/dev/null 2>&1; then
             log_success "$service_name is ready!"
             return 0
         fi
 
-        echo -n "."
+        if [[ $((attempt % 5)) -eq 0 ]]; then
+            echo -n "."
+        fi
+
         sleep 2
         ((attempt++))
     done
 
-    echo ""
-    log_error "$service_name failed to start within $((max_attempts * 2)) seconds"
+    log_warn "$service_name did not become ready within expected time"
     return 1
 }
 
-# Wait for a docker container to report healthy via its healthcheck
-wait_for_container_healthy() {
-    local container="$1"
-    local max_wait_seconds=${2:-120}
-    local start_ts=$(date +%s)
+run_pytest_watch() {
+    local -a extra_args=("$@")
+    log_info "Starting pytest in watch mode..."
 
-    log_info "Waiting for container '$container' to report healthy (timeout: ${max_wait_seconds}s)..."
+    if ! poetry run pytest --version >/dev/null 2>&1; then
+        log_warn "pytest not found. Installing dependencies..."
+        poetry install --no-interaction --no-root
+    fi
 
-    while :; do
-        # Get health status (returns 'healthy', 'unhealthy', or 'starting')
-        status=$(docker inspect --format='{{.State.Health.Status}}' "$container" 2>/dev/null || echo "no-container")
-
-        if [[ "$status" == "healthy" ]]; then
-            log_success "Container '$container' is healthy!"
-            return 0
-        fi
-
-        # If container doesn't exist or exited, show short hint and break
-        if [[ "$status" == "no-container" ]]; then
-            log_error "Container '$container' not found or not running"
-            return 1
-        fi
-
-        now_ts=$(date +%s)
-        elapsed=$((now_ts - start_ts))
-        if [[ $elapsed -ge $max_wait_seconds ]]; then
-            log_error "Container '$container' did not become healthy within ${max_wait_seconds}s (status: $status)"
-            return 1
-        fi
-
-        echo -n "."
-        sleep 2
-    done
+    if command -v pytest-watch >/dev/null 2>&1; then
+        poetry run ptw tests/ -- -v "${extra_args[@]}"
+    elif poetry run pytest --help | grep -q "\-\-looponfail"; then
+        poetry run pytest --looponfail tests/ -v "${extra_args[@]}"
+    else
+        log_warn "Watch mode not available. Running tests once."
+        poetry run pytest tests/ -v "${extra_args[@]}"
+    fi
 }
 
-# Command implementations
 show_help() {
-    cat << EOF
-EDI Lens New Backend Management Script
-=====================================
+    cat <<EOF
+EDI Lens Backend Management Script
 
 USAGE:
     ./scripts/backend.sh <command> [options]
 
 COMMANDS:
-    start                Start all services (Docker Compose with hot reload)
-    dev                  Start in development mode (same as start, with hot reload)
-    prod                 Start in production mode (no hot reload, optimized)
+    start                Start all services in development mode
+    dev                  Alias for 'start' (development mode with hot reload)
+    prod                 Start all services in production mode
     stop                 Stop all services
     restart              Restart all services
     status               Show service status
     logs [service]       Show logs (all services or specific service)
-    build                Build/rebuild services
-    clean                Clean up containers and volumes
+    build                Build service containers
+    clean                Remove all containers and volumes
     shell                Open shell in backend container
+    setup                Set up local development environment
+
+TESTING:
+    test unit [args]     Run unit tests locally
+    test integration [args] Run integration tests locally
+    test e2e [args]      Run end-to-end tests locally
+    test all [args]      Run all tests locally
+    test:watch [args]    Run tests in watch mode
+    
+    Note: All tests run locally and connect to the configured endpoints in .env
 
 DEVELOPMENT:
-    setup                Install dependencies and prepare development environment
-    test [type] [mode]   Run tests (unit, integration, e2e, or all)
-                         - unit: always run locally
-                         - integration [local|docker]: run locally or in docker (default: local)
-                         - e2e [local|local-verbose|docker|docker-verbose]: run locally or in docker
-                           * local: standard test execution
-                           * local-verbose: comprehensive logging with validation report
-                           * docker: tests in container
-                           * docker-verbose: container tests with validation
-                         - all [local|docker]: run all tests in specified mode (default: local)
-    test:watch           Run tests in watch mode
     lint                 Run code linting
     format               Format code with black/isort
 
@@ -334,17 +244,9 @@ HEALTH & DEBUGGING:
 
 EXAMPLES:
     ./scripts/backend.sh start                         # Start all services in dev mode
-    ./scripts/backend.sh dev                           # Start all services in dev mode (hot reload)
-    ./scripts/backend.sh prod                          # Start all services in production mode
-    ./scripts/backend.sh test unit                     # Run unit tests locally
-    ./scripts/backend.sh test integration              # Run integration tests locally (default)
-    ./scripts/backend.sh test integration local        # Run integration tests locally
-    ./scripts/backend.sh test integration docker       # Run integration tests in docker
-    ./scripts/backend.sh test e2e local                # Run E2E tests locally
-    ./scripts/backend.sh test e2e local-verbose        # Run E2E tests with comprehensive validation
-    ./scripts/backend.sh test e2e docker-verbose       # Run E2E tests in docker with validation
-    ./scripts/backend.sh test all                      # Run all tests locally (default)
-    ./scripts/backend.sh test all docker               # Run all tests in docker mode
+    ./scripts/backend.sh test unit                     # Run unit tests
+    ./scripts/backend.sh test integration              # Run integration tests  
+    ./scripts/backend.sh test all                      # Run all tests
     ./scripts/backend.sh logs backend                  # Show backend logs
     ./scripts/backend.sh health                        # Check service health
 
@@ -375,7 +277,6 @@ cmd_start() {
     log_info "Services starting in background..."
 
     # Wait for key services
-    # Use docker container health for the database because curl on a postgres:// URL won't work
     if ! wait_for_container_healthy "edi-lens-db" 120; then
         log_error "Database failed to start within timeout"
         log_info "Showing recent database logs (last 200 lines):"
@@ -581,249 +482,95 @@ cmd_test() {
     check_poetry
 
     local test_type="${1:-all}"
-    local test_mode="${2:-local}"  # Default to local for all tests
     local -a extra_args=()
-    if (( $# > 2 )); then
-        extra_args=("${@:3}")
+    if (( $# > 1 )); then
+        extra_args=("${@:2}")
     fi
     cd "$BACKEND_DIR"
 
     log_step "Running $test_type tests..."
 
+    # Load environment configuration from .env.local file for local testing
+    local local_env_file="$PROJECT_ROOT/.env.local"
+    if [[ -f "$local_env_file" ]]; then
+        log_debug "Loading local environment variables from $local_env_file"
+        set -a
+        # shellcheck disable=SC1090
+        source "$local_env_file"
+        set +a
+    else
+        log_warn "Local environment file not found: $local_env_file"
+        log_info "Using fallback localhost URLs for local testing"
+        export NIFI_URL=https://localhost:8443
+        export NIFI_REGISTRY_URL=http://localhost:18080
+    fi
+
     case "$test_type" in
         unit)
-            # Unit tests always run locally
-            if [[ "$test_mode" != "docker" && "$test_mode" != "all" ]]; then
-                log_info "Unit tests always run locally (ignoring mode: $test_mode)"
-            fi
+            log_info "Running unit tests locally..."
             
             # Ensure virtualenv deps are installed
             if ! poetry run pytest --version >/dev/null 2>&1; then
-                log_warn "pytest not found in the virtualenv. Installing dependencies with poetry (no-root)..."
-                poetry install --no-interaction --no-root || {
+                log_warn "pytest not found in the virtualenv. Installing dependencies with poetry..."
+                poetry install --no-interaction || {
                     log_error "'poetry install' failed. Please check your environment or run 'poetry install' in $BACKEND_DIR"
                     exit 1
                 }
             fi
 
             if (( ${#extra_args[@]} )); then
-                poetry run pytest -m unit tests/unit/ -v "${extra_args[@]}"
+                poetry run pytest tests/unit/ -v "${extra_args[@]}"
             else
-                poetry run pytest -m unit tests/unit/ -v
+                poetry run pytest tests/unit/ -v
             fi
             ;;
         integration)
-            case "$test_mode" in
-                local)
-                    log_info "Running integration tests locally..."
-                    log_info "Tests will connect to Docker services via localhost URLs"
+            log_info "Running integration tests locally..."
+            log_info "Tests will connect to services using URLs from .env file"
 
-                    # Load local environment configuration
-                    load_local_env
-
-                    local test_env_file
-                    test_env_file=$(get_test_env_file "local")
-                    export TEST_MODE=local
-                    export TEST_ENV_FILE="$test_env_file"
-                    load_env_file "$test_env_file"
-
-                    # Check if services are running
-                    if ! curl -s -k "$NIFI_URL/nifi/" >/dev/null 2>&1; then
-                        log_warn "NiFi not reachable at $NIFI_URL - consider starting services first"
-                    fi
-                    if ! curl -s "$NIFI_REGISTRY_URL/nifi-registry-api/config" >/dev/null 2>&1; then
-                        log_warn "Registry not reachable at $NIFI_REGISTRY_URL - consider starting services first"
-                    fi
-                    
-                    if (( ${#extra_args[@]} )); then
-                        poetry run pytest -m integration tests/integration/ -v "${extra_args[@]}"
-                    else
-                        poetry run pytest -m integration tests/integration/ -v
-                    fi
-                    ;;
-                docker)
-                    log_info "Running integration tests in Docker container..."
-                    log_info "Tests will connect to Docker services via host.docker.internal URLs"
-                    ensure_backend_test_env
-
-                    local host_test_env_file
-                    host_test_env_file=$(get_test_env_file "docker")
-                    if [[ ! -f "$host_test_env_file" ]]; then
-                        log_error "Docker test environment file not found: $host_test_env_file"
-                        exit 1
-                    fi
-                    local container_test_env_file="$CONTAINER_TEST_ENV_DIR/$(basename "$host_test_env_file")"
-                    local docker_env_args
-                    docker_env_args=($(build_docker_env_args "$host_test_env_file"))
-                    docker_env_args+=("-e" "TEST_MODE=docker" "-e" "TEST_ENV_FILE=$container_test_env_file")
-                    
-                    # Set environment for docker testing (host.docker.internal URLs to avoid SSL issues)
-                    if (( ${#extra_args[@]} )); then
-                        docker exec ${docker_env_args[@]} \
-                            edi-lens-backend poetry run pytest -m integration tests/integration/ -v "${extra_args[@]}"
-                    else
-                        docker exec ${docker_env_args[@]} \
-                            edi-lens-backend poetry run pytest -m integration tests/integration/ -v
-                    fi
-                    ;;
-                *)
-                    log_error "Unknown test mode: $test_mode"
-                    log_info "Available modes for integration tests: local, docker"
-                    exit 1
-                    ;;
-            esac
+            # Check if services are running
+            if ! curl -s -k "${NIFI_URL:-https://localhost:8443}/nifi/" >/dev/null 2>&1; then
+                log_warn "NiFi not reachable at ${NIFI_URL:-https://localhost:8443} - consider starting services first"
+            fi
+            if ! curl -s "${NIFI_REGISTRY_URL:-http://localhost:18080}/nifi-registry-api/config" >/dev/null 2>&1; then
+                log_warn "Registry not reachable at ${NIFI_REGISTRY_URL:-http://localhost:18080} - consider starting services first"
+            fi
+            
+            if (( ${#extra_args[@]} )); then
+                poetry run pytest tests/integration/ -v "${extra_args[@]}"
+            else
+                poetry run pytest tests/integration/ -v
+            fi
             ;;
         e2e)
-            case "$test_mode" in
-                local)
-                    log_info "Running e2e tests locally..."
-                    log_info "Tests will connect to Docker services via localhost URLs"
-
-                    # Load local environment configuration
-                    load_local_env
-
-                    local test_env_file
-                    test_env_file=$(get_test_env_file "local")
-                    export TEST_MODE=local
-                    export TEST_ENV_FILE="$test_env_file"
-                    load_env_file "$test_env_file"
-
-                    # Reconfigure backend to use localhost URLs
-                    reconfigure_backend_for_local_testing
-                    
-                    if (( ${#extra_args[@]} )); then
-                        poetry run pytest -m e2e tests/e2e/ -v "${extra_args[@]}"
-                    else
-                        poetry run pytest -m e2e tests/e2e/ -v
-                    fi
-                    ;;
-                local-verbose)
-                    log_info "Running e2e tests locally with VERBOSE logging..."
-                    log_info "Tests will connect to Docker services via localhost URLs"
-                    log_info "Capturing detailed logs for validation..."
-
-                    # Load local environment configuration
-                    load_local_env
-
-                    local test_env_file
-                    test_env_file=$(get_test_env_file "local")
-                    export TEST_MODE=local
-                    export TEST_ENV_FILE="$test_env_file"
-                    load_env_file "$test_env_file"
-
-                    # Reconfigure backend to use localhost URLs
-                    reconfigure_backend_for_local_testing
-
-                    # Create e2e logs directory
-                    mkdir -p logs/e2e
-                    local timestamp=$(date +"%Y%m%d_%H%M%S")
-                    local log_file="logs/e2e/e2e_test_${timestamp}.log"
-                    local validation_file="logs/e2e/e2e_validation_${timestamp}.log"
-                    
-                    log_info "Starting comprehensive E2E test validation..."
-                    log_info "Test logs will be saved to: $log_file"
-                    log_info "Validation report will be saved to: $validation_file"
-                    
-                    # Run tests with full verbose output and capture logs
-                    {
-                        echo "=== E2E Test Execution Started at $(date) ==="
-                        echo "=== Environment ==="
-                        echo "NIFI_URL: $NIFI_URL"
-                        echo "NIFI_REGISTRY_URL: $NIFI_REGISTRY_URL"
-                        echo "DEBUG: $DEBUG"
-                        echo ""
-                        
-                        poetry run pytest -m e2e tests/e2e/ -v -s --tb=long "${extra_args[@]:-}" 2>&1
-                        
-                        echo ""
-                        echo "=== E2E Test Execution Completed at $(date) ==="
-                    } | tee "$log_file"
-                    
-                    # Perform validation analysis
-                    cmd_validate_e2e_test "$log_file" "$validation_file" "$timestamp"
-                    ;;
-                docker)
-                    log_info "Running e2e tests in Docker container..."
-                    ensure_backend_test_env
-
-                    local host_test_env_file
-                    host_test_env_file=$(get_test_env_file "docker")
-                    if [[ ! -f "$host_test_env_file" ]]; then
-                        log_error "Docker test environment file not found: $host_test_env_file"
-                        exit 1
-                    fi
-                    local container_test_env_file="$CONTAINER_TEST_ENV_DIR/$(basename "$host_test_env_file")"
-                    local docker_env_args
-                    docker_env_args=($(build_docker_env_args "$host_test_env_file"))
-                    docker_env_args+=("-e" "TEST_MODE=docker" "-e" "TEST_ENV_FILE=$container_test_env_file")
-                    
-                    if (( ${#extra_args[@]} )); then
-                        docker exec ${docker_env_args[@]} \
-                            edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v "${extra_args[@]}"
-                    else
-                        docker exec ${docker_env_args[@]} \
-                            edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v
-                    fi
-                    ;;
-                docker-verbose)
-                    log_info "Running e2e tests in Docker container with VERBOSE logging..."
-                    ensure_backend_test_env
-
-                    local host_test_env_file
-                    host_test_env_file=$(get_test_env_file "docker")
-                    if [[ ! -f "$host_test_env_file" ]]; then
-                        log_error "Docker test environment file not found: $host_test_env_file"
-                        exit 1
-                    fi
-                    local container_test_env_file="$CONTAINER_TEST_ENV_DIR/$(basename "$host_test_env_file")"
-                    local docker_env_args
-                    docker_env_args=($(build_docker_env_args "$host_test_env_file"))
-                    docker_env_args+=("-e" "TEST_MODE=docker" "-e" "TEST_ENV_FILE=$container_test_env_file" "-e" "DEBUG=true")
-                    
-                    # Create e2e logs directory
-                    mkdir -p logs/e2e
-                    local timestamp=$(date +"%Y%m%d_%H%M%S")
-                    local log_file="logs/e2e/e2e_docker_test_${timestamp}.log"
-                    local validation_file="logs/e2e/e2e_docker_validation_${timestamp}.log"
-                    
-                    log_info "Test logs will be saved to: $log_file"
-                    log_info "Validation report will be saved to: $validation_file"
-                    
-                    # Run tests with full verbose output and capture logs
-                    {
-                        echo "=== E2E Docker Test Execution Started at $(date) ==="
-                        echo "=== Environment ==="
-                        echo "TEST_MODE: docker"
-                        echo ""
-                        
-                        docker exec ${docker_env_args[@]} \
-                            edi-lens-backend poetry run pytest -m e2e tests/e2e/ -v -s --tb=long "${extra_args[@]:-}" 2>&1
-                        
-                        echo ""
-                        echo "=== E2E Docker Test Execution Completed at $(date) ==="
-                    } | tee "$log_file"
-                    
-                    # Perform validation analysis
-                    cmd_validate_e2e_test "$log_file" "$validation_file" "$timestamp"
-                    ;;
-                *)
-                    log_error "Unknown test mode: $test_mode"
-                    log_info "Available modes for e2e tests: local, local-verbose, docker, docker-verbose"
-                    exit 1
-                    ;;
-            esac
+            log_info "Running e2e tests locally..."
+            log_info "Tests will connect to services using URLs from .env file"
+            
+            if (( ${#extra_args[@]} )); then
+                poetry run pytest tests/e2e/ -v "${extra_args[@]}"
+            else
+                poetry run pytest tests/e2e/ -v
+            fi
             ;;
         all)
-            log_info "Running all tests in $test_mode mode..."
-            # Unit tests always run locally
-            log_info "Running unit tests locally..."
-            poetry run pytest -m unit tests/unit/ -v
+            log_info "Running all tests locally..."
             
-            # Integration and e2e in specified mode (default local)
-            log_info "Running integration tests in $test_mode mode..."
-            cmd_test integration "$test_mode"
-            log_info "Running e2e tests in $test_mode mode..."
-            cmd_test e2e "$test_mode"
+            log_info "Running unit tests..."
+            poetry run pytest tests/unit/ -v
+            
+            log_info "Running integration tests..."
+            if (( ${#extra_args[@]} )); then
+                cmd_test integration "${extra_args[@]}"
+            else
+                cmd_test integration
+            fi
+            
+            log_info "Running e2e tests..."
+            if (( ${#extra_args[@]} )); then
+                cmd_test e2e "${extra_args[@]}"
+            else
+                cmd_test e2e
+            fi
             ;;
         watch)
             run_pytest_watch "${extra_args[@]:-}"
@@ -831,7 +578,6 @@ cmd_test() {
         *)
             log_error "Unknown test type: $test_type"
             log_info "Available types: unit, integration, e2e, all, watch"
-            log_info "For integration/e2e, add mode: local, local-verbose, docker, docker-verbose"
             exit 1
             ;;
     esac
@@ -942,275 +688,6 @@ cmd_debug() {
     echo ""
     echo "=== Recent Backend Logs ==="
     docker logs edi-lens-backend --tail 10 2>/dev/null || echo "Backend container not running"
-}
-
-cmd_validate_e2e_test() {
-    local log_file="$1"
-    local validation_file="$2"
-    local timestamp="$3"
-    
-    log_step "Validating E2E test execution..."
-    
-    {
-        echo "=== E2E Test Validation Report ==="
-        echo "Generated at: $(date)"
-        echo "Test timestamp: $timestamp"
-        echo "Log file: $log_file"
-        echo ""
-        
-        # Test execution summary
-        echo "=== TEST EXECUTION SUMMARY ==="
-        if grep -q "PASSED\|FAILED" "$log_file"; then
-            local passed_count=$(grep -c "PASSED" "$log_file" || echo "0")
-            local failed_count=$(grep -c "FAILED" "$log_file" || echo "0")
-            local total_count=$((passed_count + failed_count))
-            
-            echo "Total tests executed: $total_count"
-            echo "Tests passed: $passed_count"
-            echo "Tests failed: $failed_count"
-            
-            if [ "$failed_count" -eq 0 ]; then
-                echo "✅ All tests passed!"
-            else
-                echo "❌ Some tests failed"
-            fi
-        else
-            echo "⚠️ No test results found in log"
-        fi
-        echo ""
-        
-        # API connectivity validation
-        echo "=== API CONNECTIVITY VALIDATION ==="
-        if grep -q "API is healthy" "$log_file"; then
-            echo "✅ API health check passed"
-        else
-            echo "❌ API health check failed"
-        fi
-        
-        if grep -q "Successfully retrieved.*buckets" "$log_file"; then
-            echo "✅ Registry bucket listing worked"
-        else
-            echo "⚠️ Registry bucket listing may have failed"
-        fi
-        
-        if grep -q "Flow creation failed\|Registry not available" "$log_file"; then
-            echo "⚠️ Flow creation encountered expected errors (Registry unavailable)"
-        elif grep -q "Successfully created flow" "$log_file"; then
-            echo "✅ Flow creation worked"
-        else
-            echo "⚠️ Flow creation status unclear"
-        fi
-        echo ""
-        
-        # Logging system validation
-        echo "=== LOGGING SYSTEM VALIDATION ==="
-        local log_entries_found=false
-        
-        # Check for different log levels
-        if grep -q "DEBUG\|INFO\|WARNING\|ERROR" "$log_file"; then
-            echo "✅ Multiple log levels detected"
-            log_entries_found=true
-        fi
-        
-        # Check for professional logging (no emojis in backend logs)
-        if grep -q "Initializing.*client\|Starting.*Backend\|Registry API request" "$log_file"; then
-            echo "✅ Professional logging format detected"
-            log_entries_found=true
-        fi
-        
-        # Check for structured error handling
-        if grep -q "error_type\|user_message\|action_required" "$log_file"; then
-            echo "✅ Structured error handling detected"
-            log_entries_found=true
-        fi
-        
-        # Check for audit logging
-        if grep -q "audit" "$log_file"; then
-            echo "✅ Audit logging detected"
-            log_entries_found=true
-        fi
-        
-        if [ "$log_entries_found" = false ]; then
-            echo "⚠️ Limited logging detected - may need investigation"
-        fi
-        echo ""
-        
-        # Performance validation (check backend logs for timing)
-        echo "=== PERFORMANCE VALIDATION ==="
-        local backend_timing=""
-        if command -v docker >/dev/null 2>&1; then
-            backend_timing=$(docker logs edi-lens-backend --since="5 minutes ago" 2>/dev/null | grep -o "([0-9]*\.[0-9]*ms)" | head -5 || echo "")
-        fi
-        
-        if [ -n "$backend_timing" ] || grep -q "([0-9]*\.[0-9]*ms)" "$log_file"; then
-            echo "✅ Request timing detected"
-            
-            # Extract and analyze response times from backend logs
-            if [ -n "$backend_timing" ]; then
-                local slow_requests=$(echo "$backend_timing" | grep -o "[0-9]*\.[0-9]*" | awk '$1 > 1000' | wc -l || echo "0")
-                if [ "$slow_requests" -gt 0 ]; then
-                    echo "⚠️ $slow_requests slow requests detected (>1000ms)"
-                else
-                    echo "✅ No slow requests detected"
-                fi
-                echo "Sample response times: $(echo "$backend_timing" | head -3 | tr '\n' ' ')"
-            fi
-        else
-            echo "⚠️ No request timing information found"
-        fi
-        echo ""
-        
-        # Error analysis
-        echo "=== ERROR ANALYSIS ==="
-        local error_count=$(grep -c "ERROR\|FAILED\|Exception" "$log_file" || echo "0")
-        if [ "$error_count" -eq 0 ]; then
-            echo "✅ No errors detected"
-        else
-            echo "⚠️ $error_count error entries found"
-            echo "Error summary:"
-            grep "ERROR\|FAILED\|Exception" "$log_file" | head -5 | sed 's/^/  - /'
-            if [ "$error_count" -gt 5 ]; then
-                echo "  ... and $((error_count - 5)) more errors"
-            fi
-        fi
-        echo ""
-        
-        # Service integration validation (check docker logs during test execution)
-        echo "=== SERVICE INTEGRATION VALIDATION ==="
-        local test_start_time=$(grep "E2E Test Execution Started" "$log_file" | head -1 | grep -o "at [^=]*" | sed 's/at //')
-        local test_end_time=$(grep "E2E Test Execution Completed" "$log_file" | head -1 | grep -o "at [^=]*" | sed 's/at //')
-        
-        # Check for backend activity during test execution by examining docker logs
-        if command -v docker >/dev/null 2>&1; then
-            local backend_logs_during_test=""
-            if [ -n "$test_start_time" ] && [ -n "$test_end_time" ]; then
-                # Convert to docker log format and check for activity
-                backend_logs_during_test=$(docker logs edi-lens-backend --since="5 minutes ago" 2>/dev/null | grep -E "(Initializing.*client|FlowService|GET|POST)" | head -10 || echo "")
-            fi
-            
-            if echo "$backend_logs_during_test" | grep -q "Registry.*client"; then
-                echo "✅ Registry client initialization detected in backend logs"
-            else
-                echo "⚠️ Registry client initialization not found in backend logs"
-            fi
-            
-            if echo "$backend_logs_during_test" | grep -q "NiFi.*client"; then
-                echo "✅ NiFi client initialization detected in backend logs"
-            else
-                echo "⚠️ NiFi client initialization not found in backend logs"
-            fi
-            
-            if echo "$backend_logs_during_test" | grep -q "FlowService\|GET.*flows\|POST.*flows"; then
-                echo "✅ FlowService/API integration detected in backend logs"
-            else
-                echo "⚠️ FlowService/API integration not found in backend logs"
-            fi
-            
-            # Show sample of backend activity for verification
-            if [ -n "$backend_logs_during_test" ]; then
-                echo "Sample backend activity during test:"
-                echo "$backend_logs_during_test" | head -3 | sed 's/^/  /'
-            fi
-        else
-            echo "⚠️ Docker not available for backend log verification"
-        fi
-        echo ""
-        
-        # Test coverage validation
-        echo "=== TEST COVERAGE VALIDATION ==="
-        local phases_detected=0
-        
-        if grep -q "Phase 1.*buckets" "$log_file"; then
-            echo "✅ Phase 1: Bucket listing tested"
-            ((phases_detected++))
-        fi
-        
-        if grep -q "Phase 2.*Creating flow" "$log_file"; then
-            echo "✅ Phase 2: Flow creation tested"
-            ((phases_detected++))
-        fi
-        
-        if grep -q "API error handling" "$log_file"; then
-            echo "✅ Error handling tests executed"
-            ((phases_detected++))
-        fi
-        
-        if grep -q "Concurrent operations" "$log_file"; then
-            echo "✅ Concurrent operations tested"
-            ((phases_detected++))
-        fi
-        
-        echo "Total test phases detected: $phases_detected"
-        
-        if [ "$phases_detected" -ge 3 ]; then
-            echo "✅ Comprehensive test coverage detected"
-        else
-            echo "⚠️ Limited test coverage - may need investigation"
-        fi
-        echo ""
-        
-        # Overall assessment
-        echo "=== OVERALL ASSESSMENT ==="
-        local validation_score=0
-        
-        # Scoring criteria
-        if grep -q "All tests passed\|PASSED" "$log_file"; then ((validation_score++)); fi
-        if grep -q "API is healthy" "$log_file"; then ((validation_score++)); fi
-        if [ "$log_entries_found" = true ]; then ((validation_score++)); fi
-        if [ "$phases_detected" -ge 3 ]; then ((validation_score++)); fi
-        if [ "$error_count" -lt 10 ]; then ((validation_score++)); fi
-        
-        echo "Validation score: $validation_score/5"
-        
-        if [ "$validation_score" -ge 4 ]; then
-            echo "🎉 EXCELLENT: E2E tests are working correctly with comprehensive validation"
-        elif [ "$validation_score" -ge 3 ]; then
-            echo "✅ GOOD: E2E tests are mostly working with minor issues"
-        elif [ "$validation_score" -ge 2 ]; then
-            echo "⚠️ FAIR: E2E tests have some functionality but need attention"
-        else
-            echo "❌ POOR: E2E tests may not be working correctly - investigation needed"
-        fi
-        
-        echo ""
-        echo "=== RECOMMENDATIONS ==="
-        if [ "$validation_score" -lt 4 ]; then
-            echo "1. Check service connectivity (NiFi, Registry)"
-            echo "2. Verify test environment setup"
-            echo "3. Review error messages in detail"
-            echo "4. Consider running tests with services fully deployed"
-        else
-            echo "1. E2E tests are working well"
-            echo "2. Consider adding more test scenarios"
-            echo "3. Monitor performance for production readiness"
-        fi
-        
-        echo ""
-        echo "=== LOG FILE LOCATIONS ==="
-        echo "Full test log: $log_file"
-        echo "This validation report: $validation_file"
-        echo "Application logs: logs/edi_lens.log"
-        echo "JSON logs: logs/edi_lens.jsonl"
-        echo "Audit logs: logs/audit.jsonl"
-        
-    } > "$validation_file"
-    
-    # Display summary
-    echo ""
-    log_success "E2E test validation completed!"
-    log_info "Validation report saved to: $validation_file"
-    
-    # Show key findings
-    local validation_score=$(grep "Validation score:" "$validation_file" | grep -o "[0-9]/[0-9]")
-    local overall_assessment=$(grep "EXCELLENT:\|GOOD:\|FAIR:\|POOR:" "$validation_file" | head -1)
-    
-    echo ""
-    log_info "=== VALIDATION SUMMARY ==="
-    log_info "Score: $validation_score"
-    log_info "Assessment: $overall_assessment"
-    echo ""
-    log_info "View full report: cat $validation_file"
-    log_info "View test logs: cat $log_file"
 }
 
 cmd_doctor() {

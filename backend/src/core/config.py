@@ -34,30 +34,16 @@ class Settings(BaseSettings):
     nifi_username: Optional[str] = Field(default=None, alias="NIFI_USERNAME")
     nifi_password: Optional[str] = Field(default=None, alias="NIFI_PASSWORD")
     nifi_verify_ssl: bool = Field(default=True, alias="NIFI_VERIFY_SSL")
-    nifi_host_header: Optional[str] = Field(default=None, alias="NIFI_HOST_HEADER")
 
     # NiFi Registry Configuration
     registry_url: str = Field(default="http://localhost:18080", alias="NIFI_REGISTRY_URL")
     registry_auth_token: Optional[str] = Field(default=None, alias="NIFI_REGISTRY_AUTH_TOKEN")
     registry_verify_ssl: bool = Field(default=True, alias="REGISTRY_VERIFY_SSL")
 
-    # HTTP client behaviour (deprecated - use specific verify_ssl settings)
-    VERIFY_SSL: bool = Field(
-        default=True,
-        description="Control client-side TLS verification for NiFi services",
-    )
-
     # Development flags
     DEBUG: bool = Field(default=False)
     
-    # Logging configuration
-    LOG_LEVEL: str = Field(default="INFO", description="Application log level")
-    LOG_FORMAT: str = Field(default="detailed", description="Log format: simple, detailed, json")
-    LOG_TO_FILE: bool = Field(default=True, description="Enable file logging")
-    LOG_FILE_MAX_SIZE: int = Field(default=10485760, description="Max log file size in bytes")
-    LOG_FILE_BACKUP_COUNT: int = Field(default=5, description="Number of log file backups")
-
-    # Component-specific logging levels
+    # Component-specific logging levels (used by logging.py)
     LOG_LEVEL_CONSOLE: Optional[str] = Field(default=None, description="Console log level override")
     LOG_LEVEL_FILE: Optional[str] = Field(default=None, description="File log level override")
     LOG_LEVEL_CLIENTS: Optional[str] = Field(default=None, description="Client logging level")

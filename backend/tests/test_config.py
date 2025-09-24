@@ -12,40 +12,36 @@ from src.clients.registry_unified import RegistryUnifiedClient
 from src.services.workflow_orchestrator import WorkflowOrchestrator
 
 
-TESTS_ROOT = Path(__file__).resolve().parent
-DEFAULT_ENV_FILES = {
-    "local": TESTS_ROOT / "env" / "test.local.env",
-    "docker": TESTS_ROOT / "env" / "test.docker.env",
-}
-
-
-def _resolve_env_file() -> Optional[Path]:
-    """Resolve the environment file path for tests."""
-
-    env_file = os.getenv("TEST_ENV_FILE")
-    if env_file:
-        return Path(env_file).expanduser().resolve()
-
-    test_mode = os.getenv("TEST_MODE", "local").lower()
-    default_file = DEFAULT_ENV_FILES.get(test_mode)
-    if default_file and default_file.exists():
-        return default_file
-
-    return None
-
-
 def get_test_settings() -> Settings:
-    """Load test settings exclusively from environment configuration."""
-
-    env_file = _resolve_env_file()
-    kwargs = {}
-    if env_file is not None:
-        if not env_file.exists():
-            raise FileNotFoundError(f"Test environment file not found: {env_file}")
-        kwargs["_env_file"] = env_file
-        kwargs["_env_file_encoding"] = "utf-8"
-
-    return Settings(**kwargs)
+    """Load test settings from .env.local for local testing."""
+    import os
+    from pathlib import Path
+    
+    # Use .env.local for local testing (has localhost URLs)
+    project_root = Path(__file__).resolve().parents[2]
+    env_local_file = project_root / ".env.local"
+    
+    if env_local_file.exists():
+        # Load environment variables manually from .env.local
+        original_env = os.environ.copy()
+        try:
+            # Load the .env.local file
+            with open(env_local_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        os.environ[key.strip()] = value.strip()
+            
+            # Create settings with the loaded environment
+            settings = Settings()
+            return settings
+        finally:
+            # Restore original environment (optional, for cleanliness)
+            pass
+    else:
+        # Fallback to main .env file if .env.local doesn't exist
+        return Settings()
 
 
 def get_test_nifi_client() -> NiFiUnifiedClient:
@@ -56,7 +52,6 @@ def get_test_nifi_client() -> NiFiUnifiedClient:
         username=settings.nifi_username,
         password=settings.nifi_password,
         verify_ssl=settings.nifi_verify_ssl,
-        host_header=settings.nifi_host_header,
     )
 
 
