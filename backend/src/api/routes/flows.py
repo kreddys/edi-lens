@@ -35,7 +35,7 @@ async def deploy_and_store_flow(
     This is the main endpoint for the deployment-first workflow.
     """
     start_time = time.time()
-    flow_name = request.flow_definition.name
+    flow_name = request.flow_name or request.flow_definition.name
 
     log.info("Starting deploy-and-store for flow '%s' in bucket '%s'", flow_name, request.bucket_id)
     log.debug("Flow definition: %d processors, %d connections",
@@ -46,7 +46,7 @@ async def deploy_and_store_flow(
     try:
         result = await orchestrator.deploy_and_register_flow(
             flow_definition=request.flow_definition.model_dump(),
-            flow_name=request.flow_name,
+            flow_name=flow_name,
             bucket_name=request.bucket_id,  # Assuming bucket_id is actually bucket name for now
             parameters=request.parameters,
             comments=request.flow_description,
@@ -128,9 +128,18 @@ async def get_flow_status(
 ) -> FlowStatusResponse:
     """Get status of a deployed flow."""
     try:
-        result = await orchestrator.get_flow_overview(process_group_id)
+        overview = await orchestrator.get_flow_overview(process_group_id)
+        flow_status = overview.get("flow_status", {}) or {}
 
-        return FlowStatusResponse(**result)
+        return FlowStatusResponse(
+            process_group_id=overview.get("process_group_id", process_group_id),
+            status=flow_status.get("overall_status", "unknown"),
+            processor_count=flow_status.get("total_processors", 0),
+            running_count=flow_status.get("running_processors", 0),
+            stopped_count=flow_status.get("stopped_processors", 0),
+            invalid_count=flow_status.get("invalid_processors", 0),
+            version_control=overview.get("version_control_info"),
+        )
 
     except HTTPException:
         raise

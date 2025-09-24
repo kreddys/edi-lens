@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Dict, List, Optional
 
 from ..core.logging import get_logger, LoggerMixin
@@ -136,3 +137,87 @@ class NiFiConnectionClient(LoggerMixin):
         """Get connection status including queue information."""
         self.logger.debug("Getting connection status: %s", connection_id)
         return await self.base.get(f"/flow/connections/{connection_id}/status")
+
+    async def drop_connection_flow_files(
+        self,
+        connection_id: str,
+        *,
+        poll_interval: float = 0.5,
+        timeout: float = 30.0,
+    ) -> Dict[str, Any]:
+        """Drop all FlowFiles queued on a connection before deletion.
+
+        NiFi requires connections to have empty queues before they can be
+        removed. This helper issues a drop request and polls until the queue is
+        drained or the request reports completion.
+        """
+
+        self.logger.debug("Dropping queued FlowFiles for connection: %s", connection_id)
+
+        try:
+            drop_request = await self.base.post(
+                f"/flowfile-queues/{connection_id}/drop-requests",
+                {"revision": {"version": 0}},
+            )
+        except NiFiClientError:
+            self.logger.warning(
+                "Failed to initiate drop request for connection %s", connection_id
+            )
+            raise
+
+        drop_metadata = drop_request.get("dropRequest", drop_request)
+        drop_request_id = drop_metadata.get("id")
+
+        if not drop_request_id:
+            # NiFi responded without a request identifier; return the raw response.
+            self.logger.debug(
+                "Drop request for connection %s returned without id", connection_id
+            )
+            return drop_request
+
+        start_time = asyncio.get_running_loop().time()
+
+        while True:
+            status = await self.base.get(
+                f"/flowfile-queues/{connection_id}/drop-requests/{drop_request_id}"
+            )
+            request_status = status.get("dropRequest", status)
+
+            finished = request_status.get("finished")
+            percent_complete = request_status.get("percentCompleted")
+            current_count = request_status.get("currentCount")
+
+            try:
+                percent_value = float(str(percent_complete)) if percent_complete is not None else None
+            except (TypeError, ValueError):
+                percent_value = None
+
+            try:
+                count_value = int(str(current_count)) if current_count is not None else None
+            except (TypeError, ValueError):
+                count_value = None
+
+            if finished or (percent_value is not None and percent_value >= 100.0):
+                await self.base.delete(
+                    f"/flowfile-queues/{connection_id}/drop-requests/{drop_request_id}"
+                )
+                self.logger.info(
+                    "Dropped queued FlowFiles for connection %s", connection_id
+                )
+                return status
+
+            if count_value is not None and count_value <= 0:
+                await self.base.delete(
+                    f"/flowfile-queues/{connection_id}/drop-requests/{drop_request_id}"
+                )
+                self.logger.info(
+                    "No queued FlowFiles remained for connection %s", connection_id
+                )
+                return status
+
+            if asyncio.get_running_loop().time() - start_time > timeout:
+                raise NiFiClientError(
+                    f"Timed out while dropping FlowFiles for connection {connection_id}"
+                )
+
+            await asyncio.sleep(poll_interval)

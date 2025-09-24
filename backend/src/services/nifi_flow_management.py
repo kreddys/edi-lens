@@ -126,6 +126,9 @@ class NiFiFlowManagement(LoggerMixin):
             if not force:
                 await self.stop_flow(process_group_id)
 
+            # Drain connection queues to allow deletion
+            await self._drain_flow_queues(process_group_id)
+
             # Delete the process group
             await self.nifi.process_groups.delete_process_group(process_group_id)
 
@@ -141,6 +144,64 @@ class NiFiFlowManagement(LoggerMixin):
         except Exception as exc:
             self.logger.error("Failed to delete process group %s: %s", process_group_id, exc)
             raise NiFiFlowManagementError(f"Failed to delete flow: {exc}") from exc
+
+    async def _drain_flow_queues(self, process_group_id: str) -> None:
+        """Ensure all connections in a process group have empty queues."""
+
+        try:
+            flow_entity = await self.nifi.process_groups.get_process_group_flow(process_group_id)
+        except Exception as exc:
+            self.logger.warning(
+                "Unable to load process group flow for %s: %s", process_group_id, exc
+            )
+            return
+
+        flow = (
+            flow_entity.get("processGroupFlow", {}).get("flow")
+            if isinstance(flow_entity, dict)
+            else None
+        ) or flow_entity
+
+        if not isinstance(flow, dict):
+            return
+
+        await self._drain_connections_in_flow(flow)
+
+        for child_group in flow.get("processGroups", []):
+            child_id = child_group.get("id") or child_group.get("component", {}).get("id")
+            if child_id:
+                await self._drain_flow_queues(child_id)
+
+    async def _drain_connections_in_flow(self, flow: Dict[str, Any]) -> None:
+        connections = flow.get("connections", []) if isinstance(flow, dict) else []
+
+        for connection in connections:
+            connection_id = connection.get("id") or connection.get("component", {}).get("id")
+            if not connection_id:
+                continue
+
+            queued = (
+                connection.get("status", {})
+                .get("aggregateSnapshot", {})
+                .get("flowFilesQueued")
+            )
+
+            try:
+                queued_count = int(str(queued)) if queued is not None else 0
+            except (TypeError, ValueError):
+                queued_count = None
+
+            if queued_count is not None:
+                self.logger.debug(
+                    "Connection %s has %d queued FlowFiles before drop", connection_id, queued_count
+                )
+
+            try:
+                await self.nifi.connections.drop_connection_flow_files(connection_id)
+            except Exception as exc:
+                self.logger.warning(
+                    "Failed to drop queue for connection %s: %s", connection_id, exc
+                )
 
     async def get_flow_status(self, process_group_id: str) -> Dict[str, Any]:
         """Get detailed status of a flow and its components."""
