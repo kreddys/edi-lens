@@ -392,7 +392,7 @@ setup_backend_dependencies() {
     fi
 
     info "Installing backend dependencies with Poetry..."
-    poetry install --with test
+    poetry install --with dev
 
     success "✅ Backend dependencies installed successfully"
     cd "$PROJECT_ROOT"
