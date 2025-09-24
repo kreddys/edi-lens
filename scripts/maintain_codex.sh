@@ -120,6 +120,82 @@ get_service_status() {
     fi
 }
 
+get_backend_status() {
+    local backend_dir="$PROJECT_ROOT/backend"
+    
+    # Check if backend dependencies are installed
+    if [ ! -d "$backend_dir" ]; then
+        echo "❌ MISSING"
+        return 2
+    fi
+    
+    if ! command -v poetry >/dev/null 2>&1; then
+        echo "❌ NO_POETRY"
+        return 2
+    fi
+    
+    cd "$backend_dir"
+    if poetry env info --path >/dev/null 2>&1; then
+        local venv_path
+        venv_path=$(poetry env info --path)
+        if [ -d "$venv_path" ] && poetry check >/dev/null 2>&1; then
+            echo "✅ DEPENDENCIES_OK"
+            cd "$PROJECT_ROOT"
+            return 0
+        else
+            echo "⚠️  DEPENDENCIES_OUTDATED"
+            cd "$PROJECT_ROOT"
+            return 1
+        fi
+    else
+        echo "❌ NOT_INSTALLED"
+        cd "$PROJECT_ROOT"
+        return 2
+    fi
+}
+
+start_backend_service() {
+    info "🚀 Starting Backend API..."
+    
+    local backend_dir="$PROJECT_ROOT/backend"
+    
+    if [ ! -d "$backend_dir" ]; then
+        error "Backend directory not found at $backend_dir"
+        return 1
+    fi
+
+    # Check if backend is already running
+    if check_port "8000" 2; then
+        success "Backend API already running on port 8000"
+        return 0
+    fi
+
+    cd "$backend_dir"
+    
+    # Check if dependencies are installed
+    if ! poetry env info --path >/dev/null 2>&1; then
+        error "Backend dependencies not installed. Please run setup script first."
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+
+    info "Starting backend service..."
+    
+    # Start backend in background
+    nohup poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload > "$LOGS_DIR/backend.log" 2>&1 &
+    
+    # Wait for backend to be ready
+    if wait_for_service "http://localhost:8000/health" "Backend API" 30; then
+        success "✅ Backend API started successfully"
+        cd "$PROJECT_ROOT"
+        return 0
+    else
+        error "❌ Failed to start Backend API"
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+}
+
 # --- Service Management Functions --------------------------------------------
 start_postgresql() {
     info "🐘 Starting PostgreSQL..."
@@ -272,25 +348,29 @@ show_service_summary() {
     local postgres_status
     local registry_status  
     local nifi_status
+    local backend_status
     
     postgres_status=$(get_service_status "PostgreSQL" "postgres.*main" "5432" || echo "❌ STOPPED")
     registry_status=$(get_service_status "NiFi Registry" "org.apache.nifi.registry.NiFiRegistry" "18080" || echo "❌ STOPPED")
     nifi_status=$(get_service_status "NiFi" "org.apache.nifi.NiFi" "8443" || echo "❌ STOPPED")
+    backend_status=$(get_backend_status || echo "❌ NOT_READY")
     
     printf "%-20s %s\n" "PostgreSQL:" "$postgres_status"
     printf "%-20s %s\n" "NiFi Registry:" "$registry_status"
     printf "%-20s %s\n" "NiFi:" "$nifi_status"
+    printf "%-20s %s\n" "Backend Dependencies:" "$backend_status"
     
     if [[ "$postgres_status" == *"HEALTHY"* ]] && 
        [[ "$registry_status" == *"HEALTHY"* ]] && 
-       [[ "$nifi_status" == *"HEALTHY"* ]]; then
+       [[ "$nifi_status" == *"HEALTHY"* ]] &&
+       [[ "$backend_status" == *"DEPENDENCIES_OK"* ]]; then
         echo ""
-        success "🎉 All services are healthy!"
+        success "🎉 All services and dependencies are ready!"
         show_service_endpoints
         return 0
     else
         echo ""
-        warn "⚠️  Some services need attention"
+        warn "⚠️  Some services or dependencies need attention"
         return 1
     fi
 }
@@ -302,6 +382,7 @@ show_service_endpoints() {
     echo "  PostgreSQL : localhost:${POSTGRES_PORT:-5432} (database: $POSTGRES_DB)"
     echo "  NiFi       : https://localhost:8443 (user: $NIFI_ADMIN_USER)"
     echo "  Registry   : http://localhost:18080"
+    echo "  Backend API: http://localhost:8000 (docs: http://localhost:8000/docs)"
     echo ""
     echo "  Logs       : $LOGS_DIR"
     echo "  Services   : $SERVICES_DIR"
@@ -363,6 +444,7 @@ maintenance_start_all() {
     start_postgresql || ((failed++))
     start_nifi_registry || ((failed++))
     start_nifi || ((failed++))
+    start_backend_service || ((failed++))
     
     echo ""
     if [ $failed -eq 0 ]; then
@@ -379,6 +461,9 @@ maintenance_stop_all() {
     info "====================================================================="
     info "🛑 STOPPING ALL CODEX SERVICES"
     info "====================================================================="
+    
+    info "Stopping Backend API..."
+    pkill -f "uvicorn.*src.main:app" 2>/dev/null || true
     
     info "Stopping NiFi..."
     pkill -f "org.apache.nifi.NiFi" 2>/dev/null || true

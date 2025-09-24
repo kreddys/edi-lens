@@ -354,6 +354,94 @@ install_minimal_system_dependencies() {
     success "Minimal system dependencies installed (${#packages_to_install[@]} packages)"
 }
 
+setup_backend_dependencies() {
+    info "====================================================================="
+    info "🐍 BACKEND DEPENDENCIES SETUP"
+    info "====================================================================="
+
+    local backend_dir="$PROJECT_ROOT/backend"
+    
+    if [ ! -d "$backend_dir" ]; then
+        warn "Backend directory not found at $backend_dir - skipping backend setup"
+        return 0
+    fi
+
+    if [ ! -f "$backend_dir/pyproject.toml" ]; then
+        warn "pyproject.toml not found in backend directory - skipping backend setup"
+        return 0
+    fi
+
+    # Check if poetry is available
+    if ! command -v poetry >/dev/null 2>&1; then
+        info "Installing Poetry..."
+        curl -sSL https://install.python-poetry.org | python3 -
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
+
+    cd "$backend_dir"
+    
+    # Check if dependencies are already installed
+    if poetry env info --path >/dev/null 2>&1; then
+        local venv_path
+        venv_path=$(poetry env info --path)
+        if [ -d "$venv_path" ] && poetry check >/dev/null 2>&1; then
+            success "✓ Backend dependencies already installed and up to date"
+            cd "$PROJECT_ROOT"
+            return 0
+        fi
+    fi
+
+    info "Installing backend dependencies with Poetry..."
+    poetry install --with test
+
+    success "✅ Backend dependencies installed successfully"
+    cd "$PROJECT_ROOT"
+}
+
+start_backend_service() {
+    info "====================================================================="
+    info "🚀 BACKEND SERVICE STARTUP"
+    info "====================================================================="
+
+    local backend_dir="$PROJECT_ROOT/backend"
+    
+    if [ ! -d "$backend_dir" ]; then
+        warn "Backend directory not found - skipping backend startup"
+        return 0
+    fi
+
+    # Check if backend is already running
+    if check_port "8000" 2; then
+        success "✓ Backend already running on port 8000"
+        return 0
+    fi
+
+    cd "$backend_dir"
+    
+    # Check if dependencies are installed
+    if ! poetry env info --path >/dev/null 2>&1; then
+        warn "Backend dependencies not installed - skipping backend startup"
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+
+    info "Starting backend service..."
+    
+    # Start backend in background
+    nohup poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload > "$LOGS_DIR/backend.log" 2>&1 &
+    
+    # Wait for backend to be ready
+    if wait_for_service "http://localhost:8000/health" "Backend API" 30; then
+        success "✅ Backend service started successfully"
+        cd "$PROJECT_ROOT"
+        return 0
+    else
+        warn "Backend service failed to start - check logs at $LOGS_DIR/backend.log"
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+}
+
 setup_postgresql() {
     info "====================================================================="
     info "🐘 POSTGRESQL SETUP"
@@ -766,23 +854,31 @@ minimal_setup_main() {
     log_cached_services_state
 
     # Step 3: System dependencies
-    info "📋 STEP 3/7: Installing system dependencies"
+    info "📋 STEP 3/9: Installing system dependencies"
     install_minimal_system_dependencies
 
-    # Step 4: PostgreSQL setup
-    info "📋 STEP 4/7: PostgreSQL setup"
+    # Step 4: Backend dependencies
+    info "📋 STEP 4/9: Backend dependencies setup"
+    setup_backend_dependencies
+
+    # Step 5: PostgreSQL setup
+    info "📋 STEP 5/9: PostgreSQL setup"
     setup_postgresql
 
-    # Step 5: NiFi Registry setup
-    info "📋 STEP 5/7: NiFi Registry setup"
+    # Step 6: NiFi Registry setup
+    info "📋 STEP 6/9: NiFi Registry setup"
     setup_nifi_registry
 
-    # Step 6: NiFi setup
-    info "📋 STEP 6/7: Apache NiFi setup"
+    # Step 7: NiFi setup
+    info "📋 STEP 7/9: Apache NiFi setup"
     setup_nifi
 
-    # Step 7: Final verification
-    info "📋 STEP 7/7: Service verification"
+    # Step 8: Backend service startup
+    info "📋 STEP 8/9: Backend service startup"
+    start_backend_service
+
+    # Step 9: Final verification
+    info "📋 STEP 9/9: Service verification"
     verify_minimal_services
 
     local end_time=$(date +%s)
@@ -798,6 +894,7 @@ minimal_setup_main() {
     info "  PostgreSQL : localhost:${POSTGRES_PORT:-5432} (database: $POSTGRES_DB)"
     info "  NiFi       : https://localhost:8443 (user: $NIFI_ADMIN_USER)"
     info "  Registry   : http://localhost:18080"
+    info "  Backend API: http://localhost:8000 (docs: http://localhost:8000/docs)"
     echo ""
     info "📁 Service directories:"
     info "  Services   : $SERVICES_DIR"
