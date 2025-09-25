@@ -78,8 +78,13 @@ async def deploy_and_store_flow(
                 deployment_summary=result.get("nifi_deployment", {}).get("summary", {}),
             )
         else:
-            log.warning("Deploy-and-store failed at stage %s: %s",
-                       result.get("stage"), result.get("error", {}).get("user_message"))
+            log.warning(
+                "Deploy-and-store failed at stage %s: %s",
+                result.get("stage"),
+                result.get("error", {}).get("user_message")
+                if isinstance(result.get("error"), dict)
+                else result.get("message"),
+            )
 
             # Audit log for business logic failures
             audit_logger.log_api_call(
@@ -87,12 +92,31 @@ async def deploy_and_store_flow(
                 endpoint=str(http_request.url.path),
                 request_data={"bucket_id": request.bucket_id, "flow_name": flow_name},
                 response_status=400,
-                execution_time_ms=execution_time
+                execution_time_ms=execution_time,
             )
+
+            deployment_result = result.get("nifi_deployment") or {}
+            failure_details = {
+                "stage": result.get("stage"),
+                "summary": deployment_result.get("summary"),
+                "failures": deployment_result.get("failures", []),
+            }
+
+            if deployment_result.get("process_group_id"):
+                failure_details["process_group_id"] = deployment_result.get("process_group_id")
+            if deployment_result.get("parameter_context_id"):
+                failure_details["parameter_context_id"] = deployment_result.get("parameter_context_id")
 
             raise HTTPException(
                 status_code=400,
-                detail=result.get("error", {}) if result.get("error") else "Deploy-and-store failed",
+                detail={
+                    "error_type": "NIFI_DEPLOYMENT_FAILED"
+                    if result.get("stage") == "nifi_deployment"
+                    else "WORKFLOW_STAGE_FAILED",
+                    "user_message": result.get("message") or "Deploy-and-store failed",
+                    "action_required": "Review the NiFi flow definition and resolve the reported validation errors before retrying",
+                    "details": failure_details,
+                },
             )
 
     except HTTPException:
