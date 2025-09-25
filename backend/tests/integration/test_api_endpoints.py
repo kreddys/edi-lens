@@ -137,6 +137,35 @@ def _build_flow_definition(unique_suffix: str) -> dict:
     }
 
 
+def _build_flow_definition_with_parameter(unique_suffix: str, parameter_name: str) -> dict:
+    """Build a flow definition that references a NiFi parameter."""
+
+    flow_definition = _build_flow_definition(unique_suffix)
+    flow_definition["processors"][0]["properties"]["Batch Size"] = f"#{{{parameter_name}}}"
+    return flow_definition
+
+
+async def _assert_nifi_deployment_failure(api_client, payload: dict) -> dict:
+    """Submit a deployment request and assert a structured NiFi failure response."""
+
+    response = await api_client.post("/api/flows/deploy-and-store", json=payload)
+    assert response.status_code == 400
+
+    detail = response.json()["detail"]
+    assert detail["error_type"] == "NIFI_DEPLOYMENT_FAILED"
+    assert detail["user_message"], "Expected an actionable user message in the error response"
+    assert (
+        detail["action_required"]
+        == "Review the NiFi flow definition and resolve the reported validation errors before retrying"
+    )
+
+    failure_details = detail["details"]
+    assert failure_details["stage"] == "nifi_deployment"
+    assert isinstance(failure_details.get("failures", []), list)
+
+    return detail
+
+
 async def _cleanup_bucket(registry_client, bucket_name: str) -> None:
     buckets = await registry_client.buckets.list_buckets()
     bucket = next((b for b in buckets if b.get("name") == bucket_name), None)
@@ -238,3 +267,140 @@ async def test_flow_lifecycle_via_api(api_client, nifi_client, registry_client):
 
         await _cleanup_parameter_context(nifi_client, parameter_context_id)
         await _cleanup_bucket(registry_client, bucket_name)
+
+
+async def test_deploy_flow_with_invalid_connection_returns_actionable_error(
+    api_client, nifi_client, registry_client
+):
+    unique_suffix = uuid.uuid4().hex[:8]
+    flow_name = f"api-invalid-connection-flow-{unique_suffix}"
+    bucket_name = f"api-invalid-connection-bucket-{unique_suffix}"
+
+    flow_definition = _build_flow_definition(unique_suffix)
+    # Introduce an invalid destination that cannot be resolved to verify error details.
+    flow_definition["connections"][0]["destination"]["name"] = "missing-destination"
+    flow_definition["connections"][0]["destination"]["id"] = "missing-destination"
+
+    payload = {
+        "bucket_id": bucket_name,
+        "flow_definition": flow_definition,
+        "parameters": {},
+        "parent_group_id": "root",
+        "flow_name": flow_name,
+        "flow_description": "Invalid connection integration test",
+    }
+
+    detail = await _assert_nifi_deployment_failure(api_client, payload)
+
+    failures = detail["details"]["failures"]
+    assert failures, "Expected failures in NiFi deployment error details"
+
+    connection_failure = next(
+        (
+            failure
+            for failure in failures
+            if failure["component_type"] == "connection"
+            and failure["error_type"] == "resolution"
+        ),
+        None,
+    )
+    assert connection_failure is not None
+    assert "Unable to resolve connection endpoints" in connection_failure["message"]
+
+    await _cleanup_parameter_context(
+        nifi_client, detail["details"].get("parameter_context_id")
+    )
+    await _cleanup_bucket(registry_client, bucket_name)
+
+
+async def test_deploy_flow_with_invalid_processor_type_returns_actionable_error(
+    api_client, nifi_client, registry_client
+):
+    unique_suffix = uuid.uuid4().hex[:8]
+    flow_name = f"api-invalid-processor-flow-{unique_suffix}"
+    bucket_name = f"api-invalid-processor-bucket-{unique_suffix}"
+
+    flow_definition = _build_flow_definition(unique_suffix)
+    invalid_processor_type = "org.apache.nifi.processors.standard.DoesNotExist"
+    flow_definition["processors"][0]["type"] = invalid_processor_type
+
+    payload = {
+        "bucket_id": bucket_name,
+        "flow_definition": flow_definition,
+        "parameters": {},
+        "parent_group_id": "root",
+        "flow_name": flow_name,
+        "flow_description": "Invalid processor integration test",
+    }
+
+    detail = await _assert_nifi_deployment_failure(api_client, payload)
+
+    failures = detail["details"]["failures"]
+    assert failures, "Expected processor failures in NiFi deployment error details"
+
+    processor_failure = next(
+        (
+            failure
+            for failure in failures
+            if failure["component_type"] == "processor"
+            and failure["error_type"] == "creation"
+        ),
+        None,
+    )
+    assert processor_failure is not None
+    assert processor_failure["details"].get("processor_type") == invalid_processor_type
+    assert processor_failure["message"], "Expected processor failure message to be populated"
+
+    await _cleanup_parameter_context(
+        nifi_client, detail["details"].get("parameter_context_id")
+    )
+    await _cleanup_bucket(registry_client, bucket_name)
+
+
+async def test_deploy_flow_with_invalid_parameter_value_returns_actionable_error(
+    api_client, nifi_client, registry_client
+):
+    unique_suffix = uuid.uuid4().hex[:8]
+    parameter_name = f"batch_size_{unique_suffix}"
+    flow_name = f"api-invalid-parameter-flow-{unique_suffix}"
+    bucket_name = f"api-invalid-parameter-bucket-{unique_suffix}"
+
+    flow_definition = _build_flow_definition_with_parameter(unique_suffix, parameter_name)
+
+    payload = {
+        "bucket_id": bucket_name,
+        "flow_definition": flow_definition,
+        "parameters": {parameter_name: "not-a-number"},
+        "parent_group_id": "root",
+        "flow_name": flow_name,
+        "flow_description": "Invalid parameter integration test",
+    }
+
+    detail = await _assert_nifi_deployment_failure(api_client, payload)
+
+    failures = detail["details"].get("failures", [])
+    assert failures, "Expected deployment failures when parameter value is invalid"
+
+    validation_failure = next(
+        (
+            failure
+            for failure in failures
+            if failure["component_type"] == "processor"
+            and failure["error_type"] == "validation"
+        ),
+        None,
+    )
+    assert validation_failure is not None
+
+    validation_errors = validation_failure["details"].get("validation_errors", [])
+    assert validation_errors, "Expected validation errors in failure details"
+    assert any(parameter_name in error or "Batch Size" in error for error in validation_errors)
+
+    # The deployment should also include a summary to help operators triage the issue.
+    summary = detail["details"].get("summary", {})
+    assert summary.get("failed_processors", 0) >= 1
+
+    await _cleanup_parameter_context(
+        nifi_client, detail["details"].get("parameter_context_id")
+    )
+    await _cleanup_bucket(registry_client, bucket_name)
