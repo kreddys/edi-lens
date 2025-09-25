@@ -1,4 +1,4 @@
-"""End-to-end test covering a complete file processing workflow in NiFi."""
+"""End-to-end validation of NiFi file processing through the orchestrator."""
 
 from __future__ import annotations
 
@@ -6,10 +6,9 @@ import asyncio
 import os
 import shutil
 import uuid
-from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable
+from typing import AsyncIterator, Dict, Iterable
 
 import pytest
 
@@ -37,6 +36,8 @@ class FlowDirectories:
 
 @pytest.fixture(scope="module")
 def event_loop() -> AsyncIterator[asyncio.AbstractEventLoop]:
+    """Provide a dedicated event loop for module-scoped fixtures."""
+
     loop = asyncio.new_event_loop()
     try:
         yield loop
@@ -46,6 +47,8 @@ def event_loop() -> AsyncIterator[asyncio.AbstractEventLoop]:
 
 @pytest.fixture(scope="module")
 async def nifi_client():
+    """Yield a configured NiFi client for end-to-end scenarios."""
+
     client = get_test_nifi_client()
     async with client:
         yield client
@@ -53,6 +56,8 @@ async def nifi_client():
 
 @pytest.fixture(scope="module")
 async def registry_client():
+    """Yield a configured Registry client for end-to-end scenarios."""
+
     client = get_test_registry_client()
     async with client:
         yield client
@@ -60,10 +65,14 @@ async def registry_client():
 
 @pytest.fixture(scope="module")
 async def orchestrator(nifi_client, registry_client) -> WorkflowOrchestrator:
+    """Return an orchestrator wired to the live clients."""
+
     return WorkflowOrchestrator(nifi_client, registry_client)
 
 
 def _create_test_directories(test_run_id: str) -> FlowDirectories:
+    """Create and return the directory structure used by the flow under test."""
+
     base_path = SHARED_VOLUME_ROOT / f"edi_lens_e2e_{test_run_id}"
     input_path = base_path / "input"
     output_path = base_path / "output"
@@ -77,25 +86,29 @@ def _create_test_directories(test_run_id: str) -> FlowDirectories:
 
 
 def _load_sample_files() -> Dict[str, str]:
-    contents: Dict[str, str] = {}
-    for sample_file in SAMPLE_FILES_DIR.glob("*.txt"):
-        contents[sample_file.name] = sample_file.read_text()
-    return contents
+    """Load bundled sample files that will be staged as test input."""
+
+    return {
+        sample_file.name: sample_file.read_text()
+        for sample_file in SAMPLE_FILES_DIR.glob("*.txt")
+    }
 
 
 def _stage_input_files(test_directories: FlowDirectories, sample_contents: Dict[str, str]) -> Dict[str, str]:
-    expected_outputs: Dict[str, str] = {}
+    """Write sample files to the NiFi input directory and return expected outputs."""
 
+    expected_outputs: Dict[str, str] = {}
     for filename, content in sample_contents.items():
         destination = test_directories.input / filename
         destination.write_text(content)
         os.chmod(destination, 0o666)
         expected_outputs[f"processed_{filename}"] = content
-
     return expected_outputs
 
 
 def _build_flow_definition(unique_suffix: str) -> Dict[str, object]:
+    """Construct the NiFi flow definition used for the E2E test."""
+
     getfile_id = f"getfile-{unique_suffix}"
     update_id = f"update-{unique_suffix}"
     putfile_id = f"putfile-{unique_suffix}"
@@ -175,8 +188,13 @@ def _build_flow_definition(unique_suffix: str) -> Dict[str, object]:
 
 
 async def _wait_for_outputs(
-    directory: Path, expected_files: Iterable[str], timeout_seconds: int = 60, poll_interval: float = 2.0
+    directory: Path,
+    expected_files: Iterable[str],
+    timeout_seconds: int = 60,
+    poll_interval: float = 2.0,
 ) -> None:
+    """Poll the output directory until all expected files are created."""
+
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout_seconds
     expected = set(expected_files)
@@ -193,7 +211,7 @@ async def _wait_for_outputs(
         await asyncio.sleep(poll_interval)
 
 
-async def test_simple_file_processing_flow(orchestrator, nifi_client, registry_client):
+async def test_simple_file_processing_flow(orchestrator, nifi_client, registry_client) -> None:
     """Validate that a NiFi flow processes files end-to-end via the orchestrator."""
 
     test_run_id = uuid.uuid4().hex[:8]
