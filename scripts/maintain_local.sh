@@ -26,6 +26,7 @@ status() { printf "${CYAN}[STATUS]${NC} %s\n" "$1"; }
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOCKER_DIR="$PROJECT_ROOT/docker"
 BACKEND_DIR="$PROJECT_ROOT/backend"
+FRONTEND_DIR="$PROJECT_ROOT/frontend"
 ENV_FILE="$PROJECT_ROOT/.env.local"
 
 # Load environment if available
@@ -87,6 +88,14 @@ get_backend_pid() {
     pgrep -f "uvicorn.*src.main:app" || true
 }
 
+is_frontend_running() {
+    curl -fs "http://localhost:3000" >/dev/null 2>&1
+}
+
+get_frontend_pid() {
+    pgrep -f "vite.*--host.*--port 3000" || true
+}
+
 # --- Backend Utilities -------------------------------------------------------
 check_backend_dir() {
     if [ ! -d "$BACKEND_DIR" ]; then
@@ -97,6 +106,19 @@ check_backend_dir() {
 check_poetry() {
     if ! command -v poetry >/dev/null 2>&1; then
         error "Poetry is not installed. Install it from https://python-poetry.org/docs/"
+    fi
+}
+
+# --- Frontend Utilities ------------------------------------------------------
+check_frontend_dir() {
+    if [ ! -d "$FRONTEND_DIR" ]; then
+        error "Frontend directory not found: $FRONTEND_DIR"
+    fi
+}
+
+check_npm() {
+    if ! command -v npm >/dev/null 2>&1; then
+        error "npm is not installed. Install it from https://nodejs.org/"
     fi
 }
 
@@ -388,6 +410,72 @@ stop_backend() {
     success "Backend stopped"
 }
 
+start_frontend() {
+    if is_frontend_running; then
+        success "Frontend is already running"
+        return 0
+    fi
+
+    info "Starting frontend service..."
+
+    check_frontend_dir
+    check_npm
+
+    cd "$FRONTEND_DIR"
+
+    # Check if node_modules exists
+    if [ ! -d "node_modules" ]; then
+        warn "Frontend dependencies not installed. Run './scripts/setup_local.sh' first"
+        return 1
+    fi
+
+    # Start frontend in background
+    info "Starting frontend with npm..."
+    nohup npm run dev > ../logs/frontend.log 2>&1 &
+
+    # Wait for frontend to be ready
+    if wait_for_service "http://localhost:3000" "Frontend" 30; then
+        local pid
+        pid=$(get_frontend_pid)
+        success "Frontend started successfully (PID: $pid)"
+        cd "$PROJECT_ROOT"
+        return 0
+    else
+        warn "Frontend failed to start - check logs at ../logs/frontend.log"
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+}
+
+stop_frontend() {
+    local pid
+    pid=$(get_frontend_pid)
+
+    if [ -z "$pid" ]; then
+        info "Frontend is not running"
+        return 0
+    fi
+
+    info "Stopping frontend service (PID: $pid)..."
+    kill "$pid" 2>/dev/null || true
+
+    # Wait for process to stop
+    local attempt=1
+    while [ $attempt -le 10 ]; do
+        if ! kill -0 "$pid" 2>/dev/null; then
+            success "Frontend stopped successfully"
+            return 0
+        fi
+        sleep 1
+        attempt=$((attempt + 1))
+    done
+
+    # Force kill if still running
+    warn "Frontend didn't stop gracefully, force killing..."
+    kill -9 "$pid" 2>/dev/null || true
+    success "Frontend stopped"
+}
+
 # --- Status Functions --------------------------------------------------------
 show_status() {
     info "====================================================================="
@@ -425,6 +513,21 @@ show_status() {
         all_running=false
     fi
 
+    # Check frontend
+    info "🌐 Frontend Service:"
+    local frontend_pid
+    frontend_pid=$(get_frontend_pid)
+    if [ -n "$frontend_pid" ]; then
+        if is_frontend_running; then
+            success "  ✓ Frontend running (PID: $frontend_pid, health check: OK)"
+        else
+            warn "  ⚠ Frontend process found (PID: $frontend_pid) but health check failed"
+        fi
+    else
+        warn "  ✗ Frontend not running"
+        all_running=false
+    fi
+
     # Service endpoints
     info "🌐 Service Health:"
     local endpoints=(
@@ -432,6 +535,7 @@ show_status() {
         "Registry:http://localhost:18080/nifi-registry-api/config"
         "NiFi:https://localhost:8443/nifi/"
         "Backend:http://localhost:8000/health"
+        "Frontend:http://localhost:3000"
     )
 
     for endpoint in "${endpoints[@]}"; do
@@ -489,6 +593,13 @@ show_logs() {
                 warn "Backend log file not found"
             fi
             ;;
+        frontend)
+            if [ -f "$PROJECT_ROOT/logs/frontend.log" ]; then
+                tail -f "$PROJECT_ROOT/logs/frontend.log"
+            else
+                warn "Frontend log file not found"
+            fi
+            ;;
         nifi)
             docker logs -f edi-lens-nifi
             ;;
@@ -499,7 +610,7 @@ show_logs() {
             docker logs -f edi-lens-db
             ;;
         *)
-            info "Available log sources: backend, nifi, registry, db"
+            info "Available log sources: backend, frontend, nifi, registry, db"
             info "Usage: $0 logs <service>"
             ;;
     esac
@@ -526,8 +637,12 @@ COMMANDS:
     stop-backend         Stop only backend service
     restart-backend      Restart only backend service
 
+    start-frontend       Start only frontend service
+    stop-frontend        Stop only frontend service
+    restart-frontend     Restart only frontend service
+
     status               Show detailed status of all services
-    logs [service]       Show logs (backend, nifi, registry, db)
+    logs [service]       Show logs (backend, frontend, nifi, registry, db)
 
     test-unit [args]     Run backend unit tests
     test-integration [args]
@@ -543,9 +658,11 @@ EXAMPLES:
     $0 start             # Start everything
     $0 start-infra       # Start only Docker containers
     $0 start-backend     # Start only backend
+    $0 start-frontend    # Start only frontend
     $0 test-integration  # Run backend integration tests
     $0 status            # Show status
     $0 logs backend      # Show backend logs
+    $0 logs frontend     # Show frontend logs
     $0 restart           # Restart everything
 
 SERVICES:
@@ -556,6 +673,9 @@ SERVICES:
 
     Backend (Local):
       - FastAPI backend (port 8000)
+
+    Frontend (Local):
+      - React frontend (port 3000)
 
 EOF
 }
@@ -569,17 +689,21 @@ main() {
         start)
             start_infrastructure
             start_backend
+            start_frontend
             ;;
         stop)
+            stop_frontend
             stop_backend
             stop_infrastructure
             ;;
         restart)
+            stop_frontend
             stop_backend
             stop_infrastructure
             sleep 2
             start_infrastructure
             start_backend
+            start_frontend
             ;;
         start-infra|start-infrastructure)
             start_infrastructure
@@ -602,6 +726,17 @@ main() {
             stop_backend
             sleep 2
             start_backend
+            ;;
+        start-frontend)
+            start_frontend
+            ;;
+        stop-frontend)
+            stop_frontend
+            ;;
+        restart-frontend)
+            stop_frontend
+            sleep 2
+            start_frontend
             ;;
         test-unit)
             shift
@@ -633,6 +768,7 @@ main() {
             show_status
             ;;
         clean)
+            stop_frontend
             stop_backend
             stop_infrastructure
             success "All services stopped and cleaned up"

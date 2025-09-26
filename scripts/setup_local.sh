@@ -26,6 +26,7 @@ status() { printf "${CYAN}[STATUS]${NC} %s\n" "$1"; }
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOCKER_DIR="$PROJECT_ROOT/docker"
 BACKEND_DIR="$PROJECT_ROOT/backend"
+FRONTEND_DIR="$PROJECT_ROOT/frontend"
 ENV_FILE="$PROJECT_ROOT/.env.local"
 
 # --- Utility Functions -------------------------------------------------------
@@ -193,6 +194,45 @@ setup_backend_dependencies() {
     cd "$PROJECT_ROOT"
 }
 
+setup_frontend_dependencies() {
+    info "====================================================================="
+    info "🌐 FRONTEND DEPENDENCIES SETUP"
+    info "====================================================================="
+
+    if [ ! -d "$FRONTEND_DIR" ]; then
+        warn "Frontend directory not found at $FRONTEND_DIR - skipping frontend setup"
+        return 0
+    fi
+
+    if [ ! -f "$FRONTEND_DIR/package.json" ]; then
+        warn "package.json not found in frontend directory - skipping frontend setup"
+        return 0
+    fi
+
+    # Check if npm is available
+    if ! command -v npm >/dev/null 2>&1; then
+        error "npm is not installed. Please install Node.js and npm first."
+    fi
+
+    cd "$FRONTEND_DIR"
+
+    # Check if dependencies are already installed
+    if [ -d "node_modules" ] && [ -f "package-lock.json" ]; then
+        info "Checking if frontend dependencies are up to date..."
+        if npm list >/dev/null 2>&1; then
+            success "✓ Frontend dependencies already installed and up to date"
+            cd "$PROJECT_ROOT"
+            return 0
+        fi
+    fi
+
+    info "Installing frontend dependencies with npm..."
+    npm install
+
+    success "✅ Frontend dependencies installed successfully"
+    cd "$PROJECT_ROOT"
+}
+
 setup_docker_infrastructure() {
     info "====================================================================="
     info "🐳 DOCKER INFRASTRUCTURE SETUP"
@@ -253,31 +293,36 @@ local_setup_main() {
     info "Setting up local development environment"
     info "Infrastructure: Docker containers"
     info "Backend: Local with Poetry"
+    info "Frontend: Local with npm"
     info "Timestamp: $(date)"
     info "====================================================================="
 
     # Step 1: Prerequisites check
-    info "📋 STEP 1/5: Prerequisites check"
+    info "📋 STEP 1/6: Prerequisites check"
     require_cmd docker
     require_cmd curl
     check_docker
     check_docker_compose
 
     # Step 2: Environment setup
-    info "📋 STEP 2/5: Environment setup"
+    info "📋 STEP 2/6: Environment setup"
     create_env_file
     load_environment
 
     # Step 3: Backend dependencies
-    info "📋 STEP 3/5: Backend dependencies"
+    info "📋 STEP 3/6: Backend dependencies"
     setup_backend_dependencies
 
-    # Step 4: Docker infrastructure
-    info "📋 STEP 4/5: Docker infrastructure"
+    # Step 4: Frontend dependencies
+    info "📋 STEP 4/6: Frontend dependencies"
+    setup_frontend_dependencies
+
+    # Step 5: Docker infrastructure
+    info "📋 STEP 5/6: Docker infrastructure"
     setup_docker_infrastructure
 
-    # Step 5: Final verification
-    info "📋 STEP 5/5: Final verification"
+    # Step 6: Final verification
+    info "📋 STEP 6/6: Final verification"
     verify_setup
 
     local end_time=$(date +%s)
@@ -296,15 +341,19 @@ local_setup_main() {
     info "  Backend    : Ready for local startup"
     echo ""
     info "🚀 Next steps:"
-    info "  Start backend: cd backend && poetry run uvicorn src.main:app --reload"
-    info "  Or use:       ./scripts/maintain_local.sh start-backend"
+    info "  Start backend : cd backend && poetry run uvicorn src.main:app --reload"
+    info "  Start frontend: cd frontend && npm run dev"
+    info "  Or use:        ./scripts/maintain_local.sh start-backend"
+    info "  Or use:        ./scripts/maintain_local.sh start-frontend"
     echo ""
     info "🔧 Maintenance commands:"
-    info "  Start all     : ./scripts/maintain_local.sh start"
-    info "  Stop all      : ./scripts/maintain_local.sh stop"
-    info "  Status        : ./scripts/maintain_local.sh status"
-    info "  Start backend : ./scripts/maintain_local.sh start-backend"
-    info "  Stop backend  : ./scripts/maintain_local.sh stop-backend"
+    info "  Start all      : ./scripts/maintain_local.sh start"
+    info "  Stop all       : ./scripts/maintain_local.sh stop"
+    info "  Status         : ./scripts/maintain_local.sh status"
+    info "  Start backend  : ./scripts/maintain_local.sh start-backend"
+    info "  Stop backend   : ./scripts/maintain_local.sh stop-backend"
+    info "  Start frontend : ./scripts/maintain_local.sh start-frontend"
+    info "  Stop frontend  : ./scripts/maintain_local.sh stop-frontend"
     echo "====================================================================="
 }
 
