@@ -59,13 +59,18 @@ class NiFiBaseClient(LoggerMixin):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.session and not self._external_session:
             await self.session.close()
+            self.session = None  # Reset session reference after closing
 
     async def _ensure_session(self):
         """Ensure HTTP session exists."""
-        if self.session is None:
+        if self.session is None or self.session.closed:
             connector = None
             if not self.verify_ssl:
-                connector = aiohttp.TCPConnector(ssl=False)
+                # Create an SSL context that doesn't verify certificates and handles SNI issues
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+                connector = aiohttp.TCPConnector(ssl=ssl_context)
 
             self.session = aiohttp.ClientSession(
                 connector=connector,

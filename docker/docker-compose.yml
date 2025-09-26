@@ -7,7 +7,7 @@ services:
     image: postgres:16-alpine
     container_name: edi-lens-db
     env_file:
-      - ../.env
+      - ../.env.docker
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -31,7 +31,7 @@ services:
     container_name: edi-lens-registry
     user: "0:0"  # Run as root to fix permissions
     env_file:
-      - ../.env
+      - ../.env.docker
     environment:
       NIFI_REGISTRY_WEB_HTTP_HOST: ${NIFI_REGISTRY_WEB_HTTP_HOST}
       NIFI_REGISTRY_WEB_HTTP_PORT: ${NIFI_REGISTRY_WEB_HTTP_PORT}
@@ -64,11 +64,13 @@ services:
     image: apache/nifi:2.5.0
     container_name: edi-lens-nifi
     env_file:
-      - ../.env
+      - ../.env.docker
     environment:
       # Accept HTTPS mode (NiFi 2.5.0 Docker prefers HTTPS)
       NIFI_WEB_HTTPS_PORT: ${NIFI_WEB_HTTPS_PORT}
       NIFI_WEB_HTTPS_HOST: ${NIFI_WEB_HTTPS_HOST}
+      # Add proxy configuration to accept Docker service names
+      NIFI_WEB_PROXY_HOST: ${NIFI_WEB_PROXY_HOST}
 
       # Single user authentication (minimum 12 chars password)
       SINGLE_USER_CREDENTIALS_USERNAME: ${NIFI_USERNAME}
@@ -89,6 +91,8 @@ services:
       - nifi_content:/opt/nifi/nifi-current/content_repository
       - nifi_provenance:/opt/nifi/nifi-current/provenance_repository
       - nifi_state:/opt/nifi/nifi-current/state
+      # Mount test data directory for e2e tests
+      - ../backend/tests/data:/opt/nifi/test_data
       # Note: conf volume removed to allow NiFi to write authentication files
     networks:
       - edi_lens_network
@@ -108,7 +112,7 @@ services:
       dockerfile: docker/backend/Dockerfile.dev
     container_name: edi-lens-backend
     env_file:
-      - ../.env
+      - ../.env.docker
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/edi_lens
       NIFI_URL: ${NIFI_URL}
@@ -116,8 +120,9 @@ services:
       NIFI_PASSWORD: ${NIFI_PASSWORD}
       NIFI_REGISTRY_URL: ${NIFI_REGISTRY_URL}
       NIFI_REGISTRY_AUTH_TOKEN: ${NIFI_REGISTRY_AUTH_TOKEN}
+      NIFI_VERIFY_SSL: ${NIFI_VERIFY_SSL}
+      REGISTRY_VERIFY_SSL: ${REGISTRY_VERIFY_SSL}
       DEBUG: ${DEBUG}
-      VERIFY_SSL: ${VERIFY_SSL}
       # Enable hot reload optimizations
       PYTHONPATH: /app
       PYTHONDONTWRITEBYTECODE: 1

@@ -22,7 +22,11 @@ from tests.test_config import (
 pytestmark = pytest.mark.e2e
 
 SAMPLE_FILES_DIR = Path(__file__).parent / "testdata"
-SHARED_VOLUME_ROOT = Path("/e2e_test_files")
+# Use a test data directory within backend/tests that works in both local and containerized environments
+# For local development/testing
+TEST_DATA_ROOT = Path(__file__).parent.parent / "data" / "e2e_test_files"
+# For NiFi container access (mounted at /opt/nifi/test_data)
+NIFI_TEST_DATA_ROOT = Path("/opt/nifi/test_data/e2e_test_files")
 
 
 @dataclass
@@ -64,16 +68,35 @@ async def orchestrator(nifi_client, registry_client) -> WorkflowOrchestrator:
 
 
 def _create_test_directories(test_run_id: str) -> FlowDirectories:
-    base_path = SHARED_VOLUME_ROOT / f"edi_lens_e2e_{test_run_id}"
-    input_path = base_path / "input"
-    output_path = base_path / "output"
-    error_path = base_path / "error"
+    # Ensure the root test data directory exists locally
+    TEST_DATA_ROOT.mkdir(parents=True, exist_ok=True)
+    
+    # Create directories locally (host filesystem)
+    local_base_path = TEST_DATA_ROOT / f"edi_lens_e2e_{test_run_id}"
+    local_input_path = local_base_path / "input"
+    local_output_path = local_base_path / "output"
+    local_error_path = local_base_path / "error"
 
-    for directory in (input_path, output_path, error_path):
+    for directory in (local_input_path, local_output_path, local_error_path):
         directory.mkdir(parents=True, exist_ok=True)
-        os.chmod(directory, 0o777)
+        try:
+            os.chmod(directory, 0o777)
+        except (OSError, PermissionError):
+            # In some environments, chmod might fail, but the directory should still be usable
+            pass
 
-    return FlowDirectories(base=base_path, input=input_path, output=output_path, error=error_path)
+    # Return paths that NiFi container can access (via volume mount)
+    nifi_base_path = NIFI_TEST_DATA_ROOT / f"edi_lens_e2e_{test_run_id}"
+    nifi_input_path = nifi_base_path / "input"
+    nifi_output_path = nifi_base_path / "output"
+    nifi_error_path = nifi_base_path / "error"
+
+    return FlowDirectories(
+        base=nifi_base_path, 
+        input=nifi_input_path, 
+        output=nifi_output_path, 
+        error=nifi_error_path
+    )
 
 
 def _load_sample_files() -> Dict[str, str]:
@@ -83,13 +106,20 @@ def _load_sample_files() -> Dict[str, str]:
     return contents
 
 
-def _stage_input_files(test_directories: FlowDirectories, sample_contents: Dict[str, str]) -> Dict[str, str]:
+def _stage_input_files(test_directories: FlowDirectories, sample_contents: Dict[str, str], test_run_id: str) -> Dict[str, str]:
     expected_outputs: Dict[str, str] = {}
 
+    # Write files to local directory (host filesystem)
+    local_input_path = TEST_DATA_ROOT / f"edi_lens_e2e_{test_run_id}" / "input"
+    
     for filename, content in sample_contents.items():
-        destination = test_directories.input / filename
+        destination = local_input_path / filename
         destination.write_text(content)
-        os.chmod(destination, 0o666)
+        try:
+            os.chmod(destination, 0o666)
+        except (OSError, PermissionError):
+            # In some environments, chmod might fail, but the file should still be readable
+            pass
         expected_outputs[f"processed_{filename}"] = content
 
     return expected_outputs
@@ -175,14 +205,15 @@ def _build_flow_definition(unique_suffix: str) -> Dict[str, object]:
 
 
 async def _wait_for_outputs(
-    directory: Path, expected_files: Iterable[str], timeout_seconds: int = 60, poll_interval: float = 2.0
+    local_directory: Path, expected_files: Iterable[str], timeout_seconds: int = 60, poll_interval: float = 2.0
 ) -> None:
+    """Wait for output files to appear in the local directory."""
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout_seconds
     expected = set(expected_files)
 
     while True:
-        current_files = {item.name for item in directory.glob("*") if item.is_file()}
+        current_files = {item.name for item in local_directory.glob("*") if item.is_file()}
         if expected.issubset(current_files):
             return
 
@@ -202,7 +233,7 @@ async def test_simple_file_processing_flow(orchestrator, nifi_client, registry_c
 
     test_dirs = _create_test_directories(test_run_id)
     sample_contents = _load_sample_files()
-    expected_outputs = _stage_input_files(test_dirs, sample_contents)
+    expected_outputs = _stage_input_files(test_dirs, sample_contents, test_run_id)
 
     flow_definition = _build_flow_definition(test_run_id)
     parameters = {
@@ -239,15 +270,20 @@ async def test_simple_file_processing_flow(orchestrator, nifi_client, registry_c
         assert start_result["success"] is True, f"Failed to start flow: {start_result}"
         assert start_result["flow_status"]["overall_status"] in {"running", "partially_running"}
 
-        await _wait_for_outputs(test_dirs.output, expected_outputs.keys())
+        # Wait for outputs in local directory
+        local_output_path = TEST_DATA_ROOT / f"edi_lens_e2e_{test_run_id}" / "output"
+        await _wait_for_outputs(local_output_path, expected_outputs.keys())
 
+        # Check output files in local directory
         for output_name, expected_content in expected_outputs.items():
-            output_file = test_dirs.output / output_name
+            output_file = local_output_path / output_name
             assert output_file.exists(), f"Expected output file missing: {output_name}"
             actual_content = output_file.read_text()
             assert actual_content == expected_content, f"Unexpected content in {output_name}"
 
-        remaining_inputs = list(test_dirs.input.glob("*.txt"))
+        # Check that input files were consumed (in local directory)
+        local_input_path = TEST_DATA_ROOT / f"edi_lens_e2e_{test_run_id}" / "input"
+        remaining_inputs = list(local_input_path.glob("*.txt"))
         assert not remaining_inputs, "Input files should be consumed by the flow"
 
         stop_result = await orchestrator.stop_flow_workflow(process_group_id)
@@ -275,5 +311,7 @@ async def test_simple_file_processing_flow(orchestrator, nifi_client, registry_c
                 except Exception:
                     pass
 
-            if test_dirs.base.exists():
-                shutil.rmtree(test_dirs.base, ignore_errors=True)
+            # Clean up local test directories
+            local_base_path = TEST_DATA_ROOT / f"edi_lens_e2e_{test_run_id}"
+            if local_base_path.exists():
+                shutil.rmtree(local_base_path, ignore_errors=True)
