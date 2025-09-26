@@ -87,6 +87,200 @@ get_backend_pid() {
     pgrep -f "uvicorn.*src.main:app" || true
 }
 
+# --- Backend Utilities -------------------------------------------------------
+check_backend_dir() {
+    if [ ! -d "$BACKEND_DIR" ]; then
+        error "Backend directory not found: $BACKEND_DIR"
+    fi
+}
+
+check_poetry() {
+    if ! command -v poetry >/dev/null 2>&1; then
+        error "Poetry is not installed. Install it from https://python-poetry.org/docs/"
+    fi
+}
+
+ensure_pytest_available() {
+    if ! poetry run pytest --version >/dev/null 2>&1; then
+        warn "Pytest not available in the Poetry environment. Installing backend dependencies..."
+        if ! poetry install --with dev --no-interaction; then
+            error "Failed to install backend dependencies with Poetry"
+        fi
+    fi
+}
+
+warn_if_unreachable() {
+    local name="$1"
+    local url="$2"
+    local insecure="${3:-}"
+    local curl_flags="-fs"
+
+    if [ "$insecure" = "insecure" ]; then
+        curl_flags="-kfs"
+    fi
+
+    if ! curl $curl_flags "$url" >/dev/null 2>&1; then
+        warn "$name not reachable at $url"
+    fi
+}
+
+run_pytest_suite() {
+    local suite_path="$1"
+    shift || true
+    local -a pytest_args=("$suite_path" "-v")
+
+    if (( $# > 0 )); then
+        pytest_args+=("$@")
+    fi
+
+    poetry run pytest "${pytest_args[@]}"
+}
+
+run_pytest_watch() {
+    local -a extra_args=()
+    if (( $# )); then
+        extra_args=("$@")
+    fi
+
+    info "Starting pytest in watch mode..."
+
+    if poetry run ptw --help >/dev/null 2>&1; then
+        if (( ${#extra_args[@]} )); then
+            poetry run ptw tests/ -- -v "${extra_args[@]}"
+        else
+            poetry run ptw tests/ -- -v
+        fi
+    elif poetry run pytest --help | grep -q -- "--looponfail"; then
+        if (( ${#extra_args[@]} )); then
+            poetry run pytest --looponfail tests/ -v "${extra_args[@]}"
+        else
+            poetry run pytest --looponfail tests/ -v
+        fi
+    else
+        warn "Watch mode not available. Running tests once instead."
+        if (( ${#extra_args[@]} )); then
+            run_pytest_suite "tests/" "${extra_args[@]}"
+        else
+            run_pytest_suite "tests/"
+        fi
+    fi
+}
+
+run_backend_tests() {
+    local test_type="${1:-all}"
+    if (( $# > 0 )); then
+        shift
+    fi
+    local -a extra_args=("$@")
+
+    check_backend_dir
+    check_poetry
+
+    local original_dir="$PWD"
+    cd "$BACKEND_DIR"
+
+    ensure_pytest_available
+
+    case "$test_type" in
+        unit)
+            info "Running backend unit tests..."
+            if (( ${#extra_args[@]} )); then
+                run_pytest_suite "tests/unit/" "${extra_args[@]}"
+            else
+                run_pytest_suite "tests/unit/"
+            fi
+            success "Unit tests completed"
+            ;;
+        integration)
+            info "Running backend integration tests..."
+            local nifi_base="${NIFI_URL:-https://localhost:8443}"
+            nifi_base="${nifi_base%/}"
+            warn_if_unreachable "NiFi" "$nifi_base/nifi/" insecure
+
+            local registry_base="${NIFI_REGISTRY_URL:-http://localhost:18080}"
+            registry_base="${registry_base%/}"
+            warn_if_unreachable "NiFi Registry" "$registry_base/nifi-registry-api/config"
+
+            if (( ${#extra_args[@]} )); then
+                run_pytest_suite "tests/integration/" "${extra_args[@]}"
+            else
+                run_pytest_suite "tests/integration/"
+            fi
+            success "Integration tests completed"
+            ;;
+        e2e)
+            info "Running backend end-to-end tests..."
+            local backend_base="${BACKEND_URL:-http://localhost:8000}"
+            backend_base="${backend_base%/}"
+            warn_if_unreachable "Backend API" "$backend_base/health"
+
+            local nifi_base="${NIFI_URL:-https://localhost:8443}"
+            nifi_base="${nifi_base%/}"
+            warn_if_unreachable "NiFi" "$nifi_base/nifi/" insecure
+
+            local registry_base="${NIFI_REGISTRY_URL:-http://localhost:18080}"
+            registry_base="${registry_base%/}"
+            warn_if_unreachable "NiFi Registry" "$registry_base/nifi-registry-api/config"
+
+            if (( ${#extra_args[@]} )); then
+                run_pytest_suite "tests/e2e/" "${extra_args[@]}"
+            else
+                run_pytest_suite "tests/e2e/"
+            fi
+            success "End-to-end tests completed"
+            ;;
+        all)
+            info "Running full backend test suite..."
+
+            info "→ Unit tests"
+            if (( ${#extra_args[@]} )); then
+                run_pytest_suite "tests/unit/" "${extra_args[@]}"
+            else
+                run_pytest_suite "tests/unit/"
+            fi
+
+            info "→ Integration tests"
+            local nifi_base="${NIFI_URL:-https://localhost:8443}"
+            nifi_base="${nifi_base%/}"
+            warn_if_unreachable "NiFi" "$nifi_base/nifi/" insecure
+
+            local registry_base="${NIFI_REGISTRY_URL:-http://localhost:18080}"
+            registry_base="${registry_base%/}"
+            warn_if_unreachable "NiFi Registry" "$registry_base/nifi-registry-api/config"
+            if (( ${#extra_args[@]} )); then
+                run_pytest_suite "tests/integration/" "${extra_args[@]}"
+            else
+                run_pytest_suite "tests/integration/"
+            fi
+
+            info "→ End-to-end tests"
+            local backend_base="${BACKEND_URL:-http://localhost:8000}"
+            backend_base="${backend_base%/}"
+            warn_if_unreachable "Backend API" "$backend_base/health"
+            warn_if_unreachable "NiFi" "$nifi_base/nifi/" insecure
+            warn_if_unreachable "NiFi Registry" "$registry_base/nifi-registry-api/config"
+            if (( ${#extra_args[@]} )); then
+                run_pytest_suite "tests/e2e/" "${extra_args[@]}"
+            else
+                run_pytest_suite "tests/e2e/"
+            fi
+
+            success "All backend tests completed"
+            ;;
+        watch)
+            info "Starting backend tests in watch mode..."
+            run_pytest_watch "${extra_args[@]}"
+            success "Test watch session ended"
+            ;;
+        *)
+            cd "$original_dir"
+            error "Unknown test type: $test_type"
+            ;;
+    esac
+
+    cd "$original_dir"
+}
+
 # --- Service Management Functions --------------------------------------------
 start_infrastructure() {
     info "Starting Docker infrastructure services..."
@@ -335,6 +529,13 @@ COMMANDS:
     status               Show detailed status of all services
     logs [service]       Show logs (backend, nifi, registry, db)
 
+    test-unit [args]     Run backend unit tests
+    test-integration [args]
+                         Run backend integration tests
+    test-e2e [args]      Run backend end-to-end tests
+    test-all [args]      Run the full backend test suite
+    test-watch [args]    Run backend tests in watch mode
+
     health               Quick health check
     clean                Stop all services and clean up
 
@@ -342,6 +543,7 @@ EXAMPLES:
     $0 start             # Start everything
     $0 start-infra       # Start only Docker containers
     $0 start-backend     # Start only backend
+    $0 test-integration  # Run backend integration tests
     $0 status            # Show status
     $0 logs backend      # Show backend logs
     $0 restart           # Restart everything
@@ -400,6 +602,26 @@ main() {
             stop_backend
             sleep 2
             start_backend
+            ;;
+        test-unit)
+            shift
+            run_backend_tests unit "$@"
+            ;;
+        test-integration)
+            shift
+            run_backend_tests integration "$@"
+            ;;
+        test-e2e)
+            shift
+            run_backend_tests e2e "$@"
+            ;;
+        test-all)
+            shift
+            run_backend_tests all "$@"
+            ;;
+        test-watch)
+            shift
+            run_backend_tests watch "$@"
             ;;
         status)
             show_status
