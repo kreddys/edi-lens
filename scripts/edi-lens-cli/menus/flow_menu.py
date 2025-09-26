@@ -243,12 +243,12 @@ class FlowMenu(BaseMenu):
                     # Auto-start if requested
                     if config.get("auto_start"):
                         self.display.info("\n▶️ Starting flow...")
-                        start_result = await self.api_client.start_flow(process_group_id)
-                        
-                        if start_result.get("success"):
+                        try:
+                            start_result = await self.api_client.start_flow(process_group_id)
+                            # If we get here, HTTP status was 2xx, so start succeeded
                             self.display.success("✅ Flow started successfully!")
-                        else:
-                            self.display.warning("⚠️ Flow deployed but failed to start")
+                        except Exception:
+                            self.display.error("⚠️ Flow deployed but failed to start")
                             
             else:
                 self.display.error("❌ Flow deployment failed!")

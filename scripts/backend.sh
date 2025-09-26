@@ -20,7 +20,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DOCKER_DIR="$PROJECT_ROOT/docker"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 DOCKER_COMPOSE=""
-ENV_FILE="$PROJECT_ROOT/.env.docker"
+ENV_FILE="$PROJECT_ROOT/.env.local"
 
 # Colors and logging
 readonly RED='\033[0;31m'

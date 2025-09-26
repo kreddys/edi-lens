@@ -1,17 +1,51 @@
-# Production overrides for docker-compose.yml
-# Use with: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+# Production/Container Override
+# Adds backend service to run in container alongside other services
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
 
 services:
   backend:
     build:
       context: ..
-      dockerfile: docker/backend/Dockerfile  # Use production Dockerfile
+      dockerfile: docker/backend/Dockerfile.dev
+    container_name: edi-lens-backend
+    env_file:
+      - ../.env.local
     environment:
-      # Production environment variables
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/edi_lens
+      NIFI_URL: ${NIFI_URL}
+      NIFI_USERNAME: ${NIFI_USERNAME}
+      NIFI_PASSWORD: ${NIFI_PASSWORD}
+      NIFI_REGISTRY_URL: ${NIFI_REGISTRY_URL}
+      NIFI_REGISTRY_AUTH_TOKEN: ${NIFI_REGISTRY_AUTH_TOKEN}
+      NIFI_VERIFY_SSL: ${NIFI_VERIFY_SSL}
+      REGISTRY_VERIFY_SSL: ${REGISTRY_VERIFY_SSL}
+      DEBUG: ${DEBUG}
+      PYTHONPATH: /app
       PYTHONDONTWRITEBYTECODE: 1
       PYTHONUNBUFFERED: 1
+    ports:
+      - "8000:8000"
     volumes:
-      # Remove volume mounts - use code baked into image
-      - /dev/null:/app/src  # Override the dev volume mount
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 4 --no-access-log
-    # Remove the hot reload volumes and use production command
+      # Mount source code for development
+      - ../backend/src:/app/src:cached
+      - ../backend/tests:/app/tests:cached
+      - ../backend/pyproject.toml:/app/pyproject.toml:cached
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "localhost:host-gateway"
+    networks:
+      - edi_lens_network
+    depends_on:
+      db:
+        condition: service_healthy
+      nifi:
+        condition: service_healthy
+      nifi-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src --log-level info

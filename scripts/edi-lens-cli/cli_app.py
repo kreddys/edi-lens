@@ -380,10 +380,11 @@ class EDILensCLI:
                 
                 if args.auto_start and process_group_id:
                     print("🔄 Auto-starting flow...")
-                    start_result = await self.api_client.start_flow(process_group_id)
-                    if start_result.get("success"):
+                    try:
+                        start_result = await self.api_client.start_flow(process_group_id)
+                        # If we get here, HTTP status was 2xx, so start succeeded
                         print("✅ Flow started successfully!")
-                    else:
+                    except Exception:
                         print("⚠️ Flow deployed but failed to start")
                         
                 self._output_data(result, "Deployment Result")
@@ -399,16 +400,18 @@ class EDILensCLI:
         if not args.process_group_id:
             print("❌ Process Group ID is required for start-flow command")
             return
-            
+
         try:
             result = await self.api_client.start_flow(args.process_group_id)
-            if result.get("success"):
-                print(f"✅ Flow {args.process_group_id} started successfully")
-            else:
-                print(f"❌ Failed to start flow {args.process_group_id}")
-                
+            # If we get here, HTTP status was 2xx, so operation succeeded
+            print(f"✅ Flow {args.process_group_id} started successfully")
+
+            # Show the response message if available
+            if "message" in result:
+                print(f"   {result['message']}")
+
             self._output_data(result, "Start Flow Result")
-            
+
         except Exception as e:
             print(f"❌ Start flow failed: {e}")
 
@@ -417,16 +420,18 @@ class EDILensCLI:
         if not args.process_group_id:
             print("❌ Process Group ID is required for stop-flow command")
             return
-            
+
         try:
             result = await self.api_client.stop_flow(args.process_group_id)
-            if result.get("success"):
-                print(f"✅ Flow {args.process_group_id} stopped successfully")
-            else:
-                print(f"❌ Failed to stop flow {args.process_group_id}")
-                
+            # If we get here, HTTP status was 2xx, so operation succeeded
+            print(f"✅ Flow {args.process_group_id} stopped successfully")
+
+            # Show the response message if available
+            if "message" in result:
+                print(f"   {result['message']}")
+
             self._output_data(result, "Stop Flow Result")
-            
+
         except Exception as e:
             print(f"❌ Stop flow failed: {e}")
 
@@ -438,16 +443,18 @@ class EDILensCLI:
             
         try:
             result = await self.api_client.delete_flow(
-                args.process_group_id, 
+                args.process_group_id,
                 args.remove_from_registry
             )
-            if result.get("success"):
-                print(f"✅ Flow {args.process_group_id} deleted successfully")
-            else:
-                print(f"❌ Failed to delete flow {args.process_group_id}")
-                
+            # If we get here, HTTP status was 2xx, so operation succeeded
+            print(f"✅ Flow {args.process_group_id} deleted successfully")
+
+            # Show the response message if available
+            if "message" in result:
+                print(f"   {result['message']}")
+
             self._output_data(result, "Delete Flow Result")
-            
+
         except Exception as e:
             print(f"❌ Delete flow failed: {e}")
 

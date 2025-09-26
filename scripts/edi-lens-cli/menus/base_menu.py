@@ -106,37 +106,23 @@ class BaseMenu(ABC):
         
     async def show_operation_result(self, result: Dict[str, Any], operation_name: str):
         """Show the result of an operation to the user."""
-        if result.get("success"):
-            self.display.success(f"{operation_name} completed successfully!")
-            
-            # Show additional details if available
-            if "message" in result:
-                self.display.info(result["message"])
-                
-            # Show specific result data
-            if "process_group_id" in result:
-                self.display.info(f"Process Group ID: {result['process_group_id']}")
-                
-            if "flow_id" in result:
-                self.display.info(f"Flow ID: {result['flow_id']}")
-                
-            if "version" in result:
-                self.display.info(f"Version: {result['version']}")
-                
-        else:
-            self.display.error(f"{operation_name} failed!")
-            
-            if "message" in result:
-                self.display.error(result["message"])
-                
-            # Show failure details if available
-            if "failures" in result:
-                self.display.section_header("Failure Details")
-                failures = result["failures"]
-                if isinstance(failures, list):
-                    for i, failure in enumerate(failures, 1):
-                        self.display.error(f"{i}. {failure}")
-                        
+        # If we get here without exception, HTTP status was 2xx, so operation succeeded
+        self.display.success(f"{operation_name} completed successfully!")
+
+        # Show the response message if available
+        if "message" in result:
+            self.display.info(result["message"])
+
+        # Show specific result data
+        if "process_group_id" in result:
+            self.display.info(f"Process Group ID: {result['process_group_id']}")
+
+        if "flow_id" in result:
+            self.display.info(f"Flow ID: {result['flow_id']}")
+
+        if "version" in result:
+            self.display.info(f"Version: {result['version']}")
+
         self.display.pause("Press Enter to continue...")
         
     def get_user_input_with_validation(self, prompt: str, validator=None, default: str = "") -> str:
