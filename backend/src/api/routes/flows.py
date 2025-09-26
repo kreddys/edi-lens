@@ -483,6 +483,42 @@ async def list_buckets(
         ) from exc
 
 
+@router.post("/registry/buckets")
+async def create_bucket(
+    request: dict,
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
+) -> Dict:
+    """Create a new Registry bucket."""
+    try:
+        bucket_name = request.get("bucket_name")
+        description = request.get("description", "")
+
+        if not bucket_name:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error_type": "INVALID_REQUEST",
+                    "user_message": "Bucket name is required",
+                    "action_required": "Provide a valid bucket name",
+                },
+            )
+
+        bucket = await orchestrator.registry_bucket_mgmt.create_bucket(bucket_name, description)
+        return bucket
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("Failed to create bucket")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_type": "BUCKET_CREATE_FAILED",
+                "user_message": "Failed to create bucket",
+                "action_required": "Please try again or contact support",
+            },
+        ) from exc
+
+
 @router.get("/registry/buckets/{bucket_id}/flows")
 async def list_flows_in_bucket(
     bucket_id: str = Path(..., description="Registry bucket ID"),
@@ -525,6 +561,28 @@ async def get_flow_from_registry(
             detail={
                 "error_type": "FLOW_NOT_FOUND" if "not found" in str(exc).lower() else "FLOW_GET_FAILED",
                 "user_message": f"Flow {flow_id} not found" if "not found" in str(exc).lower() else "Failed to retrieve flow",
+                "action_required": "Verify flow ID and try again",
+            },
+        ) from exc
+
+
+@router.get("/registry/buckets/{bucket_id}/flows/{flow_id}/versions")
+async def list_flow_versions(
+    bucket_id: str = Path(..., description="Registry bucket ID"),
+    flow_id: str = Path(..., description="Flow ID"),
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
+) -> List[Dict]:
+    """List all versions of a flow in Registry."""
+    try:
+        versions = await orchestrator.registry_version_mgmt.list_flow_versions(bucket_id, flow_id)
+        return versions
+    except Exception as exc:
+        log.exception("Failed to list versions for flow %s/%s", bucket_id, flow_id)
+        raise HTTPException(
+            status_code=404 if "not found" in str(exc).lower() else 500,
+            detail={
+                "error_type": "FLOW_VERSIONS_NOT_FOUND" if "not found" in str(exc).lower() else "FLOW_VERSIONS_FAILED",
+                "user_message": f"Flow versions for {flow_id} not found" if "not found" in str(exc).lower() else "Failed to retrieve flow versions",
                 "action_required": "Verify flow ID and try again",
             },
         ) from exc

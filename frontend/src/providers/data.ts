@@ -198,5 +198,18 @@ export const flowAPI = {
         const versionParam = version ? `?version=${version}` : '';
         const { data } = await axiosInstance.get(`/api/flows/registry/buckets/${bucketId}/flows/${flowId}${versionParam}`);
         return data;
+    },
+
+    getFlowVersions: async (bucketId: string, flowId: string) => {
+        const { data } = await axiosInstance.get(`/api/flows/registry/buckets/${bucketId}/flows/${flowId}/versions`);
+        return data;
+    },
+
+    createBucket: async (bucketName: string, description?: string) => {
+        const { data } = await axiosInstance.post('/api/flows/registry/buckets', {
+            bucket_name: bucketName,
+            description: description || ''
+        });
+        return data;
     }
 };

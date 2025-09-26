@@ -93,7 +93,7 @@ is_frontend_running() {
 }
 
 get_frontend_pid() {
-    pgrep -f "vite.*--host.*--port 3000" || true
+    pgrep -f "node.*vite" || true
 }
 
 # --- Backend Utilities -------------------------------------------------------
@@ -341,6 +341,33 @@ stop_infrastructure() {
     $DOCKER_COMPOSE down
 
     success "Infrastructure services stopped"
+}
+
+clean_all() {
+    info "Performing deep clean..."
+
+    # Stop all services
+    stop_frontend
+    stop_backend
+    stop_infrastructure
+
+    # Remove containers and volumes
+    info "Removing Docker containers and volumes..."
+    check_docker_compose
+    cd "$DOCKER_DIR"
+    $DOCKER_COMPOSE down -v --remove-orphans
+
+    # Remove any dangling containers
+    docker container prune -f >/dev/null 2>&1 || true
+    docker volume prune -f >/dev/null 2>&1 || true
+
+    # Clean logs
+    if [ -d "$PROJECT_ROOT/logs" ]; then
+        info "Cleaning log files..."
+        rm -f "$PROJECT_ROOT/logs"/*.log
+    fi
+
+    success "Deep clean completed - database and all data removed"
 }
 
 start_backend() {
@@ -624,58 +651,32 @@ EDI Lens Local Development Maintenance
 USAGE:
     $0 <command> [options]
 
-COMMANDS:
-    start                Start all services (infrastructure + backend)
+ESSENTIAL COMMANDS:
+    start                Start all services (infrastructure + backend + frontend)
     stop                 Stop all services
     restart              Restart all services
-
-    start-infra          Start only Docker infrastructure
-    stop-infra           Stop only Docker infrastructure
-    restart-infra        Restart only Docker infrastructure
-
-    start-backend        Start only backend service
-    stop-backend         Stop only backend service
-    restart-backend      Restart only backend service
-
-    start-frontend       Start only frontend service
-    stop-frontend        Stop only frontend service
-    restart-frontend     Restart only frontend service
-
     status               Show detailed status of all services
     logs [service]       Show logs (backend, frontend, nifi, registry, db)
+    clean                Stop services and clean up logs
+    clean-all            DESTRUCTIVE: Remove all containers, volumes, and data
 
-    test-unit [args]     Run backend unit tests
-    test-integration [args]
-                         Run backend integration tests
-    test-e2e [args]      Run backend end-to-end tests
-    test-all [args]      Run the full backend test suite
-    test-watch [args]    Run backend tests in watch mode
-
-    health               Quick health check
-    clean                Stop all services and clean up
+DEVELOPMENT COMMANDS:
+    test [type]          Run backend tests (unit, integration, e2e, all, watch)
+    dev                  Start in development mode (infrastructure + backend + frontend)
 
 EXAMPLES:
     $0 start             # Start everything
-    $0 start-infra       # Start only Docker containers
-    $0 start-backend     # Start only backend
-    $0 start-frontend    # Start only frontend
-    $0 test-integration  # Run backend integration tests
     $0 status            # Show status
     $0 logs backend      # Show backend logs
-    $0 logs frontend     # Show frontend logs
-    $0 restart           # Restart everything
+    $0 test integration  # Run backend integration tests
+    $0 clean-all         # Nuclear option - removes all data
 
 SERVICES:
-    Infrastructure (Docker):
-      - PostgreSQL (port 5432)
-      - NiFi (port 8443)
-      - Registry (port 18080)
-
-    Backend (Local):
-      - FastAPI backend (port 8000)
-
-    Frontend (Local):
-      - React frontend (port 3000)
+    - PostgreSQL (port 5432)
+    - NiFi (port 8443)
+    - Registry (port 18080)
+    - Backend API (port 8000)
+    - Frontend (port 3000)
 
 EOF
 }
@@ -686,7 +687,7 @@ main() {
     mkdir -p "$PROJECT_ROOT/logs"
 
     case "${1:-help}" in
-        start)
+        start|dev)
             start_infrastructure
             start_backend
             start_frontend
@@ -705,58 +706,10 @@ main() {
             start_backend
             start_frontend
             ;;
-        start-infra|start-infrastructure)
-            start_infrastructure
-            ;;
-        stop-infra|stop-infrastructure)
-            stop_infrastructure
-            ;;
-        restart-infra|restart-infrastructure)
-            stop_infrastructure
-            sleep 2
-            start_infrastructure
-            ;;
-        start-backend)
-            start_backend
-            ;;
-        stop-backend)
-            stop_backend
-            ;;
-        restart-backend)
-            stop_backend
-            sleep 2
-            start_backend
-            ;;
-        start-frontend)
-            start_frontend
-            ;;
-        stop-frontend)
-            stop_frontend
-            ;;
-        restart-frontend)
-            stop_frontend
-            sleep 2
-            start_frontend
-            ;;
-        test-unit)
-            shift
-            run_backend_tests unit "$@"
-            ;;
-        test-integration)
-            shift
-            run_backend_tests integration "$@"
-            ;;
-        test-e2e)
-            shift
-            run_backend_tests e2e "$@"
-            ;;
-        test-all)
-            shift
-            run_backend_tests all "$@"
-            ;;
-        test-watch)
-            shift
-            run_backend_tests watch "$@"
+        test)
+            local test_type="${2:-all}"
+            shift 2 2>/dev/null || shift 1
+            run_backend_tests "$test_type" "$@"
             ;;
         status)
             show_status
@@ -764,14 +717,19 @@ main() {
         logs)
             show_logs "${2:-}"
             ;;
-        health)
-            show_status
-            ;;
         clean)
             stop_frontend
             stop_backend
             stop_infrastructure
+            # Clean logs
+            if [ -d "$PROJECT_ROOT/logs" ]; then
+                info "Cleaning log files..."
+                rm -f "$PROJECT_ROOT/logs"/*.log
+            fi
             success "All services stopped and cleaned up"
+            ;;
+        clean-all)
+            clean_all
             ;;
         help|--help|-h)
             show_help
