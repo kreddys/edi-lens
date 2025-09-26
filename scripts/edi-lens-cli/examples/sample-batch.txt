@@ -1,0 +1,28 @@
+# EDI Lens CLI Batch Commands Example
+# Lines starting with # are comments
+# 
+# This file demonstrates various CLI operations that can be automated
+
+# Check system health
+health-check --quiet
+
+# List all Registry buckets
+list-buckets --output-format json
+
+# Deploy a flow with parameters
+deploy-flow --template simple-file-processing --params input_directory=/tmp/batch_input output_directory=/tmp/batch_output --auto-start
+
+# Note: The process-group-id from deploy-flow would need to be captured
+# For now, these are examples (replace with actual IDs):
+
+# Check flow status (replace with actual process group ID)
+# flow-status --process-group-id your-process-group-id-here
+
+# Commit changes (replace with actual process group ID)  
+# commit-changes --process-group-id your-process-group-id-here --comments "Automated batch commit"
+
+# Stop flow (replace with actual process group ID)
+# stop-flow --process-group-id your-process-group-id-here
+
+# Delete flow (replace with actual process group ID)
+# delete-flow --process-group-id your-process-group-id-here

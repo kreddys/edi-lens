@@ -27,9 +27,10 @@ async def get_nifi_client() -> AsyncGenerator[NiFiUnifiedClient, None]:
             password=settings.nifi_password,
             verify_ssl=settings.nifi_verify_ssl,
         )
+        # Initialize the session once
+        await _nifi_client.__aenter__()
 
-    async with _nifi_client as client:
-        yield client
+    yield _nifi_client
 
 
 async def get_registry_client() -> AsyncGenerator[RegistryUnifiedClient, None]:
@@ -43,33 +44,30 @@ async def get_registry_client() -> AsyncGenerator[RegistryUnifiedClient, None]:
             auth_token=settings.registry_auth_token,
             verify_ssl=settings.registry_verify_ssl,
         )
+        # Initialize the session once
+        await _registry_client.__aenter__()
 
-    async with _registry_client as client:
-        yield client
+    yield _registry_client
 
 
 async def get_workflow_orchestrator() -> WorkflowOrchestrator:
     """Get workflow orchestrator instance."""
-    global _workflow_orchestrator
+    global _workflow_orchestrator, _nifi_client, _registry_client
 
     if _workflow_orchestrator is None:
-        settings = get_settings()
+        # Use the same client instances as the individual dependencies
+        # This ensures consistent session management
+        if _nifi_client is None:
+            async for client in get_nifi_client():
+                _nifi_client = client
+                break
 
-        # Create client instances
-        nifi_client = NiFiUnifiedClient(
-            nifi_url=settings.nifi_url,
-            username=settings.nifi_username,
-            password=settings.nifi_password,
-            verify_ssl=settings.nifi_verify_ssl,
-        )
+        if _registry_client is None:
+            async for client in get_registry_client():
+                _registry_client = client
+                break
 
-        registry_client = RegistryUnifiedClient(
-            registry_url=settings.registry_url,
-            auth_token=settings.registry_auth_token,
-            verify_ssl=settings.registry_verify_ssl,
-        )
-
-        _workflow_orchestrator = WorkflowOrchestrator(nifi_client, registry_client)
+        _workflow_orchestrator = WorkflowOrchestrator(_nifi_client, _registry_client)
 
     return _workflow_orchestrator
 
