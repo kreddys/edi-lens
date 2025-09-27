@@ -13,7 +13,6 @@ import { dataProvider, ThemeProvider } from "./providers";
 import { SchemaEditorList } from "./pages/schemaEditor/SchemaEditorList";
 
 import { FlowManagement } from "./pages/flows";
-import { TemplatesPage } from "./pages/TemplatesPage";
 
 function App() {
   return (
@@ -29,12 +28,10 @@ function App() {
                 {
                   name: "flows",
                   list: "/flows",
+                  create: "/flows/create",
+                  edit: "/flows/:id/edit",
+                  show: "/flows/:id",
                   meta: { label: "Flows" },
-                },
-                {
-                  name: "templates",
-                  list: "/templates",
-                  meta: { label: "Templates (V1)" },
                 },
                 {
                   name: "schemas",
@@ -50,8 +47,7 @@ function App() {
               <Routes>
                 <Route element={<Layout><Outlet /></Layout>}>
                   <Route index element={<NavigateToResource resource="flows" />} />
-                  <Route path="/flows" element={<FlowManagement />} />
-                  <Route path="/templates" element={<TemplatesPage />} />
+                  <Route path="/flows/*" element={<FlowManagement />} />
                   <Route path="/schema-editor" element={<SchemaEditorList />} />
                   <Route path="*" element={<ErrorComponent />} />
                 </Route>

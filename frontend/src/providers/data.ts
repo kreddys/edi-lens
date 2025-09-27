@@ -77,15 +77,99 @@ export const dataProvider: DataProvider = {
             };
         }
 
-        // For flows, return empty list for now - will be implemented with backend integration
+        // For flows, use V1 API
         if (params.resource === "flows") {
-            return {
-                data: [] as TData[],
-                total: 0
-            };
+            try {
+                const response = await flowAPI.listFlows();
+                let data = response.flows || [];
+
+                // Apply filters if provided
+                if (params.filters) {
+                    params.filters.forEach((filter: any) => {
+                        if (filter.operator === 'contains') {
+                            data = data.filter((item: any) => 
+                                item[filter.field]?.toLowerCase()?.includes(filter.value.toLowerCase())
+                            );
+                        }
+                    });
+                }
+
+                // Apply sorting if provided
+                if (params.sorters && params.sorters.length > 0) {
+                    const sorter = params.sorters[0];
+                    data.sort((a: any, b: any) => {
+                        const aValue = a[sorter.field];
+                        const bValue = b[sorter.field];
+                        if (sorter.order === 'desc') {
+                            return bValue > aValue ? 1 : -1;
+                        }
+                        return aValue > bValue ? 1 : -1;
+                    });
+                }
+
+                // Apply pagination if provided
+                if (params.pagination) {
+                    const { current = 1, pageSize = 10 } = params.pagination;
+                    const start = (current - 1) * pageSize;
+                    data = data.slice(start, start + pageSize);
+                }
+
+                return {
+                    data: data as TData[],
+                    total: response.flows?.length || 0
+                };
+            } catch (error) {
+                console.error('Error fetching flows:', error);
+                return { data: [] as TData[], total: 0 };
+            }
         }
 
-        // Default behavior
+        // For templates, use V1 API
+        if (params.resource === "templates") {
+            try {
+                const response = await flowAPI.listTemplates();
+                let data = response.templates || [];
+
+                // Apply same filtering/sorting/pagination logic as flows
+                if (params.filters) {
+                    params.filters.forEach((filter: any) => {
+                        if (filter.operator === 'contains') {
+                            data = data.filter((item: any) => 
+                                item[filter.field]?.toLowerCase()?.includes(filter.value.toLowerCase())
+                            );
+                        }
+                    });
+                }
+
+                if (params.sorters && params.sorters.length > 0) {
+                    const sorter = params.sorters[0];
+                    data.sort((a: any, b: any) => {
+                        const aValue = a[sorter.field];
+                        const bValue = b[sorter.field];
+                        if (sorter.order === 'desc') {
+                            return bValue > aValue ? 1 : -1;
+                        }
+                        return aValue > bValue ? 1 : -1;
+                    });
+                }
+
+                if (params.pagination) {
+                    const { current = 1, pageSize = 10 } = params.pagination;
+                    const start = (current - 1) * pageSize;
+                    data = data.slice(start, start + pageSize);
+                }
+
+                return {
+                    data: data as TData[],
+                    total: response.templates?.length || 0
+                };
+            } catch (error) {
+                console.error('Error fetching templates:', error);
+                return { data: [] as TData[], total: 0 };
+            }
+        }
+
+        // Default behavior for other resources
         const result = await baseDataProvider.getList<TData>(params);
         return {
             data: Array.isArray(result.data) ? result.data : [] as TData[],
@@ -95,11 +179,46 @@ export const dataProvider: DataProvider = {
 
     getOne: async <TData extends BaseRecord = BaseRecord>(params: GetOneParams) => {
         console.log("getOne called with params:", params);
+
+        // For flows, use V1 API
+        if (params.resource === "flows") {
+            try {
+                const data = await flowAPI.getFlow(params.id.toString());
+                return { data: data as TData };
+            } catch (error) {
+                console.error(`Error fetching flow ${params.id}:`, error);
+                throw error;
+            }
+        }
+
+        // For templates, use V1 API
+        if (params.resource === "templates") {
+            try {
+                const data = await flowAPI.getTemplate(params.id.toString(), true); // include definition
+                return { data: data as TData };
+            } catch (error) {
+                console.error(`Error fetching template ${params.id}:`, error);
+                throw error;
+            }
+        }
+
+        // Default behavior for other resources
         return await baseDataProvider.getOne<TData>(params);
     },
 
     create: async <TData extends BaseRecord = BaseRecord, TVariables = {}>({ resource, variables }: CreateParams<TVariables>) => {
         console.log("create called with params:", { resource, variables });
+
+        // Handle flow creation with V1 API
+        if (resource === "flows") {
+            try {
+                const data = await flowAPI.createFlow(variables);
+                return { data } as CreateResponse<TData>;
+            } catch (error) {
+                console.error('Error creating flow:', error);
+                throw error;
+            }
+        }
 
         // Handle schema copy operations
         const copyMatch = resource.match(/^schemas\/(.+)\/copy$/);
@@ -115,138 +234,111 @@ export const dataProvider: DataProvider = {
 
     update: async ({ resource, id, variables }) => {
         console.log(`update called for ${resource}/${id}`, variables);
+
+        // Handle flow updates with V1 API
+        if (resource === "flows") {
+            try {
+                const data = await flowAPI.updateFlow(id.toString(), variables);
+                return { data };
+            } catch (error) {
+                console.error(`Error updating flow ${id}:`, error);
+                throw error;
+            }
+        }
+
+        // Default behavior for other resources
         const { data } = await axiosInstance.put(`/${resource}/${id}`, variables);
         return { data };
     },
 
     deleteOne: async <TData extends BaseRecord = BaseRecord, TVariables = {}>(params: DeleteOneParams<TVariables>) => {
         console.log("deleteOne called with params:", params);
+
+        // Handle flow deletion with V1 API
+        if (params.resource === "flows") {
+            try {
+                await flowAPI.deleteFlow(params.id.toString());
+                return { data: { id: params.id } as TData };
+            } catch (error) {
+                console.error(`Error deleting flow ${params.id}:`, error);
+                throw error;
+            }
+        }
+
+        // Default behavior for other resources
         return await baseDataProvider.deleteOne<TData, TVariables>(params);
     },
 };
 
 // Flow-specific API functions (V1 RESTful API)
 export const flowAPI = {
-    // Create and deploy a flow 
-    deployAndStore: async (flowDefinition: any, bucketId: string, parameters: any = {}) => {
-        // Create flow first
-        const createResponse = await axiosInstance.post('/api/v1/flows/', {
-            name: flowDefinition.name,
-            description: flowDefinition.description || '',
-            bucket_id: bucketId,
-            definition: flowDefinition,
-            parameters
-        });
-        
-        if (!createResponse.data.success) {
-            throw new Error(createResponse.data.message || 'Failed to create flow');
-        }
-        
-        const flowId = createResponse.data.id;
-        
-        // Deploy the flow
-        const deployResponse = await axiosInstance.post(`/api/v1/flows/${flowId}/deployments`, {
-            parent_group_id: 'root'
-        });
-        
-        return {
-            success: true,
-            flow_id: flowId,
-            process_group_id: deployResponse.data.process_group_id,
-            parameter_context_id: deployResponse.data.parameter_context_id,
-            message: "Flow created and deployed successfully"
-        };
+    // Core Flow Management
+    listFlows: async () => {
+        const { data } = await axiosInstance.get('/api/v1/flows/');
+        return data;
     },
 
-    // Get flow status
-    getStatus: async (processGroupId: string) => {
-        // For now, return basic status structure until V1 endpoint is implemented
-        return {
-            process_group_id: processGroupId,
-            running: false,
-            processor_count: 0,
-            stopped_count: 0,
-            running_count: 0,
-            invalid_count: 0,
-            disabled_count: 0
-        };
+    createFlow: async (flowDefinition: any) => {
+        const { data } = await axiosInstance.post('/api/v1/flows/', flowDefinition);
+        return data;
     },
 
-    // Start flow
-    start: async (processGroupId: string) => {
-        const { data } = await axiosInstance.post('/api/v1/flows/executions', {
-            process_group_id: processGroupId,
-            action: 'start'
-        });
-        return { message: 'Flow started successfully' };
+    getFlow: async (flowId: string) => {
+        const { data } = await axiosInstance.get(`/api/v1/flows/${flowId}`);
+        return data;
     },
 
-    // Stop flow
-    stop: async (processGroupId: string) => {
-        const { data } = await axiosInstance.post('/api/v1/flows/executions', {
-            process_group_id: processGroupId,
-            action: 'stop'
-        });
-        return { message: 'Flow stopped successfully' };
+    updateFlow: async (flowId: string, updates: any) => {
+        const { data } = await axiosInstance.put(`/api/v1/flows/${flowId}`, updates);
+        return data;
     },
 
-    // Delete flow
-    delete: async (processGroupId: string, removeFromRegistry = false) => {
-        const { data } = await axiosInstance.delete(`/api/v1/flows/${processGroupId}?remove_from_registry=${removeFromRegistry}`);
+    deleteFlow: async (flowId: string) => {
+        await axiosInstance.delete(`/api/v1/flows/${flowId}`);
         return { message: 'Flow deleted successfully' };
     },
 
-    // Version control operations (placeholder for V1)
-    commit: async (processGroupId: string, comments = 'Updated flow') => {
-        throw new Error('Version control operations not yet implemented in V1 API');
-    },
-
-    updateFromRegistry: async (processGroupId: string) => {
-        throw new Error('Version control operations not yet implemented in V1 API');
-    },
-
-    revert: async (processGroupId: string) => {
-        throw new Error('Version control operations not yet implemented in V1 API');
-    },
-
-    getModifications: async (processGroupId: string) => {
-        throw new Error('Version control operations not yet implemented in V1 API');
-    },
-
-    // Registry operations
-    listBuckets: async () => {
-        const { data } = await axiosInstance.get('/api/v1/registry/buckets/');
-        return data || [];
-    },
-
-    listFlowsInBucket: async (bucketId: string) => {
-        const { data } = await axiosInstance.get(`/api/v1/registry/flows/?bucket_id=${bucketId}`);
-        return data.flows || [];
-    },
-
-    getFlowFromRegistry: async (bucketId: string, flowId: string, version?: number) => {
-        const versionParam = version ? `&version=${version}` : '';
-        const { data } = await axiosInstance.get(`/api/v1/registry/flows/${flowId}?bucket_id=${bucketId}${versionParam}`);
+    // Flow Execution
+    startFlow: async (flowId: string) => {
+        const { data } = await axiosInstance.post(`/api/v1/flows/${flowId}/executions/start`);
         return data;
     },
 
-    getFlowVersions: async (bucketId: string, flowId: string) => {
-        const { data } = await axiosInstance.get(`/api/v1/registry/flows/${flowId}/versions?bucket_id=${bucketId}`);
-        return data.versions || [];
-    },
-
-    createBucket: async (bucketName: string, description?: string) => {
-        const { data } = await axiosInstance.post('/api/v1/registry/buckets/', {
-            name: bucketName,
-            description: description || ''
-        });
+    stopFlow: async (flowId: string) => {
+        const { data } = await axiosInstance.post(`/api/v1/flows/${flowId}/executions/stop`);
         return data;
     },
 
-    // List deployed flows in NiFi
-    listDeployedFlows: async () => {
-        const { data } = await axiosInstance.get('/api/v1/flows/?deployed_only=true');
-        return data.flows || [];
+    getFlowStatus: async (flowId: string) => {
+        const { data } = await axiosInstance.get(`/api/v1/flows/${flowId}/executions/status`);
+        return data;
+    },
+
+    // Flow Deployments
+    deployFlow: async (flowId: string, deploymentConfig: any = {}) => {
+        const { data } = await axiosInstance.post(`/api/v1/flows/${flowId}/deployments`, deploymentConfig);
+        return data;
+    },
+
+    getDeploymentStatus: async (flowId: string) => {
+        const { data } = await axiosInstance.get(`/api/v1/flows/${flowId}/deployments`);
+        return data;
+    },
+
+    undeployFlow: async (flowId: string) => {
+        await axiosInstance.delete(`/api/v1/flows/${flowId}/deployments`);
+        return { message: 'Flow undeployed successfully' };
+    },
+
+    // Flow Versions
+    getFlowVersions: async (flowId: string) => {
+        const { data } = await axiosInstance.get(`/api/v1/flows/${flowId}/versions`);
+        return data;
+    },
+
+    createFlowVersion: async (flowId: string, versionData: any) => {
+        const { data } = await axiosInstance.post(`/api/v1/flows/${flowId}/versions`, versionData);
+        return data;
     },
 
     // Templates
@@ -255,9 +347,124 @@ export const flowAPI = {
         return data;
     },
 
-    getTemplate: async (templateId: string) => {
-        const { data } = await axiosInstance.get(`/api/v1/templates/${templateId}`);
+    getTemplate: async (templateId: string, includeDefinition = false) => {
+        const { data } = await axiosInstance.get(`/api/v1/templates/${templateId}?include_definition=${includeDefinition}`);
         return data;
+    },
+
+    validateTemplate: async (templateId: string, parameters: any = {}) => {
+        const { data } = await axiosInstance.post(`/api/v1/templates/${templateId}/validate`, {
+            parameters,
+            strict: true
+        });
+        return data;
+    },
+
+    // Registry Operations
+    listBuckets: async () => {
+        const { data } = await axiosInstance.get('/api/v1/registry/buckets/');
+        return data;
+    },
+
+    createBucket: async (bucketData: { name: string; description?: string }) => {
+        const { data } = await axiosInstance.post('/api/v1/registry/buckets/', bucketData);
+        return data;
+    },
+
+    getBucket: async (bucketId: string) => {
+        const { data } = await axiosInstance.get(`/api/v1/registry/buckets/${bucketId}`);
+        return data;
+    },
+
+    deleteBucket: async (bucketId: string) => {
+        try {
+            await axiosInstance.delete(`/api/v1/registry/buckets/${bucketId}`);
+            return { message: 'Bucket deleted successfully' };
+        } catch (error: any) {
+            // Handle 501 Not Implemented gracefully
+            if (error.response?.status === 501) {
+                return { message: 'Bucket deletion not yet implemented' };
+            }
+            throw error;
+        }
+    },
+
+    listRegistryFlows: async () => {
+        const { data } = await axiosInstance.get('/api/v1/registry/flows/');
+        return data;
+    },
+
+    getRegistryFlow: async (flowId: string) => {
+        const { data } = await axiosInstance.get(`/api/v1/registry/flows/${flowId}`);
+        return data;
+    },
+
+    getRegistryFlowVersions: async (flowId: string) => {
+        const { data } = await axiosInstance.get(`/api/v1/registry/flows/${flowId}/versions`);
+        return data;
+    },
+
+    // Legacy compatibility methods (marked for deprecation)
+    deployAndStore: async (flowDefinition: any, bucketId: string, parameters: any = {}) => {
+        console.warn('deployAndStore is deprecated, use createFlow instead');
+        return await flowAPI.createFlow({
+            name: flowDefinition.name,
+            description: flowDefinition.description || '',
+            bucket_id: bucketId,
+            definition: flowDefinition,
+            parameters
+        });
+    },
+
+    getStatus: async (flowId: string) => {
+        console.warn('getStatus is deprecated, use getFlow instead');
+        return await flowAPI.getFlow(flowId);
+    },
+
+    start: async (flowId: string) => {
+        console.warn('start is deprecated, use startFlow instead');
+        return await flowAPI.startFlow(flowId);
+    },
+
+    stop: async (flowId: string) => {
+        console.warn('stop is deprecated, use stopFlow instead');
+        return await flowAPI.stopFlow(flowId);
+    },
+
+    delete: async (flowId: string) => {
+        console.warn('delete is deprecated, use deleteFlow instead');
+        return await flowAPI.deleteFlow(flowId);
+    },
+
+    listDeployedFlows: async () => {
+        console.warn('listDeployedFlows is deprecated, use listFlows instead');
+        return await flowAPI.listFlows();
+    },
+
+    // Version control operations (not yet implemented in V1 API)
+    commit: async (_flowId: string, _comments = 'Updated flow') => {
+        throw new Error('Version control operations not yet implemented in V1 API');
+    },
+
+    updateFromRegistry: async (_flowId: string) => {
+        throw new Error('Version control operations not yet implemented in V1 API');
+    },
+
+    revert: async (_flowId: string) => {
+        throw new Error('Version control operations not yet implemented in V1 API');
+    },
+
+    getModifications: async (_flowId: string) => {
+        throw new Error('Version control operations not yet implemented in V1 API');
+    },
+
+    listFlowsInBucket: async (_bucketId: string) => {
+        throw new Error('Bucket-specific flow listing not yet implemented in V1 API');
+    },
+
+    getFlowFromRegistry: async (_bucketId: string, flowId: string, _version?: number) => {
+        console.warn('getFlowFromRegistry is deprecated, use getRegistryFlow instead');
+        return await flowAPI.getRegistryFlow(flowId);
     }
 };
 

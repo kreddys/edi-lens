@@ -4,21 +4,27 @@ import {
   PlayCircleOutlined,
   PauseCircleOutlined,
   DeleteOutlined,
-  EyeOutlined
+  EyeOutlined,
+  PlusOutlined
 } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 import { flowAPI } from "../../providers/data";
 import { FlowDetail } from "./FlowDetail";
 
 const { Text } = Typography;
 
 interface Flow {
-  process_group_id: string;
+  id: string;
   name: string;
+  description: string;
   status: string;
+  deployment_status: string;
   processor_count: number;
   running_count: number;
   stopped_count: number;
   invalid_count: number;
+  created_at?: string;
+  updated_at?: string;
   version_control?: {
     state: string;
     version: number;
@@ -40,14 +46,15 @@ export const FlowsList = forwardRef<FlowsListRef, FlowsListProps>(({ onEditFlow 
   const [flows, setFlows] = useState<Flow[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedFlow, setSelectedFlow] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const loadDeployedFlows = async () => {
     setLoading(true);
     try {
-      const deployedFlows = await flowAPI.listDeployedFlows();
-      setFlows(deployedFlows);
+      const response = await flowAPI.listFlows();
+      setFlows(response.flows || []);
     } catch (error) {
-      console.error('Failed to load deployed flows:', error);
+      console.error('Failed to load flows:', error);
       notification.error({
         message: 'Error',
         description: 'Failed to load deployed flows'
@@ -72,9 +79,9 @@ export const FlowsList = forwardRef<FlowsListRef, FlowsListProps>(({ onEditFlow 
     loadDeployedFlows();
   };
 
-  const handleStartFlow = async (processGroupId: string) => {
+  const handleStartFlow = async (flowId: string) => {
     try {
-      await flowAPI.start(processGroupId);
+      await flowAPI.startFlow(flowId);
       notification.success({
         message: 'Success',
         description: 'Flow started successfully'
@@ -88,9 +95,9 @@ export const FlowsList = forwardRef<FlowsListRef, FlowsListProps>(({ onEditFlow 
     }
   };
 
-  const handleStopFlow = async (processGroupId: string) => {
+  const handleStopFlow = async (flowId: string) => {
     try {
-      await flowAPI.stop(processGroupId);
+      await flowAPI.stopFlow(flowId);
       notification.success({
         message: 'Success',
         description: 'Flow stopped successfully'
@@ -104,13 +111,13 @@ export const FlowsList = forwardRef<FlowsListRef, FlowsListProps>(({ onEditFlow 
     }
   };
 
-  const handleDeleteFlow = async (processGroupId: string) => {
+  const handleDeleteFlow = async (flowId: string) => {
     Modal.confirm({
       title: 'Delete Flow',
       content: 'Are you sure you want to delete this flow?',
       onOk: async () => {
         try {
-          await flowAPI.delete(processGroupId);
+          await flowAPI.deleteFlow(flowId);
           notification.success({
             message: 'Success',
             description: 'Flow deleted successfully'
@@ -149,10 +156,23 @@ export const FlowsList = forwardRef<FlowsListRef, FlowsListProps>(({ onEditFlow 
 
   return (
     <div style={{ padding: '24px' }}>
-      {flows.length > 0 && (
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography.Title level={2} style={{ margin: 0 }}>
+          Flows
+        </Typography.Title>
+        <Button 
+          type="primary" 
+          icon={<PlusOutlined />}
+          onClick={() => navigate('/flows/create')}
+        >
+          Create New Flow
+        </Button>
+      </div>
+
+      {flows.length > 0 ? (
         <Table
           dataSource={flows}
-          rowKey="process_group_id"
+          rowKey="id"
           loading={loading}
           showHeader={true}
         >
@@ -192,42 +212,39 @@ export const FlowsList = forwardRef<FlowsListRef, FlowsListProps>(({ onEditFlow 
                 <Button
                   type="text"
                   icon={<EyeOutlined />}
-                  onClick={() => onEditFlow ? onEditFlow(record.process_group_id) : setSelectedFlow(record.process_group_id)}
+                  onClick={() => navigate(`/flows/${record.id}`)}
                   title={onEditFlow ? "Edit Flow" : "View Details"}
                 />
                 {record.status === 'RUNNING' ? (
                   <Button
                     type="text"
                     icon={<PauseCircleOutlined />}
-                    onClick={() => handleStopFlow(record.process_group_id)}
+                    onClick={() => handleStopFlow(record.id)}
                   />
                 ) : (
                   <Button
                     type="text"
                     icon={<PlayCircleOutlined />}
-                    onClick={() => handleStartFlow(record.process_group_id)}
+                    onClick={() => handleStartFlow(record.id)}
                   />
                 )}
                 <Button
                   type="text"
                   danger
                   icon={<DeleteOutlined />}
-                  onClick={() => handleDeleteFlow(record.process_group_id)}
+                  onClick={() => handleDeleteFlow(record.id)}
                 />
               </Space>
             )}
           />
         </Table>
-      )}
-
-      {flows.length === 0 && (
+      ) : (
         <div style={{ textAlign: 'center', padding: '48px' }}>
           <Typography.Text type="secondary">
-            No flows deployed yet. Click "Create Flow" to deploy your first flow.
+            No flows created yet. Click "Create New Flow" to get started.
           </Typography.Text>
         </div>
       )}
-
     </div>
   );
 });
