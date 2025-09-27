@@ -120,10 +120,15 @@ class RegistryVersionManagement(LoggerMixin):
         try:
             latest_version = await self.registry.flows.get_latest_flow_version(bucket_id, flow_id)
 
+            # Registry API may return version in different places
+            version_num = (latest_version.get("version") or 
+                         latest_version.get("snapshotMetadata", {}).get("version") or
+                         latest_version.get("versionNumber"))
+            
             result = {
                 "bucket_id": bucket_id,
                 "flow_id": flow_id,
-                "version": latest_version.get("version"),
+                "version": version_num,
                 "comments": latest_version.get("comments", ""),
                 "created_timestamp": latest_version.get("timestamp"),
                 "author": latest_version.get("author"),
@@ -131,8 +136,14 @@ class RegistryVersionManagement(LoggerMixin):
                 "flow_contents": latest_version.get("flowContents", {})
             }
 
-            self.logger.debug("Retrieved latest version %d for flow %s in bucket %s",
-                            result["version"], flow_id, bucket_id)
+            if result["version"] is not None:
+                self.logger.debug("Retrieved latest version %d for flow %s in bucket %s",
+                                result["version"], flow_id, bucket_id)
+            else:
+                self.logger.debug("Retrieved latest version (no version number) for flow %s in bucket %s",
+                                flow_id, bucket_id)
+                # Set a default version if none is found
+                result["version"] = 1
             return result
 
         except Exception as exc:

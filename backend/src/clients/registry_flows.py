@@ -156,7 +156,12 @@ class RegistryFlowClient(LoggerMixin):
     async def get_latest_flow_version(self, bucket_id: str, flow_id: str) -> Dict[str, Any]:
         """Get the latest version of a flow."""
         self.logger.debug("Getting latest version of flow %s from bucket %s", flow_id, bucket_id)
-        return await self.base.get(f"/buckets/{bucket_id}/flows/{flow_id}/versions/latest")
+        result = await self.base.get(f"/buckets/{bucket_id}/flows/{flow_id}/versions/latest")
+        
+        # Log the actual response structure for debugging
+        self.logger.debug("Registry latest version response: %s", result)
+        
+        return result
 
     async def list_flow_versions(self, bucket_id: str, flow_id: str) -> List[Dict[str, Any]]:
         """List all versions of a flow."""
