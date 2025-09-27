@@ -85,11 +85,12 @@ async def start_flow(
         if result.get("success"):
             duration = time.time() - start_time
             log.info("Successfully started flow %s in %.2fs", flow_id, duration)
-            audit_logger.log_user_action("flow_started", {
-                "flow_id": flow_id,
-                "force": force,
-                "duration_ms": duration * 1000
-            })
+            audit_logger.log_flow_operation(
+                "flow_started",
+                bucket_id="unknown",
+                flow_id=flow_id,
+                details={"force": force, "duration_ms": duration * 1000}
+            )
             
             return ExecutionResponse(
                 success=True,
@@ -173,11 +174,12 @@ async def stop_flow(
         if result.get("success"):
             duration = time.time() - start_time
             log.info("Successfully stopped flow %s in %.2fs", flow_id, duration)
-            audit_logger.log_user_action("flow_stopped", {
-                "flow_id": flow_id,
-                "force": force,
-                "duration_ms": duration * 1000
-            })
+            audit_logger.log_flow_operation(
+                "flow_stopped", 
+                bucket_id="unknown",
+                flow_id=flow_id,
+                details={"force": force, "duration_ms": duration * 1000}
+            )
             
             return ExecutionResponse(
                 success=True,

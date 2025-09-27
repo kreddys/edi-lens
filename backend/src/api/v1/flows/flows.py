@@ -132,26 +132,37 @@ async def create_flow(
         start_time = time.time()
         log.info("Creating flow '%s'", flow_data.name)
         
-        # Convert to legacy format for now
-        from src.models.flow_models import DeployAndStoreFlowRequest, FlowDefinition as LegacyFlowDefinition
+        # Convert flow definition to dict format expected by orchestrator
+        flow_definition_dict = {
+            "name": flow_data.name,
+            "description": flow_data.description,
+            "processors": flow_data.definition.processors if flow_data.definition else [],
+            "connections": flow_data.definition.connections if flow_data.definition else [],
+            "process_groups": flow_data.definition.process_groups if flow_data.definition else []
+        }
         
-        legacy_request = DeployAndStoreFlowRequest(
-            bucket_id=flow_data.bucket_id or "default-bucket", 
-            flow_definition=LegacyFlowDefinition(
-                name=flow_data.name,
-                description=flow_data.description,
-                processors=flow_data.definition.processors if flow_data.definition else [],
-                connections=flow_data.definition.connections if flow_data.definition else [],
-                process_groups=flow_data.definition.process_groups if flow_data.definition else []
-            ),
-            parameters=flow_data.parameters,
-            parent_group_id=flow_data.parent_group_id,
-            flow_name=flow_data.name,
-            flow_description=flow_data.description
-        )
+        # Get bucket name if bucket_id is provided
+        bucket_name = "default-bucket"
+        if flow_data.bucket_id:
+            # Look up bucket by ID to get the name
+            buckets = await orchestrator.registry_bucket_mgmt.list_buckets()
+            for bucket in buckets:
+                if bucket.get("bucket_id") == flow_data.bucket_id:
+                    bucket_name = bucket.get("bucket_name", flow_data.bucket_id)
+                    break
+            # If bucket not found, use the ID as the name (fallback)
+            if bucket_name == "default-bucket":
+                bucket_name = flow_data.bucket_id
         
         # Execute deployment workflow
-        result = await orchestrator.execute_deployment_first_workflow(legacy_request)
+        result = await orchestrator.deploy_and_register_flow(
+            flow_definition=flow_definition_dict,
+            flow_name=flow_data.name,
+            bucket_name=bucket_name,
+            parameters=flow_data.parameters or {},
+            comments=flow_data.description or "",
+            parent_group_id=flow_data.parent_group_id or "root"
+        )
         
         if result.get("success"):
             process_group_id = result.get("process_group_id")
@@ -183,11 +194,16 @@ async def create_flow(
             
             duration = time.time() - start_time
             log.info("Successfully created flow '%s' in %.2fs", flow_data.name, duration)
-            audit_logger.log_user_action("flow_created", {
-                "flow_id": process_group_id,
-                "flow_name": flow_data.name,
-                "duration_ms": duration * 1000
-            })
+            audit_logger.log_flow_operation(
+                "flow_created",
+                bucket_id=flow_data.bucket_id or "default-bucket",
+                flow_id=overview.get("flow_id", "unknown"),
+                details={
+                    "flow_name": flow_data.name,
+                    "process_group_id": process_group_id,
+                    "execution_time_ms": (time.time() - start_time) * 1000
+                }
+            )
             
             return response
         else:
@@ -357,10 +373,12 @@ async def delete_flow(
         await orchestrator.nifi_flow_mgmt.delete_flow(flow_id)
         
         log.info("Successfully deleted flow: %s", flow_id)
-        audit_logger.log_user_action("flow_deleted", {
-            "flow_id": flow_id,
-            "force": force
-        })
+        audit_logger.log_flow_operation(
+            "flow_deleted",
+            bucket_id="unknown",  # We don't have bucket_id in delete context
+            flow_id=flow_id,
+            details={"force": force}
+        )
         
     except HTTPException:
         raise

@@ -89,9 +89,8 @@ class ExecutionResponse(BaseModel):
     """Model for flow execution response."""
     success: bool = Field(..., description="Whether the action succeeded")
     message: str = Field(..., description="Result message")
-    process_group_id: str = Field(..., description="Process group ID that was controlled")
-    action: str = Field(..., description="Action that was performed")
-    execution_time_ms: float = Field(..., description="Execution time in milliseconds")
+    status: FlowStatus = Field(..., description="Flow execution status")
+    details: Dict[str, Any] = Field(default_factory=dict, description="Additional execution details")
 
 
 class DeploymentRequest(BaseModel):

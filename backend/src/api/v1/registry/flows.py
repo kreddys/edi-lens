@@ -49,7 +49,7 @@ async def list_all_registry_flows(
                 for flow_data in flows_data:
                     flow_response = RegistryFlowResponse(
                         id=flow_data.get("flow_id", ""),
-                        name=flow_data.get("flow_name", ""),
+                        name=flow_data.get("name", ""),  # Fixed: was "flow_name"
                         description=flow_data.get("description", ""),
                         bucket_id=bucket_id,
                         version_count=flow_data.get("version_count", 0),
@@ -100,7 +100,7 @@ async def list_registry_flows(
         for flow_data in flows_data:
             flow_response = RegistryFlowResponse(
                 id=flow_data.get("flow_id", ""),
-                name=flow_data.get("flow_name", ""),
+                name=flow_data.get("name", ""),  # Fixed: was "flow_name"
                 description=flow_data.get("description", ""),
                 bucket_id=bucket_id,
                 version_count=flow_data.get("version_count", 0),
@@ -150,7 +150,7 @@ async def get_registry_flow(
         
         flow_response = RegistryFlowResponse(
             id=flow_id,
-            name=flow_data.get("flow_name", ""),
+            name=flow_data.get("name", ""),  # Fixed: was "flow_name"
             description=flow_data.get("description", ""),
             bucket_id=bucket_id,
             version_count=flow_data.get("version_count", 0),

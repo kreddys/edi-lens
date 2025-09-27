@@ -179,10 +179,12 @@ async def undeploy_flow(
         await orchestrator.nifi_flow_mgmt.delete_flow(flow_id)
         
         log.info("Successfully undeployed flow: %s", flow_id)
-        audit_logger.log_user_action("flow_undeployed", {
-            "flow_id": flow_id,
-            "force": force
-        })
+        audit_logger.log_flow_operation(
+            "flow_undeployed", 
+            bucket_id="unknown",
+            flow_id=flow_id,
+            details={"force": force}
+        )
         
     except HTTPException:
         raise

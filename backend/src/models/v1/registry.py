@@ -60,9 +60,20 @@ class RegistryFlowResponse(RegistryFlowBase):
     id: str = Field(..., description="Flow ID")
     version_count: int = Field(0, description="Number of versions")
     latest_version: Optional[int] = Field(None, description="Latest version number")
-    created_at: str = Field(..., description="Creation timestamp")
+    created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
     permissions: Dict[str, bool] = Field(default_factory=dict, description="Flow permissions")
+
+    @field_validator('created_at', 'updated_at', mode='before')
+    @classmethod
+    def convert_timestamp(cls, v):
+        """Convert timestamp to string if needed."""
+        if v is None:
+            return v
+        if isinstance(v, int):
+            # Convert Unix timestamp (milliseconds) to ISO string
+            return datetime.fromtimestamp(v / 1000).isoformat()
+        return str(v)
 
 
 class RegistryFlowVersion(BaseModel):
@@ -75,6 +86,14 @@ class RegistryFlowVersion(BaseModel):
     created_at: str = Field(..., description="Version creation timestamp")
     snapshot_metadata: Dict[str, Any] = Field(default_factory=dict, description="Snapshot metadata")
     flow_contents: Dict[str, Any] = Field(default_factory=dict, description="Flow contents")
+
+    @field_validator('created_at', mode='before')
+    @classmethod
+    def validate_created_at(cls, v):
+        """Convert Unix timestamp to string if needed."""
+        if isinstance(v, int):
+            return datetime.fromtimestamp(v / 1000).isoformat() + "Z"
+        return v
 
 
 class RegistryFlowVersionListResponse(BaseModel):
