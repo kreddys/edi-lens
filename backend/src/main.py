@@ -8,8 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import time
 
 from .api.routes.health import router as health_router
-from .api.routes.flows import router as flows_router
-from .api.routes.templates import router as templates_router
+from .api.v1.router import v1_router
 from .core.config import settings
 from .core.database import dispose_engine
 from .core.logging import setup_logging, get_logger, audit_logger
@@ -43,7 +42,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="EDI Lens NiFi Backend",
-    description="Deployment-first NiFi flow management backend",
+    description="RESTful NiFi flow management backend",
     version=settings.APP_VERSION,
     lifespan=lifespan,
 )
@@ -92,12 +91,12 @@ async def log_requests(request: Request, call_next):
     
     return response
 
+# Include routers
 app.include_router(health_router)
-app.include_router(flows_router, prefix="/api")
-app.include_router(templates_router)
+app.include_router(v1_router)  # New RESTful V1 API
 
-logger.info("Registered routes: health, flows, templates")
-logger.info("API endpoints available at /api/flows and /api/flows/templates")
+logger.info("Registered routes: health, v1 API")
+logger.info("API endpoints available at /api/v1/")
 
 
 if __name__ == "__main__":  # pragma: no cover - script execution helper

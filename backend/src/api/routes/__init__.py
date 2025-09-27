@@ -1,5 +1,5 @@
 """Available API route modules."""
 
-from . import health, flows
+from . import health
 
-__all__ = ["health", "flows"]
+__all__ = ["health"]

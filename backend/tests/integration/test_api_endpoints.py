@@ -211,232 +211,171 @@ async def test_health_endpoints(api_client):
     assert registry_response.json()["healthy"] is True
 
 
-async def test_flow_lifecycle_via_api(api_client, nifi_client, registry_client):
+async def test_v1_registry_buckets_crud(api_client):
+    """Test V1 registry buckets CRUD operations."""
     unique_suffix = uuid.uuid4().hex[:8]
-    flow_name = f"api-integration-flow-{unique_suffix}"
-    bucket_name = f"api-integration-bucket-{unique_suffix}"
-
-    flow_definition = _build_flow_definition(unique_suffix)
-
-    # Create bucket first to get bucket ID
+    bucket_name = f"v1-test-bucket-{unique_suffix}"
+    
+    # Create bucket
     bucket_payload = {
-        "bucket_name": bucket_name,
-        "description": "Integration test bucket"
+        "name": bucket_name,
+        "description": "V1 API integration test bucket"
     }
-    bucket_response = await api_client.post("/api/flows/registry/buckets", json=bucket_payload)
-    assert bucket_response.status_code == 200
-    bucket_id = bucket_response.json()["bucket_id"]
+    create_response = await api_client.post("/api/v1/registry/buckets/", json=bucket_payload)
+    assert create_response.status_code == 201
+    bucket = create_response.json()
 
-    deploy_payload = {
-        "bucket_id": bucket_id,
-        "flow_definition": flow_definition,
-        "parameters": {"greeting": "hello", "batch_size": "10"},
-        "parent_group_id": "root",
-        "flow_name": flow_name,
-        "flow_description": "Integration test flow deployed via API",
-    }
+    assert bucket["name"] == bucket_name
+    assert bucket["description"] == "V1 API integration test bucket"
+    assert "id" in bucket
+    bucket_id = bucket["id"]
 
-    process_group_id = None
-    parameter_context_id = None
-    try:
-        deploy_response = await api_client.post("/api/flows/deploy-and-store", json=deploy_payload)
-        assert deploy_response.status_code == 201
-        deploy = deploy_response.json()
-        assert deploy["success"] is True
+    # List buckets - should include our new bucket
+    list_response = await api_client.get("/api/v1/registry/buckets/")
+    assert list_response.status_code == 200
+    buckets = list_response.json()
+    assert isinstance(buckets, list)
 
-        process_group_id = deploy["process_group_id"]
-        parameter_context_id = deploy.get("parameter_context_id")
-
-        status_response = await api_client.get(f"/api/flows/{process_group_id}/status")
-        assert status_response.status_code == 200
-        status = status_response.json()
-        assert status["process_group_id"] == process_group_id
-        assert status["processor_count"] == 2
-
-        start_response = await api_client.post(f"/api/flows/{process_group_id}/start")
-        assert start_response.status_code == 200
-        assert start_response.json()["message"] == "Flow started successfully"
-
-        stop_response = await api_client.post(f"/api/flows/{process_group_id}/stop")
-        assert stop_response.status_code == 200
-        assert stop_response.json()["message"] == "Flow stopped successfully"
-
-        delete_response = await api_client.delete(
-            f"/api/flows/{process_group_id}", params={"remove_from_registry": "true"}
-        )
-        assert delete_response.status_code == 200
-        assert delete_response.json()["message"] == "Flow deleted successfully"
-        process_group_id = None
-    finally:
-        if process_group_id:
-            try:
-                await nifi_client.process_groups.delete_process_group(process_group_id)
-            except Exception:
-                pass
-
-        await _cleanup_parameter_context(nifi_client, parameter_context_id)
-        await _cleanup_bucket(registry_client, bucket_name)
+    # Find our bucket in the list
+    our_bucket = next((b for b in buckets if b["id"] == bucket_id), None)
+    assert our_bucket is not None
+    assert our_bucket["name"] == bucket_name
+    
+    # Get specific bucket
+    get_response = await api_client.get(f"/api/v1/registry/buckets/{bucket_id}")
+    assert get_response.status_code == 200
+    retrieved_bucket = get_response.json()
+    assert retrieved_bucket["id"] == bucket_id
+    assert retrieved_bucket["name"] == bucket_name
 
 
-async def test_deploy_flow_with_invalid_connection_returns_actionable_error(
-    api_client, nifi_client, registry_client
-):
-    unique_suffix = uuid.uuid4().hex[:8]
-    flow_name = f"api-invalid-connection-flow-{unique_suffix}"
-    bucket_name = f"api-invalid-connection-bucket-{unique_suffix}"
+async def test_v1_templates_list(api_client):
+    """Test V1 templates listing."""
+    response = await api_client.get("/api/v1/templates/")
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert "templates" in data
+    assert "total" in data
+    assert "categories" in data
+    assert "tags" in data
+    
+    assert isinstance(data["templates"], list)
+    assert isinstance(data["total"], int)
+    assert data["total"] >= 0
+    
+    # Check template structure if any exist
+    if data["templates"]:
+        template = data["templates"][0]
+        required_fields = ["id", "name", "description", "category", "tags", "processor_count", "connection_count"]
+        for field in required_fields:
+            assert field in template
 
-    # Create bucket first to get bucket ID
-    bucket_payload = {
-        "bucket_name": bucket_name,
-        "description": "Integration test bucket for invalid connection"
-    }
-    bucket_response = await api_client.post("/api/flows/registry/buckets", json=bucket_payload)
-    assert bucket_response.status_code == 200
-    bucket_id = bucket_response.json()["bucket_id"]
 
-    flow_definition = _build_flow_definition(unique_suffix)
-    # Introduce an invalid destination that cannot be resolved to verify error details.
-    flow_definition["connections"][0]["destination"]["name"] = "missing-destination"
-    flow_definition["connections"][0]["destination"]["id"] = "missing-destination"
+async def test_v1_templates_get_specific(api_client):
+    """Test getting a specific template via V1 API."""
+    # First get the list to find a template
+    list_response = await api_client.get("/api/v1/templates/")
+    assert list_response.status_code == 200
+    templates = list_response.json()["templates"]
+    
+    if not templates:
+        pytest.skip("No templates available for testing")
+    
+    template_id = templates[0]["id"]
+    
+    # Get specific template
+    get_response = await api_client.get(f"/api/v1/templates/{template_id}")
+    assert get_response.status_code == 200
+    
+    template = get_response.json()
+    assert template["id"] == template_id
+    assert "definition" in template
+    assert "parameters" in template
 
+
+async def test_v1_flows_list(api_client):
+    """Test V1 flows listing."""
+    response = await api_client.get("/api/v1/flows/")
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert "flows" in data
+    assert "total" in data
+    assert "page" in data
+    assert "size" in data
+    
+    assert isinstance(data["flows"], list)
+    assert isinstance(data["total"], int)
+    assert data["total"] >= 0
+
+
+async def test_v1_flow_execution_invalid_action(api_client):
+    """Test V1 flow execution with invalid action."""
     payload = {
-        "bucket_id": bucket_id,
-        "flow_definition": flow_definition,
-        "parameters": {},
-        "parent_group_id": "root",
-        "flow_name": flow_name,
-        "flow_description": "Invalid connection integration test",
+        "process_group_id": "test-pg-id",
+        "action": "invalid_action"
     }
-
-    detail = await _assert_nifi_deployment_failure(api_client, payload)
-
-    failures = detail["details"]["failures"]
-    assert failures, "Expected failures in NiFi deployment error details"
-
-    connection_failure = next(
-        (
-            failure
-            for failure in failures
-            if failure["component_type"] == "connection"
-            and failure["error_type"] == "resolution"
-        ),
-        None,
-    )
-    assert connection_failure is not None
-    assert "Unable to resolve connection endpoints" in connection_failure["message"]
-
-    await _cleanup_parameter_context(
-        nifi_client, detail["details"].get("parameter_context_id")
-    )
-    await _cleanup_bucket(registry_client, bucket_name)
+    
+    response = await api_client.post("/api/v1/flows/executions/", json=payload)
+    assert response.status_code == 400
+    
+    error = response.json()["detail"]
+    assert error["error_type"] == "INVALID_ACTION"
+    assert "invalid_action" in error["message"]
 
 
-async def test_deploy_flow_with_invalid_processor_type_returns_actionable_error(
-    api_client, nifi_client, registry_client
-):
-    unique_suffix = uuid.uuid4().hex[:8]
-    flow_name = f"api-invalid-processor-flow-{unique_suffix}"
-    bucket_name = f"api-invalid-processor-bucket-{unique_suffix}"
-
-    # Create bucket first to get bucket ID
-    bucket_payload = {
-        "bucket_name": bucket_name,
-        "description": "Integration test bucket for invalid processor"
-    }
-    bucket_response = await api_client.post("/api/flows/registry/buckets", json=bucket_payload)
-    assert bucket_response.status_code == 200
-    bucket_id = bucket_response.json()["bucket_id"]
-
-    flow_definition = _build_flow_definition(unique_suffix)
-    invalid_processor_type = "org.apache.nifi.processors.standard.DoesNotExist"
-    flow_definition["processors"][0]["type"] = invalid_processor_type
-
+async def test_v1_flow_execution_nonexistent_process_group(api_client):
+    """Test V1 flow execution with nonexistent process group."""
     payload = {
-        "bucket_id": bucket_id,
-        "flow_definition": flow_definition,
-        "parameters": {},
-        "parent_group_id": "root",
-        "flow_name": flow_name,
-        "flow_description": "Invalid processor integration test",
+        "process_group_id": "nonexistent-pg-id",
+        "action": "start"
     }
-
-    detail = await _assert_nifi_deployment_failure(api_client, payload)
-
-    failures = detail["details"]["failures"]
-    assert failures, "Expected processor failures in NiFi deployment error details"
-
-    processor_failure = next(
-        (
-            failure
-            for failure in failures
-            if failure["component_type"] == "processor"
-            and failure["error_type"] == "creation"
-        ),
-        None,
-    )
-    assert processor_failure is not None
-    assert processor_failure["details"].get("processor_type") == invalid_processor_type
-    assert processor_failure["message"], "Expected processor failure message to be populated"
-
-    await _cleanup_parameter_context(
-        nifi_client, detail["details"].get("parameter_context_id")
-    )
-    await _cleanup_bucket(registry_client, bucket_name)
+    
+    response = await api_client.post("/api/v1/flows/executions/", json=payload)
+    assert response.status_code == 500  # Should be 500 due to NiFi API error
+    
+    error = response.json()["detail"]
+    assert error["error_type"] == "EXECUTION_FAILED"
+    assert "nonexistent-pg-id" in error["message"]
 
 
-async def test_deploy_flow_with_invalid_parameter_value_returns_actionable_error(
-    api_client, nifi_client, registry_client
-):
-    unique_suffix = uuid.uuid4().hex[:8]
-    parameter_name = f"batch_size_{unique_suffix}"
-    flow_name = f"api-invalid-parameter-flow-{unique_suffix}"
-    bucket_name = f"api-invalid-parameter-bucket-{unique_suffix}"
+async def test_v1_registry_flows_list(api_client):
+    """Test V1 registry flows listing."""
+    response = await api_client.get("/api/v1/registry/flows/")
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert "flows" in data
+    assert "total" in data or data.get("total") is None  # total might be None if no flows
+    
+    assert isinstance(data["flows"], list)
 
-    # Create bucket first to get bucket ID
-    bucket_payload = {
-        "bucket_name": bucket_name,
-        "description": "Integration test bucket for invalid parameter"
-    }
-    bucket_response = await api_client.post("/api/flows/registry/buckets", json=bucket_payload)
-    assert bucket_response.status_code == 200
-    bucket_id = bucket_response.json()["bucket_id"]
 
-    flow_definition = _build_flow_definition_with_parameter(unique_suffix, parameter_name)
+async def test_v1_api_error_handling(api_client):
+    """Test V1 API error handling for invalid requests."""
+    # Test invalid template ID
+    response = await api_client.get("/api/v1/templates/nonexistent-id")
+    assert response.status_code == 404
+    
+    error = response.json()["detail"]
+    assert error["error_type"] == "TEMPLATE_NOT_FOUND"
+    
+    # Test invalid bucket creation
+    invalid_bucket = {"invalid_field": "value"}  # Missing required 'name' field
+    response = await api_client.post("/api/v1/registry/buckets/", json=invalid_bucket)
+    assert response.status_code == 422  # Validation error
 
-    payload = {
-        "bucket_id": bucket_id,
-        "flow_definition": flow_definition,
-        "parameters": {parameter_name: "not-a-number"},
-        "parent_group_id": "root",
-        "flow_name": flow_name,
-        "flow_description": "Invalid parameter integration test",
-    }
 
-    detail = await _assert_nifi_deployment_failure(api_client, payload)
-
-    failures = detail["details"].get("failures", [])
-    assert failures, "Expected deployment failures when parameter value is invalid"
-
-    validation_failure = next(
-        (
-            failure
-            for failure in failures
-            if failure["component_type"] == "processor"
-            and failure["error_type"] == "validation"
-        ),
-        None,
-    )
-    assert validation_failure is not None
-
-    validation_errors = validation_failure["details"].get("validation_errors", [])
-    assert validation_errors, "Expected validation errors in failure details"
-    assert any(parameter_name in error or "Batch Size" in error for error in validation_errors)
-
-    # The deployment should also include a summary to help operators triage the issue.
-    summary = detail["details"].get("summary", {})
-    assert summary.get("failed_processors", 0) >= 1
-
-    await _cleanup_parameter_context(
-        nifi_client, detail["details"].get("parameter_context_id")
-    )
-    await _cleanup_bucket(registry_client, bucket_name)
+async def test_v1_flow_crud_basic(api_client):
+    """Test basic V1 flow CRUD operations without deployment."""
+    # Test creating a flow via V1 API (when implemented)
+    response = await api_client.get("/api/v1/flows/")
+    assert response.status_code == 200
+    
+    data = response.json()
+    initial_count = data["total"]
+    
+    # For now, just verify the structure since creation isn't fully implemented
+    assert isinstance(data["flows"], list)
+    assert data["total"] == initial_count

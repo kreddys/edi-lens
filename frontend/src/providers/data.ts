@@ -125,89 +125,119 @@ export const dataProvider: DataProvider = {
     },
 };
 
-// Flow-specific API functions
+// Flow-specific API functions (V1 RESTful API)
 export const flowAPI = {
-    // Deploy and store a flow
+    // Create and deploy a flow 
     deployAndStore: async (flowDefinition: any, bucketId: string, parameters: any = {}) => {
-        const { data } = await axiosInstance.post('/api/flows/deploy-and-store', {
+        // Create flow first
+        const createResponse = await axiosInstance.post('/api/v1/flows/', {
+            name: flowDefinition.name,
+            description: flowDefinition.description || '',
             bucket_id: bucketId,
-            flow_definition: flowDefinition,
-            parameters,
-            flow_description: flowDefinition.description || ''
+            definition: flowDefinition,
+            parameters
         });
-        return data;
+        
+        if (!createResponse.data.success) {
+            throw new Error(createResponse.data.message || 'Failed to create flow');
+        }
+        
+        const flowId = createResponse.data.id;
+        
+        // Deploy the flow
+        const deployResponse = await axiosInstance.post(`/api/v1/flows/${flowId}/deployments`, {
+            parent_group_id: 'root'
+        });
+        
+        return {
+            success: true,
+            flow_id: flowId,
+            process_group_id: deployResponse.data.process_group_id,
+            parameter_context_id: deployResponse.data.parameter_context_id,
+            message: "Flow created and deployed successfully"
+        };
     },
 
     // Get flow status
     getStatus: async (processGroupId: string) => {
-        const { data } = await axiosInstance.get(`/api/flows/${processGroupId}/status`);
-        return data;
+        // For now, return basic status structure until V1 endpoint is implemented
+        return {
+            process_group_id: processGroupId,
+            running: false,
+            processor_count: 0,
+            stopped_count: 0,
+            running_count: 0,
+            invalid_count: 0,
+            disabled_count: 0
+        };
     },
 
     // Start flow
     start: async (processGroupId: string) => {
-        const { data } = await axiosInstance.post(`/api/flows/${processGroupId}/start`);
-        return data;
+        const { data } = await axiosInstance.post('/api/v1/flows/executions', {
+            process_group_id: processGroupId,
+            action: 'start'
+        });
+        return { message: 'Flow started successfully' };
     },
 
     // Stop flow
     stop: async (processGroupId: string) => {
-        const { data } = await axiosInstance.post(`/api/flows/${processGroupId}/stop`);
-        return data;
+        const { data } = await axiosInstance.post('/api/v1/flows/executions', {
+            process_group_id: processGroupId,
+            action: 'stop'
+        });
+        return { message: 'Flow stopped successfully' };
     },
 
     // Delete flow
     delete: async (processGroupId: string, removeFromRegistry = false) => {
-        const { data } = await axiosInstance.delete(`/api/flows/${processGroupId}?remove_from_registry=${removeFromRegistry}`);
-        return data;
+        const { data } = await axiosInstance.delete(`/api/v1/flows/${processGroupId}?remove_from_registry=${removeFromRegistry}`);
+        return { message: 'Flow deleted successfully' };
     },
 
-    // Version control operations
+    // Version control operations (placeholder for V1)
     commit: async (processGroupId: string, comments = 'Updated flow') => {
-        const { data } = await axiosInstance.post(`/api/flows/${processGroupId}/version-control/commit?comments=${encodeURIComponent(comments)}`);
-        return data;
+        throw new Error('Version control operations not yet implemented in V1 API');
     },
 
     updateFromRegistry: async (processGroupId: string) => {
-        const { data } = await axiosInstance.post(`/api/flows/${processGroupId}/version-control/update`);
-        return data;
+        throw new Error('Version control operations not yet implemented in V1 API');
     },
 
     revert: async (processGroupId: string) => {
-        const { data } = await axiosInstance.post(`/api/flows/${processGroupId}/version-control/revert`);
-        return data;
+        throw new Error('Version control operations not yet implemented in V1 API');
     },
 
     getModifications: async (processGroupId: string) => {
-        const { data } = await axiosInstance.get(`/api/flows/${processGroupId}/version-control/modifications`);
-        return data;
+        throw new Error('Version control operations not yet implemented in V1 API');
     },
 
     // Registry operations
     listBuckets: async () => {
-        const { data } = await axiosInstance.get('/api/flows/registry/buckets');
-        return data;
+        const { data } = await axiosInstance.get('/api/v1/registry/buckets/');
+        return data || [];
     },
 
     listFlowsInBucket: async (bucketId: string) => {
-        const { data } = await axiosInstance.get(`/api/flows/registry/buckets/${bucketId}/flows`);
-        return data;
+        const { data } = await axiosInstance.get(`/api/v1/registry/flows/?bucket_id=${bucketId}`);
+        return data.flows || [];
     },
 
     getFlowFromRegistry: async (bucketId: string, flowId: string, version?: number) => {
-        const versionParam = version ? `?version=${version}` : '';
-        const { data } = await axiosInstance.get(`/api/flows/registry/buckets/${bucketId}/flows/${flowId}${versionParam}`);
+        const versionParam = version ? `&version=${version}` : '';
+        const { data } = await axiosInstance.get(`/api/v1/registry/flows/${flowId}?bucket_id=${bucketId}${versionParam}`);
         return data;
     },
 
     getFlowVersions: async (bucketId: string, flowId: string) => {
-        const { data } = await axiosInstance.get(`/api/flows/registry/buckets/${bucketId}/flows/${flowId}/versions`);
-        return data;
+        const { data } = await axiosInstance.get(`/api/v1/registry/flows/${flowId}/versions?bucket_id=${bucketId}`);
+        return data.versions || [];
     },
 
     createBucket: async (bucketName: string, description?: string) => {
-        const { data } = await axiosInstance.post('/api/flows/registry/buckets', {
-            bucket_name: bucketName,
+        const { data } = await axiosInstance.post('/api/v1/registry/buckets/', {
+            name: bucketName,
             description: description || ''
         });
         return data;
@@ -215,7 +245,19 @@ export const flowAPI = {
 
     // List deployed flows in NiFi
     listDeployedFlows: async () => {
-        const { data } = await axiosInstance.get('/api/flows/deployed');
+        const { data } = await axiosInstance.get('/api/v1/flows/?deployed_only=true');
+        return data.flows || [];
+    },
+
+    // Templates
+    listTemplates: async () => {
+        const { data } = await axiosInstance.get('/api/v1/templates/');
+        return data;
+    },
+
+    getTemplate: async (templateId: string) => {
+        const { data } = await axiosInstance.get(`/api/v1/templates/${templateId}`);
         return data;
     }
 };
+
