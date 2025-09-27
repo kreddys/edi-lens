@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test:integration": "vitest run src/tests/integration",
     "test:integration:watch": "vitest src/tests/integration",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --reporter=dot",
+    "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug"
   },

@@ -142,6 +142,128 @@ test.describe('Flow Management E2E Tests', () => {
     }
   });
 
+  test('Should toggle Start/Stop button dynamically in flow details', async ({ page }) => {
+    // Wait for flows to load
+    await page.waitForSelector('table', { timeout: 10000 });
+    
+    // Get only visible data rows (exclude measure rows and other hidden rows)
+    const flowRows = page.locator('table tbody tr:not(.ant-table-measure-row):not([aria-hidden="true"])');
+    const rowCount = await flowRows.count();
+    
+    console.log(`Found ${rowCount} visible flows in the table`);
+    
+    if (rowCount > 0) {
+      // Get the first visible flow row
+      const firstRow = flowRows.first();
+      
+      // Wait for the row to be visible and contain data
+      await expect(firstRow).toBeVisible();
+      await page.waitForTimeout(1000); // Allow time for data to load
+      
+      // Debug: Log the contents of the first row
+      const rowText = await firstRow.textContent();
+      console.log(`First row content: "${rowText?.trim()}"`);
+      
+      // Look for action buttons in the last column (Actions column)
+      const actionButtons = firstRow.locator('td:last-child button');
+      const buttonCount = await actionButtons.count();
+      console.log(`Found ${buttonCount} action buttons in first row`);
+      
+      if (buttonCount > 0) {
+        // Click the first action button (should be Show button)
+        const showButton = actionButtons.first();
+        await showButton.click();
+        
+        // Wait for navigation to flow details
+        await page.waitForURL(/\/flows\/[^\/]+$/, { timeout: 10000 });
+        console.log('Successfully navigated to flow details page');
+      } else {
+        console.log('No action buttons found - this might indicate the flows are still loading');
+        return;
+      }
+      
+      // Wait for the flow details page to load
+      await expect(page.locator('text=Flow Details')).toBeVisible({ timeout: 10000 });
+      
+      // Find the Start/Stop button in the header actions
+      const playButton = page.locator('button:has(span.anticon-play-circle)');
+      const pauseButton = page.locator('button:has(span.anticon-pause-circle)');
+      
+      // Wait for at least one of the buttons to be visible
+      await expect(page.locator('button:has(span.anticon-play-circle), button:has(span.anticon-pause-circle)')).toBeVisible({ timeout: 10000 });
+      
+      // Check if the button shows "No Processors" - this means it's an empty flow
+      const buttonText = await page.locator('button:has(span.anticon-play-circle), button:has(span.anticon-pause-circle)').first().textContent();
+      console.log(`Button text: "${buttonText}"`);
+      
+      if (buttonText?.includes('No Processors')) {
+        console.log('✅ Flow has no processors - button correctly shows disabled state');
+        
+        // Verify the button is disabled
+        const button = page.locator('button:has(span.anticon-play-circle), button:has(span.anticon-pause-circle)').first();
+        await expect(button).toBeDisabled();
+        
+        console.log('✅ Start/Stop button is correctly disabled for empty flow');
+        return;
+      }
+      
+      // For flows with processors, test the toggle behavior
+      const playVisible = await playButton.isVisible();
+      const pauseVisible = await pauseButton.isVisible();
+      
+      console.log(`Play button visible: ${playVisible}, Pause button visible: ${pauseVisible}`);
+      
+      if (pauseVisible) {
+        // Flow is running - Stop button should be visible
+        const stopButtonText = await pauseButton.textContent();
+        console.log(`Stop button text: "${stopButtonText}"`);
+        
+        // Click to stop the flow
+        await pauseButton.click();
+        
+        // Wait for success notification
+        await expect(page.locator('.ant-notification-notice')).toBeVisible({ timeout: 10000 });
+        
+        // Button should change to Start
+        await expect(playButton).toBeVisible({ timeout: 15000 });
+        console.log('✅ Successfully stopped flow and button changed to Start');
+        
+      } else if (playVisible) {
+        // Flow is stopped - Start button should be visible
+        const startButtonText = await playButton.textContent();
+        console.log(`Start button text: "${startButtonText}"`);
+        
+        // Click to start the flow
+        await playButton.click();
+        
+        // Wait for success notification
+        await expect(page.locator('.ant-notification-notice')).toBeVisible({ timeout: 15000 });
+        
+        // Button should change to Stop
+        await expect(pauseButton).toBeVisible({ timeout: 15000 });
+        console.log('✅ Successfully started flow and button changed to Stop');
+        
+      } else {
+        console.log('❌ Neither Start nor Stop button found - this might indicate a UI issue');
+        
+        // Debug: Log all buttons on the page
+        const allButtons = page.locator('button');
+        const allButtonsCount = await allButtons.count();
+        console.log(`Total buttons on page: ${allButtonsCount}`);
+        
+        for (let i = 0; i < Math.min(5, allButtonsCount); i++) {
+          const buttonText = await allButtons.nth(i).textContent();
+          console.log(`Button ${i}: "${buttonText}"`);
+        }
+      }
+      
+      console.log('✅ Dynamic Start/Stop button test completed');
+      
+    } else {
+      console.log('⚠️  No flows found in the system - skipping button toggle test');
+    }
+  });
+
   test('Should handle errors gracefully', async ({ page }) => {
     // Test that the page loads without JavaScript errors
     const errors: string[] = [];

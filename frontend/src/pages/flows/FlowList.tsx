@@ -53,22 +53,6 @@ export const FlowList: React.FC = () => {
                 />
                 <Table.Column dataIndex="description" title="Description" />
                 <Table.Column 
-                    title="Processors"
-                    render={(_, record: any) => (
-                        <div>
-                            <div>
-                                {record.processor_count || 0} total
-                                {record.running_count > 0 && ` (${record.running_count} running)`}
-                            </div>
-                            {record.processor_count === 0 && (
-                                <div style={{ fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
-                                    New flow - no processors yet
-                                </div>
-                            )}
-                        </div>
-                    )}
-                />
-                <Table.Column 
                     dataIndex="created_at" 
                     title="Created" 
                     render={(created_at) => (

@@ -12,44 +12,47 @@ export const FlowShow: React.FC = () => {
 
     const record = data?.data;
 
-    const handleStartFlow = async () => {
+    const handleToggleFlow = async () => {
         if (!record?.id) return;
         
-        setActionLoading('start');
-        try {
-            await flowAPI.startFlow(record.id.toString());
-            notification.success({
-                message: 'Success',
-                description: 'Flow started successfully'
+        // Check if flow has processors
+        if (record?.processor_count === 0) {
+            notification.warning({
+                message: 'Cannot Start Empty Flow',
+                description: 'This flow has no processors to start. Please add processors first.'
             });
-            refetch();
-        } catch (error) {
-            console.error('Failed to start flow:', error);
-            notification.error({
-                message: 'Error', 
-                description: 'Failed to start flow'
-            });
-        } finally {
-            setActionLoading(null);
+            return;
         }
-    };
-
-    const handleStopFlow = async () => {
-        if (!record?.id) return;
         
-        setActionLoading('stop');
+        const isRunning = record?.status?.toLowerCase() === 'running';
+        const action = isRunning ? 'stop' : 'start';
+        
+        setActionLoading(action);
         try {
-            await flowAPI.stopFlow(record.id.toString());
-            notification.success({
-                message: 'Success',
-                description: 'Flow stopped successfully'
-            });
-            refetch();
+            if (isRunning) {
+                await flowAPI.stopFlow(record.id.toString());
+                notification.success({
+                    message: 'Success',
+                    description: 'Flow stopped successfully'
+                });
+            } else {
+                await flowAPI.startFlow(record.id.toString());
+                notification.success({
+                    message: 'Success',
+                    description: 'Flow started successfully'
+                });
+            }
+            
+            // Refetch after a short delay to allow NiFi to update
+            setTimeout(async () => {
+                await refetch();
+            }, 2000);
+            
         } catch (error) {
-            console.error('Failed to stop flow:', error);
+            console.error(`Failed to ${action} flow:`, error);
             notification.error({
                 message: 'Error',
-                description: 'Failed to stop flow'
+                description: `Failed to ${action} flow`
             });
         } finally {
             setActionLoading(null);
@@ -92,26 +95,16 @@ export const FlowShow: React.FC = () => {
                         >
                             Refresh
                         </Button>
-                        {record?.status?.toLowerCase() === 'running' ? (
-                            <Button 
-                                icon={<PauseCircleOutlined />}
-                                onClick={handleStopFlow}
-                                loading={actionLoading === 'stop'}
-                                disabled={actionLoading !== null}
-                            >
-                                Stop
-                            </Button>
-                        ) : (
-                            <Button 
-                                type="primary" 
-                                icon={<PlayCircleOutlined />}
-                                onClick={handleStartFlow}
-                                loading={actionLoading === 'start'}
-                                disabled={actionLoading !== null}
-                            >
-                                Start
-                            </Button>
-                        )}
+                        <Button 
+                            type={record?.status?.toLowerCase() === 'running' ? 'default' : 'primary'}
+                            icon={record?.status?.toLowerCase() === 'running' ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+                            onClick={handleToggleFlow}
+                            loading={actionLoading !== null}
+                            disabled={actionLoading !== null || (record?.processor_count === 0)}
+                        >
+                            {record?.status?.toLowerCase() === 'running' ? 'Stop' : 'Start'}
+                            {record?.processor_count === 0 && ' (No Processors)'}
+                        </Button>
                         <Button 
                             icon={<EditOutlined />}
                             href={`/flows/${record?.id}/edit`}
