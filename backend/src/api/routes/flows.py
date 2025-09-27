@@ -24,6 +24,77 @@ log = get_logger(__name__)
 router = APIRouter(prefix="/flows", tags=["flows"])
 
 
+@router.get("/deployed", response_model=List[Dict])
+async def list_deployed_flows(
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
+) -> List[Dict]:
+    """List all deployed flows in NiFi with their status."""
+    try:
+        # Get flows from NiFi (these are the deployed flows)
+        nifi_flows = await orchestrator.nifi_flow_mgmt.list_flows()
+        
+        # Enhance with status information
+        flows_with_status = []
+        log.debug("Processing %d flows from NiFi", len(nifi_flows))
+        
+        for flow in nifi_flows:
+            process_group_id = flow.get("process_group_id") or flow.get("id")
+            flow_name = flow.get("name") or flow.get("component", {}).get("name", "Unknown Flow")
+            
+            log.debug("Processing flow: %s (ID: %s)", flow_name, process_group_id)
+            
+            if process_group_id:
+                try:
+                    # Get detailed status for each flow
+                    overview = await orchestrator.get_flow_overview(process_group_id)
+                    flow_status = overview.get("flow_status", {}) or {}
+                    
+                    flow_data = {
+                        "process_group_id": process_group_id,
+                        "name": flow_name,
+                        "status": flow_status.get("overall_status", "unknown"),
+                        "processor_count": flow_status.get("total_processors", 0),
+                        "running_count": flow_status.get("running_processors", 0),
+                        "stopped_count": flow_status.get("stopped_processors", 0),
+                        "invalid_count": flow_status.get("invalid_processors", 0),
+                        "version_control": overview.get("version_control_info"),
+                    }
+                    flows_with_status.append(flow_data)
+                    log.debug("Added flow with status: %s", flow_name)
+                    
+                except Exception as exc:
+                    log.warning("Failed to get status for flow %s: %s", process_group_id, exc)
+                    # Include flow even if status retrieval fails
+                    flow_data = {
+                        "process_group_id": process_group_id,
+                        "name": flow_name,
+                        "status": "unknown",
+                        "processor_count": 0,
+                        "running_count": 0,
+                        "stopped_count": 0,
+                        "invalid_count": 0,
+                        "version_control": None,
+                    }
+                    flows_with_status.append(flow_data)
+                    log.debug("Added flow without status: %s", flow_name)
+            else:
+                log.warning("Skipping flow without process_group_id: %s", flow)
+        
+        log.debug("Found %d deployed flows", len(flows_with_status))
+        return flows_with_status
+        
+    except Exception as exc:
+        log.exception("Failed to list deployed flows")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_type": "DEPLOYED_FLOWS_LIST_FAILED",
+                "user_message": "Failed to retrieve deployed flows",
+                "action_required": "Please try again or contact support",
+            },
+        ) from exc
+
+
 @router.post("/deploy-and-store", response_model=DeployAndStoreFlowResponse, status_code=HTTP_201_CREATED)
 async def deploy_and_store_flow(
     request: DeployAndStoreFlowRequest,

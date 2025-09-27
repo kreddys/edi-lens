@@ -218,8 +218,17 @@ async def test_flow_lifecycle_via_api(api_client, nifi_client, registry_client):
 
     flow_definition = _build_flow_definition(unique_suffix)
 
+    # Create bucket first to get bucket ID
+    bucket_payload = {
+        "bucket_name": bucket_name,
+        "description": "Integration test bucket"
+    }
+    bucket_response = await api_client.post("/api/flows/registry/buckets", json=bucket_payload)
+    assert bucket_response.status_code == 200
+    bucket_id = bucket_response.json()["bucket_id"]
+
     deploy_payload = {
-        "bucket_id": bucket_name,
+        "bucket_id": bucket_id,
         "flow_definition": flow_definition,
         "parameters": {"greeting": "hello", "batch_size": "10"},
         "parent_group_id": "root",
@@ -276,13 +285,22 @@ async def test_deploy_flow_with_invalid_connection_returns_actionable_error(
     flow_name = f"api-invalid-connection-flow-{unique_suffix}"
     bucket_name = f"api-invalid-connection-bucket-{unique_suffix}"
 
+    # Create bucket first to get bucket ID
+    bucket_payload = {
+        "bucket_name": bucket_name,
+        "description": "Integration test bucket for invalid connection"
+    }
+    bucket_response = await api_client.post("/api/flows/registry/buckets", json=bucket_payload)
+    assert bucket_response.status_code == 200
+    bucket_id = bucket_response.json()["bucket_id"]
+
     flow_definition = _build_flow_definition(unique_suffix)
     # Introduce an invalid destination that cannot be resolved to verify error details.
     flow_definition["connections"][0]["destination"]["name"] = "missing-destination"
     flow_definition["connections"][0]["destination"]["id"] = "missing-destination"
 
     payload = {
-        "bucket_id": bucket_name,
+        "bucket_id": bucket_id,
         "flow_definition": flow_definition,
         "parameters": {},
         "parent_group_id": "root",
@@ -320,12 +338,21 @@ async def test_deploy_flow_with_invalid_processor_type_returns_actionable_error(
     flow_name = f"api-invalid-processor-flow-{unique_suffix}"
     bucket_name = f"api-invalid-processor-bucket-{unique_suffix}"
 
+    # Create bucket first to get bucket ID
+    bucket_payload = {
+        "bucket_name": bucket_name,
+        "description": "Integration test bucket for invalid processor"
+    }
+    bucket_response = await api_client.post("/api/flows/registry/buckets", json=bucket_payload)
+    assert bucket_response.status_code == 200
+    bucket_id = bucket_response.json()["bucket_id"]
+
     flow_definition = _build_flow_definition(unique_suffix)
     invalid_processor_type = "org.apache.nifi.processors.standard.DoesNotExist"
     flow_definition["processors"][0]["type"] = invalid_processor_type
 
     payload = {
-        "bucket_id": bucket_name,
+        "bucket_id": bucket_id,
         "flow_definition": flow_definition,
         "parameters": {},
         "parent_group_id": "root",
@@ -365,10 +392,19 @@ async def test_deploy_flow_with_invalid_parameter_value_returns_actionable_error
     flow_name = f"api-invalid-parameter-flow-{unique_suffix}"
     bucket_name = f"api-invalid-parameter-bucket-{unique_suffix}"
 
+    # Create bucket first to get bucket ID
+    bucket_payload = {
+        "bucket_name": bucket_name,
+        "description": "Integration test bucket for invalid parameter"
+    }
+    bucket_response = await api_client.post("/api/flows/registry/buckets", json=bucket_payload)
+    assert bucket_response.status_code == 200
+    bucket_id = bucket_response.json()["bucket_id"]
+
     flow_definition = _build_flow_definition_with_parameter(unique_suffix, parameter_name)
 
     payload = {
-        "bucket_id": bucket_name,
+        "bucket_id": bucket_id,
         "flow_definition": flow_definition,
         "parameters": {parameter_name: "not-a-number"},
         "parent_group_id": "root",

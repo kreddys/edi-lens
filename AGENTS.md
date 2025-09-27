@@ -37,11 +37,12 @@ edi-lens/
 
 ## 🧪 Testing
 
-All backend tests must be run through the management script to ensure proper environment configuration:
+All backend tests must be run through the management scripts to ensure proper environment configuration:
 
 ### Unit Tests
 ```bash
-./scripts/backend.sh test unit
+# Run tests in Poetry environment
+cd backend && poetry run pytest tests/unit/
 ```
 - Tests isolated components without external dependencies
 - Runs in local Poetry virtual environment
@@ -49,31 +50,39 @@ All backend tests must be run through the management script to ensure proper env
 
 ### Integration Tests
 ```bash
-./scripts/backend.sh test integration [local|docker]
+# Ensure services are running first
+sudo bash scripts/maintain_codex.sh status
+cd backend && poetry run pytest tests/integration/
 ```
-- **Local mode** (default): Connects to localhost services (NiFi, Registry, PostgreSQL)
-- **Docker mode**: Runs tests inside backend container
 - Tests API clients and service integrations
+- Requires running NiFi, Registry, and PostgreSQL services
 - Located in `backend/tests/integration/`
 
 ### End-to-End Tests
 ```bash
-./scripts/backend.sh test e2e [local|local-verbose|docker|docker-verbose]
+# Ensure all services are healthy
+sudo bash scripts/maintain_codex.sh status
+cd backend && poetry run pytest tests/e2e/ -v
 ```
 - Tests complete workflows from API to NiFi deployment
-- Use verbose modes for debugging
+- Use `-v` for verbose debugging output
 - Located in `backend/tests/e2e/`
 
 ## 🔧 Development Tools
 
 ### Backend Management
 ```bash
-./scripts/backend.sh start     # Start backend + dependencies via Docker
-./scripts/backend.sh stop      # Stop all containers
-./scripts/backend.sh shell     # Interactive shell in backend container
-./scripts/backend.sh lint      # Run linting (Black, Ruff, mypy)
-./scripts/backend.sh format    # Auto-format code
-./scripts/backend.sh test:watch # Watch mode for unit tests
+# For Codex environment (production-like)
+sudo bash scripts/maintain_codex.sh start      # Start all services
+sudo bash scripts/maintain_codex.sh stop       # Stop all services
+sudo bash scripts/maintain_codex.sh restart    # Restart all services
+sudo bash scripts/maintain_codex.sh status     # Service health summary
+
+# For local development
+sudo bash scripts/maintain_local.sh start      # Start all services locally
+sudo bash scripts/maintain_local.sh stop       # Stop all services
+sudo bash scripts/maintain_local.sh restart    # Restart all services
+sudo bash scripts/maintain_local.sh status     # Service health summary
 ```
 
 ### Service Management
@@ -112,7 +121,8 @@ The project uses `.env.local` for all environment configuration:
 ### Scripts
 - `scripts/setup_codex.sh` - Complete environment setup
 - `scripts/maintain_codex.sh` - Service management and monitoring
-- `scripts/backend.sh` - Backend development and testing
+- `scripts/maintain_codex.sh` - Production-like service management
+- `scripts/maintain_local.sh` - Local development service management
 
 ### Testing
 - `backend/tests/conftest.py` - Test configuration and fixtures
@@ -135,7 +145,7 @@ The project uses `.env.local` for all environment configuration:
 
 ## 🚨 Important Notes
 
-- Always run tests through `./scripts/backend.sh` scripts
+- Always ensure services are running before tests with `maintain_codex.sh` or `maintain_local.sh`
 - Use Codex setup scripts for environment initialization
 - Backend dependencies are managed with Poetry
 - All services run on localhost with standard ports
@@ -158,11 +168,14 @@ ls -la /opt/codex-services/logs/  # or ~/.codex-services/logs/
 
 ### Backend Issues
 ```bash
-# Check backend container logs
-./scripts/backend.sh logs
+# Check backend logs
+sudo bash scripts/maintain_codex.sh detailed
 
-# Interactive debugging
-./scripts/backend.sh shell
+# Check individual service logs
+ls -la /opt/codex-services/logs/  # or ~/.codex-services/logs/
+
+# Interactive backend debugging
+cd backend && poetry shell
 
 # Verify dependencies
 cd backend && poetry check

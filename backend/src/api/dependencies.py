@@ -8,6 +8,7 @@ from src.clients.nifi_unified import NiFiUnifiedClient
 from src.clients.registry_unified import RegistryUnifiedClient
 from src.core.config import get_settings
 from src.services.workflow_orchestrator import WorkflowOrchestrator
+from src.services.flow_template_service import FlowTemplateService
 
 # Global instances (will be replaced with proper DI container in production)
 _nifi_client: NiFiUnifiedClient | None = None
@@ -76,6 +77,11 @@ async def get_workflow_orchestrator() -> WorkflowOrchestrator:
 async def get_flow_service() -> WorkflowOrchestrator:
     """Get workflow orchestrator instance (backward compatibility)."""
     return await get_workflow_orchestrator()
+
+
+def get_flow_template_service() -> FlowTemplateService:
+    """Get flow template service instance."""
+    return FlowTemplateService()
 
 
 # Cleanup function for application shutdown

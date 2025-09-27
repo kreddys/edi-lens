@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # Development flags
     DEBUG: bool = Field(default=False)
     
+    # Flow Templates Configuration
+    FLOW_TEMPLATES_DIR: str = Field(default="data/flows", description="Directory containing flow templates")
+    
     # Component-specific logging levels (used by logging.py)
     LOG_LEVEL_CONSOLE: Optional[str] = Field(default=None, description="Console log level override")
     LOG_LEVEL_FILE: Optional[str] = Field(default=None, description="File log level override")

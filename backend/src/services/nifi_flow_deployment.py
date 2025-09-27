@@ -41,64 +41,109 @@ class NiFiFlowDeployment(LoggerMixin):
         process_group_id: Optional[str] = None
         should_cleanup = True
 
+        # Debug logging for deployment tracking
+        deployment_id = f"{flow_name}-{int(time.time())}"
+        self.logger.info("=== DEPLOYMENT START [%s] ===", deployment_id)
+        self.logger.debug("Flow definition: processors=%d, connections=%d", 
+                         len(flow_definition.get("processors", [])), 
+                         len(flow_definition.get("connections", [])))
+        self.logger.debug("Parameters provided: %s (count=%d)", 
+                         list(parameters.keys()) if parameters else "None", 
+                         len(parameters))
+        self.logger.debug("Parent group ID: %s", parent_group_id)
+
         try:
             self.logger.info("Starting flow deployment: %s", flow_name)
 
             # Step 1: Create parameter context if parameters provided
             if parameters:
+                self.logger.debug("[%s] Creating parameter context with %d parameters", deployment_id, len(parameters))
                 parameter_context_id = await self._create_parameter_context(
                     flow_name, parameters
                 )
                 deployment_info["parameter_context_id"] = parameter_context_id
+                self.logger.debug("[%s] Parameter context created: %s", deployment_id, parameter_context_id)
+            else:
+                self.logger.debug("[%s] No parameters provided - skipping parameter context creation", deployment_id)
 
             # Step 2: Create process group for flow
+            self.logger.debug("[%s] Creating process group for flow", deployment_id)
             process_group = await self._create_process_group(
                 flow_name, parent_group_id
             )
             process_group_id = process_group.get("id")
             deployment_info["process_group_id"] = process_group_id
+            self.logger.debug("[%s] Process group created: %s (name=%s)", 
+                             deployment_id, process_group_id, process_group.get("component", {}).get("name"))
 
             # Step 3: Set parameter context on process group if we have one
             if parameter_context_id:
+                self.logger.debug("[%s] Setting parameter context %s on process group %s", 
+                                 deployment_id, parameter_context_id, process_group_id)
                 await self._set_parameter_context(
                     process_group_id,
                     parameter_context_id,
                     revision=process_group.get("revision", {}).get("version"),
                     client_id=process_group.get("revision", {}).get("clientId"),
                 )
+                self.logger.debug("[%s] Parameter context applied successfully", deployment_id)
+            else:
+                self.logger.debug("[%s] No parameter context to apply", deployment_id)
 
             # Step 4: Deploy processors
+            self.logger.debug("[%s] Deploying %d processors", deployment_id, len(flow_definition.get("processors", [])))
             processor_map, processor_failures = await self._deploy_processors(
-                flow_definition.get("processors", []), process_group_id
+                flow_definition.get("processors", []), process_group_id, deployment_id
             )
             failures.extend(processor_failures)
+            self.logger.debug("[%s] Processor deployment complete: %d created, %d failed", 
+                             deployment_id, len(processor_map), len(processor_failures))
 
             # Step 5: Deploy connections
+            self.logger.debug("[%s] Deploying %d connections", deployment_id, len(flow_definition.get("connections", [])))
             connection_failures = await self._deploy_connections(
-                flow_definition.get("connections", []), process_group_id, processor_map
+                flow_definition.get("connections", []), process_group_id, processor_map, deployment_id
             )
             failures.extend(connection_failures)
+            self.logger.debug("[%s] Connection deployment complete: %d failed", deployment_id, len(connection_failures))
 
             # Step 6: Validate all components
-            validation_failures = await self._validate_components(processor_map)
+            self.logger.debug("[%s] Starting component validation", deployment_id)
+            validation_failures = await self._validate_components(processor_map, deployment_id)
             failures.extend(validation_failures)
+            self.logger.debug("[%s] Validation complete: %d validation failures", deployment_id, len(validation_failures))
 
             # Determine success
             success = len(failures) == 0
 
             if success:
                 should_cleanup = False  # Keep successful deployment
-                self.logger.info("Successfully deployed flow: %s", flow_name)
+                self.logger.info("[%s] ✅ DEPLOYMENT SUCCESS: %s", deployment_id, flow_name)
+                self.logger.debug("[%s] Final process group: %s, parameter context: %s", 
+                                 deployment_id, process_group_id, parameter_context_id)
             else:
-                self.logger.warning("Flow deployment failed with %d errors", len(failures))
+                self.logger.warning("[%s] ❌ DEPLOYMENT FAILED: %d total failures", deployment_id, len(failures))
+                for i, failure in enumerate(failures):
+                    self.logger.debug("[%s] Failure %d: %s/%s - %s", 
+                                     deployment_id, i+1, failure.get("component_type"), 
+                                     failure.get("component_name"), failure.get("message"))
+
+            # Calculate actual success counts
+            total_processors = len(flow_definition.get("processors", []))
+            failed_processors = len([f for f in failures if f["component_type"] == "processor"])
+            created_processors = total_processors - failed_processors
+            
+            total_connections = len(flow_definition.get("connections", []))
+            failed_connections = len([f for f in failures if f["component_type"] == "connection"])
+            created_connections = total_connections - failed_connections
 
             summary = {
-                "total_processors": len(flow_definition.get("processors", [])),
-                "created_processors": len(processor_map),
-                "failed_processors": len([f for f in failures if f["component_type"] == "processor"]),
-                "total_connections": len(flow_definition.get("connections", [])),
-                "created_connections": len([f for f in failures if f["component_type"] == "connection"]),
-                "failed_connections": len([f for f in failures if f["component_type"] == "connection"]),
+                "total_processors": total_processors,
+                "created_processors": max(0, created_processors),
+                "failed_processors": failed_processors,
+                "total_connections": total_connections,
+                "created_connections": max(0, created_connections),
+                "failed_connections": failed_connections,
             }
 
             return {
@@ -130,26 +175,31 @@ class NiFiFlowDeployment(LoggerMixin):
 
         finally:
             if should_cleanup and process_group_id:
-                await self.cleanup_failed_deployment(process_group_id, parameter_context_id)
+                self.logger.info("[%s] 🧹 CLEANUP: Removing failed deployment resources", deployment_id)
+                await self.cleanup_failed_deployment(process_group_id, parameter_context_id, deployment_id)
+            
+            self.logger.info("=== DEPLOYMENT END [%s] ===", deployment_id)
 
     async def cleanup_failed_deployment(
-        self, process_group_id: Optional[str], parameter_context_id: Optional[str]
+        self, process_group_id: Optional[str], parameter_context_id: Optional[str], deployment_id: str = "unknown"
     ) -> None:
         """Clean up resources from a failed deployment."""
         if process_group_id:
             try:
+                self.logger.debug("[%s] Deleting failed process group: %s", deployment_id, process_group_id)
                 await self.nifi.process_groups.delete_process_group(process_group_id)
-                self.logger.info("Cleaned up failed process group: %s", process_group_id)
+                self.logger.info("[%s] ✅ Cleaned up failed process group: %s", deployment_id, process_group_id)
             except Exception as exc:
-                self.logger.warning("Failed to clean up process group %s: %s", process_group_id, exc)
+                self.logger.warning("[%s] ❌ Failed to clean up process group %s: %s", deployment_id, process_group_id, exc)
 
         if parameter_context_id:
             try:
+                self.logger.debug("[%s] Deleting failed parameter context: %s", deployment_id, parameter_context_id)
                 await self.nifi.parameter_contexts.delete_parameter_context(parameter_context_id)
-                self.logger.info("Cleaned up failed parameter context: %s", parameter_context_id)
+                self.logger.info("[%s] ✅ Cleaned up failed parameter context: %s", deployment_id, parameter_context_id)
             except Exception as exc:
                 self.logger.warning(
-                    "Failed to clean up parameter context %s: %s", parameter_context_id, exc
+                    "[%s] ❌ Failed to clean up parameter context %s: %s", deployment_id, parameter_context_id, exc
                 )
 
     async def _create_parameter_context(
@@ -179,13 +229,15 @@ class NiFiFlowDeployment(LoggerMixin):
 
     async def _create_process_group(self, flow_name: str, parent_group_id: str) -> Dict[str, Any]:
         """Create process group for the flow."""
+        # Make process group name unique to avoid conflicts from previous deployments
+        unique_flow_name = f"{flow_name}-{int(time.time())}"
         process_group = await self.nifi.process_groups.create_process_group(
             parent_group_id=parent_group_id,
-            name=flow_name,
+            name=unique_flow_name,
             position={"x": 100.0, "y": 100.0},
         )
         process_group_id = process_group.get("id")
-        self.logger.info("Created process group: %s", process_group_id)
+        self.logger.info("Created process group: %s (name: %s)", process_group_id, unique_flow_name)
         return process_group
 
     async def _set_parameter_context(
@@ -205,7 +257,7 @@ class NiFiFlowDeployment(LoggerMixin):
         self.logger.info("Applied parameter context to process group")
 
     async def _deploy_processors(
-        self, processors: List[Dict[str, Any]], process_group_id: str
+        self, processors: List[Dict[str, Any]], process_group_id: str, deployment_id: str = "unknown"
     ) -> Tuple[Dict[str, str], List[Dict[str, Any]]]:
         """Deploy processors and return ID mapping and failures."""
         processor_map: Dict[str, str] = {}
@@ -213,6 +265,9 @@ class NiFiFlowDeployment(LoggerMixin):
         failures: List[Dict[str, Any]] = []
 
         for processor_def in processors:
+            processor_name = processor_def.get("name", "Unnamed Processor")
+            self.logger.debug("[%s] Creating processor: %s", deployment_id, processor_name)
+            
             try:
                 component_def = processor_def.get("component") or processor_def
                 config_def = component_def.get("config", {})
@@ -221,6 +276,10 @@ class NiFiFlowDeployment(LoggerMixin):
                 processor_name = processor_def.get("name") or component_def.get("name", "Unnamed Processor")
                 position = processor_def.get("position") or component_def.get("position")
                 properties = processor_def.get("properties") or config_def.get("properties")
+                
+                self.logger.debug("[%s] Processor %s: type=%s, properties=%s", 
+                                 deployment_id, processor_name, processor_type, 
+                                 list(properties.keys()) if properties else "None")
                 auto_terminated = (
                     processor_def.get("autoTerminatedRelationships")
                     or config_def.get("autoTerminatedRelationships")
@@ -271,9 +330,12 @@ class NiFiFlowDeployment(LoggerMixin):
                 if name and new_id:
                     processor_name_map[name] = new_id
 
-                self.logger.debug("Created processor: %s -> %s", name, new_id)
+                self.logger.debug("[%s] ✅ Created processor: %s -> %s (id=%s)", 
+                                 deployment_id, name, new_id, original_id)
 
             except Exception as exc:
+                self.logger.error("[%s] ❌ Failed to create processor %s: %s", 
+                                 deployment_id, processor_name, exc)
                 failures.append({
                     "component_type": "processor",
                     "component_name": processor_def.get("name", "Unnamed Processor"),
@@ -285,8 +347,12 @@ class NiFiFlowDeployment(LoggerMixin):
                     },
                 })
 
-        # Merge name map into processor map for connection resolution
-        processor_map.update(processor_name_map)
+        # Merge name map into processor map for connection resolution (avoid duplicates)
+        for name, proc_id in processor_name_map.items():
+            if name not in processor_map:  # Only add if not already present by ID
+                processor_map[name] = proc_id
+        
+        self.logger.debug("Final processor map: %s", processor_map)
         return processor_map, failures
 
     async def _deploy_connections(
@@ -294,6 +360,7 @@ class NiFiFlowDeployment(LoggerMixin):
         connections: List[Dict[str, Any]],
         process_group_id: str,
         processor_map: Dict[str, str],
+        deployment_id: str = "unknown",
     ) -> List[Dict[str, Any]]:
         """Deploy connections and return failures."""
         failures: List[Dict[str, Any]] = []
@@ -361,7 +428,7 @@ class NiFiFlowDeployment(LoggerMixin):
 
         return failures
 
-    async def _validate_components(self, processor_map: Dict[str, str]) -> List[Dict[str, Any]]:
+    async def _validate_components(self, processor_map: Dict[str, str], deployment_id: str = "unknown") -> List[Dict[str, Any]]:
         """Validate all deployed components."""
         failures: List[Dict[str, Any]] = []
 
@@ -369,16 +436,26 @@ class NiFiFlowDeployment(LoggerMixin):
         import asyncio
         await asyncio.sleep(1)
 
-        for original_id, processor_id in processor_map.items():
+        # Get unique processor IDs to avoid duplicate validation
+        unique_processor_ids = set(processor_map.values())
+        self.logger.debug("[%s] Validating %d unique processors", deployment_id, len(unique_processor_ids))
+        
+        for processor_id in unique_processor_ids:
             try:
                 processor = await self.nifi.processors.get_processor(processor_id)
+                processor_name = processor.get("component", {}).get("name", "Unknown")
                 validation_status = processor.get("component", {}).get("validationStatus")
+                
+                self.logger.debug("[%s] Processor %s (%s): validation_status=%s", 
+                                 deployment_id, processor_name, processor_id, validation_status)
 
                 if validation_status == "INVALID":
                     validation_errors = processor.get("component", {}).get("validationErrors", [])
+                    self.logger.warning("[%s] ❌ Processor %s validation failed: %s", 
+                                      deployment_id, processor_name, validation_errors)
                     failures.append({
                         "component_type": "processor",
-                        "component_name": processor.get("component", {}).get("name", "Unknown"),
+                        "component_name": processor_name,
                         "error_type": "validation",
                         "message": "Processor validation failed",
                         "details": {
@@ -386,8 +463,11 @@ class NiFiFlowDeployment(LoggerMixin):
                             "validation_status": validation_status,
                         },
                     })
+                else:
+                    self.logger.debug("[%s] ✅ Processor %s validation passed", deployment_id, processor_name)
 
             except Exception as exc:
+                self.logger.error("[%s] ❌ Failed to validate processor %s: %s", deployment_id, processor_id, exc)
                 failures.append({
                     "component_type": "processor",
                     "component_name": f"Processor {processor_id}",

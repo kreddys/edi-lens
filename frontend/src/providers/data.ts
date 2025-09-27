@@ -211,5 +211,11 @@ export const flowAPI = {
             description: description || ''
         });
         return data;
+    },
+
+    // List deployed flows in NiFi
+    listDeployedFlows: async () => {
+        const { data } = await axiosInstance.get('/api/flows/deployed');
+        return data;
     }
 };

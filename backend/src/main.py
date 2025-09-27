@@ -9,6 +9,7 @@ import time
 
 from .api.routes.health import router as health_router
 from .api.routes.flows import router as flows_router
+from .api.routes.templates import router as templates_router
 from .core.config import settings
 from .core.database import dispose_engine
 from .core.logging import setup_logging, get_logger, audit_logger
@@ -93,9 +94,10 @@ async def log_requests(request: Request, call_next):
 
 app.include_router(health_router)
 app.include_router(flows_router, prefix="/api")
+app.include_router(templates_router)
 
-logger.info("Registered routes: health, flows")
-logger.info("API endpoints available at /api/flows")
+logger.info("Registered routes: health, flows, templates")
+logger.info("API endpoints available at /api/flows and /api/flows/templates")
 
 
 if __name__ == "__main__":  # pragma: no cover - script execution helper

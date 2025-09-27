@@ -12,7 +12,7 @@ import { dataProvider, ThemeProvider } from "./providers";
 
 import { SchemaEditorList } from "./pages/schemaEditor/SchemaEditorList";
 
-import { FlowsList } from "./pages/flows";
+import { FlowManagement } from "./pages/flows";
 
 function App() {
   return (
@@ -44,7 +44,7 @@ function App() {
               <Routes>
                 <Route element={<Layout><Outlet /></Layout>}>
                   <Route index element={<NavigateToResource resource="flows" />} />
-                  <Route path="/flows" element={<FlowsList />} />
+                  <Route path="/flows" element={<FlowManagement />} />
                   <Route path="/schema-editor" element={<SchemaEditorList />} />
                   <Route path="*" element={<ErrorComponent />} />
                 </Route>
