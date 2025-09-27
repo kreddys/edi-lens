@@ -188,6 +188,12 @@ setup_environment() {
 
     mkdir -p "$DOWNLOADS_DIR" "$LOGS_DIR" "$BIN_DIR"
 
+    # Ensure custom binaries are available in subsequent steps and future
+    # maintenance commands.
+    if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+        export PATH="$BIN_DIR:$PATH"
+    fi
+
     create_env_file
 
     set -a
@@ -371,12 +377,23 @@ setup_backend_dependencies() {
         return 0
     fi
 
-    # Check if poetry is available
-    if ! command -v poetry >/dev/null 2>&1; then
-        info "Installing Poetry..."
-        curl -sSL https://install.python-poetry.org | python3 -
-        export PATH="$HOME/.local/bin:$PATH"
+    # Ensure Poetry is installed in a deterministic location that is available to
+    # both the setup process (running as root) and subsequent maintenance
+    # commands (which may execute under sudo without inheriting the user's PATH).
+    local poetry_home="$SERVICES_DIR/poetry"
+    local codex_bin="$SERVICES_DIR/bin"
+
+    mkdir -p "$poetry_home" "$codex_bin"
+
+    if [ ! -x "$codex_bin/poetry" ]; then
+        info "Installing Poetry into $poetry_home"
+        POETRY_HOME="$poetry_home" curl -sSL https://install.python-poetry.org | python3 -
+        ln -sf "$poetry_home/bin/poetry" "$codex_bin/poetry"
+    else
+        info "Poetry already installed at $codex_bin/poetry"
     fi
+
+    export PATH="$codex_bin:$PATH"
 
     cd "$backend_dir"
     
@@ -390,6 +407,10 @@ setup_backend_dependencies() {
             return 0
         fi
     fi
+
+    # Create the virtual environment inside the repository so cached checkouts
+    # retain their dependencies even when the maintainer user changes.
+    poetry config virtualenvs.in-project true --local >/dev/null 2>&1 || true
 
     info "Installing backend dependencies with Poetry..."
     poetry install --with dev

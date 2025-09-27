@@ -58,6 +58,8 @@ else
     SERVICES_DIR="$SERVICES_DIR_FALLBACK"
 fi
 
+add_to_path_if_exists "$SERVICES_DIR/bin"
+
 ENV_FILE="$PROJECT_ROOT/.env.local"
 LOGS_DIR="$SERVICES_DIR/logs"
 
@@ -663,26 +665,23 @@ run_backend_tests() {
 
     cd "$backend_dir"
 
-    # Ensure backend dependencies (including dev extras) are installed before running tests.
-    # When this script is executed via sudo the Poetry environment can be created fresh for
-    # each invocation, which means pytest may not be available yet.  Check for the pytest
-    # entrypoint and install dependencies if necessary.
+    if ! command -v poetry >/dev/null 2>&1; then
+        error "Poetry is not available. Please run sudo bash scripts/setup_codex.sh to provision backend dependencies."
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+
     local venv_path=""
     if ! venv_path=$(poetry env info --path 2>/dev/null); then
-        info "Installing backend dependencies (dev) via Poetry..."
-        if ! poetry install --with dev; then
-            error "Failed to install backend dependencies via Poetry."
-            cd "$PROJECT_ROOT"
-            return 1
-        fi
-        venv_path=$(poetry env info --path)
-    elif [ ! -x "$venv_path/bin/pytest" ]; then
-        info "Installing backend dependencies (dev) via Poetry..."
-        if ! poetry install --with dev; then
-            error "Failed to install backend dependencies via Poetry."
-            cd "$PROJECT_ROOT"
-            return 1
-        fi
+        error "Backend virtual environment not found. Run sudo bash scripts/setup_codex.sh or execute \"poetry install --with dev\" inside backend/ to install dependencies."
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+
+    if [ ! -x "$venv_path/bin/pytest" ]; then
+        error "Pytest is missing from the Poetry environment. Re-run the setup script or install backend dev dependencies."
+        cd "$PROJECT_ROOT"
+        return 1
     fi
 
     case "$test_type" in
