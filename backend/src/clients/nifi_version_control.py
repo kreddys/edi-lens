@@ -690,9 +690,25 @@ class NiFiVersionControlClient(LoggerMixin):
 
     async def revert_local_changes(self, process_group_id: str) -> Dict[str, Any]:
         """Revert local changes to registry version."""
-        payload = {"processGroupRevision": {"version": 0}}
-
         self.logger.debug("Reverting process group to registry version: %s", process_group_id)
+
+        # Get version control information for the process group
+        version_info = await self.get_version_control_info(process_group_id)
+        if not version_info or not version_info.get("versionControlInformation"):
+            raise NiFiClientError(f"Process group {process_group_id} is not under version control")
+
+        vci = version_info["versionControlInformation"]
+        payload = {
+            "processGroupRevision": version_info.get("processGroupRevision", {"version": 0}),
+            "processGroupId": process_group_id,
+            "versionControlInformation": {
+                "registryId": vci.get("registryId"),
+                "bucketId": vci.get("bucketId"),
+                "flowId": vci.get("flowId"),
+                "version": vci.get("version"),
+                "state": "LOCALLY_MODIFIED"
+            }
+        }
 
         # Create revert request
         result = await self.base.post(
