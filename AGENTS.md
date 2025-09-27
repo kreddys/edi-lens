@@ -4,42 +4,65 @@ Welcome to the EDI Lens project! This guide provides essential information for A
 
 ## 🚀 Quick Setup
 
-### Codex Environment Setup
+### Environment Types
+
+**Choose your development environment:**
+
+#### **Local Development (Recommended for most work)**
 ```bash
-# Initial setup (installs PostgreSQL, NiFi, NiFi Registry, and backend dependencies)
+# Start all services with Docker infrastructure
+bash scripts/maintain_local.sh start
+
+# Check service status
+bash scripts/maintain_local.sh status
+```
+
+#### **Codex Environment (Production-like)**  
+```bash
+# Initial setup (installs PostgreSQL, NiFi, NiFi Registry, frontend + backend)
 sudo bash scripts/setup_codex.sh
+
+# Start all services  
+sudo bash scripts/maintain_codex.sh start
 
 # Check service status
 sudo bash scripts/maintain_codex.sh status
-
-# Start all services
-sudo bash scripts/maintain_codex.sh start
 ```
 
 ### 🚨 CRITICAL: Always Use Management Scripts
 
-**NEVER run frontend services directly with `npm run dev` or `npm start`!**
+**NEVER run services directly!** Always use the management scripts:
 
-Always use the management scripts for proper service orchestration:
-
+#### ❌ **DON'T DO THIS:**
 ```bash
-# For local development - ALWAYS use this approach
-sudo bash scripts/maintain_local.sh start      # Start all services (frontend + backend + deps)
-sudo bash scripts/maintain_local.sh stop       # Stop all services
-sudo bash scripts/maintain_local.sh restart    # Restart all services
-sudo bash scripts/maintain_local.sh status     # Check service health
-
-# Clean restart (recommended for testing new changes)
-sudo bash scripts/maintain_local.sh stop
-sudo bash scripts/maintain_local.sh start
+npm run dev                    # DON'T run frontend directly
+poetry run uvicorn src.main:app  # DON'T run backend directly  
+docker-compose up              # DON'T use docker-compose directly
 ```
 
+#### ✅ **DO THIS INSTEAD:**
+```bash
+# Local development
+bash scripts/maintain_local.sh start      # Start all services
+bash scripts/maintain_local.sh status     # Check health  
+bash scripts/maintain_local.sh test unit  # Run tests
+bash scripts/maintain_local.sh logs backend  # Debug issues
+
+# Codex environment  
+sudo bash scripts/maintain_codex.sh start     # Start all services
+sudo bash scripts/maintain_codex.sh status    # Check health
+sudo bash scripts/maintain_codex.sh test e2e  # Run tests
+sudo bash scripts/maintain_codex.sh logs frontend  # Debug issues
+```
+
+### 🎯 **Why Use Management Scripts?**
 The management scripts ensure:
-- Correct service startup order
-- Proper port configuration
-- Environment variable loading
-- Health checks and monitoring
-- Dependency management between services
+- ✅ Correct service startup order (database → NiFi → backend → frontend)
+- ✅ Proper port configuration and environment variables
+- ✅ Health checks and monitoring
+- ✅ Dependency management between services  
+- ✅ Unified testing with both backend and frontend
+- ✅ Comprehensive logging and debugging
 
 ## 🏗️ Project Structure
 
@@ -60,63 +83,181 @@ edi-lens/
 └── .env.local             # Environment configuration
 ```
 
-## 🧪 Testing
+## 🧪 Testing & Development Commands
 
-All backend tests must be run through the management scripts to ensure proper environment configuration:
+### 🎯 **Two Environment Types**
 
-### Unit Tests
+#### **Local Development Environment** (`maintain_local.sh`)
+- Uses Docker containers for infrastructure services
+- Runs as regular user (no `sudo` required for most commands)
+- Best for daily development work
+
+#### **Codex Environment** (`maintain_codex.sh`) 
+- Uses native system services (PostgreSQL, NiFi installed locally)
+- Requires `sudo` for service management
+- Production-like environment for testing
+
+### 📋 **Complete Command Reference**
+
+Both scripts support identical commands. Choose based on your environment:
+
 ```bash
-# Run tests in Poetry environment
-cd backend && poetry run pytest tests/unit/
-```
-- Tests isolated components without external dependencies
-- Runs in local Poetry virtual environment
-- Located in `backend/tests/unit/`
+# LOCAL DEVELOPMENT (Docker-based)
+bash scripts/maintain_local.sh <command>
 
-### Integration Tests
-```bash
-# Ensure services are running first
-sudo bash scripts/maintain_codex.sh status
-cd backend && poetry run pytest tests/integration/
-```
-- Tests API clients and service integrations
-- Requires running NiFi, Registry, and PostgreSQL services
-- Located in `backend/tests/integration/`
-
-### End-to-End Tests
-```bash
-# Ensure all services are healthy
-sudo bash scripts/maintain_codex.sh status
-cd backend && poetry run pytest tests/e2e/ -v
-```
-- Tests complete workflows from API to NiFi deployment
-- Use `-v` for verbose debugging output
-- Located in `backend/tests/e2e/`
-
-## 🔧 Development Tools
-
-### Backend Management
-```bash
-# For Codex environment (production-like)
-sudo bash scripts/maintain_codex.sh start      # Start all services
-sudo bash scripts/maintain_codex.sh stop       # Stop all services
-sudo bash scripts/maintain_codex.sh restart    # Restart all services
-sudo bash scripts/maintain_codex.sh status     # Service health summary
-
-# For local development
-sudo bash scripts/maintain_local.sh start      # Start all services locally
-sudo bash scripts/maintain_local.sh stop       # Stop all services
-sudo bash scripts/maintain_local.sh restart    # Restart all services
-sudo bash scripts/maintain_local.sh status     # Service health summary
+# CODEX ENVIRONMENT (Native services)  
+sudo bash scripts/maintain_codex.sh <command>
 ```
 
-### Service Management
+#### **Essential Commands**
 ```bash
-sudo bash scripts/maintain_codex.sh start      # Start all services
-sudo bash scripts/maintain_codex.sh stop       # Stop all services
-sudo bash scripts/maintain_codex.sh restart    # Restart all services
-sudo bash scripts/maintain_codex.sh status     # Service health summary
-sudo bash scripts/maintain_codex.sh detailed   # Detailed system status
+start                # Start all services (frontend + backend + infrastructure)
+stop                 # Stop all services gracefully
+restart              # Stop and start all services
+status               # Show service health summary
+dev                  # Alias for 'start' - development mode
+```
+
+#### **Testing Commands**
+```bash
+test                 # Run all tests (backend + frontend)
+test unit            # Run unit tests (backend + frontend)
+test integration     # Run integration tests (backend + frontend)
+test e2e             # Run end-to-end tests (backend + frontend)
+test watch           # Run backend tests in watch mode
+```
+
+#### **Debugging Commands**
+```bash
+logs backend         # Show backend API logs
+logs frontend        # Show frontend dev server logs
+logs nifi            # Show NiFi service logs
+logs registry        # Show NiFi Registry logs
+logs db              # Show PostgreSQL logs
+```
+
+#### **Maintenance Commands**
+```bash
+clean                # DESTRUCTIVE: Remove all data, containers, volumes
+detailed             # Show detailed system status (Codex only)
+```
+
+### 🚀 **Quick Start Workflows**
+
+#### **Daily Development Workflow**
+```bash
+# Start everything for development
+bash scripts/maintain_local.sh start
+
+# Check that all services are healthy
+bash scripts/maintain_local.sh status
+
+# Run tests after making changes
+bash scripts/maintain_local.sh test unit
+
+# View logs if there are issues
+bash scripts/maintain_local.sh logs backend
+bash scripts/maintain_local.sh logs frontend
+
+# Clean restart when needed
+bash scripts/maintain_local.sh restart
+```
+
+#### **Complete Testing Workflow**
+```bash
+# Ensure all services are running
+bash scripts/maintain_local.sh status
+
+# Run comprehensive test suite
+bash scripts/maintain_local.sh test all
+
+# Run specific test types
+bash scripts/maintain_local.sh test unit         # Fast unit tests
+bash scripts/maintain_local.sh test integration  # API integration tests  
+bash scripts/maintain_local.sh test e2e          # Full end-to-end tests
+
+# Run tests in watch mode during development
+bash scripts/maintain_local.sh test watch
+```
+
+### 🌐 **Service Endpoints**
+
+When services are running, access them at:
+
+- **Frontend**: http://localhost:3000 (React/Vite dev server)
+- **Backend API**: http://localhost:8000 (FastAPI + docs at `/docs`)
+- **NiFi**: https://localhost:8443/nifi/ (user: `admin`)
+- **NiFi Registry**: http://localhost:18080/nifi-registry/
+- **PostgreSQL**: localhost:5432 (database: `edi_lens`)
+
+### 🧪 **Test Types Explained**
+
+#### **Unit Tests** (`test unit`)
+- **Backend**: Tests isolated components without external dependencies
+- **Frontend**: Currently not configured (shows as skipped)
+- **Speed**: Fast (< 30 seconds)
+- **Location**: `backend/tests/unit/`
+
+#### **Integration Tests** (`test integration`) 
+- **Backend**: Tests API clients and service integrations (47 tests)
+- **Frontend**: Currently not configured (shows as skipped)
+- **Speed**: Medium (~15 seconds)
+- **Requirements**: Running NiFi, Registry, and PostgreSQL
+- **Location**: `backend/tests/integration/`
+
+#### **End-to-End Tests** (`test e2e`)
+- **Backend**: Tests complete workflows from API to NiFi deployment (2 tests)
+- **Frontend**: Playwright tests covering full user workflows (7 tests)
+- **Speed**: Slow (~10 seconds)
+- **Requirements**: All services running and healthy
+- **Location**: `backend/tests/e2e/`, `frontend/src/tests/e2e/`
+
+### 🔧 **Development Tools**
+
+#### **Backend Management**
+```bash
+# Check backend dependencies
+cd backend && poetry check
+
+# Interactive backend development  
+cd backend && poetry shell
+
+# Run backend directly (for debugging)
+cd backend && poetry run uvicorn src.main:app --reload
+```
+
+#### **Frontend Management**  
+```bash
+# Check frontend dependencies
+cd frontend && npm list
+
+# Run frontend directly (for debugging)
+cd frontend && npm run dev
+
+# Run frontend tests directly
+cd frontend && npm run test:e2e
+```
+
+### 📊 **Service Health Monitoring**
+
+#### **Status Commands**
+```bash
+# Quick health check
+bash scripts/maintain_local.sh status
+
+# Detailed system information (Codex only)
+sudo bash scripts/maintain_codex.sh detailed
+```
+
+#### **Log Monitoring**
+```bash
+# Follow logs in real-time
+bash scripts/maintain_local.sh logs backend
+bash scripts/maintain_local.sh logs frontend
+
+# Check all logs
+ls -la logs/                    # Local development logs
+ls -la ~/.codex-services/logs/  # Codex environment logs
 ```
 
 ## 📋 Environment Configuration
@@ -141,13 +282,11 @@ The project uses `.env.local` for all environment configuration:
 ### Configuration
 - `.env.local` - Environment variables for all services
 - `backend/pyproject.toml` - Python dependencies and project config
-- `backend/README_ARCHITECTURE.md` - Detailed backend architecture
 
 ### Scripts
-- `scripts/setup_codex.sh` - Complete environment setup
-- `scripts/maintain_codex.sh` - Service management and monitoring
-- `scripts/maintain_codex.sh` - Production-like service management
-- `scripts/maintain_local.sh` - Local development service management
+- `scripts/setup_codex.sh` - Complete Codex environment setup (includes frontend + backend) [no need to run this in codex enviornment. this runs as part of startup]
+- `scripts/maintain_codex.sh` - Codex service management and testing (full feature parity) [can be used for unit, integration and e2e tests or check service status or restart services in codex enviornment ]
+- `scripts/maintain_local.sh` - Local development service management and testing [do not use this in codex environment]
 
 ### Testing
 - `backend/tests/conftest.py` - Test configuration and fixtures
@@ -171,45 +310,178 @@ The project uses `.env.local` for all environment configuration:
 ## 🚨 Important Notes
 
 - Always ensure services are running before tests with `maintain_codex.sh` or `maintain_local.sh`
-- Use Codex setup scripts for environment initialization
 - Backend dependencies are managed with Poetry
+- Frontend dependencies are managed with npm
 - All services run on localhost with standard ports
 - Check service health with maintenance script before testing
+- **Both environments now have complete feature parity** - use either based on your needs
 - Ignore any directories that end with `_legacy`; they contain deprecated code that should not be modified or considered during development or reviews.
 
 ## 🆘 Troubleshooting
 
-### Service Issues
+### 🔍 **Diagnostic Commands**
+
+#### **Check Service Health**
 ```bash
-# Check all service status
+# Quick health check - shows service status
+bash scripts/maintain_local.sh status
+sudo bash scripts/maintain_codex.sh status
+
+# Detailed system information (Codex only)
 sudo bash scripts/maintain_codex.sh detailed
-
-# Restart problematic services
-sudo bash scripts/maintain_codex.sh restart
-
-# Check logs
-ls -la /opt/codex-services/logs/  # or ~/.codex-services/logs/
 ```
 
-### Backend Issues
+#### **View Service Logs**
 ```bash
-# Check backend logs
-sudo bash scripts/maintain_codex.sh detailed
+# Backend API issues
+bash scripts/maintain_local.sh logs backend
 
-# Check individual service logs
-ls -la /opt/codex-services/logs/  # or ~/.codex-services/logs/
+# Frontend development server issues  
+bash scripts/maintain_local.sh logs frontend
 
-# Interactive backend debugging
+# NiFi data processing issues
+bash scripts/maintain_local.sh logs nifi
+
+# NiFi Registry version control issues
+bash scripts/maintain_local.sh logs registry
+
+# Database connection issues
+bash scripts/maintain_local.sh logs db
+```
+
+### 🚨 **Common Issues & Solutions**
+
+#### **Services Not Starting**
+```bash
+# Step 1: Check if ports are in use
+netstat -tulpn | grep -E ":3000|:8000|:8443|:18080|:5432"
+
+# Step 2: Clean restart everything
+bash scripts/maintain_local.sh stop
+bash scripts/maintain_local.sh start
+
+# Step 3: If still failing, check logs
+bash scripts/maintain_local.sh logs backend
+bash scripts/maintain_local.sh logs frontend
+```
+
+#### **Tests Failing**
+```bash
+# Step 1: Verify all services are healthy
+bash scripts/maintain_local.sh status
+
+# Step 2: Check for service errors
+bash scripts/maintain_local.sh logs backend
+bash scripts/maintain_local.sh logs nifi
+
+# Step 3: Run tests with proper environment
+bash scripts/maintain_local.sh test integration
+```
+
+#### **Backend Issues**
+```bash
+# Check backend service health
+bash scripts/maintain_local.sh logs backend
+
+# Interactive debugging
 cd backend && poetry shell
+poetry run uvicorn src.main:app --reload
 
-# Verify dependencies
+# Verify Python dependencies
 cd backend && poetry check
+poetry install --with dev
 ```
 
-### Common Solutions
-- **Services not starting**: Run setup script again
-- **Tests failing**: Verify services are healthy first
-- **Connection errors**: Check `.env.local` configuration
-- **Permission errors**: Ensure scripts run with appropriate privileges
+#### **Frontend Issues**  
+```bash
+# Check frontend development server
+bash scripts/maintain_local.sh logs frontend
 
-This guide should help you navigate the EDI Lens codebase efficiently. For detailed architecture information, refer to `backend/README_ARCHITECTURE.md`.
+# Interactive debugging
+cd frontend && npm run dev
+
+# Verify Node.js dependencies
+cd frontend && npm list
+npm ci
+```
+
+#### **Database Connection Issues**
+```bash
+# Check PostgreSQL status
+bash scripts/maintain_local.sh logs db
+
+# Test database connectivity
+bash scripts/maintain_local.sh status
+
+# For Codex environment, check PostgreSQL service
+sudo systemctl status postgresql
+```
+
+#### **NiFi/Registry Issues**
+```bash
+# Check NiFi logs
+bash scripts/maintain_local.sh logs nifi
+bash scripts/maintain_local.sh logs registry
+
+# Verify NiFi web interface
+curl -k https://localhost:8443/nifi/
+
+# Check NiFi Registry connectivity  
+curl http://localhost:18080/nifi-registry/
+```
+
+### 🔧 **Advanced Troubleshooting**
+
+#### **Clean Environment Reset**
+```bash
+# WARNING: This removes all data!
+bash scripts/maintain_local.sh clean
+
+# Then restart fresh
+bash scripts/maintain_local.sh start
+```
+
+#### **Individual Service Management**
+```bash
+# Stop specific services if needed
+pkill -f "uvicorn.*src.main:app"    # Stop backend
+pkill -f "npm.*dev"                 # Stop frontend
+
+# Check what's running on ports
+lsof -i :3000  # Frontend port
+lsof -i :8000  # Backend port
+lsof -i :8443  # NiFi port
+```
+
+#### **Environment Configuration Issues**
+```bash
+# Verify environment file exists
+ls -la .env.local
+
+# Check environment variables are loading
+bash scripts/maintain_local.sh status
+```
+
+### 📋 **Environment-Specific Notes**
+
+#### **Local Development (Docker-based)**
+- Services run in Docker containers
+- Data persists in Docker volumes
+- No `sudo` required for most operations
+- Use `bash scripts/maintain_local.sh` commands
+
+#### **Codex Environment (Native services)**
+- Services installed directly on system
+- Requires `sudo` for service management  
+- More production-like setup
+- Use `sudo bash scripts/maintain_codex.sh` commands
+
+### 🎯 **Quick Resolution Checklist**
+
+1. **✅ Check service status**: `bash scripts/maintain_local.sh status`
+2. **✅ View relevant logs**: `bash scripts/maintain_local.sh logs [service]`
+3. **✅ Restart services**: `bash scripts/maintain_local.sh restart`
+4. **✅ Verify environment**: Check `.env.local` file exists
+5. **✅ Clean restart** (if needed): `bash scripts/maintain_local.sh clean && bash scripts/maintain_local.sh start`
+
+For persistent issues, check the detailed service logs and ensure all dependencies are properly installed.
