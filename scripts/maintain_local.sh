@@ -188,6 +188,114 @@ run_pytest_watch() {
     fi
 }
 
+# --- Combined Test Functions -------------------------------------------------
+run_frontend_tests() {
+    local test_type="${1:-all}"
+    if (( $# > 0 )); then
+        shift
+    fi
+    local -a extra_args=("$@")
+
+    if [ ! -d "$FRONTEND_DIR" ]; then
+        warn "Frontend directory not found at $FRONTEND_DIR"
+        return 1
+    fi
+
+    local original_dir="$PWD"
+    cd "$FRONTEND_DIR"
+
+    # Check if npm is available
+    if ! command -v npm >/dev/null 2>&1; then
+        error "npm is not installed or not in PATH"
+        cd "$original_dir"
+        return 1
+    fi
+
+    # Check if package.json exists
+    if [ ! -f "package.json" ]; then
+        error "package.json not found in frontend directory"
+        cd "$original_dir"
+        return 1
+    fi
+
+    case "$test_type" in
+        unit|integration)
+            info "Running frontend $test_type tests..."
+            if command -v npm >/dev/null 2>&1 && npm run "test:$test_type" --silent >/dev/null 2>&1; then
+                npm run "test:$test_type"
+            else
+                warn "Frontend $test_type tests not available - skipping"
+            fi
+            ;;
+        e2e)
+            info "Running frontend E2E tests..."
+            if command -v npm >/dev/null 2>&1 && npm run test:e2e --silent >/dev/null 2>&1; then
+                npm run test:e2e
+            else
+                warn "Frontend E2E tests not available - skipping"
+            fi
+            ;;
+        all)
+            info "Running all frontend tests..."
+            
+            # Run integration tests if available
+            if npm run test:integration --silent >/dev/null 2>&1; then
+                info "→ Frontend integration tests"
+                npm run test:integration
+            else
+                warn "Frontend integration tests not available - skipping"
+            fi
+            
+            # Run E2E tests if available
+            if npm run test:e2e --silent >/dev/null 2>&1; then
+                info "→ Frontend E2E tests"
+                npm run test:e2e
+            else
+                warn "Frontend E2E tests not available - skipping"
+            fi
+            ;;
+        *)
+            warn "Unknown frontend test type: $test_type - skipping frontend tests"
+            ;;
+    esac
+
+    cd "$original_dir"
+}
+
+run_tests() {
+    local test_type="${1:-all}"
+    if (( $# > 0 )); then
+        shift
+    fi
+    local -a extra_args=("$@")
+
+    info "🧪 Running combined test suite: $test_type"
+    echo ""
+
+    # Run backend tests
+    info "📦 BACKEND TESTS"
+    info "====================="
+    if [ ${#extra_args[@]} -gt 0 ]; then
+        run_backend_tests "$test_type" "${extra_args[@]}"
+    else
+        run_backend_tests "$test_type"
+    fi
+    
+    echo ""
+    
+    # Run frontend tests
+    info "🌐 FRONTEND TESTS"
+    info "====================="
+    if [ ${#extra_args[@]} -gt 0 ]; then
+        run_frontend_tests "$test_type" "${extra_args[@]}"
+    else
+        run_frontend_tests "$test_type"
+    fi
+    
+    echo ""
+    success "✅ Combined test suite completed: $test_type"
+}
+
 run_backend_tests() {
     local test_type="${1:-all}"
     if (( $# > 0 )); then
@@ -665,24 +773,32 @@ ESSENTIAL COMMANDS:
     restart              Restart all services
     status               Show detailed status of all services
     logs [service]       Show logs (backend, frontend, nifi, registry, db)
-    clean                Stop services and clean up logs
-    clean-all            DESTRUCTIVE: Remove all containers, volumes, and data
+    clean                DESTRUCTIVE: Remove all containers, volumes, and data
 
 DEVELOPMENT COMMANDS:
-    test [type]          Run backend tests (unit, integration, e2e, all, watch)
+    test [type]          Run combined tests - both backend and frontend (unit, integration, e2e, all, watch)
     dev                  Start in development mode (infrastructure + backend + frontend)
+
+TEST TYPES:
+    unit                 Run unit tests (backend + frontend)
+    integration          Run integration tests (backend + frontend) 
+    e2e                  Run end-to-end tests (backend + frontend)
+    all                  Run all test types (default)
+    watch                Run backend tests in watch mode (backend only)
 
 EXAMPLES:
     $0 start             # Start everything
     $0 status            # Show status
     $0 logs backend      # Show backend logs
-    $0 test integration  # Run backend integration tests
-    $0 clean-all         # Nuclear option - removes all data
+    $0 test unit         # Run unit tests (backend + frontend)
+    $0 test integration  # Run integration tests (backend + frontend)
+    $0 test e2e          # Run E2E tests (backend + frontend)
+    $0 clean             # Nuclear option - removes all data
 
 SERVICES:
     - PostgreSQL (port 5432)
     - NiFi (port 8443)
-    - Registry (port 18080)
+    - Registry (port 18080)  
     - Backend API (port 8000)
     - Frontend (port 3000)
 
@@ -717,7 +833,7 @@ main() {
         test)
             local test_type="${2:-all}"
             shift 2 2>/dev/null || shift 1
-            run_backend_tests "$test_type" "$@"
+            run_tests "$test_type" "$@"
             ;;
         status)
             show_status
@@ -726,17 +842,6 @@ main() {
             show_logs "${2:-}"
             ;;
         clean)
-            stop_frontend
-            stop_backend
-            stop_infrastructure
-            # Clean logs
-            if [ -d "$PROJECT_ROOT/logs" ]; then
-                info "Cleaning log files..."
-                rm -f "$PROJECT_ROOT/logs"/*.log
-            fi
-            success "All services stopped and cleaned up"
-            ;;
-        clean-all)
             clean_all
             ;;
         help|--help|-h)

@@ -25,6 +25,19 @@ coverage
 .nyc_output
 .coverage
 
+# Test output and reports
+playwright-report/
+test-results/
+/playwright-report/
+/test-results/
+*-trace.zip
+*-screenshot*.png
+*-video*.webm
+
+# Jest/Vitest output
+jest-html-reporters-attach/
+junit.xml
+
 # Dependency directories
 node_modules/
 frontend/node_modules/ # Specific to new structure
