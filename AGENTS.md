@@ -4,34 +4,26 @@ Welcome to the EDI Lens project! This guide provides essential information for A
 
 ## 🚀 Quick Setup
 
-### Environment Types
+### Unified Development Interface
 
-**Choose your development environment:**
+**The project automatically detects your environment and uses the appropriate backend:**
 
-#### **Local Development (Recommended for most work)**
 ```bash
-# Start all services with Docker infrastructure
-bash scripts/maintain_local.sh start
+# Start all services (auto-detects Docker vs native environment)
+bash scripts/maintain.sh start
 
 # Check service status
-bash scripts/maintain_local.sh status
+bash scripts/maintain.sh status
 ```
 
-#### **Codex Environment (Production-like)**  
-```bash
-# Initial setup (installs PostgreSQL, NiFi, NiFi Registry, frontend + backend)
-sudo bash scripts/setup_codex.sh
+**Environment Detection:**
+- **Local Development**: Uses Docker containers (maintain_local.sh)
+- **Codex Environment**: Uses native services with sudo (maintain_codex.sh)
+- **Auto-Detection**: Checks for Codex markers, PostgreSQL service, environment variables
 
-# Start all services  
-sudo bash scripts/maintain_codex.sh start
+### 🚨 CRITICAL: Always Use the Unified Maintenance Script
 
-# Check service status
-sudo bash scripts/maintain_codex.sh status
-```
-
-### 🚨 CRITICAL: Always Use Management Scripts
-
-**NEVER run services directly!** Always use the management scripts:
+**NEVER run services directly!** Always use the unified maintenance script:
 
 #### ❌ **DON'T DO THIS:**
 ```bash
@@ -42,27 +34,12 @@ docker-compose up              # DON'T use docker-compose directly
 
 #### ✅ **DO THIS INSTEAD:**
 ```bash
-# Local development
-bash scripts/maintain_local.sh start      # Start all services
-bash scripts/maintain_local.sh status     # Check health  
-bash scripts/maintain_local.sh test unit  # Run tests
-bash scripts/maintain_local.sh logs backend  # Debug issues
-
-# Codex environment  
-sudo bash scripts/maintain_codex.sh start     # Start all services
-sudo bash scripts/maintain_codex.sh status    # Check health
-sudo bash scripts/maintain_codex.sh test e2e  # Run tests
-sudo bash scripts/maintain_codex.sh logs frontend  # Debug issues
+# Unified interface (auto-detects environment)
+bash scripts/maintain.sh start        # Start all services
+bash scripts/maintain.sh status       # Check health  
+bash scripts/maintain.sh test unit    # Run tests
+bash scripts/maintain.sh logs backend # Debug issues
 ```
-
-### 🎯 **Why Use Management Scripts?**
-The management scripts ensure:
-- ✅ Correct service startup order (database → NiFi → backend → frontend)
-- ✅ Proper port configuration and environment variables
-- ✅ Health checks and monitoring
-- ✅ Dependency management between services  
-- ✅ Unified testing with both backend and frontend
-- ✅ Comprehensive logging and debugging
 
 ## 🏗️ Project Structure
 
@@ -85,28 +62,13 @@ edi-lens/
 
 ## 🧪 Testing & Development Commands
 
-### 🎯 **Two Environment Types**
-
-#### **Local Development Environment** (`maintain_local.sh`)
-- Uses Docker containers for infrastructure services
-- Runs as regular user (no `sudo` required for most commands)
-- Best for daily development work
-
-#### **Codex Environment** (`maintain_codex.sh`) 
-- Uses native system services (PostgreSQL, NiFi installed locally)
-- Requires `sudo` for service management
-- Production-like environment for testing
-
 ### 📋 **Complete Command Reference**
 
-Both scripts support identical commands. Choose based on your environment:
+The unified `maintain.sh` script automatically detects your environment and provides a consistent interface:
 
 ```bash
-# LOCAL DEVELOPMENT (Docker-based)
-bash scripts/maintain_local.sh <command>
-
-# CODEX ENVIRONMENT (Native services)  
-sudo bash scripts/maintain_codex.sh <command>
+# All commands use the same syntax regardless of environment
+bash scripts/maintain.sh <command>
 ```
 
 #### **Essential Commands**
@@ -139,7 +101,6 @@ logs db              # Show PostgreSQL logs
 #### **Maintenance Commands**
 ```bash
 clean                # DESTRUCTIVE: Remove all data, containers, volumes
-detailed             # Show detailed system status (Codex only)
 ```
 
 ### 🚀 **Quick Start Workflows**
@@ -147,37 +108,37 @@ detailed             # Show detailed system status (Codex only)
 #### **Daily Development Workflow**
 ```bash
 # Start everything for development
-bash scripts/maintain_local.sh start
+bash scripts/maintain.sh start
 
 # Check that all services are healthy
-bash scripts/maintain_local.sh status
+bash scripts/maintain.sh status
 
 # Run tests after making changes
-bash scripts/maintain_local.sh test unit
+bash scripts/maintain.sh test unit
 
 # View logs if there are issues
-bash scripts/maintain_local.sh logs backend
-bash scripts/maintain_local.sh logs frontend
+bash scripts/maintain.sh logs backend
+bash scripts/maintain.sh logs frontend
 
 # Clean restart when needed
-bash scripts/maintain_local.sh restart
+bash scripts/maintain.sh restart
 ```
 
 #### **Complete Testing Workflow**
 ```bash
 # Ensure all services are running
-bash scripts/maintain_local.sh status
+bash scripts/maintain.sh status
 
 # Run comprehensive test suite
-bash scripts/maintain_local.sh test all
+bash scripts/maintain.sh test all
 
 # Run specific test types
-bash scripts/maintain_local.sh test unit         # Fast unit tests
-bash scripts/maintain_local.sh test integration  # API integration tests  
-bash scripts/maintain_local.sh test e2e          # Full end-to-end tests
+bash scripts/maintain.sh test unit         # Fast unit tests
+bash scripts/maintain.sh test integration  # API integration tests  
+bash scripts/maintain.sh test e2e          # Full end-to-end tests
 
 # Run tests in watch mode during development
-bash scripts/maintain_local.sh test watch
+bash scripts/maintain.sh test watch
 ```
 
 ### 🌐 **Service Endpoints**
@@ -240,21 +201,6 @@ cd frontend && npm run test:e2e
 
 ### 📊 **Service Health Monitoring**
 
-#### **Status Commands**
-```bash
-# Quick health check
-bash scripts/maintain_local.sh status
-
-# Detailed system information (Codex only)
-sudo bash scripts/maintain_codex.sh detailed
-```
-
-#### **Log Monitoring**
-```bash
-# Follow logs in real-time
-bash scripts/maintain_local.sh logs backend
-bash scripts/maintain_local.sh logs frontend
-
 # Check all logs
 ls -la logs/                    # Local development logs
 ls -la ~/.codex-services/logs/  # Codex environment logs
@@ -284,9 +230,10 @@ The project uses `.env.local` for all environment configuration:
 - `backend/pyproject.toml` - Python dependencies and project config
 
 ### Scripts
-- `scripts/setup_codex.sh` - Complete Codex environment setup (includes frontend + backend) [no need to run this in codex enviornment. this runs as part of startup]
-- `scripts/maintain_codex.sh` - Codex service management and testing (full feature parity) [can be used for unit, integration and e2e tests or check service status or restart services in codex enviornment ]
-- `scripts/maintain_local.sh` - Local development service management and testing [do not use this in codex environment]
+- `scripts/maintain.sh` - **UNIFIED SCRIPT** - Auto-detects environment and delegates appropriately
+- `scripts/setup_codex.sh` - Complete Codex environment setup (includes frontend + backend)
+- `scripts/maintain_codex.sh` - Codex service management (called automatically by maintain.sh)
+- `scripts/maintain_local.sh` - Local development service management (called automatically by maintain.sh)
 
 ### Testing
 - `backend/tests/conftest.py` - Test configuration and fixtures
@@ -309,12 +256,12 @@ The project uses `.env.local` for all environment configuration:
 
 ## 🚨 Important Notes
 
-- Always ensure services are running before tests with `maintain_codex.sh` or `maintain_local.sh`
+- Always ensure services are running before tests with `bash scripts/maintain.sh status`
 - Backend dependencies are managed with Poetry
 - Frontend dependencies are managed with npm
 - All services run on localhost with standard ports
 - Check service health with maintenance script before testing
-- **Both environments now have complete feature parity** - use either based on your needs
+- **The unified maintain.sh script auto-detects your environment** - no need to worry about Docker vs native services
 - Ignore any directories that end with `_legacy`; they contain deprecated code that should not be modified or considered during development or reviews.
 
 ## 🆘 Troubleshooting
@@ -324,29 +271,25 @@ The project uses `.env.local` for all environment configuration:
 #### **Check Service Health**
 ```bash
 # Quick health check - shows service status
-bash scripts/maintain_local.sh status
-sudo bash scripts/maintain_codex.sh status
-
-# Detailed system information (Codex only)
-sudo bash scripts/maintain_codex.sh detailed
+bash scripts/maintain.sh status
 ```
 
 #### **View Service Logs**
 ```bash
 # Backend API issues
-bash scripts/maintain_local.sh logs backend
+bash scripts/maintain.sh logs backend
 
 # Frontend development server issues  
-bash scripts/maintain_local.sh logs frontend
+bash scripts/maintain.sh logs frontend
 
 # NiFi data processing issues
-bash scripts/maintain_local.sh logs nifi
+bash scripts/maintain.sh logs nifi
 
 # NiFi Registry version control issues
-bash scripts/maintain_local.sh logs registry
+bash scripts/maintain.sh logs registry
 
 # Database connection issues
-bash scripts/maintain_local.sh logs db
+bash scripts/maintain.sh logs db
 ```
 
 ### 🚨 **Common Issues & Solutions**
@@ -357,31 +300,31 @@ bash scripts/maintain_local.sh logs db
 netstat -tulpn | grep -E ":3000|:8000|:8443|:18080|:5432"
 
 # Step 2: Clean restart everything
-bash scripts/maintain_local.sh stop
-bash scripts/maintain_local.sh start
+bash scripts/maintain.sh stop
+bash scripts/maintain.sh start
 
 # Step 3: If still failing, check logs
-bash scripts/maintain_local.sh logs backend
-bash scripts/maintain_local.sh logs frontend
+bash scripts/maintain.sh logs backend
+bash scripts/maintain.sh logs frontend
 ```
 
 #### **Tests Failing**
 ```bash
 # Step 1: Verify all services are healthy
-bash scripts/maintain_local.sh status
+bash scripts/maintain.sh status
 
 # Step 2: Check for service errors
-bash scripts/maintain_local.sh logs backend
-bash scripts/maintain_local.sh logs nifi
+bash scripts/maintain.sh logs backend
+bash scripts/maintain.sh logs nifi
 
 # Step 3: Run tests with proper environment
-bash scripts/maintain_local.sh test integration
+bash scripts/maintain.sh test integration
 ```
 
 #### **Backend Issues**
 ```bash
 # Check backend service health
-bash scripts/maintain_local.sh logs backend
+bash scripts/maintain.sh logs backend
 
 # Interactive debugging
 cd backend && poetry shell
@@ -395,7 +338,7 @@ poetry install --with dev
 #### **Frontend Issues**  
 ```bash
 # Check frontend development server
-bash scripts/maintain_local.sh logs frontend
+bash scripts/maintain.sh logs frontend
 
 # Interactive debugging
 cd frontend && npm run dev
@@ -408,20 +351,17 @@ npm ci
 #### **Database Connection Issues**
 ```bash
 # Check PostgreSQL status
-bash scripts/maintain_local.sh logs db
+bash scripts/maintain.sh logs db
 
 # Test database connectivity
-bash scripts/maintain_local.sh status
-
-# For Codex environment, check PostgreSQL service
-sudo systemctl status postgresql
+bash scripts/maintain.sh status
 ```
 
 #### **NiFi/Registry Issues**
 ```bash
 # Check NiFi logs
-bash scripts/maintain_local.sh logs nifi
-bash scripts/maintain_local.sh logs registry
+bash scripts/maintain.sh logs nifi
+bash scripts/maintain.sh logs registry
 
 # Verify NiFi web interface
 curl -k https://localhost:8443/nifi/
@@ -435,10 +375,10 @@ curl http://localhost:18080/nifi-registry/
 #### **Clean Environment Reset**
 ```bash
 # WARNING: This removes all data!
-bash scripts/maintain_local.sh clean
+bash scripts/maintain.sh clean
 
 # Then restart fresh
-bash scripts/maintain_local.sh start
+bash scripts/maintain.sh start
 ```
 
 #### **Individual Service Management**
@@ -459,7 +399,7 @@ lsof -i :8443  # NiFi port
 ls -la .env.local
 
 # Check environment variables are loading
-bash scripts/maintain_local.sh status
+bash scripts/maintain.sh status
 ```
 
 ### 📋 **Environment-Specific Notes**
@@ -468,20 +408,20 @@ bash scripts/maintain_local.sh status
 - Services run in Docker containers
 - Data persists in Docker volumes
 - No `sudo` required for most operations
-- Use `bash scripts/maintain_local.sh` commands
+- Use `bash scripts/maintain.sh` commands
 
 #### **Codex Environment (Native services)**
 - Services installed directly on system
 - Requires `sudo` for service management  
 - More production-like setup
-- Use `sudo bash scripts/maintain_codex.sh` commands
+- Use `bash scripts/maintain.sh` commands (automatically detects and uses sudo)
 
 ### 🎯 **Quick Resolution Checklist**
 
-1. **✅ Check service status**: `bash scripts/maintain_local.sh status`
-2. **✅ View relevant logs**: `bash scripts/maintain_local.sh logs [service]`
-3. **✅ Restart services**: `bash scripts/maintain_local.sh restart`
+1. **✅ Check service status**: `bash scripts/maintain.sh status`
+2. **✅ View relevant logs**: `bash scripts/maintain.sh logs [service]`
+3. **✅ Restart services**: `bash scripts/maintain.sh restart`
 4. **✅ Verify environment**: Check `.env.local` file exists
-5. **✅ Clean restart** (if needed): `bash scripts/maintain_local.sh clean && bash scripts/maintain_local.sh start`
+5. **✅ Clean restart** (if needed): `bash scripts/maintain.sh clean && bash scripts/maintain.sh start`
 
 For persistent issues, check the detailed service logs and ensure all dependencies are properly installed.
