@@ -655,14 +655,36 @@ run_tests() {
 run_backend_tests() {
     local test_type="${1:-all}"
     local backend_dir="$PROJECT_ROOT/backend"
-    
+
     if [ ! -d "$backend_dir" ]; then
         warn "Backend directory not found - skipping backend tests"
         return 0
     fi
-    
+
     cd "$backend_dir"
-    
+
+    # Ensure backend dependencies (including dev extras) are installed before running tests.
+    # When this script is executed via sudo the Poetry environment can be created fresh for
+    # each invocation, which means pytest may not be available yet.  Check for the pytest
+    # entrypoint and install dependencies if necessary.
+    local venv_path=""
+    if ! venv_path=$(poetry env info --path 2>/dev/null); then
+        info "Installing backend dependencies (dev) via Poetry..."
+        if ! poetry install --with dev; then
+            error "Failed to install backend dependencies via Poetry."
+            cd "$PROJECT_ROOT"
+            return 1
+        fi
+        venv_path=$(poetry env info --path)
+    elif [ ! -x "$venv_path/bin/pytest" ]; then
+        info "Installing backend dependencies (dev) via Poetry..."
+        if ! poetry install --with dev; then
+            error "Failed to install backend dependencies via Poetry."
+            cd "$PROJECT_ROOT"
+            return 1
+        fi
+    fi
+
     case "$test_type" in
         unit)
             info "Running backend unit tests..."
