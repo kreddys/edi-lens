@@ -1,12 +1,13 @@
-"""Core flow CRUD operations."""
+"""Flow management API endpoints."""
 
 from __future__ import annotations
 
 import time
-from typing import List, Optional
+from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
-from starlette.status import HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT
+from starlette.status import HTTP_200_OK, HTTP_201_CREATED, HTTP_202_ACCEPTED, HTTP_204_NO_CONTENT
 
 from src.api.dependencies import get_workflow_orchestrator
 from src.core.logging import get_logger, audit_logger
@@ -23,6 +24,25 @@ from src.services.workflow_orchestrator import WorkflowOrchestrator
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/flows", tags=["flows"])
+
+
+async def get_registry_timestamps(orchestrator, flow_id: str, bucket_id: str) -> tuple[str, str]:
+    """Get creation and modification timestamps from Registry."""
+    try:
+        registry_flow = await orchestrator.registry_flow_mgmt.get_flow(bucket_id, flow_id)
+        if registry_flow and "created_timestamp" in registry_flow:
+            # Convert from milliseconds to ISO format
+            created_ms = registry_flow["created_timestamp"] / 1000
+            modified_ms = registry_flow.get("modified_timestamp", registry_flow["created_timestamp"]) / 1000
+            
+            created_at = datetime.fromtimestamp(created_ms).isoformat()
+            updated_at = datetime.fromtimestamp(modified_ms).isoformat()
+            
+            return created_at, updated_at
+    except Exception as e:
+        log.debug("Could not get registry timestamps for flow %s: %s", flow_id, e)
+    
+    return "Not available", "Not available"
 
 
 @router.get("/", response_model=FlowListResponse, status_code=HTTP_200_OK)
@@ -61,6 +81,17 @@ async def list_flows(
                     if status and mapped_status != status:
                         continue
                         
+                    # Get timestamps from Registry if available
+                    version_control = overview.get("version_control_info")
+                    created_at = "Not available"
+                    updated_at = "Not available"
+                    
+                    if version_control:
+                        flow_id = version_control.get("flowId")
+                        bucket_id = version_control.get("bucketId")
+                        if flow_id and bucket_id:
+                            created_at, updated_at = await get_registry_timestamps(orchestrator, flow_id, bucket_id)
+                        
                     flow_response = FlowResponse(
                         id=process_group_id,
                         name=flow_name,
@@ -73,7 +104,9 @@ async def list_flows(
                         running_count=flow_status.get("running_processors", 0),
                         stopped_count=flow_status.get("stopped_processors", 0),
                         invalid_count=flow_status.get("invalid_processors", 0),
-                        version_control=overview.get("version_control_info")
+                        created_at=created_at,
+                        updated_at=updated_at,
+                        version_control=version_control
                     )
                     flows_with_status.append(flow_response)
                     
@@ -91,7 +124,9 @@ async def list_flows(
                         processor_count=0,
                         running_count=0,
                         stopped_count=0,
-                        invalid_count=0
+                        invalid_count=0,
+                        created_at="Not available",
+                        updated_at="Not available"
                     )
                     flows_with_status.append(flow_response)
         
@@ -171,6 +206,17 @@ async def create_flow(
             overview = await orchestrator.get_flow_overview(process_group_id)
             flow_status = overview.get("flow_status", {}) or {}
             
+            # Get timestamps from Registry
+            version_control = overview.get("version_control_info")
+            created_at = "Not available"
+            updated_at = "Not available"
+            
+            if version_control:
+                registry_flow_id = version_control.get("flowId")
+                registry_bucket_id = version_control.get("bucketId")
+                if registry_flow_id and registry_bucket_id:
+                    created_at, updated_at = await get_registry_timestamps(orchestrator, registry_flow_id, registry_bucket_id)
+            
             overall_status = flow_status.get("overall_status", "stopped")
             mapped_status = FlowStatus.RUNNING if overall_status == "running" else \
                           FlowStatus.STOPPED if overall_status == "stopped" else \
@@ -189,7 +235,9 @@ async def create_flow(
                 running_count=flow_status.get("running_processors", 0),
                 stopped_count=flow_status.get("stopped_processors", 0),
                 invalid_count=flow_status.get("invalid_processors", 0),
-                version_control=overview.get("version_control_info")
+                created_at=created_at,
+                updated_at=updated_at,
+                version_control=version_control
             )
             
             duration = time.time() - start_time
@@ -252,7 +300,23 @@ async def get_flow(
             )
         
         flow_status = overview.get("flow_status", {}) or {}
-        flow_info = overview.get("flow_info", {}) or {}
+        # Extract description and timestamps
+        raw_description = ""
+        if overview.get("version_control_info"):
+            # If under version control, try to get description from version control
+            vc_info = overview.get("version_control_info", {})
+            description = vc_info.get("versionControlInformation", {}).get("comments", "")
+        
+        # Get timestamps from Registry if available
+        version_control = overview.get("version_control_info")
+        created_at = "Not available"
+        updated_at = "Not available"
+        
+        if version_control:
+            flow_id = version_control.get("flowId")
+            bucket_id = version_control.get("bucketId")
+            if flow_id and bucket_id:
+                created_at, updated_at = await get_registry_timestamps(orchestrator, flow_id, bucket_id)
         
         overall_status = flow_status.get("overall_status", "unknown")
         mapped_status = FlowStatus.RUNNING if overall_status == "running" else \
@@ -262,8 +326,8 @@ async def get_flow(
         
         response = FlowResponse(
             id=flow_id,
-            name=flow_info.get("name", "Unknown Flow"),
-            description=flow_info.get("component", {}).get("comments", ""),
+            name=flow_status.get("process_group_name", "Unknown Flow"),
+            description=description,
             definition=None,  # TODO: Extract from NiFi if needed
             parameters={},  # TODO: Extract from parameter context
             status=mapped_status,
@@ -272,7 +336,9 @@ async def get_flow(
             running_count=flow_status.get("running_processors", 0),
             stopped_count=flow_status.get("stopped_processors", 0),
             invalid_count=flow_status.get("invalid_processors", 0),
-            version_control=overview.get("version_control_info")
+            created_at=created_at,
+            updated_at=updated_at,
+            version_control=version_control
         )
         
         return response

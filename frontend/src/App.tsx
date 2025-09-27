@@ -12,7 +12,11 @@ import { dataProvider, ThemeProvider } from "./providers";
 
 import { SchemaEditorList } from "./pages/schemaEditor/SchemaEditorList";
 
-import { FlowManagement } from "./pages/flows";
+// Standard Refine pages
+import { FlowList } from "./pages/flows/FlowList";
+import { FlowCreate } from "./pages/flows/FlowCreate";
+import { FlowShow } from "./pages/flows/FlowShow";
+import { FlowEdit } from "./pages/flows/FlowEdit";
 
 function App() {
   return (
@@ -28,10 +32,12 @@ function App() {
                 {
                   name: "flows",
                   list: "/flows",
-                  create: "/flows/create",
+                  create: "/flows/create", 
                   edit: "/flows/:id/edit",
                   show: "/flows/:id",
-                  meta: { label: "Flows" },
+                  meta: { 
+                    label: "Flows"
+                  },
                 },
                 {
                   name: "schemas",
@@ -47,7 +53,10 @@ function App() {
               <Routes>
                 <Route element={<Layout><Outlet /></Layout>}>
                   <Route index element={<NavigateToResource resource="flows" />} />
-                  <Route path="/flows/*" element={<FlowManagement />} />
+                  <Route path="/flows" element={<FlowList />} />
+                  <Route path="/flows/create" element={<FlowCreate />} />
+                  <Route path="/flows/:id" element={<FlowShow />} />
+                  <Route path="/flows/:id/edit" element={<FlowEdit />} />
                   <Route path="/schema-editor" element={<SchemaEditorList />} />
                   <Route path="*" element={<ErrorComponent />} />
                 </Route>

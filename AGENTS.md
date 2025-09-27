@@ -16,6 +16,31 @@ sudo bash scripts/maintain_codex.sh status
 sudo bash scripts/maintain_codex.sh start
 ```
 
+### 🚨 CRITICAL: Always Use Management Scripts
+
+**NEVER run frontend services directly with `npm run dev` or `npm start`!**
+
+Always use the management scripts for proper service orchestration:
+
+```bash
+# For local development - ALWAYS use this approach
+sudo bash scripts/maintain_local.sh start      # Start all services (frontend + backend + deps)
+sudo bash scripts/maintain_local.sh stop       # Stop all services
+sudo bash scripts/maintain_local.sh restart    # Restart all services
+sudo bash scripts/maintain_local.sh status     # Check service health
+
+# Clean restart (recommended for testing new changes)
+sudo bash scripts/maintain_local.sh stop
+sudo bash scripts/maintain_local.sh start
+```
+
+The management scripts ensure:
+- Correct service startup order
+- Proper port configuration
+- Environment variable loading
+- Health checks and monitoring
+- Dependency management between services
+
 ## 🏗️ Project Structure
 
 ```

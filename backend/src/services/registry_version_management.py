@@ -102,12 +102,12 @@ class RegistryVersionManagement(LoggerMixin):
                 "flow_contents": flow_version.get("flowContents", {})
             }
 
-            self.logger.debug("Retrieved flow version %d for flow %s in bucket %s",
+            self.logger.debug("Retrieved flow version %s for flow %s in bucket %s",
                             version, flow_id, bucket_id)
             return result
 
         except Exception as exc:
-            self.logger.error("Failed to get version %d for flow %s in bucket %s: %s",
+            self.logger.error("Failed to get version %s for flow %s in bucket %s: %s",
                             version, flow_id, bucket_id, exc)
             raise RegistryVersionManagementError(f"Failed to get flow version: {exc}") from exc
 

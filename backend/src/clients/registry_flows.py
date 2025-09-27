@@ -150,7 +150,7 @@ class RegistryFlowClient(LoggerMixin):
         self, bucket_id: str, flow_id: str, version: int
     ) -> Dict[str, Any]:
         """Get a specific version of a flow."""
-        self.logger.debug("Getting version %d of flow %s from bucket %s", version, flow_id, bucket_id)
+        self.logger.debug("Getting version %s of flow %s from bucket %s", version, flow_id, bucket_id)
         return await self.base.get(f"/buckets/{bucket_id}/flows/{flow_id}/versions/{version}")
 
     async def get_latest_flow_version(self, bucket_id: str, flow_id: str) -> Dict[str, Any]:

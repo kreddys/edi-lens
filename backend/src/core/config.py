@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     """Centralised application settings with environment overrides."""
 
     model_config = SettingsConfigDict(
-        env_file=ROOT_DIR / ".env",
+        env_file=ROOT_DIR / ".env.local",
         env_file_encoding="utf-8",
         extra="ignore",
     )

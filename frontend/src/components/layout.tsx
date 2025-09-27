@@ -31,7 +31,6 @@ const TenantSelector = () => {
             value={selectedTenant}
             onChange={handleChange}
             options={identity.groups.map(group => ({ label: group, value: group }))}
-            // --- THIS IS THE FIX ---
             variant="borderless"
             style={{ minWidth: 120 }}
         />
@@ -74,7 +73,6 @@ const CustomHeader: React.FC = () => {
     );
 };
 
-
 export const Layout = ({ children }: { children: React.ReactNode }) => {
     return (
         <ThemedLayoutV2
@@ -82,7 +80,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
             Title={({ collapsed }) => (
                 <ThemedTitleV2
                     collapsed={collapsed}
-                    text="EDI Lens" // Your project name here
+                    text="EDI Lens"
                 />
             )}
         >

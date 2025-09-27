@@ -602,6 +602,14 @@ show_status() {
     fi
 
     echo ""
+    info "🌐 Service Endpoints:"
+    info "  Frontend:      http://localhost:3000"
+    info "  Backend API:   http://localhost:8000"
+    info "  NiFi UI:       https://localhost:8443/nifi/"
+    info "  Registry UI:   http://localhost:18080/nifi-registry/"
+    info "  PostgreSQL:    localhost:5432"
+
+    echo ""
     info "🔧 Useful commands:"
     info "  Backend logs: tail -f logs/backend.log"
     info "  NiFi logs:    docker logs edi-lens-nifi"
