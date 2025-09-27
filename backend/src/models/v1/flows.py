@@ -122,8 +122,9 @@ class VersionResponse(BaseModel):
     """Model for version control response."""
     success: bool = Field(..., description="Whether the action succeeded")
     message: str = Field(..., description="Result message")
-    current_version: Optional[int] = Field(None, description="Current version")
-    latest_version: Optional[int] = Field(None, description="Latest available version")
+    version: Optional[int] = Field(None, description="Current version after operation")
+    previous_version: Optional[int] = Field(None, description="Previous version before operation")
+    timestamp: Optional[int] = Field(None, description="Operation timestamp (milliseconds)")
     modifications: Optional[Dict[str, Any]] = Field(None, description="Modification details")
 
 
