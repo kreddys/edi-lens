@@ -392,7 +392,7 @@ start_backend() {
 
     # Start backend in background
     info "Starting backend with Poetry..."
-    nohup poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload > ../logs/backend.log 2>&1 &
+    nohup poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
 
     # Wait for backend to be ready
     if wait_for_service "http://localhost:8000/health" "Backend" 30; then
@@ -402,7 +402,7 @@ start_backend() {
         cd "$PROJECT_ROOT"
         return 0
     else
-        warn "Backend failed to start - check logs at ../logs/backend.log"
+        warn "Backend failed to start - check logs at $PROJECT_ROOT/logs/backend.log"
         cd "$PROJECT_ROOT"
         return 1
     fi
@@ -458,7 +458,7 @@ start_frontend() {
 
     # Start frontend in background
     info "Starting frontend with npm..."
-    nohup npm run dev > ../logs/frontend.log 2>&1 &
+    nohup npm run dev > "$PROJECT_ROOT/logs/frontend.log" 2>&1 &
 
     # Wait for frontend to be ready
     if wait_for_service "http://localhost:3000" "Frontend" 30; then
@@ -468,7 +468,7 @@ start_frontend() {
         cd "$PROJECT_ROOT"
         return 0
     else
-        warn "Frontend failed to start - check logs at ../logs/frontend.log"
+        warn "Frontend failed to start - check logs at $PROJECT_ROOT/logs/frontend.log"
         cd "$PROJECT_ROOT"
         return 1
     fi
