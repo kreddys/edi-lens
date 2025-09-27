@@ -93,9 +93,8 @@ services:
       - nifi_state:/opt/nifi/nifi-current/state
       # Mount test data directory for e2e tests
       - ../backend/tests/data:/opt/nifi/test_data
-      # Mount local working directories for flow testing
-      - ../tmp/nifi-working/input:/tmp/nifi-working/input
-      - ../tmp/nifi-working/output:/tmp/nifi-working/output
+      # Mount entire nifi-working directory for flow testing
+      - ../tmp/nifi-working:/tmp/nifi-working
       # Note: conf volume removed to allow NiFi to write authentication files
     networks:
       - edi_lens_network

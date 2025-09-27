@@ -124,13 +124,12 @@ async def get_template(
                 }
             )
         
-        # Extract template metadata
-        metadata = template_data.get("template_data", {})
-        name = metadata.get("name", template_id)
-        description = metadata.get("description", "")
-        processors = metadata.get("processors", [])
-        connections = metadata.get("connections", [])
-        parameters = metadata.get("parameters", {})
+        # Extract template metadata directly from template_data
+        name = template_data.get("name", template_id)
+        description = template_data.get("description", "")
+        processors = template_data.get("processors", [])
+        connections = template_data.get("connections", [])
+        parameters = template_data.get("parameters", {})
         
         # For now, set default values for new fields
         template_category = "general"

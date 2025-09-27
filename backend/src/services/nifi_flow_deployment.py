@@ -93,7 +93,7 @@ class NiFiFlowDeployment(LoggerMixin):
             # Step 4: Deploy processors
             self.logger.debug("[%s] Deploying %d processors", deployment_id, len(flow_definition.get("processors", [])))
             processor_map, processor_failures = await self._deploy_processors(
-                flow_definition.get("processors", []), process_group_id, deployment_id
+                flow_definition.get("processors", []), process_group_id, deployment_id, parameters
             )
             failures.extend(processor_failures)
             self.logger.debug("[%s] Processor deployment complete: %d created, %d failed", 
@@ -257,12 +257,13 @@ class NiFiFlowDeployment(LoggerMixin):
         self.logger.info("Applied parameter context to process group")
 
     async def _deploy_processors(
-        self, processors: List[Dict[str, Any]], process_group_id: str, deployment_id: str = "unknown"
+        self, processors: List[Dict[str, Any]], process_group_id: str, deployment_id: str = "unknown", parameters: Dict[str, Any] = None
     ) -> Tuple[Dict[str, str], List[Dict[str, Any]]]:
-        """Deploy processors and return ID mapping and failures."""
+        """Deploy processors with parameter substitution and return ID mapping and failures."""
         processor_map: Dict[str, str] = {}
         processor_name_map: Dict[str, str] = {}
         failures: List[Dict[str, Any]] = []
+        parameters = parameters or {}
 
         for processor_def in processors:
             processor_name = processor_def.get("name", "Unnamed Processor")
@@ -276,6 +277,13 @@ class NiFiFlowDeployment(LoggerMixin):
                 processor_name = processor_def.get("name") or component_def.get("name", "Unnamed Processor")
                 position = processor_def.get("position") or component_def.get("position")
                 properties = processor_def.get("properties") or config_def.get("properties")
+                
+                # Substitute parameter references in properties
+                if properties and parameters:
+                    original_properties = properties.copy()
+                    properties = self._substitute_parameters(properties, parameters)
+                    self.logger.debug("[%s] Parameter substitution for %s: %s -> %s", 
+                                     deployment_id, processor_name, original_properties, properties)
                 
                 self.logger.debug("[%s] Processor %s: type=%s, properties=%s", 
                                  deployment_id, processor_name, processor_type, 
@@ -477,3 +485,29 @@ class NiFiFlowDeployment(LoggerMixin):
                 })
 
         return failures
+
+    def _substitute_parameters(self, properties: Dict[str, Any], parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Substitute parameter references in processor properties.
+        Replaces #{parameter_name} with actual parameter values.
+        """
+        if not properties or not parameters:
+            return properties
+            
+        substituted = {}
+        for key, value in properties.items():
+            if isinstance(value, str):
+                # Replace #{parameter_name} references with actual values
+                substituted_value = value
+                for param_name, param_info in parameters.items():
+                    param_placeholder = f"#{{{param_name}}}"
+                    if param_placeholder in substituted_value:
+                        # Get the actual parameter value (default or provided value)
+                        param_value = param_info.get('default', '') if isinstance(param_info, dict) else str(param_info)
+                        substituted_value = substituted_value.replace(param_placeholder, param_value)
+                        self.logger.debug("Parameter substitution: %s -> %s (from %s)", 
+                                        param_placeholder, param_value, value)
+                substituted[key] = substituted_value
+            else:
+                substituted[key] = value
+        return substituted

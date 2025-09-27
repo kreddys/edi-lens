@@ -4,18 +4,10 @@ import { useGo } from "@refinedev/core";
 import { Form, Input, Button, Select, Steps, Card, List as AntList, Tag, Typography, Space, Modal, message, Divider } from "antd";
 import { FileTextOutlined, PlusOutlined, RocketOutlined } from "@ant-design/icons";
 import { flowAPI } from "../../providers/data";
+import { Template } from "../../types/templates";
 
 const { TextArea } = Input;
 const { Text } = Typography;
-
-interface Template {
-    id: string;
-    name: string;
-    description: string;
-    category: string;
-    tags: string[];
-    parameters?: Record<string, any>;
-}
 
 interface Bucket {
     id: string;
@@ -61,6 +53,9 @@ export const FlowCreate: React.FC = () => {
         bucket_id: string;
     } | null>(null);
     
+    // Custom parameters state - for overriding template defaults
+    const [customParameters, setCustomParameters] = useState<Record<string, string>>({});
+    
     // Bucket creation modal state
     const [createBucketModalOpen, setCreateBucketModalOpen] = useState(false);
     const [bucketForm] = Form.useForm();
@@ -75,7 +70,21 @@ export const FlowCreate: React.FC = () => {
         try {
             setLoading(true);
             const response = await flowAPI.listTemplates();
-            setTemplates(response.templates || []);
+            
+            // Load each template with full definition
+            const templatesWithDefinitions = await Promise.all(
+                (response.templates || []).map(async (template: any) => {
+                    try {
+                        const fullTemplate = await flowAPI.getTemplate(template.id, true);
+                        return fullTemplate as Template;
+                    } catch (error) {
+                        console.error(`Error loading template ${template.id}:`, error);
+                        return template as Template; // Return basic template if full load fails
+                    }
+                })
+            );
+            
+            setTemplates(templatesWithDefinitions);
         } catch (error) {
             console.error('Error loading templates:', error);
         } finally {
@@ -98,6 +107,7 @@ export const FlowCreate: React.FC = () => {
             
             console.log('Form data:', flowFormData); // Debug log
             console.log('Selected template:', selectedTemplate); // Debug log
+            console.log('Template definition:', selectedTemplate?.definition); // Debug log
             
             if (!selectedTemplate) {
                 message.error('Please select a template');
@@ -110,18 +120,54 @@ export const FlowCreate: React.FC = () => {
                 return;
             }
             
-            // Prepare flow data
+            if (!flowFormData?.name) {
+                message.error('Please enter a flow name');
+                console.log('Missing flow name in form data:', flowFormData); // Debug log
+                return;
+            }
+            
+            // Prepare final parameters - merge template defaults with custom overrides
+            const finalParameters = { ...(selectedTemplate.parameters || {}) };
+            
+            // Apply custom parameter values
+            Object.entries(customParameters).forEach(([paramName, customValue]) => {
+                if (finalParameters[paramName]) {
+                    // Update the default value with the custom value
+                    if (typeof finalParameters[paramName] === 'object') {
+                        finalParameters[paramName] = {
+                            ...finalParameters[paramName],
+                            default: customValue
+                        };
+                    } else {
+                        finalParameters[paramName] = customValue;
+                    }
+                }
+            });
+            
+            console.log('Custom parameters:', customParameters); // Debug log
+            console.log('Final parameters:', finalParameters); // Debug log
+            
+            // Prepare flow data using template definition
             const flowData = {
                 name: flowFormData.name,
                 description: flowFormData.description || '',
                 bucket_id: flowFormData.bucket_id,
                 parent_group_id: 'root',
-                definition: (selectedTemplate as any).definition || null,
-                parameters: (selectedTemplate as any).parameters || {}
+                definition: selectedTemplate.definition || {
+                    name: selectedTemplate.name,
+                    description: selectedTemplate.description,
+                    processors: [],
+                    connections: [],
+                    process_groups: []
+                },
+                parameters: finalParameters
             };
             
+            console.log('Sending flow data:', flowData); // Debug log
+            
             // Create the flow using the API
-            await flowAPI.createFlow(flowData);
+            const result = await flowAPI.createFlow(flowData);
+            console.log('Flow creation result:', result); // Debug log
             
             message.success(`Flow "${flowFormData.name}" created successfully!`);
             
@@ -201,6 +247,7 @@ export const FlowCreate: React.FC = () => {
                             hoverable
                             onClick={() => {
                                 setSelectedTemplate(template);
+                                setCustomParameters({}); // Reset custom parameters when template changes
                                 setCurrentStep(1);
                             }}
                             style={{
@@ -290,6 +337,51 @@ export const FlowCreate: React.FC = () => {
                 </Form.Item>
             </Card>
             
+            {/* Parameters Section */}
+            {selectedTemplate && selectedTemplate.parameters && Object.keys(selectedTemplate.parameters).length > 0 && (
+                <Card title="Template Parameters" style={{ marginTop: 16 }}>
+                    <Typography.Text type="secondary" style={{ marginBottom: 16, display: 'block' }}>
+                        Customize the default parameter values for this template. Leave blank to use defaults.
+                    </Typography.Text>
+                    
+                    {Object.entries(selectedTemplate.parameters).map(([paramName, paramInfo]) => {
+                        const defaultValue = typeof paramInfo === 'object' ? paramInfo.default : String(paramInfo);
+                        const description = typeof paramInfo === 'object' ? paramInfo.description : '';
+                        
+                        return (
+                            <Form.Item
+                                key={paramName}
+                                label={
+                                    <div>
+                                        <span style={{ fontWeight: 500 }}>{paramName}</span>
+                                        {description && (
+                                            <div style={{ fontWeight: 'normal', fontSize: '12px', color: '#666' }}>
+                                                {description}
+                                            </div>
+                                        )}
+                                    </div>
+                                }
+                                name={`param_${paramName}`}
+                                initialValue={customParameters[paramName] || defaultValue}
+                            >
+                                <Input 
+                                    placeholder={`Default: ${defaultValue}`}
+                                    onChange={(e) => {
+                                        const newParams = { ...customParameters };
+                                        if (e.target.value.trim()) {
+                                            newParams[paramName] = e.target.value;
+                                        } else {
+                                            delete newParams[paramName]; // Use default if empty
+                                        }
+                                        setCustomParameters(newParams);
+                                    }}
+                                />
+                            </Form.Item>
+                        );
+                    })}
+                </Card>
+            )}
+            
             <Space style={{ marginTop: 16 }}>
                 <Button onClick={() => setCurrentStep(0)}>Back</Button>
                 <Button type="primary" htmlType="submit">Next</Button>
@@ -318,6 +410,38 @@ export const FlowCreate: React.FC = () => {
                     <Text strong>Storage Bucket: </Text>
                     <Text>{selectedBucket?.name || 'Not selected'}</Text>
                 </div>
+                
+                {/* Parameters Review */}
+                {selectedTemplate && selectedTemplate.parameters && Object.keys(selectedTemplate.parameters).length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                        <Text strong>Parameters:</Text>
+                        <div style={{ marginTop: 8, marginLeft: 16 }}>
+                            {Object.entries(selectedTemplate.parameters).map(([paramName, paramInfo]) => {
+                                const defaultValue = typeof paramInfo === 'object' ? paramInfo.default : String(paramInfo);
+                                const customValue = customParameters[paramName];
+                                const finalValue = customValue || defaultValue;
+                                const isCustom = Boolean(customValue);
+                                
+                                return (
+                                    <div key={paramName} style={{ marginBottom: 8 }}>
+                                        <Text strong style={{ fontSize: '13px' }}>{paramName}: </Text>
+                                        <Text style={{ fontSize: '13px' }}>{finalValue}</Text>
+                                        {isCustom && (
+                                            <Tag color="blue" style={{ marginLeft: 8, fontSize: '11px' }}>
+                                                Custom
+                                            </Tag>
+                                        )}
+                                        {!isCustom && (
+                                            <Tag style={{ marginLeft: 8, fontSize: '11px' }}>
+                                                Default
+                                            </Tag>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
                 <Space>
                     <Button onClick={() => setCurrentStep(1)}>Back</Button>
                     <Button type="primary" loading={loading} onClick={handleCreateFlow}>

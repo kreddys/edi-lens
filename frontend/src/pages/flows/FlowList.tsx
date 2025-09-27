@@ -41,14 +41,9 @@ export const FlowList: React.FC = () => {
                     dataIndex="status" 
                     title="Status" 
                     render={(status) => (
-                        <div>
-                            <Tag color={getStatusColor(status)}>
-                                {status === 'unknown' ? 'Not Started' : status}
-                            </Tag>
-                            <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                                Execution Status
-                            </div>
-                        </div>
+                        <Tag color={getStatusColor(status)}>
+                            {status === 'unknown' ? 'Not Started' : status}
+                        </Tag>
                     )}
                 />
                 <Table.Column dataIndex="description" title="Description" />
