@@ -398,6 +398,49 @@ setup_backend_dependencies() {
     cd "$PROJECT_ROOT"
 }
 
+setup_frontend_dependencies() {
+    info "====================================================================="
+    info "🌐 FRONTEND DEPENDENCIES SETUP"
+    info "====================================================================="
+
+    local frontend_dir="$PROJECT_ROOT/frontend"
+    
+    if [ ! -d "$frontend_dir" ]; then
+        warn "Frontend directory not found at $frontend_dir - skipping frontend setup"
+        return 0
+    fi
+
+    if [ ! -f "$frontend_dir/package.json" ]; then
+        warn "package.json not found in frontend directory - skipping frontend setup"
+        return 0
+    fi
+
+    # Check if npm is available
+    if ! command -v npm >/dev/null 2>&1; then
+        info "Installing Node.js and npm..."
+        curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+        apt-get install -y nodejs
+    fi
+
+    cd "$frontend_dir"
+    
+    # Check if dependencies are already installed
+    if [ -d "node_modules" ] && [ -f "package-lock.json" ]; then
+        info "Checking if frontend dependencies are up to date..."
+        if npm list --depth=0 >/dev/null 2>&1; then
+            success "✓ Frontend dependencies already installed and up to date"
+            cd "$PROJECT_ROOT"
+            return 0
+        fi
+    fi
+
+    info "Installing frontend dependencies with npm..."
+    npm ci
+
+    success "✅ Frontend dependencies installed successfully"
+    cd "$PROJECT_ROOT"
+}
+
 start_backend_service() {
     info "====================================================================="
     info "🚀 BACKEND SERVICE STARTUP"
@@ -437,6 +480,50 @@ start_backend_service() {
         return 0
     else
         warn "Backend service failed to start - check logs at $LOGS_DIR/backend.log"
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+}
+
+start_frontend_service() {
+    info "====================================================================="
+    info "🌐 FRONTEND SERVICE STARTUP"
+    info "====================================================================="
+
+    local frontend_dir="$PROJECT_ROOT/frontend"
+    
+    if [ ! -d "$frontend_dir" ]; then
+        warn "Frontend directory not found - skipping frontend startup"
+        return 0
+    fi
+
+    # Check if frontend is already running
+    if check_port "3000" 2; then
+        success "✓ Frontend already running on port 3000"
+        return 0
+    fi
+
+    cd "$frontend_dir"
+    
+    # Check if dependencies are installed
+    if [ ! -d "node_modules" ]; then
+        warn "Frontend dependencies not installed - skipping frontend startup"
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+
+    info "Starting frontend service..."
+    
+    # Start frontend in background
+    nohup npm run dev > "$LOGS_DIR/frontend.log" 2>&1 &
+    
+    # Wait for frontend to be ready
+    if wait_for_service "http://localhost:3000" "Frontend" 30; then
+        success "✅ Frontend service started successfully"
+        cd "$PROJECT_ROOT"
+        return 0
+    else
+        warn "Frontend service failed to start - check logs at $LOGS_DIR/frontend.log"
         cd "$PROJECT_ROOT"
         return 1
     fi
@@ -854,31 +941,39 @@ minimal_setup_main() {
     log_cached_services_state
 
     # Step 3: System dependencies
-    info "📋 STEP 3/9: Installing system dependencies"
+    info "📋 STEP 3/11: Installing system dependencies"
     install_minimal_system_dependencies
 
     # Step 4: Backend dependencies
-    info "📋 STEP 4/9: Backend dependencies setup"
+    info "📋 STEP 4/11: Backend dependencies setup"
     setup_backend_dependencies
 
-    # Step 5: PostgreSQL setup
-    info "📋 STEP 5/9: PostgreSQL setup"
+    # Step 5: Frontend dependencies
+    info "📋 STEP 5/11: Frontend dependencies setup"
+    setup_frontend_dependencies
+
+    # Step 6: PostgreSQL setup
+    info "📋 STEP 6/11: PostgreSQL setup"
     setup_postgresql
 
-    # Step 6: NiFi Registry setup
-    info "📋 STEP 6/9: NiFi Registry setup"
+    # Step 7: NiFi Registry setup
+    info "📋 STEP 7/11: NiFi Registry setup"
     setup_nifi_registry
 
-    # Step 7: NiFi setup
-    info "📋 STEP 7/9: Apache NiFi setup"
+    # Step 8: NiFi setup
+    info "📋 STEP 8/11: Apache NiFi setup"
     setup_nifi
 
-    # Step 8: Backend service startup
-    info "📋 STEP 8/9: Backend service startup"
+    # Step 9: Backend service startup
+    info "📋 STEP 9/11: Backend service startup"
     start_backend_service
 
-    # Step 9: Final verification
-    info "📋 STEP 9/9: Service verification"
+    # Step 10: Frontend service startup
+    info "📋 STEP 10/11: Frontend service startup"
+    start_frontend_service
+
+    # Step 11: Final verification
+    info "📋 STEP 11/11: Service verification"
     verify_minimal_services
 
     local end_time=$(date +%s)

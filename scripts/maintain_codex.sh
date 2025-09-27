@@ -154,6 +154,25 @@ get_backend_status() {
     fi
 }
 
+get_frontend_status() {
+    local status
+    local health_msg=""
+    local pid=""
+    
+    # Check if frontend process is running (look for npm run dev or vite dev)
+    if pid=$(pgrep -f "vite.*dev" 2>/dev/null || pgrep -f "npm.*dev" 2>/dev/null | head -1); then
+        if check_port "3000" 2; then
+            status="✓ Frontend running (PID: $pid, health check: OK)"
+        else
+            status="⚠ Frontend running but not responding (PID: $pid)"
+        fi
+    else
+        status="✗ Frontend not running"
+    fi
+    
+    echo "$status"
+}
+
 start_backend_service() {
     info "🚀 Starting Backend API..."
     
@@ -192,6 +211,45 @@ start_backend_service() {
     else
         error "❌ Failed to start Backend API"
         cd "$PROJECT_ROOT"
+        return 1
+    fi
+}
+
+start_frontend_service() {
+    info "🌐 Starting Frontend..."
+    
+    local frontend_dir="$PROJECT_ROOT/frontend"
+    
+    if [ ! -d "$frontend_dir" ]; then
+        warn "Frontend directory not found - skipping"
+        return 1
+    fi
+
+    # Check if already running
+    if check_port "3000" 2; then
+        success "✓ Frontend already running on port 3000"
+        return 0
+    fi
+
+    cd "$frontend_dir"
+    
+    # Check if dependencies are installed
+    if [ ! -d "node_modules" ]; then
+        warn "Frontend dependencies not installed - skipping frontend startup"
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+
+    # Start frontend in background
+    nohup npm run dev > "$LOGS_DIR/frontend.log" 2>&1 &
+    cd "$PROJECT_ROOT"
+    
+    # Wait for frontend to be ready
+    if wait_for_service "http://localhost:3000" "Frontend" 30; then
+        success "✅ Frontend started successfully"
+        return 0
+    else
+        warn "Frontend failed to start - check logs at $LOGS_DIR/frontend.log"
         return 1
     fi
 }
@@ -349,16 +407,19 @@ show_service_summary() {
     local registry_status  
     local nifi_status
     local backend_status
+    local frontend_status
     
     postgres_status=$(get_service_status "PostgreSQL" "postgres.*main" "5432" || echo "❌ STOPPED")
     registry_status=$(get_service_status "NiFi Registry" "org.apache.nifi.registry.NiFiRegistry" "18080" || echo "❌ STOPPED")
     nifi_status=$(get_service_status "NiFi" "org.apache.nifi.NiFi" "8443" || echo "❌ STOPPED")
     backend_status=$(get_backend_status || echo "❌ NOT_READY")
+    frontend_status=$(get_frontend_status || echo "❌ NOT_READY")
     
     printf "%-20s %s\n" "PostgreSQL:" "$postgres_status"
     printf "%-20s %s\n" "NiFi Registry:" "$registry_status"
     printf "%-20s %s\n" "NiFi:" "$nifi_status"
-    printf "%-20s %s\n" "Backend Dependencies:" "$backend_status"
+    printf "%-20s %s\n" "Backend API:" "$backend_status"
+    printf "%-20s %s\n" "Frontend:" "$frontend_status"
     
     if [[ "$postgres_status" == *"HEALTHY"* ]] && 
        [[ "$registry_status" == *"HEALTHY"* ]] && 
@@ -379,10 +440,11 @@ show_service_endpoints() {
     info "====================================================================="
     info "🌐 SERVICE ENDPOINTS"
     info "====================================================================="
+    echo "  Frontend   : http://localhost:3000"
+    echo "  Backend API: http://localhost:8000 (docs: http://localhost:8000/docs)"
     echo "  PostgreSQL : localhost:${POSTGRES_PORT:-5432} (database: $POSTGRES_DB)"
     echo "  NiFi       : https://localhost:8443 (user: $NIFI_ADMIN_USER)"
     echo "  Registry   : http://localhost:18080"
-    echo "  Backend API: http://localhost:8000 (docs: http://localhost:8000/docs)"
     echo ""
     echo "  Logs       : $LOGS_DIR"
     echo "  Services   : $SERVICES_DIR"
@@ -445,6 +507,7 @@ maintenance_start_all() {
     start_nifi_registry || ((failed++))
     start_nifi || ((failed++))
     start_backend_service || ((failed++))
+    start_frontend_service || ((failed++))
     
     echo ""
     if [ $failed -eq 0 ]; then
@@ -461,6 +524,9 @@ maintenance_stop_all() {
     info "====================================================================="
     info "🛑 STOPPING ALL CODEX SERVICES"
     info "====================================================================="
+    
+    info "Stopping Frontend..."
+    pkill -f "vite.*dev" 2>/dev/null || pkill -f "npm.*dev" 2>/dev/null || true
     
     info "Stopping Backend API..."
     pkill -f "uvicorn.*src.main:app" 2>/dev/null || true
@@ -480,6 +546,188 @@ maintenance_stop_all() {
     success "All services stopped"
 }
 
+show_logs() {
+    local service="$1"
+    local log_file=""
+    
+    case "$service" in
+        "backend")
+            log_file="$LOGS_DIR/backend.log"
+            ;;
+        "frontend")
+            log_file="$LOGS_DIR/frontend.log"
+            ;;
+        "nifi")
+            log_file="$LOGS_DIR/nifi.log"
+            ;;
+        "registry")
+            log_file="$LOGS_DIR/nifi-registry.log"
+            ;;
+        "db"|"postgres"|"postgresql")
+            log_file="/var/log/postgresql/postgresql-16-main.log"
+            ;;
+        *)
+            error "Unknown service: $service"
+            info "Available services: backend, frontend, nifi, registry, db"
+            return 1
+            ;;
+    esac
+    
+    if [ -f "$log_file" ]; then
+        info "Showing logs for $service ($log_file):"
+        echo "====================================================================="
+        tail -f "$log_file"
+    else
+        warn "Log file not found: $log_file"
+        return 1
+    fi
+}
+
+clean_all() {
+    info "Performing deep clean..."
+    
+    # Stop services first
+    maintenance_stop_all
+    
+    # Remove service directories and data
+    info "Removing service data..."
+    rm -rf "$SERVICES_DIR" 2>/dev/null || true
+    
+    # Remove postgres data if it exists
+    if [ -d "/var/lib/postgresql" ]; then
+        info "Removing PostgreSQL data..."
+        rm -rf /var/lib/postgresql/16/main 2>/dev/null || true
+    fi
+    
+    # Clean log files
+    info "Cleaning log files..."
+    rm -rf "$LOGS_DIR" 2>/dev/null || true
+    rm -f "$PROJECT_ROOT/logs/"* 2>/dev/null || true
+    
+    success "Deep clean completed - database and all data removed"
+}
+
+run_tests() {
+    local test_type="${1:-all}"
+    
+    info "🧪 Running combined test suite: $test_type"
+    echo ""
+
+    # Run backend tests
+    info "📦 BACKEND TESTS"
+    info "====================="
+    run_backend_tests "$test_type"
+    
+    echo ""
+    
+    # Run frontend tests
+    info "🌐 FRONTEND TESTS"
+    info "====================="
+    run_frontend_tests "$test_type"
+    
+    echo ""
+    success "✅ Combined test suite completed: $test_type"
+}
+
+run_backend_tests() {
+    local test_type="${1:-all}"
+    local backend_dir="$PROJECT_ROOT/backend"
+    
+    if [ ! -d "$backend_dir" ]; then
+        warn "Backend directory not found - skipping backend tests"
+        return 0
+    fi
+    
+    cd "$backend_dir"
+    
+    case "$test_type" in
+        unit)
+            info "Running backend unit tests..."
+            poetry run pytest tests/unit/
+            success "Unit tests completed"
+            ;;
+        integration)
+            info "Running backend integration tests..."
+            poetry run pytest tests/integration/
+            success "Integration tests completed"
+            ;;
+        e2e)
+            info "Running backend end-to-end tests..."
+            poetry run pytest tests/e2e/
+            success "End-to-end tests completed"
+            ;;
+        all)
+            info "Running all backend tests..."
+            poetry run pytest tests/
+            success "All tests completed"
+            ;;
+        watch)
+            info "Running backend tests in watch mode..."
+            poetry run pytest tests/ --watch
+            ;;
+        *)
+            warn "Unknown backend test type: $test_type"
+            ;;
+    esac
+    
+    cd "$PROJECT_ROOT"
+}
+
+run_frontend_tests() {
+    local test_type="${1:-all}"
+    local frontend_dir="$PROJECT_ROOT/frontend"
+    
+    if [ ! -d "$frontend_dir" ]; then
+        warn "Frontend directory not found at $frontend_dir"
+        return 0
+    fi
+
+    cd "$frontend_dir"
+
+    case "$test_type" in
+        unit|integration)
+            info "Running frontend $test_type tests..."
+            if command -v npm >/dev/null 2>&1 && npm run "test:$test_type" --silent >/dev/null 2>&1; then
+                npm run "test:$test_type"
+            else
+                warn "Frontend $test_type tests not available - skipping"
+            fi
+            ;;
+        e2e)
+            info "Running frontend E2E tests..."
+            if command -v npm >/dev/null 2>&1 && npm run test:e2e --silent >/dev/null 2>&1; then
+                npm run test:e2e
+            else
+                warn "Frontend E2E tests not available - skipping"
+            fi
+            ;;
+        all)
+            info "Running all frontend tests..."
+            
+            # Run integration tests if available
+            if npm run test:integration --silent >/dev/null 2>&1; then
+                info "→ Frontend integration tests"
+                npm run test:integration
+            else
+                warn "Frontend integration tests not available - skipping"
+            fi
+            
+            # Run E2E tests if available
+            if npm run test:e2e --silent >/dev/null 2>&1; then
+                info "→ Frontend E2E tests"
+                npm run test:e2e
+            else
+                warn "Frontend E2E tests not available - skipping"
+            fi
+            ;;
+        *)
+            warn "Unknown frontend test type: $test_type - skipping frontend tests"
+            ;;
+    esac
+
+    cd "$PROJECT_ROOT"
+}
+
 maintenance_restart_all() {
     info "====================================================================="
     info "🔄 RESTARTING ALL CODEX SERVICES"
@@ -492,21 +740,45 @@ maintenance_restart_all() {
 
 usage() {
     cat <<EOF
-Usage: $0 [COMMAND]
+EDI Lens Codex Development Maintenance
 
-Commands:
-  start       Start all services (default)
-  stop        Stop all services
-  restart     Restart all services  
-  status      Show service status summary
-  detailed    Show detailed system status
-  help        Show this help message
+USAGE:
+    $0 <command> [options]
 
-Examples:
-  $0                    # Start all services
-  $0 start             # Start all services
-  $0 status            # Show service status
-  $0 detailed          # Show detailed status
+ESSENTIAL COMMANDS:
+    start                Start all services (infrastructure + backend + frontend)
+    stop                 Stop all services
+    restart              Restart all services
+    status               Show detailed status of all services
+    logs [service]       Show logs (backend, frontend, nifi, registry, db)
+    clean                DESTRUCTIVE: Remove all containers, volumes, and data
+
+DEVELOPMENT COMMANDS:
+    test [type]          Run combined tests - both backend and frontend (unit, integration, e2e, all, watch)
+    dev                  Start in development mode (infrastructure + backend + frontend)
+
+TEST TYPES:
+    unit                 Run unit tests (backend + frontend)
+    integration          Run integration tests (backend + frontend) 
+    e2e                  Run end-to-end tests (backend + frontend)
+    all                  Run all test types (default)
+    watch                Run backend tests in watch mode (backend only)
+
+EXAMPLES:
+    $0 start             # Start everything
+    $0 status            # Show status
+    $0 logs backend      # Show backend logs
+    $0 test unit         # Run unit tests (backend + frontend)
+    $0 test integration  # Run integration tests (backend + frontend)
+    $0 test e2e          # Run E2E tests (backend + frontend)
+    $0 clean             # Nuclear option - removes all data
+
+SERVICES:
+    - PostgreSQL (port 5432)
+    - NiFi (port 8443)
+    - Registry (port 18080)  
+    - Backend API (port 8000)
+    - Frontend (port 3000)
 
 EOF
 }
@@ -516,23 +788,38 @@ main() {
     local command="${1:-start}"
     
     case "$command" in
-        "start"|"")
+        start|dev)
             maintenance_start_all
             ;;
-        "stop")
+        stop)
             maintenance_stop_all
             ;;
-        "restart")
+        restart)
             maintenance_restart_all
             ;;
-        "status")
+        status)
             show_service_summary
             ;;
-        "detailed")
+        detailed)
             show_detailed_status
             show_service_summary
             ;;
-        "help"|"-h"|"--help")
+        test)
+            local test_type="${2:-all}"
+            run_tests "$test_type"
+            ;;
+        logs)
+            local service="$2"
+            if [ -z "$service" ]; then
+                error "Please specify a service: backend, frontend, nifi, registry, db"
+                exit 1
+            fi
+            show_logs "$service"
+            ;;
+        clean)
+            clean_all
+            ;;
+        help|--help|-h)
             usage
             ;;
         *)
