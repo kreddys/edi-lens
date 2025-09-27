@@ -313,10 +313,10 @@ async def get_flow(
         updated_at = "Not available"
         
         if version_control:
-            flow_id = version_control.get("flowId")
+            registry_flow_id = version_control.get("flowId")
             bucket_id = version_control.get("bucketId")
-            if flow_id and bucket_id:
-                created_at, updated_at = await get_registry_timestamps(orchestrator, flow_id, bucket_id)
+            if registry_flow_id and bucket_id:
+                created_at, updated_at = await get_registry_timestamps(orchestrator, registry_flow_id, bucket_id)
         
         overall_status = flow_status.get("overall_status", "unknown")
         mapped_status = FlowStatus.RUNNING if overall_status == "running" else \

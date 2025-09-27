@@ -311,9 +311,21 @@ class IntegrationBridge(LoggerMixin):
             if not version_info:
                 raise IntegrationBridgeError("Process group is not under version control")
 
-            bucket_id = version_info.get("bucketId")
-            flow_id = version_info.get("flowId")
-            current_version = version_info.get("version")
+            # Extract version control information with validation
+            vci = version_info.get("versionControlInformation", {})
+            if not vci:
+                raise IntegrationBridgeError("No version control information available")
+
+            bucket_id = vci.get("bucketId")
+            flow_id = vci.get("flowId")
+            current_version = vci.get("version")
+
+            # Validate that we have all required information
+            if not all([bucket_id, flow_id, current_version]):
+                raise IntegrationBridgeError(
+                    f"Incomplete version control info: bucket_id={bucket_id}, "
+                    f"flow_id={flow_id}, version={current_version}"
+                )
 
             # Get current process group snapshot
             current_snapshot = await self.nifi.version_control.export_process_group(

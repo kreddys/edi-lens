@@ -1,14 +1,64 @@
-import React from "react";
+import React, { useState } from "react";
 import { Show } from "@refinedev/antd";
 import { useShow } from "@refinedev/core";
-import { Card, Descriptions, Button, Space, Tag } from "antd";
-import { PlayCircleOutlined, PauseCircleOutlined, EditOutlined } from "@ant-design/icons";
+import { Card, Descriptions, Button, Space, Tag, notification } from "antd";
+import { PlayCircleOutlined, PauseCircleOutlined, EditOutlined, ReloadOutlined } from "@ant-design/icons";
+import { flowAPI } from "../../providers/data";
 
 export const FlowShow: React.FC = () => {
     const { queryResult } = useShow();
-    const { data, isLoading } = queryResult;
+    const { data, isLoading, refetch } = queryResult;
+    const [actionLoading, setActionLoading] = useState<string | null>(null);
 
     const record = data?.data;
+
+    const handleStartFlow = async () => {
+        if (!record?.id) return;
+        
+        setActionLoading('start');
+        try {
+            await flowAPI.startFlow(record.id.toString());
+            notification.success({
+                message: 'Success',
+                description: 'Flow started successfully'
+            });
+            refetch();
+        } catch (error) {
+            console.error('Failed to start flow:', error);
+            notification.error({
+                message: 'Error', 
+                description: 'Failed to start flow'
+            });
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleStopFlow = async () => {
+        if (!record?.id) return;
+        
+        setActionLoading('stop');
+        try {
+            await flowAPI.stopFlow(record.id.toString());
+            notification.success({
+                message: 'Success',
+                description: 'Flow stopped successfully'
+            });
+            refetch();
+        } catch (error) {
+            console.error('Failed to stop flow:', error);
+            notification.error({
+                message: 'Error',
+                description: 'Failed to stop flow'
+            });
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleRefresh = () => {
+        refetch();
+    };
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -35,25 +85,33 @@ export const FlowShow: React.FC = () => {
                 title="Flow Details"
                 extra={
                     <Space>
-                        <Button 
-                            type="primary" 
-                            icon={<PlayCircleOutlined />}
-                            onClick={() => {
-                                // Handle start flow
-                                console.log('Start flow:', record?.id);
-                            }}
+                        <Button
+                            icon={<ReloadOutlined />}
+                            onClick={handleRefresh}
+                            loading={isLoading}
                         >
-                            Start
+                            Refresh
                         </Button>
-                        <Button 
-                            icon={<PauseCircleOutlined />}
-                            onClick={() => {
-                                // Handle stop flow  
-                                console.log('Stop flow:', record?.id);
-                            }}
-                        >
-                            Stop
-                        </Button>
+                        {record?.status?.toLowerCase() === 'running' ? (
+                            <Button 
+                                icon={<PauseCircleOutlined />}
+                                onClick={handleStopFlow}
+                                loading={actionLoading === 'stop'}
+                                disabled={actionLoading !== null}
+                            >
+                                Stop
+                            </Button>
+                        ) : (
+                            <Button 
+                                type="primary" 
+                                icon={<PlayCircleOutlined />}
+                                onClick={handleStartFlow}
+                                loading={actionLoading === 'start'}
+                                disabled={actionLoading !== null}
+                            >
+                                Start
+                            </Button>
+                        )}
                         <Button 
                             icon={<EditOutlined />}
                             href={`/flows/${record?.id}/edit`}

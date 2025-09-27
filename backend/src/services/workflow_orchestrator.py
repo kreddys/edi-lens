@@ -341,11 +341,20 @@ class WorkflowOrchestrator(LoggerMixin):
             try:
                 version_control_info = await self.nifi.version_control.get_version_control_info(process_group_id)
                 if version_control_info:
-                    # Get comparison with Registry
-                    registry_comparison = await self.integration_bridge.compare_with_registry(process_group_id)
-            except Exception:
-                # Process group might not be under version control
-                pass
+                    # Validate version control info before attempting Registry comparison
+                    vci = version_control_info.get("versionControlInformation", {})
+                    bucket_id = vci.get("bucketId")
+                    flow_id = vci.get("flowId")
+                    version = vci.get("version")
+                    
+                    if all([bucket_id, flow_id, version]):
+                        # Get comparison with Registry only if we have complete version control info
+                        registry_comparison = await self.integration_bridge.compare_with_registry(process_group_id)
+                    else:
+                        self.logger.debug("Process group %s has incomplete version control info, skipping Registry comparison", process_group_id)
+            except Exception as exc:
+                # Process group might not be under version control or Registry might be unavailable
+                self.logger.debug("Could not get version control info for process group %s: %s", process_group_id, exc)
 
             # Get parameter context info
             parameter_context = await self.nifi_param_mgmt.get_process_group_parameter_context(process_group_id)

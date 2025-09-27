@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Create, useForm } from "@refinedev/antd";
+import { useGo } from "@refinedev/core";
 import { Form, Input, Button, Select, Steps, Card, List as AntList, Tag, Typography, Space, Modal, message, Divider } from "antd";
 import { FileTextOutlined, PlusOutlined, RocketOutlined } from "@ant-design/icons";
 import { flowAPI } from "../../providers/data";
@@ -35,8 +36,13 @@ interface Bucket {
 }
 
 export const FlowCreate: React.FC = () => {
+    const go = useGo();
     const { formProps } = useForm({
+        action: "create",
+        resource: "flows",
+        redirect: false, // Prevent default redirect  
         onMutationSuccess: () => {
+            // This won't be called since we're handling API calls manually
             message.success('Flow created successfully!');
         }
     });
@@ -118,6 +124,20 @@ export const FlowCreate: React.FC = () => {
             await flowAPI.createFlow(flowData);
             
             message.success(`Flow "${flowFormData.name}" created successfully!`);
+            
+            // Reset form state to prevent "unsaved changes" warning
+            formProps.form?.resetFields();
+            setFlowFormData(null);
+            setSelectedTemplate(null);
+            setCurrentStep(0);
+            
+            // Navigate back to flows list after successful creation
+            setTimeout(() => {
+                go({
+                    to: { resource: 'flows', action: 'list' },
+                    type: 'replace' // Use replace to avoid back button issues
+                });
+            }, 1000); // Small delay to show success message
             
         } catch (error) {
             console.error('Error creating flow:', error);
