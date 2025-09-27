@@ -47,7 +47,8 @@ class WorkflowOrchestrator(LoggerMixin):
         bucket_name: str,
         parameters: Dict[str, Any] = None,
         comments: str = "",
-        parent_group_id: str = "root"
+        parent_group_id: str = "root",
+        bucket_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Complete deployment-first workflow:
@@ -80,12 +81,17 @@ class WorkflowOrchestrator(LoggerMixin):
 
             process_group_id = deployment_result.get("process_group_id")
 
-            # Step 2: Ensure bucket exists in Registry
-            bucket_info = await self.registry_bucket_mgmt.get_or_create_bucket(
-                bucket_name=bucket_name,
-                description=f"Bucket for {flow_name} and related flows"
-            )
-            bucket_id = bucket_info.get("bucket_id")
+            # Step 2: Get bucket information
+            if bucket_id:
+                # Bucket ID provided, use it directly
+                bucket_info = {"bucket_id": bucket_id, "bucket_name": bucket_name}
+            else:
+                # No bucket ID provided, ensure bucket exists by name
+                bucket_info = await self.registry_bucket_mgmt.get_or_create_bucket(
+                    bucket_name=bucket_name,
+                    description=f"Bucket for {flow_name} and related flows"
+                )
+                bucket_id = bucket_info.get("bucket_id")
 
             # Step 3: Upload successful deployment to Registry
             try:

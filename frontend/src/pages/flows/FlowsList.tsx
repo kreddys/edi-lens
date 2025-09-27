@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from "react";
-import { Table, Space, Button, Typography, Modal, Form, Input, Select, notification } from "antd";
+import React, { useState, useEffect, useCallback } from "react";
+import { Table, Space, Button, Typography, Modal, Form, Input, Select, notification, Radio } from "antd";
 import {
   PlayCircleOutlined,
   PauseCircleOutlined,
   DeleteOutlined,
   PlusOutlined,
-  EyeOutlined,
-  ReloadOutlined,
-  EditOutlined
+  EyeOutlined
 } from "@ant-design/icons";
 import { flowAPI } from "../../providers/data";
 import { FlowDetail } from "./FlowDetail";
@@ -31,30 +29,21 @@ interface Flow {
   };
 }
 
-interface RegistryFlow {
-  flow_id: string;
+interface RegistryBucket {
   bucket_id: string;
-  name: string;
-  description: string;
-  type: string;
-  created_timestamp: number;
-  modified_timestamp: number;
-  version_count: number;
+  bucket_name: string;
+  description?: string;
 }
 
 export const FlowsList: React.FC = () => {
   const [flows, setFlows] = useState<Flow[]>([]);
   const [loading, setLoading] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [deployModalVisible, setDeployModalVisible] = useState(false);
   const [selectedFlow, setSelectedFlow] = useState<string | null>(null);
-  const [buckets, setBuckets] = useState<any[]>([]);
-  const [selectedBucketFlows, setSelectedBucketFlows] = useState<RegistryFlow[]>([]);
-  const [selectedBucketId, setSelectedBucketId] = useState<string>('');
-  const [selectedFlowId, setSelectedFlowId] = useState<string>('');
-  const [flowVersions, setFlowVersions] = useState<any[]>([]);
-  const [form] = Form.useForm();
+  const [buckets, setBuckets] = useState<RegistryBucket[]>([]);
   const [createForm] = Form.useForm();
+  const bucketCount = buckets.length;
+  const bucketMode = Form.useWatch<'select' | 'create'>("bucketMode", createForm) || (bucketCount === 0 ? 'create' : 'select');
 
   const loadDeployedFlows = async () => {
     setLoading(true);
@@ -73,34 +62,12 @@ export const FlowsList: React.FC = () => {
     }
   };
 
-  const loadBuckets = async () => {
+  const loadBuckets = async (): Promise<RegistryBucket[]> => {
     try {
       const bucketsData = await flowAPI.listBuckets();
       const bucketArray = Array.isArray(bucketsData) ? bucketsData : [];
-
-      // If no buckets exist, create a default one
-      if (bucketArray.length === 0) {
-        try {
-          const defaultBucket = await flowAPI.createBucket(
-            'default-flows',
-            'Default bucket for flow storage'
-          );
-          setBuckets([defaultBucket]);
-          notification.success({
-            message: 'Default Bucket Created',
-            description: 'Created default bucket for storing flows.'
-          });
-        } catch (createError) {
-          console.error('Failed to create default bucket:', createError);
-          setBuckets([]);
-          notification.warning({
-            message: 'No Buckets Available',
-            description: 'No registry buckets found and failed to create default bucket. Contact administrator.'
-          });
-        }
-      } else {
-        setBuckets(bucketArray);
-      }
+      setBuckets(bucketArray);
+      return bucketArray;
     } catch (error) {
       console.error('Failed to load buckets:', error);
       setBuckets([]);
@@ -108,8 +75,23 @@ export const FlowsList: React.FC = () => {
         message: 'Backend Connection Error',
         description: 'Could not connect to the backend API. Make sure the backend is running on port 8000.'
       });
+      return [];
     }
   };
+
+  const resetCreateForm = useCallback(
+    (mode?: 'select' | 'create') => {
+      const defaultMode = mode ?? (bucketCount === 0 ? 'create' : 'select');
+      createForm.resetFields();
+      createForm.setFieldsValue({
+        bucketMode: defaultMode,
+        bucketId: undefined,
+        newBucketName: undefined,
+        newBucketDescription: undefined
+      });
+    },
+    [bucketCount, createForm]
+  );
 
   useEffect(() => {
     loadBuckets();
@@ -118,36 +100,6 @@ export const FlowsList: React.FC = () => {
 
   const refreshData = () => {
     loadDeployedFlows();
-  };
-
-  const loadFlowsForBucket = async (bucketId: string) => {
-    if (!bucketId) {
-      setSelectedBucketFlows([]);
-      return;
-    }
-
-    try {
-      const flows = await flowAPI.listFlowsInBucket(bucketId);
-      setSelectedBucketFlows(flows);
-    } catch (error) {
-      console.error('Failed to load flows for bucket:', error);
-      setSelectedBucketFlows([]);
-    }
-  };
-
-  const loadVersionsForFlow = async (bucketId: string, flowId: string) => {
-    if (!bucketId || !flowId) {
-      setFlowVersions([]);
-      return;
-    }
-
-    try {
-      const versions = await flowAPI.getFlowVersions(bucketId, flowId);
-      setFlowVersions(versions);
-    } catch (error) {
-      console.error('Failed to load versions for flow:', error);
-      setFlowVersions([]);
-    }
   };
 
   const handleStartFlow = async (processGroupId: string) => {
@@ -218,7 +170,6 @@ export const FlowsList: React.FC = () => {
         return;
       }
 
-      // Ensure the flow definition has required fields
       if (!flowDefinition.name) {
         flowDefinition.name = values.flowName;
       }
@@ -226,52 +177,124 @@ export const FlowsList: React.FC = () => {
         flowDefinition.description = values.description || '';
       }
 
-      await flowAPI.deployAndStore(flowDefinition, values.bucketId, {});
+      const selectedMode: 'select' | 'create' = values.bucketMode || bucketMode;
+      let bucketId: string | undefined = values.bucketId;
+      let createdBucketName: string | null = null;
+
+      if (selectedMode === 'create') {
+        const newBucketName = (values.newBucketName || '').trim();
+
+        if (!newBucketName) {
+          notification.error({
+            message: 'Bucket Name Required',
+            description: 'Enter a bucket name to create a new registry bucket.'
+          });
+          return;
+        }
+
+        try {
+          const newBucket = await flowAPI.createBucket(newBucketName, values.newBucketDescription);
+          bucketId = newBucket.bucket_id;
+          createdBucketName = newBucket.bucket_name;
+          setBuckets(prev => {
+            const exists = prev.some(bucket => bucket.bucket_id === newBucket.bucket_id);
+            return exists ? prev : [...prev, newBucket];
+          });
+        } catch (bucketError: any) {
+          console.error('Bucket creation error:', bucketError);
+          
+          // Check if this has detailed error information
+          const errorData = bucketError?.response?.data?.detail || {};
+          const hasDetailedErrors = errorData.details?.failures?.length > 0;
+          
+          if (hasDetailedErrors) {
+            // Import ErrorDetails component dynamically
+            import('../../components/ErrorDetails').then(({ ErrorDetails }) => {
+              Modal.error({
+                title: 'Bucket Creation Failed',
+                width: 800,
+                content: React.createElement(ErrorDetails, { 
+                  error: bucketError,
+                  title: 'Bucket Creation Error Details'
+                }),
+                okText: 'Close'
+              });
+            });
+          } else {
+            // Fallback to simple notification
+            const errorMessage =
+              bucketError?.response?.data?.detail?.user_message ||
+              bucketError?.response?.data?.detail ||
+              bucketError?.message ||
+              'Failed to create bucket';
+
+            notification.error({
+              message: 'Bucket Creation Failed',
+              description: errorMessage
+            });
+          }
+          return;
+        }
+      }
+
+      if (!bucketId) {
+        notification.error({
+          message: 'Bucket Required',
+          description: 'Select an existing bucket or create a new one before deploying.'
+        });
+        return;
+      }
+
+      await flowAPI.deployAndStore(flowDefinition, bucketId, {});
+
+      const successDescription = createdBucketName
+        ? `Flow created and deployed successfully. New bucket '${createdBucketName}' is ready for version control.`
+        : 'Flow created and deployed successfully';
 
       notification.success({
         message: 'Success',
-        description: 'Flow created and deployed successfully'
+        description: successDescription
       });
 
       setCreateModalVisible(false);
-      createForm.resetFields();
+      resetCreateForm('select');
       refreshData();
-    } catch (error) {
-      notification.error({
-        message: 'Error',
-        description: 'Failed to create flow'
-      });
-    }
-  };
+      if (createdBucketName) {
+        loadBuckets();
+      }
+    } catch (error: any) {
+      console.error('Flow deployment error:', error);
+      
+      // Check if this is a detailed deployment error
+      const errorData = error?.response?.data?.detail || {};
+      const hasDetailedErrors = errorData.details?.failures?.length > 0;
+      
+      if (hasDetailedErrors) {
+        // Import ErrorDetails component dynamically
+        import('../../components/ErrorDetails').then(({ ErrorDetails }) => {
+          Modal.error({
+            title: 'Flow Deployment Failed',
+            width: 800,
+            content: React.createElement(ErrorDetails, { 
+              error,
+              title: 'Deployment Error Details'
+            }),
+            okText: 'Close'
+          });
+        });
+      } else {
+        // Fallback to simple notification for non-deployment errors
+        const errorMessage =
+          error?.response?.data?.detail?.user_message ||
+          error?.response?.data?.detail ||
+          error?.message ||
+          'Failed to create flow';
 
-  const handleDeployFromRegistry = async (values: any) => {
-    try {
-      const version = values.version === 'latest' ? undefined : parseInt(values.version);
-      const flowData = await flowAPI.getFlowFromRegistry(
-        values.bucketId,
-        values.flowId,
-        version
-      );
-
-      await flowAPI.deployAndStore(flowData, values.bucketId, {});
-
-      notification.success({
-        message: 'Success',
-        description: 'Flow deployed from registry successfully'
-      });
-
-      setDeployModalVisible(false);
-      form.resetFields();
-      setSelectedBucketId('');
-      setSelectedFlowId('');
-      setSelectedBucketFlows([]);
-      setFlowVersions([]);
-      refreshData();
-    } catch (error) {
-      notification.error({
-        message: 'Error',
-        description: 'Failed to deploy flow from registry'
-      });
+        notification.error({
+          message: 'Error',
+          description: errorMessage
+        });
+      }
     }
   };
 
@@ -299,22 +322,14 @@ export const FlowsList: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 16 }}>
         <Space>
           <Button
-            icon={<EditOutlined />}
-            onClick={() => setDeployModalVisible(true)}
-          >
-            Deploy from Registry
-          </Button>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={refreshData}
-            loading={loading}
-          >
-            Refresh
-          </Button>
-          <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => setCreateModalVisible(true)}
+            onClick={async () => {
+              const currentBuckets = await loadBuckets();
+              const defaultMode = currentBuckets.length === 0 ? 'create' : 'select';
+              resetCreateForm(defaultMode);
+              setCreateModalVisible(true);
+            }}
           >
             Create
           </Button>
@@ -397,7 +412,7 @@ export const FlowsList: React.FC = () => {
         open={createModalVisible}
         onCancel={() => {
           setCreateModalVisible(false);
-          createForm.resetFields();
+          resetCreateForm();
         }}
         footer={null}
         width={800}
@@ -407,6 +422,7 @@ export const FlowsList: React.FC = () => {
           layout="vertical"
           onFinish={handleCreateFlow}
           initialValues={{
+            bucketMode: 'select',
             flowDefinition: JSON.stringify({
               name: "New Flow",
               description: "Description of the flow",
@@ -432,22 +448,62 @@ export const FlowsList: React.FC = () => {
           </Form.Item>
 
           <Form.Item
-            name="bucketId"
+            name="bucketMode"
             label="Registry Bucket"
-            rules={[{ required: true, message: 'Please select a bucket' }]}
+            rules={[{ required: true, message: 'Please choose how to manage the bucket' }]}
           >
-            <Select placeholder="Select a bucket">
-              {buckets && buckets.length > 0 ? (
-                buckets.map(bucket => (
+            <Radio.Group
+              onChange={({ target: { value } }) => {
+                const mode = value as 'select' | 'create';
+                createForm.setFieldsValue({ bucketMode: mode });
+                if (mode === 'create') {
+                  createForm.setFieldsValue({ bucketId: undefined });
+                } else {
+                  createForm.setFieldsValue({ newBucketName: undefined, newBucketDescription: undefined });
+                }
+              }}
+            >
+              {bucketCount > 0 && (
+                <Radio value="select">Use existing bucket</Radio>
+              )}
+              <Radio value="create">Create new bucket</Radio>
+            </Radio.Group>
+          </Form.Item>
+
+          {bucketMode === 'select' && (
+            <Form.Item
+              name="bucketId"
+              label="Select Bucket"
+              rules={[{ required: true, message: 'Please select a bucket' }]}
+            >
+              <Select placeholder="Select a bucket" disabled={bucketCount === 0}>
+                {buckets.map(bucket => (
                   <Option key={bucket.bucket_id} value={bucket.bucket_id}>
                     {bucket.bucket_name}
                   </Option>
-                ))
-              ) : (
-                <Option disabled value="">No buckets available</Option>
-              )}
-            </Select>
-          </Form.Item>
+                ))}
+              </Select>
+            </Form.Item>
+          )}
+
+          {bucketMode === 'create' && (
+            <>
+              <Form.Item
+                name="newBucketName"
+                label="Bucket Name"
+                rules={[{ required: true, message: 'Please enter a bucket name' }]}
+              >
+                <Input placeholder="Enter new bucket name" />
+              </Form.Item>
+              <Form.Item
+                name="newBucketDescription"
+                label="Bucket Description"
+              >
+                <Input placeholder="Optional bucket description" />
+              </Form.Item>
+              <Text type="secondary">Bucket names must be unique in the NiFi Registry.</Text>
+            </>
+          )}
 
           <Form.Item
             name="flowDefinition"
@@ -468,7 +524,7 @@ export const FlowsList: React.FC = () => {
               </Button>
               <Button onClick={() => {
                 setCreateModalVisible(false);
-                createForm.resetFields();
+                resetCreateForm();
               }}>
                 Cancel
               </Button>
@@ -477,110 +533,6 @@ export const FlowsList: React.FC = () => {
         </Form>
       </Modal>
 
-      {/* Deploy from Registry Modal */}
-      <Modal
-        title="Deploy Flow from Registry"
-        open={deployModalVisible}
-        onCancel={() => {
-          setDeployModalVisible(false);
-          form.resetFields();
-          setSelectedBucketId('');
-          setSelectedFlowId('');
-          setSelectedBucketFlows([]);
-          setFlowVersions([]);
-        }}
-        footer={null}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleDeployFromRegistry}
-        >
-          <Form.Item
-            name="bucketId"
-            label="Registry Bucket"
-            rules={[{ required: true, message: 'Please select a bucket' }]}
-          >
-            <Select
-              placeholder="Select a bucket"
-              onChange={(value) => {
-                setSelectedBucketId(value);
-                loadFlowsForBucket(value);
-                form.setFieldValue('flowId', undefined);
-              }}
-            >
-              {buckets && buckets.length > 0 ? (
-                buckets.map(bucket => (
-                  <Option key={bucket.bucket_id} value={bucket.bucket_id}>
-                    {bucket.bucket_name}
-                  </Option>
-                ))
-              ) : (
-                <Option disabled value="">No buckets available</Option>
-              )}
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            name="flowId"
-            label="Flow"
-            rules={[{ required: true, message: 'Please select a flow' }]}
-          >
-            <Select
-              placeholder="Select a flow"
-              disabled={!selectedBucketId}
-              onChange={(value) => {
-                setSelectedFlowId(value);
-                loadVersionsForFlow(selectedBucketId, value);
-                form.setFieldValue('version', undefined);
-              }}
-            >
-              {selectedBucketFlows.length > 0 ? (
-                selectedBucketFlows.map(flow => (
-                  <Option key={flow.flow_id} value={flow.flow_id}>
-                    {flow.name} - {flow.description}
-                  </Option>
-                ))
-              ) : (
-                <Option disabled value="">No flows available in selected bucket</Option>
-              )}
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            name="version"
-            label="Version"
-            rules={[{ required: true, message: 'Please select a version' }]}
-          >
-            <Select placeholder="Select version" disabled={!selectedFlowId}>
-              <Option value="latest">Latest Version</Option>
-              {flowVersions.map(version => (
-                <Option key={version.version || version.version_number} value={version.version || version.version_number}>
-                  Version {version.version || version.version_number} - {version.comments || 'No description'}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit">
-                Deploy
-              </Button>
-              <Button onClick={() => {
-                setDeployModalVisible(false);
-                form.resetFields();
-                setSelectedBucketId('');
-                setSelectedFlowId('');
-                setSelectedBucketFlows([]);
-                setFlowVersions([]);
-              }}>
-                Cancel
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
     </div>
   );
 };

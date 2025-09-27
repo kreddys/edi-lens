@@ -44,13 +44,28 @@ async def deploy_and_store_flow(
     log.debug("Parameters: %d items", len(request.parameters))
 
     try:
+        # Get bucket details to extract the bucket name
+        bucket = await orchestrator.registry_bucket_mgmt.get_bucket(request.bucket_id)
+        bucket_name = bucket.get("bucket_name")
+        
+        if not bucket_name:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error_type": "INVALID_BUCKET",
+                    "user_message": f"Bucket with ID {request.bucket_id} not found",
+                    "action_required": "Verify the bucket ID exists in Registry",
+                },
+            )
+        
         result = await orchestrator.deploy_and_register_flow(
             flow_definition=request.flow_definition.model_dump(),
             flow_name=flow_name,
-            bucket_name=request.bucket_id,  # Assuming bucket_id is actually bucket name for now
+            bucket_name=bucket_name,
             parameters=request.parameters,
             comments=request.flow_description,
             parent_group_id=request.parent_group_id,
+            bucket_id=request.bucket_id,
         )
 
         execution_time = (time.time() - start_time) * 1000
