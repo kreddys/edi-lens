@@ -9,6 +9,29 @@
 
 set -euo pipefail
 
+# --- Environment Normalization ------------------------------------------------
+# When this script is invoked through the unified wrapper it may be executed via
+# `sudo`, which resets the PATH and hides user-level installations (like Poetry
+# under ~/.local/bin).  Re-add those common locations so that tools installed
+# during setup are discoverable.
+add_to_path_if_exists() {
+    local dir="$1"
+    if [ -d "$dir" ] && [[ ":$PATH:" != *":$dir:"* ]]; then
+        PATH="$dir:$PATH"
+    fi
+}
+
+add_to_path_if_exists "$HOME/.local/bin"
+
+if [ -n "${SUDO_USER:-}" ]; then
+    sudo_user_home=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)
+    if [ -n "$sudo_user_home" ]; then
+        add_to_path_if_exists "$sudo_user_home/.local/bin"
+    fi
+fi
+
+export PATH
+
 # --- Output helpers -----------------------------------------------------------
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -34,6 +57,8 @@ if [ -d "$SERVICES_DIR_DEFAULT" ]; then
 else
     SERVICES_DIR="$SERVICES_DIR_FALLBACK"
 fi
+
+add_to_path_if_exists "$SERVICES_DIR/bin"
 
 ENV_FILE="$PROJECT_ROOT/.env.local"
 LOGS_DIR="$SERVICES_DIR/logs"
@@ -632,14 +657,33 @@ run_tests() {
 run_backend_tests() {
     local test_type="${1:-all}"
     local backend_dir="$PROJECT_ROOT/backend"
-    
+
     if [ ! -d "$backend_dir" ]; then
         warn "Backend directory not found - skipping backend tests"
         return 0
     fi
-    
+
     cd "$backend_dir"
-    
+
+    if ! command -v poetry >/dev/null 2>&1; then
+        error "Poetry is not available. Please run sudo bash scripts/setup_codex.sh to provision backend dependencies."
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+
+    local venv_path=""
+    if ! venv_path=$(poetry env info --path 2>/dev/null); then
+        error "Backend virtual environment not found. Run sudo bash scripts/setup_codex.sh or execute \"poetry install --with dev\" inside backend/ to install dependencies."
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+
+    if [ ! -x "$venv_path/bin/pytest" ]; then
+        error "Pytest is missing from the Poetry environment. Re-run the setup script or install backend dev dependencies."
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+
     case "$test_type" in
         unit)
             info "Running backend unit tests..."
