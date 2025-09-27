@@ -9,6 +9,29 @@
 
 set -euo pipefail
 
+# --- Environment Normalization ------------------------------------------------
+# When this script is invoked through the unified wrapper it may be executed via
+# `sudo`, which resets the PATH and hides user-level installations (like Poetry
+# under ~/.local/bin).  Re-add those common locations so that tools installed
+# during setup are discoverable.
+add_to_path_if_exists() {
+    local dir="$1"
+    if [ -d "$dir" ] && [[ ":$PATH:" != *":$dir:"* ]]; then
+        PATH="$dir:$PATH"
+    fi
+}
+
+add_to_path_if_exists "$HOME/.local/bin"
+
+if [ -n "${SUDO_USER:-}" ]; then
+    sudo_user_home=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)
+    if [ -n "$sudo_user_home" ]; then
+        add_to_path_if_exists "$sudo_user_home/.local/bin"
+    fi
+fi
+
+export PATH
+
 # --- Output helpers -----------------------------------------------------------
 RED='\033[0;31m'
 GREEN='\033[0;32m'
