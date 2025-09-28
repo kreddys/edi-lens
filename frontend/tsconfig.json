@@ -14,8 +14,9 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "types": ["node"]
   },
-  "include": ["src", "src/declarations.d.ts"],
+  "include": ["src", "src/declarations.d.ts", "playwright.config.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
