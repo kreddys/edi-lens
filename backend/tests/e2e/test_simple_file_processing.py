@@ -22,11 +22,25 @@ from tests.test_config import (
 pytestmark = pytest.mark.e2e
 
 SAMPLE_FILES_DIR = Path(__file__).parent / "testdata"
-# Use the nifi-working directory for all test data (mounted at /tmp/nifi-working)
-# For local development/testing
-TEST_DATA_ROOT = Path(__file__).parent.parent.parent.parent / "tmp" / "nifi-working" / "e2e_test_files"
-# For NiFi container access (mounted at /tmp/nifi-working)
+REPO_TEST_DATA_ROOT = Path(__file__).parent.parent.parent.parent / "tmp" / "nifi-working" / "e2e_test_files"
 NIFI_TEST_DATA_ROOT = Path("/tmp/nifi-working/e2e_test_files")
+
+
+def _determine_test_data_root() -> Path:
+    """Pick a test data root that NiFi can access."""
+
+    for candidate in (NIFI_TEST_DATA_ROOT, REPO_TEST_DATA_ROOT):
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+        except (OSError, PermissionError):
+            continue
+        else:
+            return candidate
+
+    raise RuntimeError("Unable to create test data root for NiFi E2E tests.")
+
+
+TEST_DATA_ROOT = _determine_test_data_root()
 
 
 @dataclass
@@ -68,16 +82,12 @@ async def orchestrator(nifi_client, registry_client) -> WorkflowOrchestrator:
 
 
 def _create_test_directories(test_run_id: str) -> FlowDirectories:
-    # Ensure the root test data directory exists locally
-    TEST_DATA_ROOT.mkdir(parents=True, exist_ok=True)
-    
-    # Create directories locally (host filesystem)
-    local_base_path = TEST_DATA_ROOT / f"edi_lens_e2e_{test_run_id}"
-    local_input_path = local_base_path / "input"
-    local_output_path = local_base_path / "output"
-    local_error_path = local_base_path / "error"
+    base_path = TEST_DATA_ROOT / f"edi_lens_e2e_{test_run_id}"
+    input_path = base_path / "input"
+    output_path = base_path / "output"
+    error_path = base_path / "error"
 
-    for directory in (local_input_path, local_output_path, local_error_path):
+    for directory in (input_path, output_path, error_path):
         directory.mkdir(parents=True, exist_ok=True)
         try:
             os.chmod(directory, 0o777)
@@ -85,17 +95,11 @@ def _create_test_directories(test_run_id: str) -> FlowDirectories:
             # In some environments, chmod might fail, but the directory should still be usable
             pass
 
-    # Return paths that NiFi container can access (via volume mount)
-    nifi_base_path = NIFI_TEST_DATA_ROOT / f"edi_lens_e2e_{test_run_id}"
-    nifi_input_path = nifi_base_path / "input"
-    nifi_output_path = nifi_base_path / "output"
-    nifi_error_path = nifi_base_path / "error"
-
     return FlowDirectories(
-        base=nifi_base_path, 
-        input=nifi_input_path, 
-        output=nifi_output_path, 
-        error=nifi_error_path
+        base=base_path,
+        input=input_path,
+        output=output_path,
+        error=error_path
     )
 
 
@@ -109,11 +113,8 @@ def _load_sample_files() -> Dict[str, str]:
 def _stage_input_files(test_directories: FlowDirectories, sample_contents: Dict[str, str], test_run_id: str) -> Dict[str, str]:
     expected_outputs: Dict[str, str] = {}
 
-    # Write files to local directory (host filesystem)
-    local_input_path = TEST_DATA_ROOT / f"edi_lens_e2e_{test_run_id}" / "input"
-    
     for filename, content in sample_contents.items():
-        destination = local_input_path / filename
+        destination = test_directories.input / filename
         destination.write_text(content)
         try:
             os.chmod(destination, 0o666)
