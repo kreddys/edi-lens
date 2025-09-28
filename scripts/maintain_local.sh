@@ -272,6 +272,14 @@ run_tests() {
     info "🧪 Running combined test suite: $test_type"
     echo ""
 
+    # Ensure NiFi working directory exists for e2e tests
+    if [[ "$test_type" == "e2e" || "$test_type" == "all" ]]; then
+        if [ ! -d "/tmp/nifi-working" ]; then
+            info "Creating NiFi working directory for e2e tests..."
+            mkdir -p /tmp/nifi-working
+        fi
+    fi
+
     # Run backend tests
     info "📦 BACKEND TESTS"
     info "====================="

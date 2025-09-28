@@ -28,22 +28,35 @@ from tests.test_config import (
 pytestmark = pytest.mark.e2e
 
 SAMPLE_FILES_DIR = Path(__file__).parent / "testdata"
-REPO_TEST_DATA_ROOT = Path(__file__).parent.parent.parent.parent / "tmp" / "nifi-working" / "e2e_api_test_files"
-NIFI_TEST_DATA_ROOT = Path("/tmp/nifi-working/e2e_api_test_files")
+
+
+def _is_codex_environment() -> bool:
+    """Detect if we're running in Codex environment (native NiFi) vs local Docker."""
+    return (
+        os.path.exists("/opt/codex") or 
+        os.path.exists("/.codex") or
+        os.environ.get("CODEX", "").lower() == "true"
+    )
 
 
 def _determine_test_data_root() -> Path:
-    """Pick a test data root that NiFi can access."""
-
-    for candidate in (NIFI_TEST_DATA_ROOT, REPO_TEST_DATA_ROOT):
+    """Pick the appropriate test data root based on environment."""
+    if _is_codex_environment():
+        # Codex: NiFi runs natively and directly accesses /tmp/nifi-working
+        nifi_root = Path("/tmp/nifi-working/e2e_api_test_files")
         try:
-            candidate.mkdir(parents=True, exist_ok=True)
-        except (OSError, PermissionError):
-            continue
-        else:
-            return candidate
-
-    raise RuntimeError("Unable to create test data root for NiFi API E2E tests.")
+            nifi_root.mkdir(parents=True, exist_ok=True)
+            return nifi_root
+        except (OSError, PermissionError) as e:
+            raise RuntimeError(f"Unable to create Codex test data root {nifi_root}: {e}")
+    else:
+        # Local Docker: Use project-relative path that gets mounted to container
+        repo_root = Path(__file__).parent.parent.parent.parent / "tmp" / "nifi-working" / "e2e_api_test_files"
+        try:
+            repo_root.mkdir(parents=True, exist_ok=True)
+            return repo_root
+        except (OSError, PermissionError) as e:
+            raise RuntimeError(f"Unable to create local test data root {repo_root}: {e}")
 
 
 TEST_DATA_ROOT = _determine_test_data_root()
@@ -57,6 +70,28 @@ class FlowDirectories:
     input: Path
     output: Path
     error: Path
+    
+    def to_nifi_paths(self) -> "FlowDirectories":
+        """Convert local filesystem paths to paths that NiFi can understand."""
+        if _is_codex_environment():
+            # In Codex, NiFi runs natively - no path conversion needed
+            return self
+        else:
+            # In local Docker, convert project paths to container paths
+            def to_container_path(host_path: Path) -> Path:
+                path_str = str(host_path)
+                if "/tmp/nifi-working/" in path_str:
+                    # Extract the part after /tmp/nifi-working/ and prepend container path
+                    rel_part = path_str.split("/tmp/nifi-working/", 1)[1]
+                    return Path(f"/tmp/nifi-working/{rel_part}")
+                return host_path
+
+            return FlowDirectories(
+                base=to_container_path(self.base),
+                input=to_container_path(self.input),
+                output=to_container_path(self.output),
+                error=to_container_path(self.error),
+            )
 
 
 @pytest.fixture(scope="module")
@@ -293,8 +328,8 @@ async def test_api_simple_file_processing_flow(api_client: AsyncClient):
                 "process_groups": []
             },
             "parameters": {
-                "input_directory": str(test_dirs.input),
-                "output_directory": str(test_dirs.output),
+                "input_directory": str(test_dirs.to_nifi_paths().input),
+                "output_directory": str(test_dirs.to_nifi_paths().output),
                 "input_pattern": ".*\\.txt$",
             }
         }
