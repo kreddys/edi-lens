@@ -187,6 +187,10 @@ setup_environment() {
     BIN_DIR="$SERVICES_DIR/bin"
 
     mkdir -p "$DOWNLOADS_DIR" "$LOGS_DIR" "$BIN_DIR"
+    
+    # Create NiFi working directory for e2e tests
+    mkdir -p /tmp/nifi-working
+    info "✓ Created NiFi working directory at /tmp/nifi-working"
 
     # Ensure custom binaries are available in subsequent steps and future
     # maintenance commands.

@@ -46,6 +46,37 @@ warn() { printf "${YELLOW}[WARN]${NC} %s\n" "$1"; }
 error() { printf "${RED}[ERROR]${NC} %s\n" "$1"; }
 status() { printf "${CYAN}[STATUS]${NC} %s\n" "$1"; }
 
+# --- Log Display Helper -------------------------------------------------------
+show_log_tail() {
+    local log_file="$1"
+    local service_name="$2"
+    local lines="${3:-20}"
+    
+    if [ -f "$log_file" ]; then
+        error "❌ $service_name failed to start. Recent log entries:"
+        echo "========================================================================================"
+        echo "📄 Last $lines lines from $log_file:"
+        echo "========================================================================================"
+        tail -n "$lines" "$log_file" 2>/dev/null || echo "Could not read log file"
+        echo "========================================================================================"
+        echo "💡 Full log available at: $log_file"
+        echo "💡 Use: tail -f $log_file (to follow logs)"
+        echo "========================================================================================"
+    else
+        error "❌ $service_name failed to start and log file not found: $log_file"
+        show_available_logs
+    fi
+}
+
+show_available_logs() {
+    if [ -d "$LOGS_DIR" ]; then
+        echo "📁 Available log files in $LOGS_DIR:"
+        ls -la "$LOGS_DIR" 2>/dev/null || echo "Could not list log directory"
+    else
+        echo "📁 Log directory does not exist: $LOGS_DIR"
+    fi
+}
+
 # --- Configuration ------------------------------------------------------------
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SERVICES_DIR_DEFAULT="/opt/codex-services"
@@ -90,6 +121,21 @@ check_port() {
     local port="$1"
     local timeout="${2:-5}"
     
+    # First check if port is bound using lsof (most reliable)
+    if command -v lsof >/dev/null 2>&1; then
+        if lsof -i ":$port" >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+    
+    # Fallback to netstat if available
+    if command -v netstat >/dev/null 2>&1; then
+        if netstat -ln 2>/dev/null | grep -q ":$port "; then
+            return 0
+        fi
+    fi
+    
+    # Fallback to TCP connection test and HTTP request
     if [ "$port" = "8443" ]; then
         timeout "$timeout" curl -kfs "https://localhost:$port/" >/dev/null 2>&1
     else
@@ -234,7 +280,7 @@ start_backend_service() {
         cd "$PROJECT_ROOT"
         return 0
     else
-        error "❌ Failed to start Backend API"
+        show_log_tail "$LOGS_DIR/backend.log" "Backend API" 30
         cd "$PROJECT_ROOT"
         return 1
     fi
@@ -250,10 +296,19 @@ start_frontend_service() {
         return 1
     fi
 
-    # Check if already running
+    # Check if already running by port binding (more reliable than HTTP check)
     if check_port "3000" 2; then
-        success "✓ Frontend already running on port 3000"
-        return 0
+        # Double-check with HTTP request to make sure it's actually the frontend
+        if curl -fs "http://localhost:3000/" >/dev/null 2>&1; then
+            success "✓ Frontend already running and responding on port 3000"
+            return 0
+        else
+            warn "Port 3000 is bound but not responding - may need cleanup"
+            # Try to find and stop any stale processes
+            pkill -f "npm.*dev" 2>/dev/null || true
+            pkill -f "vite" 2>/dev/null || true
+            sleep 2
+        fi
     fi
 
     cd "$frontend_dir"
@@ -267,14 +322,17 @@ start_frontend_service() {
 
     # Start frontend in background
     nohup npm run dev > "$LOGS_DIR/frontend.log" 2>&1 &
+    local npm_pid=$!
     cd "$PROJECT_ROOT"
     
     # Wait for frontend to be ready
     if wait_for_service "http://localhost:3000" "Frontend" 30; then
-        success "✅ Frontend started successfully"
+        success "✅ Frontend started successfully (PID: $npm_pid)"
         return 0
     else
-        warn "Frontend failed to start - check logs at $LOGS_DIR/frontend.log"
+        show_log_tail "$LOGS_DIR/frontend.log" "Frontend" 30
+        # Clean up the failed process
+        kill "$npm_pid" 2>/dev/null || true
         return 1
     fi
 }
@@ -365,7 +423,7 @@ start_nifi_registry() {
         success "✅ NiFi Registry started successfully"
         return 0
     else
-        error "❌ Failed to start NiFi Registry"
+        show_log_tail "$LOGS_DIR/nifi-registry.log" "NiFi Registry" 30
         return 1
     fi
 }
@@ -417,7 +475,7 @@ start_nifi() {
         success "✅ NiFi started successfully"
         return 0
     else
-        error "❌ Failed to start NiFi"
+        show_log_tail "$LOGS_DIR/nifi.log" "NiFi" 30
         return 1
     fi
 }
@@ -637,6 +695,14 @@ run_tests() {
     
     info "🧪 Running combined test suite: $test_type"
     echo ""
+
+    # Ensure NiFi working directory exists for e2e tests
+    if [[ "$test_type" == "e2e" || "$test_type" == "all" ]]; then
+        if [ ! -d "/tmp/nifi-working" ]; then
+            info "Creating NiFi working directory for e2e tests..."
+            mkdir -p /tmp/nifi-working
+        fi
+    fi
 
     # Run backend tests
     info "📦 BACKEND TESTS"
