@@ -87,8 +87,8 @@ backups/
 minio-data/
 docker/sftpgo/config
 
-# Data directories (excluding templates)
-data/
+# Data directories (excluding root data directory)
+/*/data/
 !backend/data/.vscode/
 
 nifi-rest-api-spec.txt

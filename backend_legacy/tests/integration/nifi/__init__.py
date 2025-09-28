@@ -1,1 +1,0 @@
-# NiFi integration tests

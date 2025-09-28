@@ -1,0 +1,112 @@
+{
+  "name": "Simple File Processing",
+  "description": "Basic file processing flow: GetFile -> UpdateAttribute -> PutFile",
+  "processors": [
+    {
+      "identifier": "getfile-001",
+      "name": "GetFile-Input",
+      "type": "org.apache.nifi.processors.standard.GetFile",
+      "position": {
+        "x": 100.0,
+        "y": 100.0
+      },
+      "properties": {
+        "Input Directory": "#{input_directory}",
+        "File Filter": "#{input_pattern}",
+        "Keep Source File": "false",
+        "Minimum File Age": "0 sec",
+        "Polling Interval": "1 sec"
+      },
+      "schedulingPeriod": "1 sec",
+      "schedulingStrategy": "TIMER_DRIVEN",
+      "executionNode": "ALL",
+      "concurrentlySchedulableTaskCount": 1,
+      "autoTerminatedRelationships": ["failure"]
+    },
+    {
+      "identifier": "updateattr-001", 
+      "name": "UpdateAttribute-Rename",
+      "type": "org.apache.nifi.processors.attributes.UpdateAttribute",
+      "position": {
+        "x": 400.0,
+        "y": 100.0
+      },
+      "properties": {
+        "filename": "processed_${filename}",
+        "processing.timestamp": "${now():format('yyyy-MM-dd HH:mm:ss')}"
+      },
+      "schedulingPeriod": "0 sec",
+      "schedulingStrategy": "TIMER_DRIVEN", 
+      "executionNode": "ALL",
+      "concurrentlySchedulableTaskCount": 1,
+      "autoTerminatedRelationships": ["failure"]
+    },
+    {
+      "identifier": "putfile-001",
+      "name": "PutFile-Output",
+      "type": "org.apache.nifi.processors.standard.PutFile",
+      "position": {
+        "x": 700.0,
+        "y": 100.0
+      },
+      "properties": {
+        "Directory": "#{output_directory}",
+        "Create Missing Directories": "true",
+        "Conflict Resolution Strategy": "replace"
+      },
+      "schedulingPeriod": "0 sec",
+      "schedulingStrategy": "TIMER_DRIVEN",
+      "executionNode": "ALL", 
+      "concurrentlySchedulableTaskCount": 1,
+      "autoTerminatedRelationships": ["success", "failure"]
+    }
+  ],
+  "connections": [
+    {
+      "identifier": "connection-001",
+      "name": "GetFile-to-UpdateAttribute",
+      "source": {
+        "id": "getfile-001",
+        "type": "PROCESSOR"
+      },
+      "destination": {
+        "id": "updateattr-001", 
+        "type": "PROCESSOR"
+      },
+      "selectedRelationships": ["success"],
+      "backPressureObjectThreshold": 1000,
+      "backPressureDataSizeThreshold": "1 GB",
+      "flowFileExpiration": "0 sec"
+    },
+    {
+      "identifier": "connection-002",
+      "name": "UpdateAttribute-to-PutFile",
+      "source": {
+        "id": "updateattr-001",
+        "type": "PROCESSOR"
+      },
+      "destination": {
+        "id": "putfile-001",
+        "type": "PROCESSOR"
+      },
+      "selectedRelationships": ["success"],
+      "backPressureObjectThreshold": 1000,
+      "backPressureDataSizeThreshold": "1 GB", 
+      "flowFileExpiration": "0 sec"
+    }
+  ],
+  "parameters": {
+    "input_directory": {
+      "description": "Directory to monitor for input files",
+      "default": "/tmp/nifi-working/input"
+    },
+    "output_directory": {
+      "description": "Directory to place processed files", 
+      "default": "/tmp/nifi-working/output"
+    },
+    "input_pattern": {
+      "description": "File pattern to match (regex)",
+      "default": "[^.].*"
+    }
+  }
+}

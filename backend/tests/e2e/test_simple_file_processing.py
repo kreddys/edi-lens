@@ -22,11 +22,11 @@ from tests.test_config import (
 pytestmark = pytest.mark.e2e
 
 SAMPLE_FILES_DIR = Path(__file__).parent / "testdata"
-# Use a test data directory within backend/tests that works in both local and containerized environments
+# Use the nifi-working directory for all test data (mounted at /tmp/nifi-working)
 # For local development/testing
-TEST_DATA_ROOT = Path(__file__).parent.parent / "data" / "e2e_test_files"
-# For NiFi container access (mounted at /opt/nifi/test_data)
-NIFI_TEST_DATA_ROOT = Path("/opt/nifi/test_data/e2e_test_files")
+TEST_DATA_ROOT = Path(__file__).parent.parent.parent.parent / "tmp" / "nifi-working" / "e2e_test_files"
+# For NiFi container access (mounted at /tmp/nifi-working)
+NIFI_TEST_DATA_ROOT = Path("/tmp/nifi-working/e2e_test_files")
 
 
 @dataclass

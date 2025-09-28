@@ -91,9 +91,7 @@ services:
       - nifi_content:/opt/nifi/nifi-current/content_repository
       - nifi_provenance:/opt/nifi/nifi-current/provenance_repository
       - nifi_state:/opt/nifi/nifi-current/state
-      # Mount test data directory for e2e tests
-      - ../backend/tests/data:/opt/nifi/test_data
-      # Mount entire nifi-working directory for flow testing
+      # Mount entire nifi-working directory for flow testing and e2e tests
       - ../tmp/nifi-working:/tmp/nifi-working
       # Note: conf volume removed to allow NiFi to write authentication files
     networks:

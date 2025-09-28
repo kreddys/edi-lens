@@ -1,1 +1,0 @@
-# Full system validation tests

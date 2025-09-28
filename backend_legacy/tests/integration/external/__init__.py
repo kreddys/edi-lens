@@ -1,1 +1,0 @@
-# External service integration tests
