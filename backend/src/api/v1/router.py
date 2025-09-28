@@ -3,7 +3,6 @@
 from fastapi import APIRouter
 
 from .flows.flows import router as flows_router
-from .flows.deployments import router as deployments_router
 from .flows.executions import router as executions_router
 from .flows.simple_executions import router as simple_executions_router
 from .flows.versions import router as versions_router
@@ -16,7 +15,6 @@ v1_router = APIRouter(prefix="/api/v1")
 
 # Include all sub-routers
 v1_router.include_router(flows_router)
-v1_router.include_router(deployments_router)
 v1_router.include_router(executions_router)
 v1_router.include_router(simple_executions_router)
 v1_router.include_router(versions_router)

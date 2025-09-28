@@ -402,69 +402,6 @@ export const flowAPI = {
     getRegistryFlowVersions: async (flowId: string) => {
         const { data } = await axiosInstance.get(`/api/v1/registry/flows/${flowId}/versions`);
         return data;
-    },
-
-    // Legacy compatibility methods (marked for deprecation)
-    deployAndStore: async (flowDefinition: any, bucketId: string, parameters: any = {}) => {
-        console.warn('deployAndStore is deprecated, use createFlow instead');
-        return await flowAPI.createFlow({
-            name: flowDefinition.name,
-            description: flowDefinition.description || '',
-            bucket_id: bucketId,
-            definition: flowDefinition,
-            parameters
-        });
-    },
-
-    getStatus: async (flowId: string) => {
-        console.warn('getStatus is deprecated, use getFlow instead');
-        return await flowAPI.getFlow(flowId);
-    },
-
-    start: async (flowId: string) => {
-        console.warn('start is deprecated, use startFlow instead');
-        return await flowAPI.startFlow(flowId);
-    },
-
-    stop: async (flowId: string) => {
-        console.warn('stop is deprecated, use stopFlow instead');
-        return await flowAPI.stopFlow(flowId);
-    },
-
-    delete: async (flowId: string) => {
-        console.warn('delete is deprecated, use deleteFlow instead');
-        return await flowAPI.deleteFlow(flowId);
-    },
-
-    listDeployedFlows: async () => {
-        console.warn('listDeployedFlows is deprecated, use listFlows instead');
-        return await flowAPI.listFlows();
-    },
-
-    // Version control operations (not yet implemented in V1 API)
-    commit: async (_flowId: string, _comments = 'Updated flow') => {
-        throw new Error('Version control operations not yet implemented in V1 API');
-    },
-
-    updateFromRegistry: async (_flowId: string) => {
-        throw new Error('Version control operations not yet implemented in V1 API');
-    },
-
-    revert: async (_flowId: string) => {
-        throw new Error('Version control operations not yet implemented in V1 API');
-    },
-
-    getModifications: async (_flowId: string) => {
-        throw new Error('Version control operations not yet implemented in V1 API');
-    },
-
-    listFlowsInBucket: async (_bucketId: string) => {
-        throw new Error('Bucket-specific flow listing not yet implemented in V1 API');
-    },
-
-    getFlowFromRegistry: async (_bucketId: string, flowId: string, _version?: number) => {
-        console.warn('getFlowFromRegistry is deprecated, use getRegistryFlow instead');
-        return await flowAPI.getRegistryFlow(flowId);
     }
 };
 
