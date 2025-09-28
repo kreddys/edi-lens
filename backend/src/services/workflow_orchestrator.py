@@ -328,3 +328,55 @@ class WorkflowOrchestrator(LoggerMixin):
         except Exception as exc:
             self.logger.error("List all flows failed: %s", exc)
             raise WorkflowOrchestratorError(f"List all flows failed: {exc}") from exc
+
+    async def update_flow_parameters(
+        self,
+        process_group_id: str,
+        parameter_updates: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Update parameters for a flow's parameter context."""
+        try:
+            self.logger.info("Starting parameter update for flow: %s", process_group_id)
+            
+            # Get current parameter context
+            param_context = await self.nifi_param_mgmt.get_process_group_parameter_context(process_group_id)
+            if not param_context:
+                raise WorkflowOrchestratorError(f"No parameter context found for flow {process_group_id}")
+            
+            context_id = param_context["parameter_context_id"]
+            self.logger.debug("Found parameter context: %s for flow: %s", context_id, process_group_id)
+            
+            # Prepare parameter updates in NiFi format
+            parameter_dict = {}
+            for update in parameter_updates:
+                parameter_dict[update["name"]] = {
+                    "value": update["value"],
+                    "description": update.get("description", f"Parameter {update['name']}"),
+                    "sensitive": update.get("sensitive", False)
+                }
+            
+            # Update parameters using NiFi update request mechanism
+            update_result = await self.nifi_param_mgmt.update_parameter_context_parameters(
+                context_id, parameter_dict
+            )
+            
+            # Get updated parameter context to return latest state
+            updated_context = await self.nifi_param_mgmt.get_parameter_context(context_id)
+            
+            result = {
+                "success": True,
+                "process_group_id": process_group_id,
+                "parameter_context_id": context_id,
+                "updated_parameters": list(parameter_dict.keys()),
+                "parameter_count": updated_context["parameter_count"],
+                "revision": updated_context["revision"],
+                "update_details": update_result,
+                "message": f"Successfully updated {len(parameter_dict)} parameters"
+            }
+            
+            self.logger.info("Successfully updated parameters for flow: %s", process_group_id)
+            return result
+            
+        except Exception as exc:
+            self.logger.error("Update flow parameters failed for process group %s: %s", process_group_id, exc)
+            raise WorkflowOrchestratorError(f"Update flow parameters failed: {exc}") from exc

@@ -19,6 +19,10 @@ from src.models.v1.flows import (
     FlowStatus,
     DeploymentStatus
 )
+from src.models.v1.parameters import (
+    ParameterUpdateRequest,
+    ParameterUpdateResponse
+)
 from src.services.workflow_orchestrator import WorkflowOrchestrator
 
 log = get_logger(__name__)
@@ -461,6 +465,66 @@ async def delete_flow(
             detail={
                 "error_type": "FLOW_DELETE_ERROR",
                 "message": "Failed to delete flow",
+                "details": str(exc)
+            }
+        ) from exc
+
+
+@router.put("/{flow_id}/parameters", response_model=ParameterUpdateResponse, status_code=HTTP_200_OK)
+async def update_flow_parameters(
+    flow_id: str = Path(..., description="Flow ID"),
+    request: ParameterUpdateRequest = ...,
+    orchestrator: WorkflowOrchestrator = Depends(get_workflow_orchestrator),
+) -> ParameterUpdateResponse:
+    """Update parameters for a specific flow."""
+    try:
+        log.info("Updating parameters for flow: %s", flow_id)
+        
+        # Convert parameter updates to internal format
+        parameter_updates = []
+        for param_update in request.parameters:
+            parameter_updates.append({
+                "name": param_update.name,
+                "value": param_update.value,
+                "description": param_update.description or f"Parameter {param_update.name}",
+                "sensitive": param_update.sensitive
+            })
+        
+        log.debug("Processing %d parameter updates for flow: %s", len(parameter_updates), flow_id)
+        
+        # Update parameters via orchestrator
+        result = await orchestrator.update_flow_parameters(flow_id, parameter_updates)
+        
+        response = ParameterUpdateResponse(
+            success=result["success"],
+            updated_parameters=result["updated_parameters"],
+            parameter_context_id=result["parameter_context_id"],
+            revision=result["revision"],
+            message=result["message"]
+        )
+        
+        log.info("Successfully updated parameters for flow: %s", flow_id)
+        audit_logger.log_flow_operation(
+            "flow_parameters_updated",
+            bucket_id="unknown",
+            flow_id=flow_id,
+            details={
+                "updated_parameters": result["updated_parameters"],
+                "parameter_count": len(parameter_updates)
+            }
+        )
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("Failed to update parameters for flow %s", flow_id)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_type": "FLOW_PARAMETER_UPDATE_ERROR",
+                "message": "Failed to update flow parameters",
                 "details": str(exc)
             }
         ) from exc

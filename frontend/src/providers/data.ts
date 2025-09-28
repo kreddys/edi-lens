@@ -77,46 +77,32 @@ export const dataProvider: DataProvider = {
             };
         }
 
-        // For flows, use V1 API
+        // For flows, use V1 API with backend pagination
         if (params.resource === "flows") {
             try {
-                const response = await flowAPI.listFlows();
-                let data = response.flows || [];
-
-                // Apply filters if provided
+                // Prepare pagination parameters
+                const page = params.pagination?.current || 1;
+                const pageSize = params.pagination?.pageSize || 10;
+                
+                // Prepare status filter
+                let status: string | undefined;
                 if (params.filters) {
-                    params.filters.forEach((filter: any) => {
-                        if (filter.operator === 'contains') {
-                            data = data.filter((item: any) => 
-                                item[filter.field]?.toLowerCase()?.includes(filter.value.toLowerCase())
-                            );
-                        }
-                    });
+                    const statusFilter = params.filters.find((f: any) => f.field === 'status');
+                    if (statusFilter) {
+                        status = statusFilter.value;
+                    }
                 }
 
-                // Apply sorting if provided
-                if (params.sorters && params.sorters.length > 0) {
-                    const sorter = params.sorters[0];
-                    data.sort((a: any, b: any) => {
-                        const aValue = a[sorter.field];
-                        const bValue = b[sorter.field];
-                        if (sorter.order === 'desc') {
-                            return bValue > aValue ? 1 : -1;
-                        }
-                        return aValue > bValue ? 1 : -1;
-                    });
-                }
-
-                // Apply pagination if provided
-                if (params.pagination) {
-                    const { current = 1, pageSize = 10 } = params.pagination;
-                    const start = (current - 1) * pageSize;
-                    data = data.slice(start, start + pageSize);
-                }
+                // Use backend pagination
+                const response = await flowAPI.listFlows({
+                    page,
+                    size: pageSize,
+                    status
+                });
 
                 return {
-                    data: data as TData[],
-                    total: response.flows?.length || 0
+                    data: response.flows as TData[],
+                    total: response.total || 0
                 };
             } catch (error) {
                 console.error('Error fetching flows:', error);
@@ -273,8 +259,14 @@ export const dataProvider: DataProvider = {
 // Flow-specific API functions (V1 RESTful API)
 export const flowAPI = {
     // Core Flow Management
-    listFlows: async () => {
-        const { data } = await axiosInstance.get('/api/v1/flows/');
+    listFlows: async (params?: { page?: number; size?: number; status?: string }) => {
+        const queryParams = new URLSearchParams();
+        if (params?.page) queryParams.append('page', params.page.toString());
+        if (params?.size) queryParams.append('size', params.size.toString());
+        if (params?.status) queryParams.append('status', params.status);
+        
+        const url = `/api/v1/flows/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+        const { data } = await axiosInstance.get(url);
         return data;
     },
 
@@ -290,6 +282,11 @@ export const flowAPI = {
 
     updateFlow: async (flowId: string, updates: any) => {
         const { data } = await axiosInstance.put(`/api/v1/flows/${flowId}`, updates);
+        return data;
+    },
+
+    updateFlowParameters: async (flowId: string, parameters: any[]) => {
+        const { data } = await axiosInstance.put(`/api/v1/flows/${flowId}/parameters`, { parameters });
         return data;
     },
 

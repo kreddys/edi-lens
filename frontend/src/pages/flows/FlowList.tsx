@@ -6,12 +6,15 @@ import {
     ShowButton,
     DeleteButton,
 } from "@refinedev/antd";
-import { Button, Space, Table, Tag } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import { Button, Space, Table, Tag, Input } from "antd";
+import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
 
 export const FlowList: React.FC = () => {
     const { tableProps } = useTable({
         syncWithLocation: true,
+        pagination: {
+            pageSize: 10,
+        },
     });
 
     const getStatusColor = (status: string) => {
@@ -36,7 +39,36 @@ export const FlowList: React.FC = () => {
             }}
         >
             <Table {...tableProps} rowKey="id">
-                <Table.Column dataIndex="name" title="Name" />
+                <Table.Column 
+                    dataIndex="name" 
+                    title="Name"
+                    filterDropdown={({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
+                        <div style={{ padding: 8 }}>
+                            <Input
+                                placeholder="Search flow name"
+                                value={selectedKeys[0]}
+                                onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+                                onPressEnter={() => confirm()}
+                                style={{ marginBottom: 8, display: 'block' }}
+                            />
+                            <Space>
+                                <Button
+                                    type="primary"
+                                    onClick={() => confirm()}
+                                    icon={<SearchOutlined />}
+                                    size="small"
+                                    style={{ width: 90 }}
+                                >
+                                    Search
+                                </Button>
+                                <Button onClick={() => clearFilters?.()} size="small" style={{ width: 90 }}>
+                                    Reset
+                                </Button>
+                            </Space>
+                        </div>
+                    )}
+                    filterIcon={(filtered) => <SearchOutlined style={{ color: filtered ? '#1890ff' : undefined }} />}
+                />
                 <Table.Column 
                     dataIndex="status" 
                     title="Status" 
@@ -45,6 +77,12 @@ export const FlowList: React.FC = () => {
                             {status === 'unknown' ? 'Not Started' : status}
                         </Tag>
                     )}
+                    filters={[
+                        { text: 'Running', value: 'running' },
+                        { text: 'Stopped', value: 'stopped' },
+                        { text: 'Invalid', value: 'invalid' },
+                        { text: 'Not Started', value: 'unknown' },
+                    ]}
                 />
                 <Table.Column dataIndex="description" title="Description" />
                 <Table.Column 

@@ -739,7 +739,7 @@ run_frontend_tests() {
             ;;
         e2e)
             info "Running frontend E2E tests..."
-            if command -v npm >/dev/null 2>&1 && npm run test:e2e --silent >/dev/null 2>&1; then
+            if command -v npm >/dev/null 2>&1 && npm run | grep -q "test:e2e"; then
                 npm run test:e2e
             else
                 warn "Frontend E2E tests not available - skipping"
@@ -757,7 +757,7 @@ run_frontend_tests() {
             fi
             
             # Run E2E tests if available
-            if npm run test:e2e --silent >/dev/null 2>&1; then
+            if npm run | grep -q "test:e2e"; then
                 info "→ Frontend E2E tests"
                 npm run test:e2e
             else

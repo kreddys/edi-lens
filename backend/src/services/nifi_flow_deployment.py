@@ -118,11 +118,11 @@ class NiFiFlowDeployment(LoggerMixin):
 
             if success:
                 should_cleanup = False  # Keep successful deployment
-                self.logger.info("[%s] ✅ DEPLOYMENT SUCCESS: %s", deployment_id, flow_name)
+                self.logger.info("[%s] DEPLOYMENT SUCCESS: %s", deployment_id, flow_name)
                 self.logger.debug("[%s] Final process group: %s, parameter context: %s", 
                                  deployment_id, process_group_id, parameter_context_id)
             else:
-                self.logger.warning("[%s] ❌ DEPLOYMENT FAILED: %d total failures", deployment_id, len(failures))
+                self.logger.warning("[%s] DEPLOYMENT FAILED: %d total failures", deployment_id, len(failures))
                 for i, failure in enumerate(failures):
                     self.logger.debug("[%s] Failure %d: %s/%s - %s", 
                                      deployment_id, i+1, failure.get("component_type"), 
@@ -188,18 +188,18 @@ class NiFiFlowDeployment(LoggerMixin):
             try:
                 self.logger.debug("[%s] Deleting failed process group: %s", deployment_id, process_group_id)
                 await self.nifi.process_groups.delete_process_group(process_group_id)
-                self.logger.info("[%s] ✅ Cleaned up failed process group: %s", deployment_id, process_group_id)
+                self.logger.info("[%s] Cleaned up failed process group: %s", deployment_id, process_group_id)
             except Exception as exc:
-                self.logger.warning("[%s] ❌ Failed to clean up process group %s: %s", deployment_id, process_group_id, exc)
+                self.logger.warning("[%s] Failed to clean up process group %s: %s", deployment_id, process_group_id, exc)
 
         if parameter_context_id:
             try:
                 self.logger.debug("[%s] Deleting failed parameter context: %s", deployment_id, parameter_context_id)
                 await self.nifi.parameter_contexts.delete_parameter_context(parameter_context_id)
-                self.logger.info("[%s] ✅ Cleaned up failed parameter context: %s", deployment_id, parameter_context_id)
+                self.logger.info("[%s] Cleaned up failed parameter context: %s", deployment_id, parameter_context_id)
             except Exception as exc:
                 self.logger.warning(
-                    "[%s] ❌ Failed to clean up parameter context %s: %s", deployment_id, parameter_context_id, exc
+                    "[%s] Failed to clean up parameter context %s: %s", deployment_id, parameter_context_id, exc
                 )
 
     async def _create_parameter_context(
@@ -243,15 +243,14 @@ class NiFiFlowDeployment(LoggerMixin):
 
     async def _create_process_group(self, flow_name: str, parent_group_id: str) -> Dict[str, Any]:
         """Create process group for the flow."""
-        # Make process group name unique to avoid conflicts from previous deployments
-        unique_flow_name = f"{flow_name}-{int(time.time())}"
+        # Use the exact flow name provided by the user
         process_group = await self.nifi.process_groups.create_process_group(
             parent_group_id=parent_group_id,
-            name=unique_flow_name,
+            name=flow_name,
             position={"x": 100.0, "y": 100.0},
         )
         process_group_id = process_group.get("id")
-        self.logger.info("Created process group: %s (name: %s)", process_group_id, unique_flow_name)
+        self.logger.info("Created process group: %s (name: %s)", process_group_id, flow_name)
         return process_group
 
     async def _set_parameter_context(
@@ -351,11 +350,11 @@ class NiFiFlowDeployment(LoggerMixin):
                 if name and new_id:
                     processor_name_map[name] = new_id
 
-                self.logger.debug("[%s] ✅ Created processor: %s -> %s (id=%s)", 
+                self.logger.debug("[%s] Created processor: %s -> %s (id=%s)", 
                                  deployment_id, name, new_id, original_id)
 
             except Exception as exc:
-                self.logger.error("[%s] ❌ Failed to create processor %s: %s", 
+                self.logger.error("[%s] Failed to create processor %s: %s", 
                                  deployment_id, processor_name, exc)
                 failures.append({
                     "component_type": "processor",
@@ -472,7 +471,7 @@ class NiFiFlowDeployment(LoggerMixin):
 
                 if validation_status == "INVALID":
                     validation_errors = processor.get("component", {}).get("validationErrors", [])
-                    self.logger.warning("[%s] ❌ Processor %s validation failed: %s", 
+                    self.logger.warning("[%s] Processor %s validation failed: %s", 
                                       deployment_id, processor_name, validation_errors)
                     failures.append({
                         "component_type": "processor",
@@ -485,10 +484,10 @@ class NiFiFlowDeployment(LoggerMixin):
                         },
                     })
                 else:
-                    self.logger.debug("[%s] ✅ Processor %s validation passed", deployment_id, processor_name)
+                    self.logger.debug("[%s]  Processor %s validation passed", deployment_id, processor_name)
 
             except Exception as exc:
-                self.logger.error("[%s] ❌ Failed to validate processor %s: %s", deployment_id, processor_id, exc)
+                self.logger.error("[%s] Failed to validate processor %s: %s", deployment_id, processor_id, exc)
                 failures.append({
                     "component_type": "processor",
                     "component_name": f"Processor {processor_id}",

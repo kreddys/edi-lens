@@ -143,47 +143,37 @@ test.describe('Flow Management E2E Tests', () => {
   });
 
   test('Should create flow from template and test Start/Stop button', async ({ page }) => {
-    let createdFlowId: string | null = null;
+    const createdFlowId = null;
+    // Generate a consistent flow name that we'll use throughout the test
+    const testFlowName = `e2e-test-flow-${Date.now()}`;
+    console.log(`Starting test with flow name: ${testFlowName}`);
     
     try {
-      // Navigate to create flow page
-      await page.goto('/flows/create');
-      await expect(page.locator('text=Create New Flow')).toBeVisible({ timeout: 10000 });
+      // Navigate to flow creation page
+      await page.click('a[href="/flows/create"]');
+      await expect(page.url()).toContain('/flows/create');
+      await page.waitForLoadState('networkidle');
+
+      console.log('Create page content preview: \n', (await page.textContent('body'))?.substring(0, 200));
       
-      // Wait for templates to load
-      await page.waitForTimeout(2000);
+      // Step 1: Select template
+      console.log('Looking for template cards...');
+      const templateCards = page.locator('.ant-list-item, .template-card, .ant-card').filter({ hasText: /simple.*file.*processing/i });
       
-      // Look for the Simple File Processing template - be more specific
-      const templateCard = page.locator('.ant-card.ant-card-bordered.ant-card-hoverable').filter({ hasText: 'Simple File Processing' });
-      
-      if (await templateCard.count() === 1) {
+      if (await templateCards.count() > 0) {
         console.log('Found Simple File Processing template card');
-        await templateCard.click();
-      } else if (await templateCard.count() > 1) {
-        console.log(`Found ${await templateCard.count()} template cards, clicking first one`);
-        await templateCard.first().click();
+        await templateCards.first().click();
       } else {
-        // If no specific template card found, try to find any selectable template
-        const anyTemplate = page.locator('[data-testid="template-card"], .template-card, .ant-card, button').filter({ hasText: /Simple|File|Processing/i }).first();
+        // Try alternative selector patterns
+        console.log('Template cards not found with initial selector, trying alternatives...');
         
-        if (await anyTemplate.count() > 0) {
+        const anyTemplate = page.locator('text=Simple File Processing').first();
+        
+        if (await anyTemplate.isVisible({ timeout: 5000 })) {
           console.log('Found template by text content');
           await anyTemplate.click();
         } else {
-          console.log('No template found, trying form-based approach');
-          // Try filling out a form if templates aren't displayed as cards
-          const nameInput = page.locator('input[placeholder*="name"], input[id*="name"], input').first();
-          if (await nameInput.isVisible()) {
-            const testFlowName = `e2e-test-flow-${Date.now()}`;
-            await nameInput.fill(testFlowName);
-            
-            // Look for template dropdown or selection
-            const templateSelect = page.locator('select, [role="combobox"]').filter({ hasText: /template|select/i });
-            if (await templateSelect.count() > 0) {
-              await templateSelect.click();
-              await page.locator('text=Simple File Processing').click();
-            }
-          }
+          throw new Error('No Simple File Processing template found - cannot proceed with test');
         }
       }
       
@@ -192,8 +182,6 @@ test.describe('Flow Management E2E Tests', () => {
       
       // Now we should be on step 2 - Flow Details. Fill out the required fields.
       console.log('Filling out flow details form...');
-      
-      const testFlowName = `e2e-test-flow-${Date.now()}`;
       
       // Fill in the flow name (required field) - try multiple selectors
       const nameInput = page.locator('#name')
@@ -214,6 +202,8 @@ test.describe('Flow Management E2E Tests', () => {
         if (inputCount > 0) {
           console.log('Filling first input with flow name');
           await allInputs.first().fill(testFlowName);
+        } else {
+          throw new Error('No input field found for flow name - cannot proceed');
         }
       }
       
@@ -249,7 +239,7 @@ test.describe('Flow Management E2E Tests', () => {
       if (await parametersSection.isVisible({ timeout: 3000 })) {
         console.log('Found Template Parameters section');
         
-        // Look for input_directory parameter and customize it
+        // Look for input_directory parameter and customize it to use existing test directory
         const inputDirParam = page.locator('input').filter({ hasText: /input.*directory/i }).or(
           page.locator('input[placeholder*="tmp/nifi-working/input"]').or(
             page.locator('label:has-text("input_directory") + * input')
@@ -259,14 +249,15 @@ test.describe('Flow Management E2E Tests', () => {
         if (await inputDirParam.count() > 0) {
           console.log('Found input_directory parameter, customizing it');
           await inputDirParam.first().clear();
-          await inputDirParam.first().fill('/tmp/nifi-working/custom-input');
+          // Use the default directory which should exist - just verify it's set correctly
+          await inputDirParam.first().fill('/tmp/nifi-working/input');
         } else {
           console.log('Input directory parameter not found, trying generic approach');
-          // Try to find any parameter input in the parameters section
+          // Try to find any parameter input in the parameters section  
           const paramInputs = page.locator('.ant-input').filter({ hasText: /tmp\/nifi/ });
           if (await paramInputs.count() > 0) {
             await paramInputs.first().clear();
-            await paramInputs.first().fill('/tmp/nifi-working/custom-input');
+            await paramInputs.first().fill('/tmp/nifi-working/input');
           }
         }
         
@@ -357,46 +348,190 @@ test.describe('Flow Management E2E Tests', () => {
         }
       }
       
-            // Wait for navigation to flows list (not specific flow details)
-      await page.waitForURL(/\/flows/, { timeout: 15000 });
+      // Wait for flow creation to complete and navigation to occur
+      // The frontend has a 1-second delay before navigation
+      console.log('Waiting for flow creation and navigation...');
       
-      // Extract current URL to check navigation
-      let currentUrl = page.url();
-      console.log(`After creation, current URL: ${currentUrl}`);
+      // Wait a moment for the request to be sent and response received
+      await page.waitForTimeout(2000);
       
-      // If we're still on create page, wait a bit more for the delayed redirect
-      if (currentUrl.includes('/flows/create')) {
-        console.log('Still on create page, waiting for delayed redirect...');
-        await page.waitForTimeout(2000); // Wait for the setTimeout delay
-        await page.waitForURL(/\/flows(?!\/)/, { timeout: 10000 }); // Flows list, not flows/create
-        currentUrl = page.url();
-        console.log(`After waiting for redirect, current URL: ${currentUrl}`);
+      // Check for any messages that appeared - success, error, or loading
+      const errorMessage = page.locator('.ant-message-error, .ant-notification-error');
+      const successMessage = page.locator('.ant-message-success, .ant-notification-success');
+      
+      // Take a screenshot to see the current state
+      await page.screenshot({ path: 'test-results/flow-creation-state.png' });
+      
+      if (await errorMessage.isVisible({ timeout: 1000 })) {
+        const errorText = await errorMessage.textContent();
+        console.log('❌ Error message found:', errorText);
+        throw new Error(`Flow creation failed with error: ${errorText}`);
       }
       
-      // Now we should be on the flows list page - verify the flow was created
-      console.log('Verifying flow creation by checking flows list...');
-      
-      // Look for our created flow in the list
-      const flowNamePattern = new RegExp(`e2e-test-flow-\\d+`);
-      const createdFlow = page.locator('.ant-table-row').filter({ hasText: flowNamePattern });
-      
-      if (await createdFlow.count() > 0) {
-        console.log('✅ Found created flow in the flows list');
-        const flowId = await createdFlow.first().getAttribute('data-row-key') || 'unknown';
-        console.log(`Created flow ID: ${flowId}`);
-        
-        // Test the Start/Stop buttons on the created flow
-        const actionButtons = createdFlow.locator('button').filter({ hasText: /Start|Stop/i });
-        expect(await actionButtons.count()).toBeGreaterThan(0);
-        console.log('✅ Found Start/Stop buttons for the created flow');
-        
+      if (await successMessage.isVisible({ timeout: 1000 })) {
+        const successText = await successMessage.textContent();
+        console.log('✅ Success message found:', successText);
       } else {
-        console.log('⚠️ Created flow not found in UI, but checking backend API...');
-        // The flow might exist in backend but not show up in UI immediately
+        // No success message, let's see what's on the page
+        console.log('No success message found. Current page state:');
+        console.log('URL:', page.url());
+        console.log('Page title:', await page.title());
+        
+        // Look for any other messages or loading states
+        const allMessages = page.locator('[class*="message"], [class*="notification"], [class*="alert"]');
+        const messageCount = await allMessages.count();
+        console.log(`Found ${messageCount} message elements on page`);
+        
+        if (messageCount > 0) {
+          for (let i = 0; i < Math.min(messageCount, 3); i++) {
+            const messageText = await allMessages.nth(i).textContent();
+            console.log(`Message ${i + 1}: ${messageText}`);
+          }
+        }
+        
+        // Check if we're still on create page and look for form errors
+        if (page.url().includes('/flows/create')) {
+          console.log('Still on create page - checking for form validation errors...');
+          
+          const formErrors = page.locator('.ant-form-item-explain-error, .ant-form-item-has-error');
+          const errorCount = await formErrors.count();
+          if (errorCount > 0) {
+            console.log(`Found ${errorCount} form validation errors:`);
+            for (let i = 0; i < errorCount; i++) {
+              const errorText = await formErrors.nth(i).textContent();
+              console.log(`Form error ${i + 1}: ${errorText}`);
+            }
+            throw new Error('Flow creation failed due to form validation errors');
+          }
+          
+          // Check if the Create Flow button is still enabled/disabled
+          const createButton = page.locator('button').filter({ hasText: /create.*flow/i });
+          const isDisabled = await createButton.getAttribute('disabled');
+          const isLoading = await createButton.locator('.ant-spin').isVisible().catch(() => false);
+          console.log('Create Flow button state:', { disabled: isDisabled, loading: isLoading });
+        }
+        
+        throw new Error('Flow creation failed - no success message appeared and no error message found');
       }
       
-      // Verify we successfully created the flow and can interact with it
-      console.log('✅ Flow creation test completed successfully');
+      // Now wait for navigation with the built-in 1-second delay
+      try {
+        await page.waitForTimeout(2000); // Wait for the 1-second delay plus buffer
+        await page.waitForURL(/\/flows(?!\/create)/, { timeout: 10000 });
+        console.log('✅ Successfully navigated to flows list');
+      } catch (navigationError) {
+        console.log('Navigation timeout, manually navigating to flows list...');
+        await page.goto('/flows');
+        await page.waitForLoadState('networkidle');
+      }
+      
+      // Refresh the page to ensure we get the latest flow list
+      await page.reload();
+      await page.waitForSelector('.ant-table-tbody', { timeout: 5000 });
+      console.log('✅ Page refreshed to get latest flows list');
+      
+      // Try to use the search functionality to find our flow
+      try {
+        // Look for search icon in the Name column header
+        const searchIcon = page.locator('.ant-table-filter-trigger').first();
+        if (await searchIcon.isVisible({ timeout: 2000 })) {
+          await searchIcon.click();
+          
+          // Type the flow name in the search box
+          const searchInput = page.locator('input[placeholder*="Search flow name"]');
+          if (await searchInput.isVisible({ timeout: 2000 })) {
+            await searchInput.fill(testFlowName);
+            await page.locator('button:has-text("Search")').click();
+            await page.waitForTimeout(1000);
+            console.log('✅ Used search filter to find the flow');
+          }
+        }
+      } catch (searchError) {
+        console.log('ℹ️ Search functionality not available or failed, continuing with pagination...');
+      }
+      
+      // Verify the flow was actually created by finding it in the list
+      console.log(`Searching for created flow: ${testFlowName}`);
+      
+      // Wait for the table to be ready
+      await page.waitForSelector('.ant-table-row', { timeout: 5000 });
+      
+      // Look for our specific flow by exact name
+      let createdFlow = page.locator('.ant-table-row').filter({ hasText: testFlowName });
+      
+      // If not found on current page, try navigating through pagination
+      if (await createdFlow.count() === 0) {
+        console.log('Flow not found on current page, checking pagination...');
+        
+        // Look for pagination controls and navigate if needed
+        const paginationNext = page.locator('.ant-pagination-next').first();
+        let pageNumber = 1;
+        const maxPages = 5; // Limit to prevent infinite loop
+        
+        while (pageNumber <= maxPages && await createdFlow.count() === 0) {
+          if (await paginationNext.isVisible() && await paginationNext.isEnabled()) {
+            console.log(`Checking page ${pageNumber + 1}...`);
+            await paginationNext.click();
+            await page.waitForTimeout(2000); // Wait for table to update
+            createdFlow = page.locator('.ant-table-row').filter({ hasText: testFlowName });
+            pageNumber++;
+          } else {
+            break;
+          }
+        }
+      }
+      
+      // The flow MUST be found, otherwise the test should fail
+      await expect(createdFlow).toBeVisible({ timeout: 5000 });
+      console.log('✅ Found created flow in the flows list');
+      
+      const flowId = await createdFlow.first().getAttribute('data-row-key') || 'unknown';
+      console.log(`Created flow ID: ${flowId}`);
+      
+      // Navigate to flow details to test Start/Stop buttons (they're not in the list view)
+      console.log('✅ Flow was successfully created and is visible in the list');
+      console.log('Navigating to flow details to test Start/Stop functionality...');
+      
+      // Click the Show button (first button in actions) to navigate to flow details
+      const showButton = createdFlow.locator('button').first();
+      await expect(showButton).toBeVisible();
+      await showButton.click();
+      
+      // Wait for navigation to flow details page
+      await page.waitForURL(/\/flows\/[^\/]+$/, { timeout: 10000 });
+      console.log('✅ Successfully navigated to flow details page');
+      
+      // Wait for the flow details page to load
+      await expect(page.locator('text=Flow Details')).toBeVisible({ timeout: 10000 });
+      
+      // Find the Start/Stop button in the header actions
+      const playButton = page.locator('button:has(span.anticon-play-circle)');
+      const pauseButton = page.locator('button:has(span.anticon-pause-circle)');
+      
+      // Wait for at least one of the buttons to be visible
+      await expect(page.locator('button:has(span.anticon-play-circle), button:has(span.anticon-pause-circle)')).toBeVisible({ timeout: 10000 });
+      
+      // Check if the button shows "No Processors" - this means it's an empty flow
+      const buttonText = await page.locator('button:has(span.anticon-play-circle), button:has(span.anticon-pause-circle)').first().textContent();
+      console.log(`Start/Stop button text: "${buttonText}"`);
+      
+      if (buttonText?.includes('No Processors')) {
+        console.log('✅ Flow has no processors - Start/Stop button correctly shows disabled state');
+        
+        // Verify the button is disabled (empty flows can't be started)
+        const button = page.locator('button:has(span.anticon-play-circle), button:has(span.anticon-pause-circle)').first();
+        expect(await button.isDisabled()).toBe(true);
+        console.log('✅ Start/Stop button is correctly disabled for flow without processors');
+      } else {
+        // The flow has processors, test the button functionality
+        if (await playButton.isVisible()) {
+          console.log('✅ Found Play button - flow is currently stopped');
+          expect(await playButton.isEnabled()).toBe(true);
+        } else if (await pauseButton.isVisible()) {
+          console.log('✅ Found Pause button - flow is currently running');
+          expect(await pauseButton.isEnabled()).toBe(true);
+        }
+      }
       
       console.log('✅ Flow creation and Start/Stop test completed successfully');
       

@@ -2,13 +2,15 @@ import React, { useState } from "react";
 import { Show } from "@refinedev/antd";
 import { useShow } from "@refinedev/core";
 import { Card, Descriptions, Button, Space, Tag, notification, Table } from "antd";
-import { PlayCircleOutlined, PauseCircleOutlined, EditOutlined, ReloadOutlined } from "@ant-design/icons";
+import { PlayCircleOutlined, PauseCircleOutlined, EditOutlined, ReloadOutlined, SettingOutlined } from "@ant-design/icons";
 import { flowAPI } from "../../providers/data";
+import { ParameterEditModal } from "../../components/ParameterEditModal";
 
 export const FlowShow: React.FC = () => {
     const { queryResult } = useShow();
     const { data, isLoading, refetch } = queryResult;
     const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const [parameterModalOpen, setParameterModalOpen] = useState(false);
 
     const record = data?.data;
 
@@ -110,6 +112,13 @@ export const FlowShow: React.FC = () => {
                             href={`/flows/${record?.id}/edit`}
                         >
                             Edit
+                        </Button>
+                        <Button 
+                            icon={<SettingOutlined />}
+                            onClick={() => setParameterModalOpen(true)}
+                            disabled={!record?.id}
+                        >
+                            Parameters
                         </Button>
                     </Space>
                 }
@@ -244,6 +253,18 @@ export const FlowShow: React.FC = () => {
                     </Card>
                 )}
             </Card>
+
+            <ParameterEditModal
+                open={parameterModalOpen}
+                onClose={() => setParameterModalOpen(false)}
+                flowId={record?.id?.toString() || ''}
+                flowName={record?.name || 'Unknown Flow'}
+                initialParameters={record?.parameters || {}}
+                onSuccess={() => {
+                    refetch();
+                    setParameterModalOpen(false);
+                }}
+            />
         </Show>
     );
 };

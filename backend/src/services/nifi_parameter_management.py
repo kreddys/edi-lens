@@ -258,3 +258,24 @@ class NiFiParameterManagement(LoggerMixin):
         )
 
         return result["parameter_context_id"]
+
+    async def update_parameter_context_parameters(
+        self,
+        parameter_context_id: str,
+        parameters: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Update parameters in an existing parameter context using NiFi update request mechanism."""
+        try:
+            self.logger.info("Starting parameter context update: %s", parameter_context_id)
+            
+            # Use the NiFi client's update method which handles the update request mechanism
+            result = await self.nifi.parameter_contexts.update_parameter_context(
+                parameter_context_id, parameters
+            )
+            
+            self.logger.info("Successfully updated parameter context: %s", parameter_context_id)
+            return result
+            
+        except Exception as exc:
+            self.logger.error("Failed to update parameter context %s: %s", parameter_context_id, exc)
+            raise NiFiParameterManagementError(f"Failed to update parameter context: {exc}") from exc
