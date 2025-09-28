@@ -91,6 +91,10 @@ fi
 
 add_to_path_if_exists "$SERVICES_DIR/bin"
 
+# Ensure standard system paths are available (npm/node typically in /usr/bin)
+add_to_path_if_exists "/usr/bin"
+add_to_path_if_exists "/usr/local/bin"
+
 ENV_FILE="$PROJECT_ROOT/.env.local"
 LOGS_DIR="$SERVICES_DIR/logs"
 
@@ -319,6 +323,16 @@ start_frontend_service() {
         cd "$PROJECT_ROOT"
         return 1
     fi
+
+    # Verify npm is available before starting
+    if ! command -v npm >/dev/null 2>&1; then
+        error "npm command not found in PATH: $PATH"
+        error "Available binaries in $SERVICES_DIR/bin: $(ls -1 "$SERVICES_DIR/bin" 2>/dev/null | tr '\n' ' ' || echo 'none')"
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+
+    info "Starting frontend with npm from: $(command -v npm)"
 
     # Start frontend in background
     nohup npm run dev > "$LOGS_DIR/frontend.log" 2>&1 &

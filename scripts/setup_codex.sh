@@ -495,6 +495,14 @@ setup_frontend_dependencies() {
         fi
     fi
 
+    # Ensure npm is available in the controlled bin directory for maintenance scripts
+    local codex_bin="$SERVICES_DIR/bin"
+    if [ -x "/usr/bin/npm" ] && [ ! -x "$codex_bin/npm" ]; then
+        ln -sf "/usr/bin/npm" "$codex_bin/npm"
+        ln -sf "/usr/bin/node" "$codex_bin/node"
+        info "Created npm and node symlinks in $codex_bin"
+    fi
+
     cd "$frontend_dir"
     
     # Check if dependencies are already installed
