@@ -10,6 +10,10 @@
 
 set -euo pipefail
 
+# --- Configuration ------------------------------------------------------------
+# Set to "true" to show full output from package installations
+VERBOSE="${VERBOSE:-false}"
+
 # --- Output helpers -----------------------------------------------------------
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -21,6 +25,31 @@ info() { printf "${BLUE}[INFO]${NC} %s\n" "$1"; }
 success() { printf "${GREEN}[SUCCESS]${NC} %s\n" "$1"; }
 warn() { printf "${YELLOW}[WARN]${NC} %s\n" "$1"; }
 error() { printf "${RED}[ERROR]${NC} %s\n" "$1"; exit 1; }
+
+# Show a simple progress indicator for long-running silent operations
+show_progress() {
+    local pid=$1
+    local message="$2"
+    local spin='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    local i=0
+    
+    printf "${BLUE}[INFO]${NC} %s " "$message"
+    while kill -0 $pid 2>/dev/null; do
+        i=$(( (i+1) %10 ))
+        printf "\r${BLUE}[INFO]${NC} %s %c" "$message" "${spin:$i:1}"
+        sleep 0.1
+    done
+    printf "\r${BLUE}[INFO]${NC} %s... ✓\n" "$message"
+}
+
+# Helper function for conditional output redirection
+quiet_run() {
+    if [ "$VERBOSE" = "true" ]; then
+        "$@"
+    else
+        "$@" > /dev/null 2>&1
+    fi
+}
 
 log_process_state() {
     local name="$1"
@@ -50,7 +79,7 @@ curl_download() {
         return
     fi
     info "Downloading $(basename "$dest")..."
-    if ! curl -fL --retry 3 --retry-delay 2 -H "User-Agent: Mozilla/5.0" "$url" -o "$dest"; then
+    if ! curl -fL --retry 3 --retry-delay 2 -H "User-Agent: Mozilla/5.0" "$url" -o "$dest" --progress-bar; then
         rm -f "$dest"
         error "Failed to download $url"
     fi
@@ -352,10 +381,16 @@ install_minimal_system_dependencies() {
     info "Need to install: ${packages_to_install[*]}"
     
     # Update package lists only if we need to install something
+    info "Updating package lists..."
     apt-get update -qq
 
     # Install only what's needed with minimal recommendations
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${packages_to_install[@]}"
+    info "Installing system packages..."
+    if [ "$VERBOSE" = "true" ]; then
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${packages_to_install[@]}"
+    else
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${packages_to_install[@]}" > /dev/null
+    fi
 
     # Clean up to save space
     apt-get clean
@@ -391,7 +426,11 @@ setup_backend_dependencies() {
 
     if [ ! -x "$codex_bin/poetry" ]; then
         info "Installing Poetry into $poetry_home"
-        POETRY_HOME="$poetry_home" curl -sSL https://install.python-poetry.org | python3 -
+        if [ "$VERBOSE" = "true" ]; then
+            POETRY_HOME="$poetry_home" curl -sSL https://install.python-poetry.org | python3 -
+        else
+            POETRY_HOME="$poetry_home" curl -sSL https://install.python-poetry.org | python3 - > /dev/null 2>&1
+        fi
         ln -sf "$poetry_home/bin/poetry" "$codex_bin/poetry"
     else
         info "Poetry already installed at $codex_bin/poetry"
@@ -416,8 +455,12 @@ setup_backend_dependencies() {
     # retain their dependencies even when the maintainer user changes.
     poetry config virtualenvs.in-project true --local >/dev/null 2>&1 || true
 
-    info "Installing backend dependencies with Poetry..."
-    poetry install --with dev
+    info "Installing backend dependencies with Poetry (this may take a few minutes)..."
+    if [ "$VERBOSE" = "true" ]; then
+        poetry install --with dev
+    else
+        poetry install --with dev --quiet
+    fi
 
     success "✅ Backend dependencies installed successfully"
     cd "$PROJECT_ROOT"
@@ -443,8 +486,13 @@ setup_frontend_dependencies() {
     # Check if npm is available
     if ! command -v npm >/dev/null 2>&1; then
         info "Installing Node.js and npm..."
-        curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-        apt-get install -y nodejs
+        if [ "$VERBOSE" = "true" ]; then
+            curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+            apt-get install -y nodejs
+        else
+            curl -fsSL https://deb.nodesource.com/setup_18.x | bash - > /dev/null 2>&1
+            apt-get install -y nodejs > /dev/null 2>&1
+        fi
     fi
 
     cd "$frontend_dir"
@@ -459,8 +507,12 @@ setup_frontend_dependencies() {
         fi
     fi
 
-    info "Installing frontend dependencies with npm..."
-    npm ci
+    info "Installing frontend dependencies with npm (this may take a few minutes)..."
+    if [ "$VERBOSE" = "true" ]; then
+        npm ci
+    else
+        npm ci --silent
+    fi
 
     success "✅ Frontend dependencies installed successfully"
     cd "$PROJECT_ROOT"
@@ -955,6 +1007,14 @@ minimal_setup_main() {
     info "====================================================================="
     info "Starting setup for PostgreSQL, NiFi, and NiFi Registry"
     info "Timestamp: $(date)"
+    info ""
+    info "📝 Note: Package installation output is minimized for cleaner logs."
+    info "   If you encounter issues, detailed logs are available in:"
+    info "   - Poetry: ~/.cache/pypoetry/logs/"
+    info "   - npm: ~/.npm/_logs/"
+    info "   - System: /var/log/apt/"
+    info ""
+    info "💡 For verbose output, run: VERBOSE=true bash scripts/setup_codex.sh"
     info "====================================================================="
 
     # Step 1: Environment preparation
