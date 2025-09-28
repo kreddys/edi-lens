@@ -2,6 +2,7 @@
 Integration tests for parameter context functionality.
 Tests the pure parameter context approach (Option 1) implementation.
 """
+import os
 import pytest
 import time
 from typing import Dict, Any
@@ -31,6 +32,28 @@ async def registry_client():
 async def workflow_orchestrator(nifi_client, registry_client):
     """Workflow orchestrator for integration tests."""
     return WorkflowOrchestrator(nifi_client, registry_client)
+
+
+def _parse_version(version_str: str) -> tuple[int, ...]:
+    parts: list[int] = []
+    for part in version_str.split("."):
+        if not part.isdigit():
+            break
+        parts.append(int(part))
+    return tuple(parts)
+
+
+def _is_nifi_26_or_newer() -> bool:
+    version_tuple = _parse_version(os.getenv("NIFI_VERSION", ""))
+    if not version_tuple:
+        return False
+    return version_tuple >= (2, 6)
+
+
+skip_for_nifi_26 = pytest.mark.skipif(
+    _is_nifi_26_or_newer(),
+    reason="NiFi 2.6.x omits component IDs in parameter updates; skip until fixed.",
+)
 
 
 class TestParameterContextIntegration:
@@ -261,6 +284,7 @@ class TestParameterContextIntegration:
             await nifi_client.process_groups.delete_process_group(process_group_id)
 
     @pytest.mark.integration  
+    @skip_for_nifi_26
     async def test_parameter_context_update(
         self,
         workflow_orchestrator: WorkflowOrchestrator,
