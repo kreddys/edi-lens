@@ -118,6 +118,52 @@ wait_for_service() {
     return 1
 }
 
+ensure_playwright_cli_symlink() {
+    local frontend_dir="$1"
+    local codex_bin="$2"
+    local playwright_cli="$frontend_dir/node_modules/.bin/playwright"
+
+    if [ ! -x "$playwright_cli" ]; then
+        warn "Playwright CLI not found at $playwright_cli - skipping symlink setup"
+        return 1
+    fi
+
+    mkdir -p "$codex_bin"
+
+    if [ ! -x "$codex_bin/playwright" ] || [ ! "$(readlink "$codex_bin/playwright" 2>/dev/null)" = "$playwright_cli" ]; then
+        ln -sf "$playwright_cli" "$codex_bin/playwright"
+        info "✓ Created Playwright symlink: $codex_bin/playwright -> $playwright_cli"
+    fi
+
+    return 0
+}
+
+install_playwright_browsers() {
+    local playwright_cli="$1"
+
+    if [ ! -x "$playwright_cli" ]; then
+        warn "Playwright CLI not available at $playwright_cli - skipping browser installation"
+        return 0
+    fi
+
+    local cache_dir="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+    if [ -d "$cache_dir" ] && find "$cache_dir" -mindepth 1 -maxdepth 1 -type d | grep -q "."; then
+        info "✓ Playwright browsers already installed at $cache_dir"
+        return 0
+    fi
+
+    info "Installing Playwright browser binaries (this may take a few minutes)..."
+    if [ "$VERBOSE" = "true" ]; then
+        "$playwright_cli" install --with-deps
+    else
+        if ! "$playwright_cli" install --with-deps > /dev/null 2>&1; then
+            error "Failed to install Playwright browser binaries"
+        fi
+    fi
+
+    success "✅ Playwright browsers installed successfully"
+}
+
 ensure_env_value() {
     local file="$1"
     local key="$2"
@@ -578,24 +624,36 @@ setup_frontend_dependencies() {
 
     cd "$frontend_dir"
     
+    local dependencies_ready=false
+
     # Check if dependencies are already installed
     if [ -d "node_modules" ] && [ -f "package-lock.json" ]; then
         info "Checking if frontend dependencies are up to date..."
         if npm list --depth=0 >/dev/null 2>&1; then
             success "✓ Frontend dependencies already installed and up to date"
-            cd "$PROJECT_ROOT"
-            return 0
+            dependencies_ready=true
         fi
     fi
 
-    info "Installing frontend dependencies with npm (this may take a few minutes)..."
-    if [ "$VERBOSE" = "true" ]; then
-        npm ci
-    else
-        npm ci --silent
+    if [ "$dependencies_ready" = false ]; then
+        info "Installing frontend dependencies with npm (this may take a few minutes)..."
+        if [ "$VERBOSE" = "true" ]; then
+            npm ci
+        else
+            npm ci --silent
+        fi
+
+        success "✅ Frontend dependencies installed successfully"
+        dependencies_ready=true
     fi
 
-    success "✅ Frontend dependencies installed successfully"
+    local codex_bin="$SERVICES_DIR/bin"
+    local playwright_cli="$frontend_dir/node_modules/.bin/playwright"
+
+    if ensure_playwright_cli_symlink "$frontend_dir" "$codex_bin"; then
+        install_playwright_browsers "$playwright_cli"
+    fi
+
     cd "$PROJECT_ROOT"
 }
 
