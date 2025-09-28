@@ -64,6 +64,8 @@ __pycache__/
 .Python
 .venv/
 venv/
+# Poetry local configuration
+poetry.toml
 # Allow committed test env files while ignoring other env folders
 env/
 !backend/tests/env/

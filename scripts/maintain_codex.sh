@@ -745,32 +745,60 @@ clean_all() {
     success "Deep clean completed - database and all data removed"
 }
 
+ensure_e2e_services_ready() {
+    info "Ensuring core services required for end-to-end tests are running..."
+
+    local nifi_work_dir="/tmp/nifi-working"
+    mkdir -p "$nifi_work_dir/input" "$nifi_work_dir/output" \
+        "$nifi_work_dir/custom-input" "$nifi_work_dir/custom-output"
+
+    local failures=0
+
+    start_postgresql || ((failures++))
+    start_nifi_registry || ((failures++))
+    start_nifi || ((failures++))
+    start_backend_service || ((failures++))
+
+    if [ $failures -ne 0 ]; then
+        error "Required services failed to start for end-to-end testing"
+        return 1
+    fi
+
+    success "All required services for end-to-end tests are running"
+    return 0
+}
+
 run_tests() {
     local test_type="${1:-all}"
-    
+
     info "🧪 Running combined test suite: $test_type"
     echo ""
 
-    # Ensure NiFi working directory exists for e2e tests
     if [[ "$test_type" == "e2e" || "$test_type" == "all" ]]; then
         if [ ! -d "/tmp/nifi-working" ]; then
             info "Creating NiFi working directory for e2e tests..."
             mkdir -p /tmp/nifi-working
         fi
+
+        if ! ensure_e2e_services_ready; then
+            return 1
+        fi
+
+        echo ""
     fi
 
     # Run backend tests
     info "📦 BACKEND TESTS"
     info "====================="
     run_backend_tests "$test_type"
-    
+
     echo ""
-    
+
     # Run frontend tests
     info "🌐 FRONTEND TESTS"
     info "====================="
     run_frontend_tests "$test_type"
-    
+
     echo ""
     success "✅ Combined test suite completed: $test_type"
 }
