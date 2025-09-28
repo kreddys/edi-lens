@@ -486,21 +486,94 @@ setup_frontend_dependencies() {
     # Check if npm is available
     if ! command -v npm >/dev/null 2>&1; then
         info "Installing Node.js and npm..."
-        if [ "$VERBOSE" = "true" ]; then
-            curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-            apt-get install -y nodejs
-        else
-            curl -fsSL https://deb.nodesource.com/setup_18.x | bash - > /dev/null 2>&1
-            apt-get install -y nodejs > /dev/null 2>&1
+        
+        # Method 1: Try NodeSource repository (recommended for Ubuntu/Debian)
+        if command -v curl >/dev/null 2>&1; then
+            info "→ Installing Node.js 18.x via NodeSource repository..."
+            if [ "$VERBOSE" = "true" ]; then
+                if curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && apt-get install -y nodejs; then
+                    info "✓ NodeSource installation successful"
+                else
+                    warn "NodeSource installation failed, trying alternative method..."
+                fi
+            else
+                if curl -fsSL https://deb.nodesource.com/setup_18.x | bash - > /dev/null 2>&1 && apt-get install -y nodejs > /dev/null 2>&1; then
+                    info "✓ NodeSource installation successful"
+                else
+                    warn "NodeSource installation failed, trying alternative method..."
+                fi
+            fi
         fi
+        
+        # Method 2: Fallback to system package manager
+        if ! command -v npm >/dev/null 2>&1; then
+            info "→ Trying system package manager installation..."
+            if [ "$VERBOSE" = "true" ]; then
+                apt-get update && apt-get install -y nodejs npm
+            else
+                apt-get update > /dev/null 2>&1 && apt-get install -y nodejs npm > /dev/null 2>&1
+            fi
+        fi
+        
+        # Method 3: Final fallback - snap package (if available)
+        if ! command -v npm >/dev/null 2>&1 && command -v snap >/dev/null 2>&1; then
+            info "→ Trying snap package installation..."
+            if [ "$VERBOSE" = "true" ]; then
+                snap install node --classic
+            else
+                snap install node --classic > /dev/null 2>&1
+            fi
+        fi
+        
+        # Verify installation was successful
+        if ! command -v npm >/dev/null 2>&1; then
+            error "Failed to install npm using all available methods"
+            error "Please install Node.js and npm manually and re-run this script"
+            return 1
+        fi
+        
+        # Show installed versions
+        local node_version=$(node --version 2>/dev/null || echo "unknown")
+        local npm_version=$(npm --version 2>/dev/null || echo "unknown")
+        success "✓ Node.js $node_version and npm $npm_version installed successfully"
+    else
+        local node_version=$(node --version 2>/dev/null || echo "unknown")
+        local npm_version=$(npm --version 2>/dev/null || echo "unknown")
+        info "✓ Node.js $node_version and npm $npm_version already available"
     fi
 
     # Ensure npm is available in the controlled bin directory for maintenance scripts
     local codex_bin="$SERVICES_DIR/bin"
-    if [ -x "/usr/bin/npm" ] && [ ! -x "$codex_bin/npm" ]; then
-        ln -sf "/usr/bin/npm" "$codex_bin/npm"
-        ln -sf "/usr/bin/node" "$codex_bin/node"
-        info "Created npm and node symlinks in $codex_bin"
+    mkdir -p "$codex_bin"
+    
+    # Find npm and node executables and create symlinks
+    local npm_path=$(command -v npm 2>/dev/null)
+    local node_path=$(command -v node 2>/dev/null)
+    
+    if [ -n "$npm_path" ] && [ -x "$npm_path" ]; then
+        if [ ! -x "$codex_bin/npm" ] || [ ! "$(readlink "$codex_bin/npm")" = "$npm_path" ]; then
+            ln -sf "$npm_path" "$codex_bin/npm"
+            info "✓ Created npm symlink: $codex_bin/npm -> $npm_path"
+        fi
+    else
+        error "npm executable not found after installation"
+        return 1
+    fi
+    
+    if [ -n "$node_path" ] && [ -x "$node_path" ]; then
+        if [ ! -x "$codex_bin/node" ] || [ ! "$(readlink "$codex_bin/node")" = "$node_path" ]; then
+            ln -sf "$node_path" "$codex_bin/node"
+            info "✓ Created node symlink: $codex_bin/node -> $node_path"
+        fi
+    else
+        error "node executable not found after installation"
+        return 1
+    fi
+    
+    # Verify symlinks work
+    if ! "$codex_bin/npm" --version >/dev/null 2>&1; then
+        error "npm symlink is not working correctly"
+        return 1
     fi
 
     cd "$frontend_dir"

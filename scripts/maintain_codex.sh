@@ -89,11 +89,47 @@ else
     SERVICES_DIR="$SERVICES_DIR_FALLBACK"
 fi
 
+# Ensure the Codex services bin directory is in PATH
 add_to_path_if_exists "$SERVICES_DIR/bin"
 
 # Ensure standard system paths are available (npm/node typically in /usr/bin)
 add_to_path_if_exists "/usr/bin"
 add_to_path_if_exists "/usr/local/bin"
+
+# Additional npm/node discovery - check common installation locations
+npm_locations=(
+    "$SERVICES_DIR/bin/npm"
+    "/usr/bin/npm"
+    "/usr/local/bin/npm"
+    "$HOME/.local/bin/npm"
+)
+
+node_locations=(
+    "$SERVICES_DIR/bin/node"
+    "/usr/bin/node"
+    "/usr/local/bin/node"
+    "$HOME/.local/bin/node"
+)
+
+# Find and ensure npm/node are accessible
+for npm_path in "${npm_locations[@]}"; do
+    if [ -x "$npm_path" ]; then
+        npm_dir="$(dirname "$npm_path")"
+        add_to_path_if_exists "$npm_dir"
+        break
+    fi
+done
+
+for node_path in "${node_locations[@]}"; do
+    if [ -x "$node_path" ]; then
+        node_dir="$(dirname "$node_path")"
+        add_to_path_if_exists "$node_dir"
+        break
+    fi
+done
+
+# Force export PATH to ensure it's available in subshells
+export PATH
 
 ENV_FILE="$PROJECT_ROOT/.env.local"
 LOGS_DIR="$SERVICES_DIR/logs"
@@ -328,6 +364,11 @@ start_frontend_service() {
     if ! command -v npm >/dev/null 2>&1; then
         error "npm command not found in PATH: $PATH"
         error "Available binaries in $SERVICES_DIR/bin: $(ls -1 "$SERVICES_DIR/bin" 2>/dev/null | tr '\n' ' ' || echo 'none')"
+        error ""
+        error "Troubleshooting steps:"
+        error "1. Check if npm was installed: ls -la /usr/bin/npm /opt/codex-services/bin/npm"
+        error "2. Verify symlinks exist: ls -la $SERVICES_DIR/bin/"
+        error "3. Re-run the setup script: bash scripts/setup_codex.sh"
         cd "$PROJECT_ROOT"
         return 1
     fi
