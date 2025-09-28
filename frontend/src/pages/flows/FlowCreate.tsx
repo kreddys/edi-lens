@@ -126,22 +126,21 @@ export const FlowCreate: React.FC = () => {
                 return;
             }
             
-            // Prepare final parameters - merge template defaults with custom overrides
-            const finalParameters = { ...(selectedTemplate.parameters || {}) };
+            // Prepare final parameters - extract actual values for NiFi
+            const finalParameters: Record<string, string> = {};
             
-            // Apply custom parameter values
-            Object.entries(customParameters).forEach(([paramName, customValue]) => {
-                if (finalParameters[paramName]) {
-                    // Update the default value with the custom value
-                    if (typeof finalParameters[paramName] === 'object') {
-                        finalParameters[paramName] = {
-                            ...finalParameters[paramName],
-                            default: customValue
-                        };
-                    } else {
-                        finalParameters[paramName] = customValue;
-                    }
+            // Process template parameters and apply custom overrides
+            Object.entries(selectedTemplate.parameters || {}).forEach(([paramName, paramInfo]) => {
+                // Get the default value from template parameter
+                let defaultValue: string;
+                if (typeof paramInfo === 'object' && paramInfo !== null) {
+                    defaultValue = (paramInfo as any).default || (paramInfo as any).value || '';
+                } else {
+                    defaultValue = String(paramInfo);
                 }
+                
+                // Use custom value if provided, otherwise use default
+                finalParameters[paramName] = customParameters[paramName] || defaultValue;
             });
             
             console.log('Custom parameters:', customParameters); // Debug log

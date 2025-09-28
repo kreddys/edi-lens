@@ -324,12 +324,18 @@ async def get_flow(
                       FlowStatus.INVALID if overall_status == "invalid" else \
                       FlowStatus.UNKNOWN
         
+        # Extract parameters from parameter context
+        parameters = {}
+        parameter_context = overview.get("parameter_context")
+        if parameter_context and parameter_context.get("parameters"):
+            parameters = parameter_context["parameters"]
+        
         response = FlowResponse(
             id=flow_id,
             name=flow_status.get("process_group_name", "Unknown Flow"),
             description=description,
             definition=None,  # TODO: Extract from NiFi if needed
-            parameters={},  # TODO: Extract from parameter context
+            parameters=parameters,
             status=mapped_status,
             deployment_status=DeploymentStatus.DEPLOYED,
             processor_count=flow_status.get("total_processors", 0),

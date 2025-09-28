@@ -205,18 +205,32 @@ class NiFiFlowDeployment(LoggerMixin):
     async def _create_parameter_context(
         self, flow_name: str, parameters: Dict[str, Any]
     ) -> str:
-        """Create parameter context for the flow."""
+        """Create parameter context for the flow with proper parameter structure."""
         param_context_name = f"params-{flow_name}-{int(time.time())}"
-        param_list = [
-            {
-                "parameter": {
-                    "name": name,
-                    "value": str(value),
-                    "sensitive": False,
-                }
-            }
-            for name, value in parameters.items()
-        ]
+        param_list = []
+        
+        for name, value in parameters.items():
+            # Handle both simple values and parameter objects with metadata
+            if isinstance(value, dict):
+                # Parameter object with metadata
+                param_list.append({
+                    "parameter": {
+                        "name": name,
+                        "value": str(value.get("value", value.get("default", ""))),
+                        "description": value.get("description", f"Parameter {name}"),
+                        "sensitive": value.get("sensitive", False),
+                    }
+                })
+            else:
+                # Simple value
+                param_list.append({
+                    "parameter": {
+                        "name": name,
+                        "value": str(value),
+                        "description": f"Parameter {name}",
+                        "sensitive": False,
+                    }
+                })
 
         param_context = await self.nifi.parameter_contexts.create_parameter_context(
             name=param_context_name,
@@ -224,7 +238,7 @@ class NiFiFlowDeployment(LoggerMixin):
             parameters=param_list,
         )
         parameter_context_id = param_context.get("id")
-        self.logger.info("Created parameter context: %s", parameter_context_id)
+        self.logger.info("Created parameter context: %s with %d parameters", parameter_context_id, len(param_list))
         return parameter_context_id
 
     async def _create_process_group(self, flow_name: str, parent_group_id: str) -> Dict[str, Any]:
@@ -278,12 +292,11 @@ class NiFiFlowDeployment(LoggerMixin):
                 position = processor_def.get("position") or component_def.get("position")
                 properties = processor_def.get("properties") or config_def.get("properties")
                 
-                # Substitute parameter references in properties
+                # Keep parameter references intact - they will be resolved by NiFi parameter context
+                # No parameter substitution needed when using proper parameter contexts
                 if properties and parameters:
-                    original_properties = properties.copy()
-                    properties = self._substitute_parameters(properties, parameters)
-                    self.logger.debug("[%s] Parameter substitution for %s: %s -> %s", 
-                                     deployment_id, processor_name, original_properties, properties)
+                    self.logger.debug("[%s] Keeping parameter references intact for %s (will be resolved by parameter context)", 
+                                     deployment_id, processor_name)
                 
                 self.logger.debug("[%s] Processor %s: type=%s, properties=%s", 
                                  deployment_id, processor_name, processor_type, 
@@ -485,29 +498,3 @@ class NiFiFlowDeployment(LoggerMixin):
                 })
 
         return failures
-
-    def _substitute_parameters(self, properties: Dict[str, Any], parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Substitute parameter references in processor properties.
-        Replaces #{parameter_name} with actual parameter values.
-        """
-        if not properties or not parameters:
-            return properties
-            
-        substituted = {}
-        for key, value in properties.items():
-            if isinstance(value, str):
-                # Replace #{parameter_name} references with actual values
-                substituted_value = value
-                for param_name, param_info in parameters.items():
-                    param_placeholder = f"#{{{param_name}}}"
-                    if param_placeholder in substituted_value:
-                        # Get the actual parameter value (default or provided value)
-                        param_value = param_info.get('default', '') if isinstance(param_info, dict) else str(param_info)
-                        substituted_value = substituted_value.replace(param_placeholder, param_value)
-                        self.logger.debug("Parameter substitution: %s -> %s (from %s)", 
-                                        param_placeholder, param_value, value)
-                substituted[key] = substituted_value
-            else:
-                substituted[key] = value
-        return substituted

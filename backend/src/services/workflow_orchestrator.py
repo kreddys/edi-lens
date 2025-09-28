@@ -113,6 +113,7 @@ class WorkflowOrchestrator(LoggerMixin):
                     "registry_upload": upload_result,
                     "bucket_info": bucket_info,
                     "process_group_id": process_group_id,
+                    "parameter_context_id": deployment_result.get("parameter_context_id"),  # Include parameter context ID
                     "message": "Flow successfully deployed to NiFi and registered in Registry"
                 }
 
@@ -132,6 +133,7 @@ class WorkflowOrchestrator(LoggerMixin):
                     "nifi_deployment": deployment_result,
                     "registry_error": str(registry_exc),
                     "process_group_id": process_group_id,
+                    "parameter_context_id": deployment_result.get("parameter_context_id"),  # Include parameter context ID
                     "message": "Flow deployed to NiFi successfully but Registry upload failed"
                 }
 

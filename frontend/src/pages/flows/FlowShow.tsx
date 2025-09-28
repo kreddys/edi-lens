@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Show } from "@refinedev/antd";
 import { useShow } from "@refinedev/core";
-import { Card, Descriptions, Button, Space, Tag, notification } from "antd";
+import { Card, Descriptions, Button, Space, Tag, notification, Table } from "antd";
 import { PlayCircleOutlined, PauseCircleOutlined, EditOutlined, ReloadOutlined } from "@ant-design/icons";
 import { flowAPI } from "../../providers/data";
 
@@ -144,6 +144,105 @@ export const FlowShow: React.FC = () => {
                         }
                     </Descriptions.Item>
                 </Descriptions>
+                
+                {/* Parameters Section */}
+                {record?.parameters && Object.keys(record.parameters).length > 0 && (
+                    <Card 
+                        title="Flow Parameters" 
+                        style={{ marginTop: 16 }}
+                        size="small"
+                    >
+                        <Table
+                            size="small"
+                            pagination={false}
+                            dataSource={Object.entries(record.parameters).map(([paramName, paramInfo], index) => {
+                                // Handle both simple string values and object values with metadata
+                                let paramValue: string;
+                                let paramDescription: string;
+                                let isSensitive = false;
+
+                                if (typeof paramInfo === 'object' && paramInfo !== null) {
+                                    // Standard parameter object with value, description, sensitive
+                                    const paramObj = paramInfo as any;
+                                    paramValue = paramObj.value;
+                                    paramDescription = paramObj.description || '';
+                                    isSensitive = paramObj.sensitive || false;
+
+                                    // Handle case where value contains stringified template parameter object
+                                    if (typeof paramValue === 'string' && paramValue.startsWith('{') && paramValue.includes("'description'")) {
+                                        try {
+                                            // Parse the stringified object (convert single quotes to double quotes for valid JSON)
+                                            const jsonString = paramValue.replace(/'/g, '"');
+                                            const parsedParam = JSON.parse(jsonString);
+                                            paramValue = parsedParam.default || parsedParam.value || '';
+                                            paramDescription = parsedParam.description || paramDescription;
+                                        } catch (e) {
+                                            // If parsing fails, use the raw value
+                                            console.warn('Failed to parse parameter value:', paramValue);
+                                        }
+                                    }
+                                } else {
+                                    // Simple string value
+                                    paramValue = String(paramInfo);
+                                    paramDescription = '';
+                                }
+                                
+                                return {
+                                    key: index,
+                                    parameterName: paramName,
+                                    description: paramDescription,
+                                    value: paramValue,
+                                    sensitive: isSensitive
+                                };
+                            })}
+                            columns={[
+                                {
+                                    title: 'Parameter Name',
+                                    dataIndex: 'parameterName',
+                                    key: 'parameterName',
+                                    width: '25%',
+                                    render: (text: string, record: any) => (
+                                        <div>
+                                            <span style={{ fontWeight: 500, fontFamily: 'monospace' }}>{text}</span>
+                                            {record.sensitive && (
+                                                <Tag color="orange" style={{ marginLeft: 8, fontSize: '11px' }}>
+                                                    SENSITIVE
+                                                </Tag>
+                                            )}
+                                        </div>
+                                    ),
+                                },
+                                {
+                                    title: 'Description',
+                                    dataIndex: 'description',
+                                    key: 'description',
+                                    width: '35%',
+                                    render: (text: string) => (
+                                        <span style={{ color: text ? 'inherit' : '#999', fontStyle: text ? 'normal' : 'italic' }}>
+                                            {text || 'No description'}
+                                        </span>
+                                    ),
+                                },
+                                {
+                                    title: 'Value',
+                                    dataIndex: 'value',
+                                    key: 'value',
+                                    width: '40%',
+                                    render: (text: string) => (
+                                        <span style={{ 
+                                            fontFamily: 'monospace', 
+                                            fontSize: '13px',
+                                            color: text ? 'inherit' : '#999',
+                                            fontStyle: text ? 'normal' : 'italic'
+                                        }}>
+                                            {text || 'Empty'}
+                                        </span>
+                                    ),
+                                },
+                            ]}
+                        />
+                    </Card>
+                )}
             </Card>
         </Show>
     );

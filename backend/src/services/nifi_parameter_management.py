@@ -145,11 +145,13 @@ class NiFiParameterManagement(LoggerMixin):
                 param_name = param.get("name")
                 param_value = param.get("value")
                 param_sensitive = param.get("sensitive", False)
+                param_description = param.get("description", "")
 
                 if param_name:
                     parameters[param_name] = {
                         "value": param_value if not param_sensitive else "[SENSITIVE]",
-                        "sensitive": param_sensitive
+                        "sensitive": param_sensitive,
+                        "description": param_description
                     }
 
             result = {
