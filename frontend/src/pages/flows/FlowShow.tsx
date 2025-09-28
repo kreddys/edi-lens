@@ -177,18 +177,44 @@ export const FlowShow: React.FC = () => {
                                     paramDescription = paramObj.description || '';
                                     isSensitive = paramObj.sensitive || false;
 
-                                    // Handle case where value contains stringified template parameter object
-                                    if (typeof paramValue === 'string' && paramValue.startsWith('{') && paramValue.includes("'description'")) {
+                                    // Handle case where value contains stringified parameter object (Python dict format)
+                                    if (typeof paramValue === 'string' && paramValue.startsWith('{') && (paramValue.includes("'value'") || paramValue.includes("'description'"))) {
                                         try {
-                                            // Parse the stringified object (convert single quotes to double quotes for valid JSON)
-                                            const jsonString = paramValue.replace(/'/g, '"');
-                                            const parsedParam = JSON.parse(jsonString);
-                                            paramValue = parsedParam.default || parsedParam.value || '';
+                                            // Handle Python dict format with single quotes and Python booleans
+                                            let processedString = paramValue
+                                                .replace(/'/g, '"')           // Convert single quotes to double quotes
+                                                .replace(/True/g, 'true')     // Convert Python True to JSON true
+                                                .replace(/False/g, 'false')   // Convert Python False to JSON false
+                                                .replace(/None/g, 'null');    // Convert Python None to JSON null
+                                            
+                                            const parsedParam = JSON.parse(processedString);
+                                            paramValue = parsedParam.value || paramValue;
                                             paramDescription = parsedParam.description || paramDescription;
+                                            isSensitive = parsedParam.sensitive || isSensitive;
                                         } catch (e) {
-                                            // If parsing fails, use the raw value
-                                            console.warn('Failed to parse parameter value:', paramValue);
+                                            // If parsing fails, display the value as-is but log the issue
+                                            console.warn('Failed to parse parameter value as Python dict:', paramValue, e);
+                                            // Don't change paramValue - display the raw string
                                         }
+                                    }
+                                } else if (typeof paramInfo === 'string' && paramInfo.startsWith('{') && (paramInfo.includes("'value'") || paramInfo.includes("'description'"))) {
+                                    // Handle direct string that looks like a Python dict
+                                    try {
+                                        let processedString = paramInfo
+                                            .replace(/'/g, '"')           // Convert single quotes to double quotes
+                                            .replace(/True/g, 'true')     // Convert Python True to JSON true
+                                            .replace(/False/g, 'false')   // Convert Python False to JSON false
+                                            .replace(/None/g, 'null');    // Convert Python None to JSON null
+                                        
+                                        const parsedParam = JSON.parse(processedString);
+                                        paramValue = parsedParam.value || '';
+                                        paramDescription = parsedParam.description || '';
+                                        isSensitive = parsedParam.sensitive || false;
+                                    } catch (e) {
+                                        // If parsing fails, treat as simple string value
+                                        console.warn('Failed to parse parameter string as Python dict:', paramInfo, e);
+                                        paramValue = String(paramInfo);
+                                        paramDescription = '';
                                     }
                                 } else {
                                     // Simple string value
