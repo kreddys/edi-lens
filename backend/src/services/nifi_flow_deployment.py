@@ -180,6 +180,94 @@ class NiFiFlowDeployment(LoggerMixin):
             
             self.logger.info("=== DEPLOYMENT END [%s] ===", deployment_id)
 
+    async def _clear_process_group(
+        self, process_group_id: str, deployment_id: str
+    ) -> Dict[str, int]:
+        """Remove existing processors and connections from a process group."""
+
+        removed_counts = {"processors": 0, "connections": 0}
+
+        flow_entity = await self.nifi.process_groups.get_process_group_flow(
+            process_group_id
+        )
+        flow_wrapper = flow_entity.get("processGroupFlow", {}) if isinstance(flow_entity, dict) else {}
+        flow = flow_wrapper.get("flow", {}) if isinstance(flow_wrapper, dict) else {}
+
+        connections = flow.get("connections", []) or []
+        processors = flow.get("processors", []) or []
+
+        # Remove connections first to detach processors cleanly
+        for connection in connections:
+            connection_entity = connection.get("component", connection)
+            connection_id = connection_entity.get("id") or connection.get("id")
+            if not connection_id:
+                continue
+
+            try:
+                await self.nifi.connections.drop_connection_flow_files(connection_id)
+            except Exception as drop_exc:
+                self.logger.debug(
+                    "[%s] Drop request for connection %s failed or not required: %s",
+                    deployment_id,
+                    connection_id,
+                    drop_exc,
+                )
+
+            revision = None
+            try:
+                latest_connection = await self.nifi.connections.get_connection(
+                    connection_id
+                )
+                revision = latest_connection.get("revision", {}).get("version", 0)
+            except Exception:
+                revision = connection.get("revision", {}).get("version") or 0
+
+            await self.nifi.connections.delete_connection(connection_id, revision or 0)
+            removed_counts["connections"] += 1
+            self.logger.debug(
+                "[%s] Removed connection %s (revision=%s)",
+                deployment_id,
+                connection_id,
+                revision,
+            )
+
+        # Remove processors after connections have been detached
+        for processor in processors:
+            processor_entity = processor.get("component", processor)
+            processor_id = processor_entity.get("id") or processor.get("id")
+            if not processor_id:
+                continue
+
+            try:
+                await self.nifi.processors.stop_processor(processor_id)
+            except Exception as stop_exc:
+                self.logger.debug(
+                    "[%s] Processor %s stop skipped or failed: %s",
+                    deployment_id,
+                    processor_id,
+                    stop_exc,
+                )
+
+            revision = None
+            try:
+                latest_processor = await self.nifi.processors.get_processor(
+                    processor_id
+                )
+                revision = latest_processor.get("revision", {}).get("version", 0)
+            except Exception:
+                revision = processor.get("revision", {}).get("version") or 0
+
+            await self.nifi.processors.delete_processor(processor_id, revision or 0)
+            removed_counts["processors"] += 1
+            self.logger.debug(
+                "[%s] Removed processor %s (revision=%s)",
+                deployment_id,
+                processor_id,
+                revision,
+            )
+
+        return removed_counts
+
     async def cleanup_failed_deployment(
         self, process_group_id: Optional[str], parameter_context_id: Optional[str], deployment_id: str = "unknown"
     ) -> None:

@@ -83,17 +83,19 @@ class NiFiParameterContextClient(LoggerMixin):
                 }
 
         # Convert back to parameter list format - ONLY send essential fields
-        param_list = [
-            {
-                "parameter": {
-                    "name": param_info["name"],
-                    "value": param_info["value"],
-                    "sensitive": param_info.get("sensitive", False),
-                    "description": param_info.get("description", "")
-                }
+        param_list = []
+        for param_info in param_map.values():
+            parameter_payload: Dict[str, Any] = {
+                "name": param_info.get("name"),
+                "value": param_info.get("value"),
+                "sensitive": param_info.get("sensitive", False),
+                "description": param_info.get("description", ""),
             }
-            for param_info in param_map.values()
-        ]
+
+            if "componentId" in param_info and param_info.get("componentId") is not None:
+                parameter_payload["componentId"] = param_info.get("componentId")
+
+            param_list.append({"parameter": parameter_payload})
 
         # Create the parameter context entity for the update request
         parameter_context_entity = {

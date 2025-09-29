@@ -289,12 +289,21 @@ class TestWorkflowOrchestrator:
     @pytest.fixture
     def mock_nifi_client(self):
         """Mock NiFi client."""
-        return MagicMock()
+        client = MagicMock()
+        client.process_groups = MagicMock()
+        client.processors = MagicMock()
+        client.connections = MagicMock()
+        client.parameter_contexts = MagicMock()
+        client.version_control = MagicMock()
+        return client
 
     @pytest.fixture
     def mock_registry_client(self):
         """Mock Registry client."""
-        return MagicMock()
+        client = MagicMock()
+        client.buckets = MagicMock()
+        client.flows = MagicMock()
+        return client
 
     @pytest.fixture
     def orchestrator(self, mock_nifi_client, mock_registry_client):
@@ -403,6 +412,41 @@ class TestWorkflowOrchestrator:
         assert result["stage"] == "registry_upload"
         assert "Registry upload failed" in result["message"]
         assert result["process_group_id"] == "pg-123"  # NiFi deployment succeeded
+
+    @pytest.mark.asyncio
+    async def test_update_flow_metadata_and_parameters(self, orchestrator):
+        orchestrator.nifi_flow_mgmt.update_flow_metadata = AsyncMock(
+            return_value={"success": True, "name": "Updated"}
+        )
+        orchestrator.nifi_param_mgmt.get_process_group_parameter_context = AsyncMock(
+            return_value={"parameter_context_id": "ctx-1"}
+        )
+        orchestrator.nifi_param_mgmt.update_parameter_context_parameters = AsyncMock(
+            return_value={"parameter_context_id": "ctx-1", "success": True}
+        )
+        orchestrator.nifi_param_mgmt.get_parameter_context = AsyncMock(
+            return_value={"parameter_count": 1, "revision": {"version": 2}}
+        )
+
+        result = await orchestrator.update_flow(
+            "pg-123",
+            name="Updated Name",
+            description="Updated Description",
+            parameters={"threshold": "42"},
+        )
+
+        orchestrator.nifi_flow_mgmt.update_flow_metadata.assert_awaited_once_with(
+            "pg-123", name="Updated Name", description="Updated Description"
+        )
+        orchestrator.nifi_param_mgmt.update_parameter_context_parameters.assert_awaited_once()
+
+        assert result["metadata"]["success"] is True
+        assert result["parameters"]["parameter_context_id"] == "ctx-1"
+
+    @pytest.mark.asyncio
+    async def test_update_flow_requires_fields(self, orchestrator):
+        with pytest.raises(WorkflowOrchestratorError, match="No update fields provided"):
+            await orchestrator.update_flow("pg-000")
 
 
 if __name__ == "__main__":

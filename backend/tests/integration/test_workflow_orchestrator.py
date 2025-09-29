@@ -246,3 +246,127 @@ async def test_deployment_first_workflow():
                         pass
 
 
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_update_flow_metadata_and_parameters_roundtrip():
+    """Ensure metadata and parameter updates propagate across NiFi and Registry."""
+
+    unique_suffix = uuid.uuid4().hex[:8]
+
+    original_definition = _build_sample_flow_definition(unique_suffix)
+
+    flow_name = f"integration-update-flow-{unique_suffix}"
+    updated_name = f"integration-update-flow-{unique_suffix}-edited"
+    updated_description = f"Updated description {unique_suffix}"
+    bucket_name = f"integration-update-bucket-{unique_suffix}"
+
+    initial_parameters = {"greeting": "hello-world", "batch_size": "5"}
+    updated_parameters = {"greeting": "hello-updated", "batch_size": "7"}
+
+    nifi_client = get_test_nifi_client()
+    registry_client = get_test_registry_client()
+
+    async with nifi_client:
+        async with registry_client:
+            orchestrator = WorkflowOrchestrator(nifi_client, registry_client)
+
+            cleanup = {
+                "process_group": None,
+                "parameter_context": None,
+                "bucket_id": None,
+                "flow_id": None,
+            }
+
+            try:
+                deploy_result = await orchestrator.deploy_and_register_flow(
+                    flow_definition=original_definition,
+                    flow_name=flow_name,
+                    bucket_name=bucket_name,
+                    parameters=initial_parameters,
+                    comments="Integration test - flow update",
+                )
+
+                assert deploy_result["success"] is True
+
+                process_group_id = deploy_result["process_group_id"]
+                cleanup["process_group"] = process_group_id
+
+                parameter_context_id = deploy_result.get("parameter_context_id")
+                if parameter_context_id:
+                    cleanup["parameter_context"] = parameter_context_id
+
+                bucket_id = deploy_result["bucket_info"]["bucket_id"]
+                cleanup["bucket_id"] = bucket_id
+
+                flow_id = deploy_result["registry_upload"]["flow_id"]
+                cleanup["flow_id"] = flow_id
+
+                update_result = await orchestrator.update_flow(
+                    process_group_id,
+                    name=updated_name,
+                    description=updated_description,
+                    parameters=updated_parameters,
+                )
+
+                assert update_result["metadata"]["success"] is True
+                assert update_result["parameters"]["success"] is True
+
+                latest_process_group = await nifi_client.process_groups.get_process_group(
+                    process_group_id
+                )
+                component = latest_process_group.get("component", {})
+                assert component.get("name") == updated_name
+                assert component.get("comments") == updated_description
+
+                metadata_registry = update_result["metadata"].get("registry_update")
+                if metadata_registry:
+                    assert metadata_registry["success"] is True
+                    assert metadata_registry["name"] == updated_name
+                    assert metadata_registry["description"] == updated_description
+
+                if update_result["parameters"]:
+                    parameter_context_id = update_result["parameters"]["parameter_context_id"]
+                    cleanup["parameter_context"] = parameter_context_id
+
+                    context = await orchestrator.nifi_param_mgmt.get_parameter_context(
+                        parameter_context_id
+                    )
+                    parameters = context.get("parameters", {})
+                    assert parameters["greeting"]["value"] == "hello-updated"
+                    assert parameters["batch_size"]["value"] == "7"
+
+                registry_flow = await orchestrator.registry_flow_mgmt.get_flow(
+                    bucket_id,
+                    flow_id,
+                )
+                assert registry_flow["name"] == updated_name
+                assert registry_flow["description"] == updated_description
+
+            finally:
+                if cleanup["process_group"]:
+                    try:
+                        await orchestrator.delete_flow_workflow(
+                            cleanup["process_group"],
+                            remove_from_registry=True,
+                        )
+                    except Exception:
+                        pass
+
+                if cleanup["parameter_context"]:
+                    try:
+                        await nifi_client.parameter_contexts.delete_parameter_context(
+                            cleanup["parameter_context"]
+                        )
+                    except Exception:
+                        pass
+
+                if cleanup["bucket_id"]:
+                    try:
+                        latest_bucket = await registry_client.buckets.get_bucket(
+                            cleanup["bucket_id"]
+                        )
+                        await registry_client.buckets.delete_bucket(
+                            cleanup["bucket_id"], latest_bucket["revision"]
+                        )
+                    except Exception:
+                        pass

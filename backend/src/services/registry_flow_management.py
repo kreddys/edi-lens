@@ -91,21 +91,37 @@ class RegistryFlowManagement(LoggerMixin):
     ) -> Dict[str, Any]:
         """Update flow metadata."""
         try:
-            # Get current flow details for revision
+            # Get current flow details for revision and logging context
             current_flow = await self.registry.flows.get_flow(bucket_id, flow_id)
             revision = current_flow.get("revision", {})
 
-            # Prepare update data
-            update_data = {
+            updated_name = name or current_flow.get("name")
+            updated_description = (
+                description if description is not None else current_flow.get("description", "")
+            )
+
+            update_payload = {
                 "identifier": flow_id,
-                "name": name or current_flow.get("name"),
-                "description": description or current_flow.get("description", ""),
+                "name": updated_name,
+                "description": updated_description,
                 "bucketIdentifier": bucket_id,
                 "type": current_flow.get("type"),
-                "revision": revision
+                "revision": revision,
             }
 
-            updated_flow = await self.registry.flows.update_flow(bucket_id, flow_id, update_data)
+            self.logger.info(
+                "Updating registry flow %s in bucket %s with payload: %s",
+                flow_id,
+                bucket_id,
+                update_payload,
+            )
+
+            updated_flow = await self.registry.flows.update_flow(
+                bucket_id,
+                flow_id,
+                name=updated_name,
+                description=updated_description,
+            )
 
             result = {
                 "success": True,

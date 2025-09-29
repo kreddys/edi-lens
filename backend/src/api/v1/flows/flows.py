@@ -23,7 +23,7 @@ from src.models.v1.parameters import (
     ParameterUpdateRequest,
     ParameterUpdateResponse
 )
-from src.services.workflow_orchestrator import WorkflowOrchestrator
+from src.services.workflow_orchestrator import WorkflowOrchestrator, WorkflowOrchestratorError
 
 log = get_logger(__name__)
 
@@ -47,6 +47,89 @@ async def get_registry_timestamps(orchestrator, flow_id: str, bucket_id: str) ->
         log.debug("Could not get registry timestamps for flow %s: %s", flow_id, e)
     
     return "Not available", "Not available"
+
+
+async def _build_flow_response(
+    orchestrator: WorkflowOrchestrator,
+    flow_id: str,
+) -> FlowResponse:
+    """Fetch flow overview and map it into the API response schema."""
+
+    try:
+        overview = await orchestrator.get_flow_overview(flow_id)
+    except WorkflowOrchestratorError as exc:
+        message = str(exc)
+        if "unable to locate group" in message.lower() or "not found" in message.lower():
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error_type": "FLOW_NOT_FOUND",
+                    "message": f"Flow {flow_id} not found",
+                },
+            ) from exc
+        raise
+
+    if not overview:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_type": "FLOW_NOT_FOUND",
+                "message": f"Flow {flow_id} not found",
+            },
+        )
+
+    flow_status = overview.get("flow_status", {}) or {}
+
+    description = flow_status.get("process_group_comments", "") or ""
+    version_control = overview.get("version_control_info")
+    if version_control and not description:
+        vc_info = version_control.get("versionControlInformation", {}) or {}
+        description = vc_info.get("comments", "")
+
+    created_at = "Not available"
+    updated_at = "Not available"
+    if version_control:
+        registry_flow_id = version_control.get("flowId")
+        bucket_id = version_control.get("bucketId")
+        if registry_flow_id and bucket_id:
+            created_at, updated_at = await get_registry_timestamps(
+                orchestrator,
+                registry_flow_id,
+                bucket_id,
+            )
+
+    overall_status = flow_status.get("overall_status", "unknown")
+    mapped_status = (
+        FlowStatus.RUNNING
+        if overall_status == "running"
+        else FlowStatus.STOPPED
+        if overall_status == "stopped"
+        else FlowStatus.INVALID
+        if overall_status == "invalid"
+        else FlowStatus.UNKNOWN
+    )
+
+    parameters = {}
+    parameter_context = overview.get("parameter_context")
+    if parameter_context and parameter_context.get("parameters"):
+        parameters = parameter_context["parameters"]
+
+    return FlowResponse(
+        id=flow_id,
+        name=flow_status.get("process_group_name", "Unknown Flow"),
+        description=description,
+        definition=None,
+        parameters=parameters,
+        status=mapped_status,
+        deployment_status=DeploymentStatus.DEPLOYED,
+        processor_count=flow_status.get("total_processors", 0),
+        running_count=flow_status.get("running_processors", 0),
+        stopped_count=flow_status.get("stopped_processors", 0),
+        invalid_count=flow_status.get("invalid_processors", 0),
+        created_at=created_at,
+        updated_at=updated_at,
+        version_control=version_control,
+    )
 
 
 @router.get("/", response_model=FlowListResponse, status_code=HTTP_200_OK)
@@ -96,10 +179,16 @@ async def list_flows(
                         if flow_id and bucket_id:
                             created_at, updated_at = await get_registry_timestamps(orchestrator, flow_id, bucket_id)
                         
+                    description = flow_status.get("process_group_comments", "") or ""
+
+                    if not description:
+                        vc_info = (overview.get("version_control_info") or {}).get("versionControlInformation", {})
+                        description = vc_info.get("comments", "") or ""
+
                     flow_response = FlowResponse(
                         id=process_group_id,
                         name=flow_name,
-                        description=flow.get("component", {}).get("comments", ""),
+                        description=description,
                         definition=None,  # Not included in list for performance
                         parameters={},
                         status=mapped_status,
@@ -290,69 +379,9 @@ async def get_flow(
     """Get a specific flow by ID."""
     try:
         log.debug("Getting flow: %s", flow_id)
-        
-        # Get flow overview which includes all details
-        overview = await orchestrator.get_flow_overview(flow_id)
-        
-        if not overview:
-            raise HTTPException(
-                status_code=404,
-                detail={
-                    "error_type": "FLOW_NOT_FOUND",
-                    "message": f"Flow {flow_id} not found"
-                }
-            )
-        
-        flow_status = overview.get("flow_status", {}) or {}
-        # Extract description and timestamps
-        raw_description = ""
-        if overview.get("version_control_info"):
-            # If under version control, try to get description from version control
-            vc_info = overview.get("version_control_info", {})
-            description = vc_info.get("versionControlInformation", {}).get("comments", "")
-        
-        # Get timestamps from Registry if available
-        version_control = overview.get("version_control_info")
-        created_at = "Not available"
-        updated_at = "Not available"
-        
-        if version_control:
-            registry_flow_id = version_control.get("flowId")
-            bucket_id = version_control.get("bucketId")
-            if registry_flow_id and bucket_id:
-                created_at, updated_at = await get_registry_timestamps(orchestrator, registry_flow_id, bucket_id)
-        
-        overall_status = flow_status.get("overall_status", "unknown")
-        mapped_status = FlowStatus.RUNNING if overall_status == "running" else \
-                      FlowStatus.STOPPED if overall_status == "stopped" else \
-                      FlowStatus.INVALID if overall_status == "invalid" else \
-                      FlowStatus.UNKNOWN
-        
-        # Extract parameters from parameter context
-        parameters = {}
-        parameter_context = overview.get("parameter_context")
-        if parameter_context and parameter_context.get("parameters"):
-            parameters = parameter_context["parameters"]
-        
-        response = FlowResponse(
-            id=flow_id,
-            name=flow_status.get("process_group_name", "Unknown Flow"),
-            description=description,
-            definition=None,  # TODO: Extract from NiFi if needed
-            parameters=parameters,
-            status=mapped_status,
-            deployment_status=DeploymentStatus.DEPLOYED,
-            processor_count=flow_status.get("total_processors", 0),
-            running_count=flow_status.get("running_processors", 0),
-            stopped_count=flow_status.get("stopped_processors", 0),
-            invalid_count=flow_status.get("invalid_processors", 0),
-            created_at=created_at,
-            updated_at=updated_at,
-            version_control=version_control
-        )
-        
-        return response
-        
+
+        return await _build_flow_response(orchestrator, flow_id)
+
     except HTTPException:
         raise
     except Exception as exc:
@@ -376,21 +405,39 @@ async def update_flow(
     """Update an existing flow."""
     try:
         log.info("Updating flow: %s", flow_id)
-        
-        # For now, this is a placeholder - would need to implement flow updates
-        # This would involve updating the NiFi process group and potentially the Registry
-        
-        raise HTTPException(
-            status_code=501,
-            detail={
-                "error_type": "NOT_IMPLEMENTED",
-                "message": "Flow updates are not yet implemented",
-                "action_required": "Use version control operations or redeploy the flow"
-            }
+
+        update_result = await orchestrator.update_flow(
+            flow_id,
+            name=flow_data.name,
+            description=flow_data.description,
+            parameters=flow_data.parameters,
         )
-        
+
+        log.debug("Flow %s update result: %s", flow_id, update_result)
+
+        return await _build_flow_response(orchestrator, flow_id)
+
     except HTTPException:
         raise
+    except WorkflowOrchestratorError as exc:
+        message = str(exc)
+        lowered = message.lower()
+        if "unable to locate group" in lowered or "not found" in lowered:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error_type": "FLOW_NOT_FOUND",
+                    "message": f"Flow {flow_id} not found",
+                },
+            ) from exc
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_type": "FLOW_UPDATE_ERROR",
+                "message": "Failed to update flow",
+                "details": message,
+            },
+        ) from exc
     except Exception as exc:
         log.exception("Failed to update flow %s", flow_id)
         raise HTTPException(
@@ -492,15 +539,27 @@ async def update_flow_parameters(
         
         log.debug("Processing %d parameter updates for flow: %s", len(parameter_updates), flow_id)
         
-        # Update parameters via orchestrator
-        result = await orchestrator.update_flow_parameters(flow_id, parameter_updates)
-        
+        update_result = await orchestrator.update_flow(
+            flow_id,
+            parameter_updates=parameter_updates,
+        )
+
+        parameter_result = update_result.get("parameters")
+        if not parameter_result:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error_type": "FLOW_PARAMETER_UPDATE_ERROR",
+                    "message": "Flow parameters were not updated",
+                },
+            )
+
         response = ParameterUpdateResponse(
-            success=result["success"],
-            updated_parameters=result["updated_parameters"],
-            parameter_context_id=result["parameter_context_id"],
-            revision=result["revision"],
-            message=result["message"]
+            success=parameter_result["success"],
+            updated_parameters=parameter_result["updated_parameters"],
+            parameter_context_id=parameter_result["parameter_context_id"],
+            revision=parameter_result["revision"],
+            message=parameter_result["message"],
         )
         
         log.info("Successfully updated parameters for flow: %s", flow_id)
@@ -509,9 +568,9 @@ async def update_flow_parameters(
             bucket_id="unknown",
             flow_id=flow_id,
             details={
-                "updated_parameters": result["updated_parameters"],
-                "parameter_count": len(parameter_updates)
-            }
+                "updated_parameters": parameter_result["updated_parameters"],
+                "parameter_count": len(parameter_updates),
+            },
         )
         
         return response
