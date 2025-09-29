@@ -401,13 +401,10 @@ class WorkflowOrchestrator(LoggerMixin):
         context_id = param_context["parameter_context_id"]
         self.logger.debug("Found parameter context: %s for flow: %s", context_id, process_group_id)
 
+        # Extract only the parameter values for NiFi client (which expects Dict[str, str])
         parameter_dict = {}
         for update in parameter_updates:
-            parameter_dict[update["name"]] = {
-                "value": update.get("value"),
-                "description": update.get("description", f"Parameter {update['name']}") or f"Parameter {update['name']}",
-                "sensitive": update.get("sensitive", False),
-            }
+            parameter_dict[update["name"]] = update.get("value")
 
         try:
             update_result = await self.nifi_param_mgmt.update_parameter_context_parameters(

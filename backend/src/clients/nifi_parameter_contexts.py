@@ -70,14 +70,20 @@ class NiFiParameterContextClient(LoggerMixin):
 
         # Update with new parameters
         for name, value in parameters.items():
+            # Extract string value if parameter is passed as object
+            if isinstance(value, dict) and "value" in value:
+                param_value = str(value["value"])
+            else:
+                param_value = str(value)
+                
             if name in param_map:
                 # Update existing parameter
-                param_map[name]["value"] = str(value)
+                param_map[name]["value"] = param_value
             else:
                 # Add new parameter
                 param_map[name] = {
                     "name": name,
-                    "value": str(value),
+                    "value": param_value,
                     "sensitive": False,
                     "description": f"Parameter {name}"
                 }
