@@ -1047,9 +1047,9 @@ async def test_v1_nonexistent_flow_operations(api_client):
     """Test V1 operations on non-existent flow."""
     fake_flow_id = "non-existent-flow-id"
     
-    # Test get non-existent flow - returns 500 due to exception handling in service layer
+    # Test get non-existent flow - returns 404 when orchestrator cannot locate the process group
     get_response = await api_client.get(f"/api/v1/flows/{fake_flow_id}")
-    assert get_response.status_code == 500
+    assert get_response.status_code == 404
     
     # Test update non-existent flow
     update_payload = {
@@ -1057,8 +1057,8 @@ async def test_v1_nonexistent_flow_operations(api_client):
         "description": "Updated description"
     }
     update_response = await api_client.put(f"/api/v1/flows/{fake_flow_id}", json=update_payload)
-    # Should return 501 (Not Implemented) for flow update 
-    assert update_response.status_code == 501
+    # Should return 404 when attempting to update a flow that does not exist
+    assert update_response.status_code == 404
     
     # Test delete non-existent flow
     delete_response = await api_client.delete(f"/api/v1/flows/{fake_flow_id}")

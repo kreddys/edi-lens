@@ -52,7 +52,6 @@ class FlowUpdate(BaseModel):
     """Model for updating an existing flow."""
     name: Optional[str] = Field(None, description="Flow name")
     description: Optional[str] = Field(None, description="Flow description")
-    definition: Optional[FlowDefinition] = Field(None, description="Flow definition")
     parameters: Optional[Dict[str, Any]] = Field(None, description="Flow parameters")
 
 

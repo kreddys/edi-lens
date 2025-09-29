@@ -47,6 +47,55 @@ class NiFiProcessGroupClient(LoggerMixin):
         self.logger.debug("Getting process group: %s", process_group_id)
         return await self.base.get(f"/process-groups/{process_group_id}")
 
+    async def update_process_group(
+        self,
+        process_group_id: str,
+        *,
+        name: Optional[str] = None,
+        comments: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Update process group metadata without disturbing parameter context assignments."""
+
+        pg_info = await self.get_process_group(process_group_id)
+        revision = pg_info.get("revision", {}) if isinstance(pg_info, dict) else {}
+        component = pg_info.get("component", {}) if isinstance(pg_info, dict) else {}
+
+        payload: Dict[str, Any] = {
+            "revision": {"version": revision.get("version", 0)},
+            "component": {"id": process_group_id},
+        }
+
+        if revision.get("clientId"):
+            payload["revision"]["clientId"] = revision["clientId"]
+
+        # Preserve existing values when updates are not provided so we don't clear metadata
+        if name is not None:
+            payload["component"]["name"] = name
+        elif isinstance(component, dict) and component.get("name") is not None:
+            payload["component"]["name"] = component.get("name")
+
+        if comments is not None:
+            payload["component"]["comments"] = comments
+        elif isinstance(component, dict) and component.get("comments") is not None:
+            payload["component"]["comments"] = component.get("comments", "")
+
+        # Keep the existing parameter context assignment so metadata edits don't detach it
+        parameter_context = None
+        if isinstance(component, dict):
+            parameter_context = component.get("parameterContext")
+        if parameter_context:
+            payload["component"]["parameterContext"] = parameter_context
+
+        self.logger.debug(
+            "Updating process group %s with payload: %s",
+            process_group_id,
+            payload,
+        )
+
+        result = await self.base.put(f"/process-groups/{process_group_id}", payload)
+        self.logger.info("Updated process group: %s", process_group_id)
+        return result
+
     async def get_process_group_flow(self, process_group_id: str) -> Dict[str, Any]:
         """Get process group flow contents."""
         self.logger.debug("Getting process group flow: %s", process_group_id)

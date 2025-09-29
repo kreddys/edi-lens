@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { Show } from "@refinedev/antd";
+import { Show, EditButton, ListButton, DeleteButton } from "@refinedev/antd";
 import { useShow } from "@refinedev/core";
 import { Card, Descriptions, Button, Space, Tag, notification, Table } from "antd";
-import { PlayCircleOutlined, PauseCircleOutlined, EditOutlined, ReloadOutlined, SettingOutlined } from "@ant-design/icons";
+import { PlayCircleOutlined, PauseCircleOutlined, SettingOutlined } from "@ant-design/icons";
 import { flowAPI } from "../../providers/data";
 import { ParameterEditModal } from "../../components/ParameterEditModal";
 
@@ -61,10 +61,6 @@ export const FlowShow: React.FC = () => {
         }
     };
 
-    const handleRefresh = () => {
-        refetch();
-    };
-
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'running': return 'green';
@@ -84,45 +80,42 @@ export const FlowShow: React.FC = () => {
         }
     };
 
+    const isRunning = record?.status?.toLowerCase() === 'running';
+    const hasNoProcessors = (record?.processor_count ?? 0) === 0;
+
     return (
-        <Show isLoading={isLoading}>
-            <Card 
-                title="Flow Details"
-                extra={
-                    <Space>
-                        <Button
-                            icon={<ReloadOutlined />}
-                            onClick={handleRefresh}
-                            loading={isLoading}
-                        >
-                            Refresh
-                        </Button>
-                        <Button 
-                            type={record?.status?.toLowerCase() === 'running' ? 'default' : 'primary'}
-                            icon={record?.status?.toLowerCase() === 'running' ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
-                            onClick={handleToggleFlow}
-                            loading={actionLoading !== null}
-                            disabled={actionLoading !== null || (record?.processor_count === 0)}
-                        >
-                            {record?.status?.toLowerCase() === 'running' ? 'Stop' : 'Start'}
-                            {record?.processor_count === 0 && ' (No Processors)'}
-                        </Button>
-                        <Button 
-                            icon={<EditOutlined />}
-                            href={`/flows/${record?.id}/edit`}
-                        >
-                            Edit
-                        </Button>
-                        <Button 
-                            icon={<SettingOutlined />}
-                            onClick={() => setParameterModalOpen(true)}
-                            disabled={!record?.id}
-                        >
-                            Parameters
-                        </Button>
-                    </Space>
-                }
-            >
+        <Show
+            isLoading={isLoading}
+            headerButtons={({ listButtonProps, editButtonProps, deleteButtonProps }) => (
+                <Space wrap>
+                    {listButtonProps && <ListButton {...listButtonProps} />}
+                    {editButtonProps && <EditButton {...editButtonProps} />}
+                    {deleteButtonProps && <DeleteButton {...deleteButtonProps} />}
+                    <Button
+                        type={isRunning ? 'default' : 'primary'}
+                        icon={isRunning ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+                        onClick={handleToggleFlow}
+                        loading={actionLoading !== null}
+                        disabled={
+                            actionLoading !== null ||
+                            hasNoProcessors ||
+                            !record?.id
+                        }
+                    >
+                        {isRunning ? 'Stop' : 'Start'}
+                        {hasNoProcessors && ' (No Processors)'}
+                    </Button>
+                    <Button
+                        icon={<SettingOutlined />}
+                        onClick={() => setParameterModalOpen(true)}
+                        disabled={!record?.id}
+                    >
+                        Parameters
+                    </Button>
+                </Space>
+            )}
+        >
+            <Card title="Flow Details">
                 <Descriptions column={2} bordered>
                     <Descriptions.Item label="Name">
                         {record?.name}

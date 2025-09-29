@@ -145,6 +145,51 @@ class NiFiFlowManagement(LoggerMixin):
             self.logger.error("Failed to delete process group %s: %s", process_group_id, exc)
             raise NiFiFlowManagementError(f"Failed to delete flow: {exc}") from exc
 
+    async def update_flow_metadata(
+        self,
+        process_group_id: str,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Update NiFi process group metadata while preserving its parameter context."""
+
+        try:
+            updated_pg = await self.nifi.process_groups.update_process_group(
+                process_group_id,
+                name=name,
+                comments=description,
+            )
+
+            component = updated_pg.get("component", {}) if isinstance(updated_pg, dict) else {}
+
+            result = {
+                "success": True,
+                "process_group_id": process_group_id,
+                "name": component.get("name"),
+                "description": component.get("comments", ""),
+                "revision": updated_pg.get("revision", {}),
+            }
+
+            self.logger.info(
+                "Updated process group %s metadata (name=%s, description=%s)",
+                process_group_id,
+                result["name"],
+                result["description"],
+            )
+
+            return result
+
+        except Exception as exc:
+            self.logger.error(
+                "Failed to update metadata for process group %s: %s",
+                process_group_id,
+                exc,
+            )
+            raise NiFiFlowManagementError(
+                f"Failed to update process group metadata: {exc}"
+            ) from exc
+
     async def _drain_flow_queues(self, process_group_id: str) -> None:
         """Ensure all connections in a process group have empty queues."""
 
@@ -254,6 +299,7 @@ class NiFiFlowManagement(LoggerMixin):
             result = {
                 "process_group_id": process_group_id,
                 "process_group_name": process_group.get("component", {}).get("name", "Unknown"),
+                "process_group_comments": process_group.get("component", {}).get("comments", ""),
                 "overall_status": overall_status,
                 "total_processors": total_processors,
                 "running_processors": running_count,
