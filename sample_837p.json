@@ -1,0 +1,885 @@
+{
+  "header": {
+    "segment_id": "ISA",
+    "elements": [
+      {
+        "value": "00",
+        "position": 1
+      },
+      {
+        "value": "          ",
+        "position": 2
+      },
+      {
+        "value": "00",
+        "position": 3
+      },
+      {
+        "value": "          ",
+        "position": 4
+      },
+      {
+        "value": "ZZ",
+        "position": 5
+      },
+      {
+        "value": "SENDERID       ",
+        "position": 6
+      },
+      {
+        "value": "ZZ",
+        "position": 7
+      },
+      {
+        "value": "RECEIVERID     ",
+        "position": 8
+      },
+      {
+        "value": "240715",
+        "position": 9
+      },
+      {
+        "value": "1200",
+        "position": 10
+      },
+      {
+        "value": "^",
+        "position": 11
+      },
+      {
+        "value": "00501",
+        "position": 12
+      },
+      {
+        "value": "000000001",
+        "position": 13
+      },
+      {
+        "value": "0",
+        "position": 14
+      },
+      {
+        "value": "P",
+        "position": 15
+      },
+      {
+        "value": ">",
+        "position": 16
+      }
+    ],
+    "line_number": 1,
+    "raw_segment": "ISA*00*          *00*          *ZZ*SENDERID       *ZZ*RECEIVERID     *240715*1200*^*00501*000000001*0*P*>",
+    "errors": []
+  },
+  "trailer": {
+    "segment_id": "IEA",
+    "elements": [
+      {
+        "value": "1",
+        "position": 1
+      },
+      {
+        "value": "000000001",
+        "position": 2
+      }
+    ],
+    "line_number": 26,
+    "raw_segment": "IEA*1*000000001",
+    "errors": []
+  },
+  "functional_groups": [
+    {
+      "header": {
+        "segment_id": "GS",
+        "elements": [
+          {
+            "value": "HC",
+            "position": 1
+          },
+          {
+            "value": "SENDER",
+            "position": 2
+          },
+          {
+            "value": "RECEIVER",
+            "position": 3
+          },
+          {
+            "value": "20240715",
+            "position": 4
+          },
+          {
+            "value": "1200",
+            "position": 5
+          },
+          {
+            "value": "1",
+            "position": 6
+          },
+          {
+            "value": "X",
+            "position": 7
+          },
+          {
+            "value": "005010X222A1",
+            "position": 8
+          }
+        ],
+        "line_number": 2,
+        "raw_segment": "GS*HC*SENDER*RECEIVER*20240715*1200*1*X*005010X222A1",
+        "errors": []
+      },
+      "trailer": {
+        "segment_id": "GE",
+        "elements": [
+          {
+            "value": "1",
+            "position": 1
+          },
+          {
+            "value": "1",
+            "position": 2
+          }
+        ],
+        "line_number": 25,
+        "raw_segment": "GE*1*1",
+        "errors": []
+      },
+      "transactions": [
+        {
+          "header": {
+            "segment_id": "ST",
+            "elements": [
+              {
+                "value": "837",
+                "position": 1
+              },
+              {
+                "value": "0001",
+                "position": 2
+              },
+              {
+                "value": "005010X222A1",
+                "position": 3
+              }
+            ],
+            "line_number": 3,
+            "raw_segment": "ST*837*0001*005010X222A1",
+            "errors": []
+          },
+          "trailer": {
+            "segment_id": "SE",
+            "elements": [
+              {
+                "value": "25",
+                "position": 1
+              },
+              {
+                "value": "0001",
+                "position": 2
+              }
+            ],
+            "line_number": 24,
+            "raw_segment": "SE*25*0001",
+            "errors": []
+          },
+          "body": {
+            "loop_id": "ST_LOOP",
+            "segments": [
+              {
+                "segment_id": "BHT",
+                "elements": [
+                  {
+                    "value": "0019",
+                    "position": 1
+                  },
+                  {
+                    "value": "00",
+                    "position": 2
+                  },
+                  {
+                    "value": "1234",
+                    "position": 3
+                  },
+                  {
+                    "value": "20240715",
+                    "position": 4
+                  },
+                  {
+                    "value": "1200",
+                    "position": 5
+                  },
+                  {
+                    "value": "CH",
+                    "position": 6
+                  }
+                ],
+                "line_number": 4,
+                "raw_segment": "BHT*0019*00*1234*20240715*1200*CH",
+                "errors": []
+              }
+            ],
+            "loops": {
+              "1000A": [
+                {
+                  "loop_id": "1000A",
+                  "segments": [
+                    {
+                      "segment_id": "NM1",
+                      "elements": [
+                        {
+                          "value": "41",
+                          "position": 1
+                        },
+                        {
+                          "value": "2",
+                          "position": 2
+                        },
+                        {
+                          "value": "PREMIER BILLING",
+                          "position": 3
+                        },
+                        {
+                          "value": "",
+                          "position": 4
+                        },
+                        {
+                          "value": "",
+                          "position": 5
+                        },
+                        {
+                          "value": "",
+                          "position": 6
+                        },
+                        {
+                          "value": "",
+                          "position": 7
+                        },
+                        {
+                          "value": "46",
+                          "position": 8
+                        },
+                        {
+                          "value": "SUBMITTER1",
+                          "position": 9
+                        }
+                      ],
+                      "line_number": 5,
+                      "raw_segment": "NM1*41*2*PREMIER BILLING*****46*SUBMITTER1",
+                      "errors": []
+                    },
+                    {
+                      "segment_id": "PER",
+                      "elements": [
+                        {
+                          "value": "IC",
+                          "position": 1
+                        },
+                        {
+                          "value": "JOHN DOE",
+                          "position": 2
+                        },
+                        {
+                          "value": "TE",
+                          "position": 3
+                        },
+                        {
+                          "value": "8005551212",
+                          "position": 4
+                        }
+                      ],
+                      "line_number": 6,
+                      "raw_segment": "PER*IC*JOHN DOE*TE*8005551212",
+                      "errors": []
+                    }
+                  ],
+                  "loops": {},
+                  "errors": []
+                }
+              ],
+              "1000B": [
+                {
+                  "loop_id": "1000B",
+                  "segments": [
+                    {
+                      "segment_id": "NM1",
+                      "elements": [
+                        {
+                          "value": "40",
+                          "position": 1
+                        },
+                        {
+                          "value": "2",
+                          "position": 2
+                        },
+                        {
+                          "value": "PAYER A",
+                          "position": 3
+                        },
+                        {
+                          "value": "",
+                          "position": 4
+                        },
+                        {
+                          "value": "",
+                          "position": 5
+                        },
+                        {
+                          "value": "",
+                          "position": 6
+                        },
+                        {
+                          "value": "",
+                          "position": 7
+                        },
+                        {
+                          "value": "46",
+                          "position": 8
+                        },
+                        {
+                          "value": "RECEIVER1",
+                          "position": 9
+                        }
+                      ],
+                      "line_number": 7,
+                      "raw_segment": "NM1*40*2*PAYER A*****46*RECEIVER1",
+                      "errors": []
+                    }
+                  ],
+                  "loops": {},
+                  "errors": []
+                }
+              ],
+              "2000A": [
+                {
+                  "loop_id": "2000A",
+                  "segments": [
+                    {
+                      "segment_id": "HL",
+                      "elements": [
+                        {
+                          "value": "1",
+                          "position": 1
+                        },
+                        {
+                          "value": "",
+                          "position": 2
+                        },
+                        {
+                          "value": "20",
+                          "position": 3
+                        },
+                        {
+                          "value": "1",
+                          "position": 4
+                        }
+                      ],
+                      "line_number": 8,
+                      "raw_segment": "HL*1**20*1",
+                      "errors": []
+                    }
+                  ],
+                  "loops": {
+                    "2010AA": [
+                      {
+                        "loop_id": "2010AA",
+                        "segments": [
+                          {
+                            "segment_id": "NM1",
+                            "elements": [
+                              {
+                                "value": "85",
+                                "position": 1
+                              },
+                              {
+                                "value": "2",
+                                "position": 2
+                              },
+                              {
+                                "value": "BILLING PROVIDER",
+                                "position": 3
+                              },
+                              {
+                                "value": "",
+                                "position": 4
+                              },
+                              {
+                                "value": "",
+                                "position": 5
+                              },
+                              {
+                                "value": "",
+                                "position": 6
+                              },
+                              {
+                                "value": "",
+                                "position": 7
+                              },
+                              {
+                                "value": "XX",
+                                "position": 8
+                              },
+                              {
+                                "value": "1234567890",
+                                "position": 9
+                              }
+                            ],
+                            "line_number": 9,
+                            "raw_segment": "NM1*85*2*BILLING PROVIDER*****XX*1234567890",
+                            "errors": []
+                          },
+                          {
+                            "segment_id": "N3",
+                            "elements": [
+                              {
+                                "value": "123 MAIN ST",
+                                "position": 1
+                              }
+                            ],
+                            "line_number": 10,
+                            "raw_segment": "N3*123 MAIN ST",
+                            "errors": []
+                          },
+                          {
+                            "segment_id": "N4",
+                            "elements": [
+                              {
+                                "value": "ANYTOWN",
+                                "position": 1
+                              },
+                              {
+                                "value": "CA",
+                                "position": 2
+                              },
+                              {
+                                "value": "90210",
+                                "position": 3
+                              }
+                            ],
+                            "line_number": 11,
+                            "raw_segment": "N4*ANYTOWN*CA*90210",
+                            "errors": []
+                          },
+                          {
+                            "segment_id": "REF",
+                            "elements": [
+                              {
+                                "value": "EI",
+                                "position": 1
+                              },
+                              {
+                                "value": "123456789",
+                                "position": 2
+                              }
+                            ],
+                            "line_number": 12,
+                            "raw_segment": "REF*EI*123456789",
+                            "errors": []
+                          }
+                        ],
+                        "loops": {},
+                        "errors": []
+                      }
+                    ],
+                    "2000B": [
+                      {
+                        "loop_id": "2000B",
+                        "segments": [
+                          {
+                            "segment_id": "HL",
+                            "elements": [
+                              {
+                                "value": "2",
+                                "position": 1
+                              },
+                              {
+                                "value": "1",
+                                "position": 2
+                              },
+                              {
+                                "value": "22",
+                                "position": 3
+                              },
+                              {
+                                "value": "0",
+                                "position": 4
+                              }
+                            ],
+                            "line_number": 13,
+                            "raw_segment": "HL*2*1*22*0",
+                            "errors": []
+                          },
+                          {
+                            "segment_id": "SBR",
+                            "elements": [
+                              {
+                                "value": "P",
+                                "position": 1
+                              },
+                              {
+                                "value": "18",
+                                "position": 2
+                              },
+                              {
+                                "value": "GRP123",
+                                "position": 3
+                              },
+                              {
+                                "value": "",
+                                "position": 4
+                              },
+                              {
+                                "value": "",
+                                "position": 5
+                              },
+                              {
+                                "value": "",
+                                "position": 6
+                              },
+                              {
+                                "value": "",
+                                "position": 7
+                              },
+                              {
+                                "value": "",
+                                "position": 8
+                              },
+                              {
+                                "value": "CI",
+                                "position": 9
+                              }
+                            ],
+                            "line_number": 14,
+                            "raw_segment": "SBR*P*18*GRP123******CI",
+                            "errors": []
+                          }
+                        ],
+                        "loops": {
+                          "2010BA": [
+                            {
+                              "loop_id": "2010BA",
+                              "segments": [
+                                {
+                                  "segment_id": "NM1",
+                                  "elements": [
+                                    {
+                                      "value": "IL",
+                                      "position": 1
+                                    },
+                                    {
+                                      "value": "1",
+                                      "position": 2
+                                    },
+                                    {
+                                      "value": "DOE",
+                                      "position": 3
+                                    },
+                                    {
+                                      "value": "JOHN",
+                                      "position": 4
+                                    },
+                                    {
+                                      "value": "",
+                                      "position": 5
+                                    },
+                                    {
+                                      "value": "",
+                                      "position": 6
+                                    },
+                                    {
+                                      "value": "",
+                                      "position": 7
+                                    },
+                                    {
+                                      "value": "MI",
+                                      "position": 8
+                                    },
+                                    {
+                                      "value": "SUBID123",
+                                      "position": 9
+                                    }
+                                  ],
+                                  "line_number": 15,
+                                  "raw_segment": "NM1*IL*1*DOE*JOHN****MI*SUBID123",
+                                  "errors": []
+                                }
+                              ],
+                              "loops": {},
+                              "errors": []
+                            }
+                          ],
+                          "2010BB": [
+                            {
+                              "loop_id": "2010BB",
+                              "segments": [
+                                {
+                                  "segment_id": "NM1",
+                                  "elements": [
+                                    {
+                                      "value": "PR",
+                                      "position": 1
+                                    },
+                                    {
+                                      "value": "2",
+                                      "position": 2
+                                    },
+                                    {
+                                      "value": "PAYER A",
+                                      "position": 3
+                                    },
+                                    {
+                                      "value": "",
+                                      "position": 4
+                                    },
+                                    {
+                                      "value": "",
+                                      "position": 5
+                                    },
+                                    {
+                                      "value": "",
+                                      "position": 6
+                                    },
+                                    {
+                                      "value": "",
+                                      "position": 7
+                                    },
+                                    {
+                                      "value": "PI",
+                                      "position": 8
+                                    },
+                                    {
+                                      "value": "PAYERID123",
+                                      "position": 9
+                                    }
+                                  ],
+                                  "line_number": 16,
+                                  "raw_segment": "NM1*PR*2*PAYER A*****PI*PAYERID123",
+                                  "errors": []
+                                }
+                              ],
+                              "loops": {},
+                              "errors": []
+                            }
+                          ],
+                          "2300": [
+                            {
+                              "loop_id": "2300",
+                              "segments": [
+                                {
+                                  "segment_id": "CLM",
+                                  "elements": [
+                                    {
+                                      "value": "PATCTRL123",
+                                      "position": 1
+                                    },
+                                    {
+                                      "value": "500",
+                                      "position": 2
+                                    },
+                                    {
+                                      "value": "",
+                                      "position": 3
+                                    },
+                                    {
+                                      "value": "",
+                                      "position": 4
+                                    },
+                                    {
+                                      "value": "11>B>1",
+                                      "position": 5
+                                    },
+                                    {
+                                      "value": "Y",
+                                      "position": 6
+                                    },
+                                    {
+                                      "value": "A",
+                                      "position": 7
+                                    },
+                                    {
+                                      "value": "Y",
+                                      "position": 8
+                                    },
+                                    {
+                                      "value": "Y",
+                                      "position": 9
+                                    }
+                                  ],
+                                  "line_number": 17,
+                                  "raw_segment": "CLM*PATCTRL123*500***11>B>1*Y*A*Y*Y",
+                                  "errors": []
+                                },
+                                {
+                                  "segment_id": "DTP",
+                                  "elements": [
+                                    {
+                                      "value": "431",
+                                      "position": 1
+                                    },
+                                    {
+                                      "value": "D8",
+                                      "position": 2
+                                    },
+                                    {
+                                      "value": "20240715",
+                                      "position": 3
+                                    }
+                                  ],
+                                  "line_number": 18,
+                                  "raw_segment": "DTP*431*D8*20240715",
+                                  "errors": []
+                                },
+                                {
+                                  "segment_id": "PWK",
+                                  "elements": [
+                                    {
+                                      "value": "OZ",
+                                      "position": 1
+                                    },
+                                    {
+                                      "value": "BM",
+                                      "position": 2
+                                    },
+                                    {
+                                      "value": "",
+                                      "position": 3
+                                    },
+                                    {
+                                      "value": "",
+                                      "position": 4
+                                    },
+                                    {
+                                      "value": "AC",
+                                      "position": 5
+                                    },
+                                    {
+                                      "value": "CONTROL123",
+                                      "position": 6
+                                    }
+                                  ],
+                                  "line_number": 19,
+                                  "raw_segment": "PWK*OZ*BM***AC*CONTROL123",
+                                  "errors": []
+                                },
+                                {
+                                  "segment_id": "HI",
+                                  "elements": [
+                                    {
+                                      "value": "BK>87340",
+                                      "position": 1
+                                    }
+                                  ],
+                                  "line_number": 20,
+                                  "raw_segment": "HI*BK>87340",
+                                  "errors": []
+                                }
+                              ],
+                              "loops": {
+                                "2400": [
+                                  {
+                                    "loop_id": "2400",
+                                    "segments": [
+                                      {
+                                        "segment_id": "LX",
+                                        "elements": [
+                                          {
+                                            "value": "1",
+                                            "position": 1
+                                          }
+                                        ],
+                                        "line_number": 21,
+                                        "raw_segment": "LX*1",
+                                        "errors": []
+                                      },
+                                      {
+                                        "segment_id": "SV1",
+                                        "elements": [
+                                          {
+                                            "value": "HC>99213",
+                                            "position": 1
+                                          },
+                                          {
+                                            "value": "125",
+                                            "position": 2
+                                          },
+                                          {
+                                            "value": "UN",
+                                            "position": 3
+                                          },
+                                          {
+                                            "value": "1",
+                                            "position": 4
+                                          },
+                                          {
+                                            "value": "",
+                                            "position": 5
+                                          },
+                                          {
+                                            "value": "",
+                                            "position": 6
+                                          },
+                                          {
+                                            "value": "1",
+                                            "position": 7
+                                          },
+                                          {
+                                            "value": "",
+                                            "position": 8
+                                          },
+                                          {
+                                            "value": "Y",
+                                            "position": 9
+                                          }
+                                        ],
+                                        "line_number": 22,
+                                        "raw_segment": "SV1*HC>99213*125*UN*1***1**Y",
+                                        "errors": []
+                                      },
+                                      {
+                                        "segment_id": "DTP",
+                                        "elements": [
+                                          {
+                                            "value": "472",
+                                            "position": 1
+                                          },
+                                          {
+                                            "value": "D8",
+                                            "position": 2
+                                          },
+                                          {
+                                            "value": "20240715",
+                                            "position": 3
+                                          }
+                                        ],
+                                        "line_number": 23,
+                                        "raw_segment": "DTP*472*D8*20240715",
+                                        "errors": []
+                                      }
+                                    ],
+                                    "loops": {},
+                                    "errors": []
+                                  }
+                                ]
+                              },
+                              "errors": []
+                            }
+                          ]
+                        },
+                        "errors": []
+                      }
+                    ]
+                  },
+                  "errors": []
+                }
+              ]
+            },
+            "errors": []
+          },
+          "errors": []
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "errors": []
+}

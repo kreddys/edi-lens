@@ -1,0 +1,26 @@
+{
+  "include": [
+    "src",
+    "tests",
+    "main.py"
+  ],
+  "exclude": [
+    "**/__pycache__"
+  ],
+  "extraPaths": [
+    "src"
+  ],
+  "pythonVersion": "3.11",
+  "pythonPlatform": "All",
+  "reportMissingImports": "warning",
+  "reportMissingTypeStubs": false,
+  "reportImportCycles": false,
+  "reportUnusedImport": "information",
+  "reportUnusedClass": "information",
+  "reportUnusedFunction": "information",
+  "reportUnusedVariable": "information",
+  "reportDuplicateImport": "warning",
+  "reportReturnType": "warning",
+  "venvPath": ".",
+  "venv": ".venv"
+}

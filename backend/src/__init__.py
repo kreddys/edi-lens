@@ -1,1 +1,0 @@
-"""EDI Lens Backend - Minimal NiFi Architecture."""

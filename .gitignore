@@ -1,103 +1,34 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# Test logs and temporary files
-tmp/
-
-# Diagnostic reports
-report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Coverage directory
-coverage
-*.lcov
-.nyc_output
-.coverage
-
-# Test output and reports
-playwright-report/
-test-results/
-/playwright-report/
-/test-results/
-*-trace.zip
-*-screenshot*.png
-*-video*.webm
-
-# Jest/Vitest output
-jest-html-reporters-attach/
-junit.xml
-
-# Dependency directories
-node_modules/
-frontend/node_modules/ # Specific to new structure
-
-# Build output
-dist
-frontend/dist/ # Specific to new structure
-
-# Other
-.DS_Store
-llm_export.txt
-
-# Environment files - VERY IMPORTANT
-.env
-.env.*
-!/.env.example
-!/.env.local
-
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
 .venv/
 venv/
-# Poetry local configuration
-poetry.toml
-# Allow committed test env files while ignoring other env folders
-env/
-!backend/tests/env/
-!backend/tests/env/*.env
 *.egg-info/
 dist/
 build/
 .pytest_cache/
-.mypy_cache/
 
-# Docker
-docker-compose.override.yml
-postgres-data/
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
 
-# Generated Keycloak config with secrets
-keycloak-config/realm-export.json
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+
+# Logs
+*.log
 logs/
-tmp/
-backups/
-minio-data/
-docker/sftpgo/config
-
-# Data directories (excluding root data directory)
-/*/data/
-!backend/data/.vscode/
-
-nifi-rest-api-spec.txt
-nifi-admin-guide.txt
-
-local-services/
-codex-services/
-.codex-services/
-docker/codex-universal
-nifi-registry-api-spec.txt
